@@ -1,0 +1,11 @@
+{
+	"devDependencies": {
+		"@types/node": "^24.6.2",
+		"radashi": "^12.6.2",
+		"type-fest": "^5.0.1"
+	},
+	"dependencies": {
+		"@standard-schema/spec": "^1.0.0",
+		"postgres": "^3.4.7"
+	}
+}
