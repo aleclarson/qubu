@@ -1,11 +1,17 @@
 {
+	"name": "yiss",
+	"main": "src/index.ts",
 	"devDependencies": {
+		"@pg-nano/pg-tmp": "^1.0.6",
 		"@types/node": "^24.6.2",
 		"radashi": "^12.6.2",
-		"type-fest": "^5.0.1"
+		"type-fest": "^5.0.1",
+		"vitest": "^3.2.4"
 	},
 	"dependencies": {
 		"@standard-schema/spec": "^1.0.0",
-		"postgres": "^3.4.7"
+		"pg-socket": "link:vendor/pg-socket",
+		"postgres": "^3.4.7",
+		"yiss": "link:"
 	}
 }

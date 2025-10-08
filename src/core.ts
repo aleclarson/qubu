@@ -1,5 +1,5 @@
 import { StandardSchemaV1 } from "@standard-schema/spec";
-import { PgColumn } from "./definition/column.ts";
+import { Column } from "./definition/column.ts";
 
 const $dataType = Symbol.for("dataType");
 const $ident = Symbol.for("ident");
@@ -12,21 +12,21 @@ const $sequence = Symbol.for("sequence");
  */
 export type DataType<Id extends string = string, In = any, Out = any> = {
   [$dataType]: Id;
-  serialize: ((jsType: In) => unknown) | StandardSchemaV1<In, unknown>;
-  parse: (sqlType: unknown) => Out;
+  encode: ((jsType: In) => unknown) | StandardSchemaV1<In, unknown>;
+  decode: (sqlType: unknown) => Out;
 };
 
 export type DataTypeIn<T extends DataType> = T extends {
-  serialize: infer TSerialize;
+  encode: infer TEncode;
 }
-  ? TSerialize extends StandardSchemaV1<any, any>
-    ? StandardSchemaV1.InferInput<TSerialize>
-    : TSerialize extends (jsType: infer In) => unknown
+  ? TEncode extends StandardSchemaV1<any, any>
+    ? StandardSchemaV1.InferInput<TEncode>
+    : TEncode extends (jsType: infer In) => unknown
     ? In
     : never
   : never;
 
-export type DataTypeOut<T extends DataType> = ReturnType<T["parse"]>;
+export type DataTypeOut<T extends DataType> = ReturnType<T["decode"]>;
 
 export interface pgTypes {
   [$dataType]: DataType;
@@ -55,15 +55,15 @@ function is<T extends keyof pgTypes>(
  */
 export function dataType<Id extends string, In, Out>(
   id: Id,
-  serialize: (jsType: In) => any,
-  parse: (sqlType: any) => Out
+  encode: (jsType: In) => any,
+  decode: (sqlType: any) => Out
 ) {
-  function type(name = ""): PgColumn<In, Out> {
-    return new PgColumn(name, type);
+  function type(name = "") {
+    return new Column(name, type, true);
   }
   type[$dataType] = id;
-  type.serialize = serialize;
-  type.parse = parse;
+  type.encode = encode;
+  type.decode = decode;
   return type;
 }
 
@@ -71,8 +71,8 @@ function typedSerialize<T extends DataType>(type: T, value: DataTypeIn<T>) {
   if (value === null) {
     return null;
   }
-  if ("~standard" in type.serialize) {
-    const parsed = type.serialize["~standard"].validate(value);
+  if ("~standard" in type.encode) {
+    const parsed = type.encode["~standard"].validate(value);
     if (parsed instanceof Promise) {
       throw new Error("[yiss] Async validation is not supported");
     }
@@ -81,7 +81,7 @@ function typedSerialize<T extends DataType>(type: T, value: DataTypeIn<T>) {
     }
     return parsed.value;
   }
-  return type.serialize(value);
+  return type.encode(value);
 }
 
 /**
@@ -93,7 +93,7 @@ export function array<Id extends string, In, Out>(
   return dataType(
     `${type[$dataType]}[]`,
     (data: In[]) => data.map(typedSerialize.bind(null, type)),
-    (data: any[]) => data.map(type.parse)
+    (data: any[]) => data.map(type.decode)
   );
 }
 
@@ -124,16 +124,16 @@ export const ident = <Id extends string, T extends DataType = any>(
 type Token = string | SQL.Identifier | SQL.Param | SQL.Sequence | Token[];
 
 export class SQL<Out = any> {
-  dataType: DataType<string, any, Out> | null = null;
+  protected decode: ((sqlType: unknown) => Out) | null = null;
 
   constructor(public tokens: Token[]) {}
 
   /**
    * Use the `as` keyword to alias the SQL object.
    */
-  as(alias: string) {
-    return sql(sql.sequence([this, unsafe("as"), ident(alias)])).$type(
-      this.dataType
+  as(alias: string): SQL<Out> {
+    return sql(sql.sequence([this, unsafe("as"), ident(alias)])).mapWith(
+      this.decode
     );
   }
 
@@ -156,17 +156,12 @@ export class SQL<Out = any> {
    * is parsed.
    * @returns The same SQL object.
    */
-  $type<T extends DataType>(dataType: T | null): SQL<DataTypeOut<T>> {
-    this.dataType = dataType;
+  mapWith<T extends DataType>(dataType: T | null): SQL<DataTypeOut<T>>;
+  mapWith<T>(decoder: ((sqlType: unknown) => T) | null): SQL<T>;
+  mapWith(dataType: DataType | ((sqlType: unknown) => unknown) | null) {
+    this.decode =
+      dataType && typeof dataType !== "function" ? dataType.decode : dataType;
     return this as any;
-  }
-
-  /**
-   * Wrap the SQL object in a new type, providing access to additional
-   * methods.
-   */
-  withPrototype<T extends object>(type: new (sql: this) => T): T {
-    return new type(this) as any;
   }
 
   toQuery(client: QueryClient) {
@@ -241,17 +236,20 @@ export declare function sql<T extends readonly SQL.Part[]>(
   parts: T
 ): SQL<unknown>;
 
+/** Empty token */
+export const empty = unsafe("");
 /** Whitespace token */
 export const space = unsafe(" ");
 /** Comma token */
 export const comma = unsafe(",");
 
 /**
- * Represents a sequence of tokens, with a given separator between
- * each item.
+ * A sequence is a syntax unit made up of a list of tokens, with a
+ * given separator between each item. If no separator is provided, the
+ * tokens are joined with a space.
  */
 sql.sequence = (
-  parts: SQL.Part[],
+  parts: readonly SQL.Part[],
   separator: SQL.Syntax = space
 ): Token | SQL.Sequence | undefined => {
   const tokens = tokenize(parts);
@@ -286,12 +284,18 @@ sql.literal = (data: any) => {
 };
 
 /**
+ * Cast a value to a given type.
+ */
+export const cast = <T>(value: SQL.Part, type: DataType<string, any, T>) =>
+  sql(sql.sequence([value, unsafe("::"), type], empty)).mapWith(type);
+
+/**
  * Simplify the array of tokens such that only raw SQL, escaped
  * values, identifiers, and parenthesized expressions are left over.
  *
  * ⚠︎ Arrays are wrapped in parentheses, not flattened.
  */
-function tokenize(parts: SQL.Part[]): Token[] {
+export function tokenize(parts: readonly SQL.Part[]): Token[] {
   const tokens: Token[] = [];
   for (const part of parts) {
     if (part === undefined) {
@@ -368,7 +372,8 @@ function render(client: QueryClient, token: Token, params: unknown[]): string {
     return client.escapeIdentifier(token[$ident]);
   }
   if (is(token, $param)) {
-    return "$" + params.push(token[$param]);
+    const index = 1 + params.indexOf(token[$param]);
+    return "$" + (index || params.push(token[$param]));
   }
   if (is(token, $sequence)) {
     let sequence = "";
