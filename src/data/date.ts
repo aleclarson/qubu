@@ -1,10 +1,10 @@
-import { pgType } from "../core.ts";
+import { pgType } from '../core.ts'
 
 /**
  * PostgreSQL date type.
  */
 export const date = pgType(
-  "date",
+  'date',
   (x: Date | string) => x,
-  (x) => x as Date
-);
+  x => x as Date
+)

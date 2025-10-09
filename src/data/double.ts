@@ -1,10 +1,10 @@
-import { pgType } from "../core.ts";
+import { pgType } from '../core.ts'
 
 /**
  * PostgreSQL double precision type.
  */
 export const doublePrecision = pgType(
-  "double precision",
+  'double precision',
   (x: number) => x,
-  (x) => x as number
-);
+  x => x as number
+)

@@ -1,6 +1,6 @@
-import { StandardSchemaV1 } from "@standard-schema/spec";
-import { Column } from "./definition/column.ts";
-import { Table } from "./definition/table.ts";
+import { StandardSchemaV1 } from '@standard-schema/spec'
+import { Column } from './definition/column.ts'
+import { Table } from './definition/table.ts'
 import {
   PgIdent,
   PgParam,
@@ -9,8 +9,8 @@ import {
   PgType,
   SQLAlias,
   SQLDecoder,
-} from "./symbols.ts";
-import { isToken, pgTokens, Token, tokenize } from "./tokens.ts";
+} from './symbols.ts'
+import { isToken, pgTokens, Token, tokenize } from './tokens.ts'
 
 /**
  * Declare a database type, with serialization and parsing functions.
@@ -20,30 +20,30 @@ export function pgType<Id extends string, In, Out>(
   encode: (jsType: In) => any,
   decode: (sqlType: any) => Out
 ) {
-  function type(name = "") {
-    return new Column(name, type, true);
+  function type(name = '') {
+    return new Column(name, type, true)
   }
-  type[PgType] = id;
-  type.encode = encode;
-  type.decode = decode;
-  return type;
+  type[PgType] = id
+  type.encode = encode
+  type.decode = decode
+  return type
 }
 
 function encode<T extends SQL.Type>(type: T, value: SQL.InferInput<T>) {
   if (value === null) {
-    return null;
+    return null
   }
-  if ("~standard" in type.encode) {
-    const parsed = type.encode["~standard"].validate(value);
+  if ('~standard' in type.encode) {
+    const parsed = type.encode['~standard'].validate(value)
     if (parsed instanceof Promise) {
-      throw new Error("[yiss] Async validation is not supported");
+      throw new Error('[yiss] Async validation is not supported')
     }
     if (parsed.issues) {
-      throw Object.assign(new Error(), parsed.issues[0]);
+      throw Object.assign(new Error(), parsed.issues[0])
     }
-    return parsed.value;
+    return parsed.value
   }
-  return type.encode(value);
+  return type.encode(value)
 }
 
 /**
@@ -56,13 +56,13 @@ export function pgArrayType<Id extends string, In, Out>(
     `${type[PgType]}[]`,
     (data: In[]) => data.map(encode.bind(null, type)),
     (data: any[]) => data.map(type.decode)
-  );
+  )
 }
 
 /**
  * An escape hatch for raw SQL.
  */
-export const unsafe = (syntax: string): SQL.Syntax => ({ [PgSyntax]: syntax });
+export const unsafe = (syntax: string): SQL.Syntax => ({ [PgSyntax]: syntax })
 
 /**
  * Declare an identifier. Often refers to a column or table name.
@@ -70,23 +70,23 @@ export const unsafe = (syntax: string): SQL.Syntax => ({ [PgSyntax]: syntax });
 export function ident<Id extends string, TColumn extends Column>(
   id: Id,
   context: TColumn
-): SQL.ColumnIdentifier<Id, TColumn>;
+): SQL.ColumnIdentifier<Id, TColumn>
 export function ident<Id extends string>(
   id: Id,
   context?: Table | Column
-): SQL.Identifier<Id>;
+): SQL.Identifier<Id>
 
 /** @internal */
 export function ident<Id extends string>(
   id: Id,
   context?: Table | Column
 ): SQL.Identifier<Id> {
-  return { [PgIdent]: id, context };
+  return { [PgIdent]: id, context }
 }
 
 export class SQL<Out = any> {
-  protected [SQLDecoder]: ((sqlType: unknown) => Out) | null = null;
-  protected [SQLAlias]: string | null = null;
+  protected [SQLDecoder]: ((sqlType: unknown) => Out) | null = null
+  protected [SQLAlias]: string | null = null
 
   constructor(public tokens: Token[]) {}
 
@@ -94,8 +94,8 @@ export class SQL<Out = any> {
    * Set the alias for this SQL object.
    */
   as(alias: string) {
-    this[SQLAlias] = alias;
-    return this;
+    this[SQLAlias] = alias
+    return this
   }
 
   /**
@@ -103,21 +103,21 @@ export class SQL<Out = any> {
    * is parsed.
    * @returns The same SQL object.
    */
-  mapWith<T extends SQL.Type>(dataType: T | null): SQL<SQL.InferOutput<T>>;
-  mapWith<T>(decoder: ((sqlType: unknown) => T) | null): SQL<T>;
+  mapWith<T extends SQL.Type>(dataType: T | null): SQL<SQL.InferOutput<T>>
+  mapWith<T>(decoder: ((sqlType: unknown) => T) | null): SQL<T>
   mapWith(dataType: SQL.Type | ((sqlType: unknown) => unknown) | null) {
     // @ts-expect-error
     this.decode =
-      dataType && typeof dataType !== "function" ? dataType.decode : dataType;
-    return this as any;
+      dataType && typeof dataType !== 'function' ? dataType.decode : dataType
+    return this as any
   }
 
   toQuery() {
-    const params: unknown[] = [];
+    const params: unknown[] = []
     return {
       sql: renderQuery(this.tokens, params),
       params,
-    };
+    }
   }
 }
 
@@ -129,65 +129,65 @@ export declare namespace SQL {
     | boolean
     | Date
     | null
-    | undefined;
+    | undefined
 
-  export type Part = pgTokens[keyof pgTokens] | SQL | Primitive | Part[];
+  export type Part = pgTokens[keyof pgTokens] | SQL | Primitive | Part[]
 
   /**
    * An escaped string.
    */
-  export type Param = { [PgParam]: string | unknown[] };
+  export type Param = { [PgParam]: string | unknown[] }
 
   /**
    * An escape hatch for raw SQL.
    */
-  export type Syntax = { [PgSyntax]: string };
+  export type Syntax = { [PgSyntax]: string }
 
   /**
    * A sequence of tokens, with a given separator between each item.
    */
   export type Sequence = {
-    [PgSequence]: Token[];
-    separator: SQL.Syntax;
-  };
+    [PgSequence]: Token[]
+    separator: SQL.Syntax
+  }
 
   /**
    * An identifier, safe from SQL injection. Often refers to a column or
    * table name.
    */
   export type Identifier<Name extends string = string> = {
-    [PgIdent]: Name;
-    context?: Column;
-  };
+    [PgIdent]: Name
+    context?: Column
+  }
 
   export type ColumnIdentifier<
     Name extends string = string,
-    TColumn extends Column = Column
+    TColumn extends Column = Column,
   > = Identifier<Name> & {
-    context: TColumn;
-  };
+    context: TColumn
+  }
 
   /**
    * A data type in PostgreSQL, with encoding and decoding functions.
    */
   export type Type<Id extends string = string, In = any, Out = any> = {
-    [PgType]: Id;
-    encode: ((jsType: In) => unknown) | StandardSchemaV1<In, unknown>;
-    decode: (sqlType: unknown) => Out;
-  };
+    [PgType]: Id
+    encode: ((jsType: In) => unknown) | StandardSchemaV1<In, unknown>
+    decode: (sqlType: unknown) => Out
+  }
 
   /**
    * Infer the input type of a given data type.
    */
   export type InferInput<T extends Type> = T extends {
-    encode: infer TEncode;
+    encode: infer TEncode
   }
     ? TEncode extends StandardSchemaV1<any, any>
       ? StandardSchemaV1.InferInput<TEncode>
       : TEncode extends (jsType: infer In) => unknown
-      ? In
-      : never
-    : never;
+        ? In
+        : never
+    : never
 
   /**
    * Infer the output type of a given data type.
@@ -196,10 +196,10 @@ export declare namespace SQL {
     T extends Type<any, any, infer TOutput>
       ? TOutput
       : T extends SQL<infer TOutput>
-      ? TOutput
-      : T extends ColumnIdentifier<string, Column<any, infer TColumnOutput>>
-      ? TColumnOutput
-      : unknown;
+        ? TOutput
+        : T extends ColumnIdentifier<string, Column<any, infer TColumnOutput>>
+          ? TColumnOutput
+          : unknown
 }
 
 /**
@@ -211,19 +211,19 @@ export declare namespace SQL {
  * as `sql(a, b, c)`).
  */
 export function sql<T extends readonly SQL.Part[]>(...parts: T) {
-  return new SQL(tokenize(parts));
+  return new SQL(tokenize(parts))
 }
 
-sql.fromArray = (parts: readonly SQL.Part[]) => new SQL(tokenize(parts));
+sql.fromArray = (parts: readonly SQL.Part[]) => new SQL(tokenize(parts))
 
 /** Empty token */
-export const empty = unsafe("");
+export const empty = unsafe('')
 /** Whitespace token */
-export const space = unsafe(" ");
+export const space = unsafe(' ')
 /** Comma token */
-export const comma = unsafe(",");
+export const comma = unsafe(',')
 /** Dot token */
-export const dot = unsafe(".");
+export const dot = unsafe('.')
 
 /**
  * A sequence is a syntax unit made up of a list of tokens, with a
@@ -234,73 +234,73 @@ export const sequence = (
   parts: readonly SQL.Part[],
   separator: SQL.Syntax = space
 ): Token | SQL.Sequence | undefined => {
-  const tokens = tokenize(parts);
+  const tokens = tokenize(parts)
   if (tokens.length < 2) {
-    return tokens[0];
+    return tokens[0]
   }
-  return { [PgSequence]: tokens, separator } satisfies SQL.Sequence;
-};
+  return { [PgSequence]: tokens, separator } satisfies SQL.Sequence
+}
 
-sql.unsafe = unsafe;
-sql.sequence = sequence;
-sql.ident = ident;
+sql.unsafe = unsafe
+sql.sequence = sequence
+sql.ident = ident
 
 /**
  * Coerce a JavaScript array to an escaped SQL array.
  */
-sql.arrayLiteral = (data: unknown[]) => ({ [PgParam]: data });
+sql.arrayLiteral = (data: unknown[]) => ({ [PgParam]: data })
 
 /**
  * Coerce a JavaScript value to an escaped SQL value.
  */
 sql.literal = (data: any) => {
-  if (typeof data === "string" || Array.isArray(data)) {
-    return { [PgParam]: data };
+  if (typeof data === 'string' || Array.isArray(data)) {
+    return { [PgParam]: data }
   }
-  if (data !== null && typeof data === "object") {
+  if (data !== null && typeof data === 'object') {
     if (
-      typeof data.toJSON !== "function" &&
-      Object.prototype.toString.call(data.toJSON) !== "[object Object]"
+      typeof data.toJSON !== 'function' &&
+      Object.prototype.toString.call(data.toJSON) !== '[object Object]'
     ) {
-      throw new Error("sql.literal: toJSON is not a function");
+      throw new Error('sql.literal: toJSON is not a function')
     }
-    return { [PgParam]: JSON.stringify(data) };
+    return { [PgParam]: JSON.stringify(data) }
   }
-  return data;
-};
+  return data
+}
 
 /**
  * Cast a value to a given type.
  */
 export const cast = <T>(value: SQL.Part, type: SQL.Type<string, any, T>) =>
-  sql(sequence([value, unsafe("::"), type], empty)).mapWith(type);
+  sql(sequence([value, unsafe('::'), type], empty)).mapWith(type)
 
 export function renderQuery(tokens: Token[], params: unknown[]): string {
-  let sql = "";
+  let sql = ''
   for (const token of tokens) {
-    sql += render(token, params);
+    sql += render(token, params)
   }
-  return sql;
+  return sql
 }
 
 function render(token: Token, params: unknown[]): string {
-  if (typeof token === "string") {
-    return token;
+  if (typeof token === 'string') {
+    return token
   }
   if (isToken(token, PgIdent)) {
-    return '"' + token[PgIdent].replace(/"/g, '""') + '"';
+    return '"' + token[PgIdent].replace(/"/g, '""') + '"'
   }
   if (isToken(token, PgParam)) {
-    const index = 1 + params.indexOf(token[PgParam]);
-    return "$" + (index || params.push(token[PgParam]));
+    const index = 1 + params.indexOf(token[PgParam])
+    return '$' + (index || params.push(token[PgParam]))
   }
   if (isToken(token, PgSequence)) {
-    let sequence = "";
+    let sequence = ''
     for (let i = 0; i < token[PgSequence].length; i++) {
-      if (i > 0) sequence += token.separator[PgSyntax];
-      sequence += render(token[PgSequence][i], params);
+      if (i > 0) sequence += token.separator[PgSyntax]
+      sequence += render(token[PgSequence][i], params)
     }
-    return sequence;
+    return sequence
   }
-  return "(" + renderQuery(token, params) + ")";
+  return '(' + renderQuery(token, params) + ')'
 }

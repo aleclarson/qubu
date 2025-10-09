@@ -1,10 +1,10 @@
-import { pgType } from "../core.ts";
+import { pgType } from '../core.ts'
 
 /**
  * PostgreSQL 64-bit integer type.
  */
 export const bigint = pgType(
-  "bigint",
+  'bigint',
   (x: bigint) => x,
-  (x) => x as bigint
-);
+  x => x as bigint
+)

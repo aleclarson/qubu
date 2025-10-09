@@ -1,10 +1,10 @@
-import { pgType } from "../core.ts";
+import { pgType } from '../core.ts'
 
 /**
  * PostgreSQL bigserial pseudo-type.
  */
 export const bigserial = pgType(
-  "bigserial",
+  'bigserial',
   (x: bigint) => x,
-  (x) => x as bigint
-);
+  x => x as bigint
+)

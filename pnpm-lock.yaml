@@ -18,12 +18,18 @@ importers:
         specifier: 'link:'
         version: 'link:'
     devDependencies:
+      '@alloc/prettier-config':
+        specifier: ^1.0.0
+        version: 1.0.0
       '@pg-nano/pg-tmp':
         specifier: ^1.0.6
         version: 1.0.6
       '@types/node':
         specifier: ^24.6.2
         version: 24.6.2
+      prettier:
+        specifier: ^3.6.2
+        version: 3.6.2
       radashi:
         specifier: ^12.6.2
         version: 12.6.2
@@ -35,6 +41,9 @@ importers:
         version: 3.2.4(@types/node@24.6.2)
 
 packages:
+
+  '@alloc/prettier-config@1.0.0':
+    resolution: {integrity: sha512-xm50V1qxSdTh1O1fKA+gqcU605YSnxfq6HwtYSFU3fRsKMFnUSuSOxqSAPI7y2sRxqPed2EIuGmNn107LVQM6g==}
 
   '@esbuild/aix-ppc64@0.25.10':
     resolution: {integrity: sha512-0NFWnA+7l41irNuaSVlLfgNT12caWJVLzp5eAVhZ0z1qpxbockccEt3s+149rE64VUI3Ml2zt8Nv5JVc4QXTsw==}
@@ -450,6 +459,11 @@ packages:
     resolution: {integrity: sha512-3Ybi1tAuwAP9s0r1UQ2J4n5Y0G05bJkpUIO0/bI9MhwmD70S5aTWbXGBwxHrelT+XM1k6dM0pk+SwNkpTRN7Pg==}
     engines: {node: ^10 || ^12 || >=14}
 
+  prettier@3.6.2:
+    resolution: {integrity: sha512-I7AIg5boAr5R0FFtJ6rCfD+LFsWHp81dolrFD8S79U9tb8Az2nGrJncnMSnys+bpQJfRUzqs9hnA81OAA3hCuQ==}
+    engines: {node: '>=14'}
+    hasBin: true
+
   radashi@12.6.2:
     resolution: {integrity: sha512-43uD9P3oZ1nT9lgHr2P34K7aEIQh6ku2FDQsDhjaUpaj2sb3il6Xe8s8MS31uJmcbYl0v2Ul35V7OjMG8yrcDw==}
     engines: {node: '>=16.0.0'}
@@ -591,6 +605,8 @@ packages:
     hasBin: true
 
 snapshots:
+
+  '@alloc/prettier-config@1.0.0': {}
 
   '@esbuild/aix-ppc64@0.25.10':
     optional: true
@@ -891,6 +907,8 @@ snapshots:
       nanoid: 3.3.11
       picocolors: 1.1.1
       source-map-js: 1.2.1
+
+  prettier@3.6.2: {}
 
   radashi@12.6.2: {}
 

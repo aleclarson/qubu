@@ -1,10 +1,10 @@
-import { pgType } from "../core.ts";
+import { pgType } from '../core.ts'
 
 /**
  * PostgreSQL integer type.
  */
 export const integer = pgType(
-  "integer",
+  'integer',
   (x: number) => x,
-  (x) => x as number
-);
+  x => x as number
+)

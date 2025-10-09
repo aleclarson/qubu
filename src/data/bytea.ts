@@ -1,10 +1,10 @@
-import { pgType } from "../core.ts";
+import { pgType } from '../core.ts'
 
 /**
  * PostgreSQL byte array type.
  */
 export const bytea = pgType(
-  "bytea",
+  'bytea',
   (x: Uint8Array | Buffer) => x,
-  (x) => x as Buffer
-);
+  x => x as Buffer
+)

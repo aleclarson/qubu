@@ -1,10 +1,10 @@
-import { pgType } from "../core.ts";
+import { pgType } from '../core.ts'
 
 /**
  * PostgreSQL jsonb type.
  */
 export const jsonb = pgType(
-  "jsonb",
-  (x) => x,
-  (x) => x
-);
+  'jsonb',
+  x => x,
+  x => x
+)

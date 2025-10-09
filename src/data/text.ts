@@ -1,10 +1,10 @@
-import { pgType } from "../core.ts";
+import { pgType } from '../core.ts'
 
 /**
  * PostgreSQL text type.
  */
 export const text = pgType(
-  "text",
+  'text',
   (x: string) => x,
-  (x) => x as string
-);
+  x => x as string
+)

@@ -1,10 +1,10 @@
-import { pgType } from "../core.ts";
+import { pgType } from '../core.ts'
 
 /**
  * PostgreSQL uuid type.
  */
 export const uuid = pgType(
-  "uuid",
+  'uuid',
   (x: string) => x,
-  (x) => x as string
-);
+  x => x as string
+)

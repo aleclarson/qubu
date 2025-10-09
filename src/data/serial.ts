@@ -1,10 +1,10 @@
-import { pgType } from "../core.ts";
+import { pgType } from '../core.ts'
 
 /**
  * PostgreSQL serial pseudo-type.
  */
 export const serial = pgType(
-  "serial",
+  'serial',
   (x: number) => x,
-  (x) => x as number
-);
+  x => x as number
+)
