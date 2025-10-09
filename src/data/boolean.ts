@@ -1,9 +1,9 @@
-import { dataType } from "../core.ts";
+import { pgType } from "../core.ts";
 
 /**
  * PostgreSQL boolean type.
  */
-export const boolean = dataType(
+export const boolean = pgType(
   "boolean",
   (x: boolean) => x,
   (x) => x as boolean

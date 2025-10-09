@@ -1,10 +1,10 @@
-import { dataType } from "../core.ts";
+import { pgType } from "../core.ts";
 
 /**
  * PostgreSQL varchar type.
  */
 export const varchar = (length: number) =>
-  dataType(
+  pgType(
     `varchar(${length})`,
     (x: string) => x,
     (x) => x as string

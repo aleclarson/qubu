@@ -1,33 +1,33 @@
-import { DataType, sql, SQL, unsafe } from "./core.ts";
+import { sequence, sql, SQL, unsafe } from "./core.ts";
 import { boolean } from "./data/boolean.ts";
 
 function binaryOperator<T = unknown>(
   text: string,
-  dataType: DataType<string, any, T> | null = null
+  type: SQL.Type<string, any, T> | null = null
 ) {
   const token = unsafe(text);
   return (a: SQL.Part, b?: SQL.Part) =>
     sql(
-      b === undefined ? sql.sequence([token, a]) : sql.sequence([a, token, b])
-    ).$type(dataType);
+      b === undefined ? sequence([token, a]) : sequence([a, token, b])
+    ).mapWith(type);
 }
 
 function suffixOperator<T = unknown>(
   text: string,
-  dataType: DataType<string, any, T>
+  type?: SQL.Type<string, any, T>
 ) {
   const token = unsafe(text);
   return (a?: SQL.Part) =>
-    a === undefined ? token : sql(sql.sequence([a, token])).$type(dataType);
+    a === undefined ? token : sql(sequence([a, token])).mapWith(type ?? null);
 }
 
 function prefixOperator<T = unknown>(
   text: string,
-  dataType: DataType<string, any, T>
+  type: SQL.Type<string, any, T>
 ) {
   const token = unsafe(text);
   return (a?: SQL.Part) =>
-    a === undefined ? token : sql(sql.sequence([token, a])).$type(dataType);
+    a === undefined ? token : sql(sequence([token, a])).mapWith(type);
 }
 
 /** The `=` operator. */
@@ -64,3 +64,25 @@ export const and = binaryOperator("and", boolean);
 export const or = binaryOperator("or", boolean);
 /** The `not` operator. */
 export const not = prefixOperator("not", boolean);
+
+/**
+ * Ascending sort order. Append an `asc` modifier to the SQL object.
+ */
+export const asc = suffixOperator("asc");
+
+/**
+ * Descending sort order. Append a `desc` modifier to the SQL object.
+ */
+export const desc = suffixOperator("desc");
+
+/**
+ * Rows where the preceding expression is `null` should come first.
+ * This is the default behavior for "descending" sort order.
+ */
+export const nullsFirst = suffixOperator("nulls first");
+
+/**
+ * Rows where the preceding expression is `null` should come last.
+ * This is the default behavior for "ascending" sort order.
+ */
+export const nullsLast = suffixOperator("nulls last");

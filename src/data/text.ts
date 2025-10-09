@@ -1,9 +1,9 @@
-import { dataType } from "../core.ts";
+import { pgType } from "../core.ts";
 
 /**
  * PostgreSQL text type.
  */
-export const text = dataType(
+export const text = pgType(
   "text",
   (x: string) => x,
   (x) => x as string

@@ -1,10 +1,10 @@
-import { dataType } from "../core.ts";
+import { pgType } from "../core.ts";
 
 /**
  * PostgreSQL numeric type.
  */
 export const numeric = (precision?: number, scale?: number) =>
-  dataType(
+  pgType(
     `numeric${
       precision !== undefined
         ? `(${precision}${scale !== undefined ? `,${scale}` : ""})`

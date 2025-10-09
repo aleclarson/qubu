@@ -1,4 +1,19 @@
-import { array, comma, DataType, sql, SQL, unsafe } from "../core.ts";
+import {
+  comma,
+  ident,
+  pgArrayType,
+  sequence,
+  sql,
+  SQL,
+  unsafe,
+} from "../core.ts";
+import {
+  ColumnConstraints,
+  ColumnName,
+  ColumnNullable,
+  ColumnTable,
+  ColumnType,
+} from "../symbols.ts";
 import type { Table } from "./table.ts";
 
 export type OnDeleteAction =
@@ -17,71 +32,83 @@ export type OnUpdateAction =
 
 type OneOrMore<T> = T | T[];
 
-export class Column<
-  In = any,
-  Out = any,
-  Nullable extends boolean = any
-> extends SQL<Out | (Nullable extends true ? null : never)> {
-  declare table: Table<any>;
-  constraints: (SQL.Part | (() => SQL))[] = [];
+export class Column<In = any, Out = any, Nullable extends boolean = any> {
+  protected declare [ColumnTable]: Table<any>;
+  protected [ColumnConstraints]: (SQL.Part | (() => SQL))[] = [];
+  protected [ColumnName]: string;
+  protected [ColumnType]: SQL.Type<string, In, Out>;
+  protected [ColumnNullable]: Nullable;
+
   constructor(
-    public name: string,
-    public parser: DataType<string, In, Out>,
-    public nullable: Nullable
+    name: string,
+    dataType: SQL.Type<string, In, Out>,
+    nullable: Nullable
   ) {
-    super([]);
+    this[ColumnName] = name;
+    this[ColumnType] = dataType;
+    this[ColumnNullable] = nullable;
   }
+
   /**
    * Narrow the column's data type. This has no effect at runtime, but
    * is especially useful for JSON types if you don't need input
    * validation at runtime.
    */
-  mapWith<T extends Out>(): Column<Extract<T, In>, T, Nullable>;
-  mapWith<T extends In, U extends Out>(): Column<T, U, Nullable>;
-  mapWith() {
-    return this as any;
+  $type<T extends Out>(): Column<Extract<T, In>, T, Nullable>;
+  $type<T extends In, U extends Out>(): Column<T, U, Nullable>;
+  $type() {
+    return this;
   }
+
   /**
    * Update the column's data type to an array.
    */
   array(): Column<In[], Out[], Nullable> {
-    this.parser = array(this.parser) as any;
-    return this as any;
+    this[ColumnType] = pgArrayType(this[ColumnType]) as SQL.Type;
+    return this as Column<any, any, Nullable>;
   }
+
   /**
    * Update the column's nullable state to false.
    */
-  notNull(): Column<In, Out, false> {
-    this.nullable = false as any;
-    return this as any;
+  notNull() {
+    this[ColumnNullable] = false as Nullable;
+    return this as Column<In, Out, false>;
   }
-  primaryKey(): Column<In, Out, false> {
-    this.constraints.push(unsafe("primary key"));
-    return this as any;
+
+  primaryKey() {
+    this[ColumnConstraints].push(unsafe("primary key"));
+    return this as Column<In, Out, false>;
   }
   unique() {
-    this.constraints.push(unsafe("unique"));
+    this[ColumnConstraints].push(unsafe("unique"));
     return this;
   }
-  check(expression: SQL.Part[]) {
-    this.constraints.push(unsafe("check"), expression);
+  check(expression: () => SQL.Part[]) {
+    this[ColumnConstraints].push(unsafe("check"), () => sql(expression()));
     return this;
   }
-  references(resolve: () => OneOrMore<Column>) {
-    this.constraints.push(unsafe("references"), () => {
+  references(resolve: () => OneOrMore<SQL.ColumnIdentifier>) {
+    this[ColumnConstraints].push(unsafe("references"), () => {
       const columns = resolve();
       return Array.isArray(columns)
-        ? sql(columns[0].table, [sql.sequence(columns, comma)])
-        : sql(columns.table, [columns]);
+        ? sql(columns[0].context[ColumnTable], [
+            sequence(
+              // Ensure only the column name is used, not the table name.
+              columns.map((c) => ident(c.context[ColumnName])),
+              comma
+            ),
+          ])
+        : sql(columns.context[ColumnTable], [columns.context[ColumnName]]);
     });
     return this;
   }
   onDelete(action: OnDeleteAction) {
-    this.constraints.push(unsafe("on delete"), unsafe(action));
+    this[ColumnConstraints].push(unsafe("on delete"), unsafe(action));
     return this;
   }
   onUpdate(action: OnUpdateAction) {
-    this.constraints.push(unsafe("on update"), unsafe(action));
+    this[ColumnConstraints].push(unsafe("on update"), unsafe(action));
     return this;
   }
 }

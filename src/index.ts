@@ -13,12 +13,14 @@ export * from "./functional/select.ts";
 export * from "./functional/update.ts";
 
 export * from "./data/bigint.ts";
+export * from "./data/bigserial.ts";
 export * from "./data/boolean.ts";
 export * from "./data/bytea.ts";
 export * from "./data/char.ts";
 export * from "./data/date.ts";
 export * from "./data/double.ts";
 export * from "./data/integer.ts";
+export * from "./data/serial.ts";
 export * from "./data/interval.ts";
 export * from "./data/json.ts";
 export * from "./data/jsonb.ts";

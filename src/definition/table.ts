@@ -1,71 +1,86 @@
-import { ident, SQL } from "../core.ts";
+import { dot, ident, sequence, sql, SQL } from "../core.ts";
+import {
+  ColumnName,
+  ColumnTable,
+  ColumnType,
+  TableColumns,
+  TableName,
+  TableSchema,
+} from "../symbols.ts";
 import { Column } from "./column.ts";
 
-export function pgTable<Columns extends object>(
+export function pgTable<TColumns extends object>(
   tableName: string,
-  columns: Columns & Record<string, Column>
+  columns: TColumns & Record<string, Column>
 ) {
   const table = new Proxy(new Table(tableName, columns), {
     get(table, key) {
-      if (Object.prototype.hasOwnProperty.call(table[$columns], key)) {
-        return table[$columns][key as string];
+      if (Object.prototype.hasOwnProperty.call(table[TableColumns], key)) {
+        const column = table[TableColumns][key as string] as Column;
+        return ident(column[ColumnName], column);
       }
-      return table[key];
+      return table[key as keyof Table];
     },
-  }) as TableWithColumns<Columns>;
+  }) as TableWithColumns<TColumns>;
 
-  for (const key in columns) {
-    columns[key].table = table;
-
-    // Derive a column name, if not provided.
-    columns[key].name ||= key.replace(/([A-Z])/g, "_$1").toLowerCase();
+  for (const [key, column] of Object.entries(columns)) {
+    column[ColumnName] ||= key.replace(/([A-Z])/g, "_$1").toLowerCase();
+    column[ColumnTable] = table;
   }
 
   return table;
 }
 
-const $schemaName = Symbol.for("schemaName");
-const $tableName = Symbol.for("tableName");
-const $columns = Symbol.for("columns");
+export function tableRef(table: Table) {
+  return sql(
+    table[TableSchema]
+      ? sequence([ident(table[TableSchema]), ident(table[TableName])], dot)
+      : ident(table[TableName])
+  );
+}
 
-export class Table<Columns extends object> extends SQL {
-  protected [$schemaName]: string | undefined;
-  protected [$tableName]: string;
-  protected [$columns]: Columns;
+export class Table<Columns extends object = {}> {
+  protected [TableSchema]: string | undefined;
+  protected [TableName]: string;
+  protected [TableColumns]: Columns;
 
   constructor(tableName: string, columns: Columns, schemaName?: string) {
-    super([ident(tableName)]);
-    this[$schemaName] = schemaName;
-    this[$tableName] = tableName;
-    this[$columns] = columns;
+    this[TableSchema] = schemaName;
+    this[TableName] = tableName;
+    this[TableColumns] = columns;
   }
 
-  getSchemaName() {
-    return this[$schemaName];
-  }
-  getTableName() {
-    return this[$tableName];
-  }
-  getTableColumns() {
-    return this[$columns];
-  }
-
-  as(alias: string): TableWithColumns<Columns> {
-    const table = new Table(alias, this[$columns]);
-    table.tokens.push("as", ident(alias));
-    return new Proxy(table, {
+  as(alias: string): TableRef<Columns> {
+    const columns = this[TableColumns] as Record<string, Column>;
+    return new Proxy(tableRef(this).as(alias), {
       get(table, key) {
-        if (Object.prototype.hasOwnProperty.call(table[$columns], key)) {
-          const column = Object.create(table[$columns][key as string]);
-          column.table = table;
-          return column;
+        if (Object.prototype.hasOwnProperty.call(columns, key)) {
+          const column = columns[key as string];
+          return sql(
+            sequence([ident(alias), ident(column[ColumnName])], dot)
+          ).mapWith(column[ColumnType]);
         }
-        return table[key];
+        return table[key as keyof SQL];
       },
     }) as any;
   }
 }
 
 export type TableWithColumns<Columns extends object> = Table<Columns> & {
-  [K in keyof Columns]: Columns[K] extends SQL<infer T> ? SQL<T> : never;
+  [ColumnName in string & keyof Columns]: SQL.ColumnIdentifier<
+    ColumnName,
+    Extract<Columns[ColumnName], Column>
+  >;
+};
+
+/**
+ * An identifier for an aliased table, with its columns.
+ */
+export type TableRef<Columns extends object> = SQL & {
+  [ColumnName in string & keyof Columns]: Columns[ColumnName] extends Column<
+    any,
+    infer TColumnOutput
+  >
+    ? SQL<TColumnOutput>
+    : never;
 };

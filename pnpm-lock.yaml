@@ -14,9 +14,6 @@ importers:
       pg-socket:
         specifier: link:vendor/pg-socket
         version: link:vendor/pg-socket
-      postgres:
-        specifier: ^3.4.7
-        version: 3.4.7
       yiss:
         specifier: 'link:'
         version: 'link:'
@@ -452,10 +449,6 @@ packages:
   postcss@8.5.6:
     resolution: {integrity: sha512-3Ybi1tAuwAP9s0r1UQ2J4n5Y0G05bJkpUIO0/bI9MhwmD70S5aTWbXGBwxHrelT+XM1k6dM0pk+SwNkpTRN7Pg==}
     engines: {node: ^10 || ^12 || >=14}
-
-  postgres@3.4.7:
-    resolution: {integrity: sha512-Jtc2612XINuBjIl/QTWsV5UvE8UHuNblcO3vVADSrKsrc6RqGX6lOW1cEo3CM2v0XG4Nat8nI+YM7/f26VxXLw==}
-    engines: {node: '>=12'}
 
   radashi@12.6.2:
     resolution: {integrity: sha512-43uD9P3oZ1nT9lgHr2P34K7aEIQh6ku2FDQsDhjaUpaj2sb3il6Xe8s8MS31uJmcbYl0v2Ul35V7OjMG8yrcDw==}
@@ -898,8 +891,6 @@ snapshots:
       nanoid: 3.3.11
       picocolors: 1.1.1
       source-map-js: 1.2.1
-
-  postgres@3.4.7: {}
 
   radashi@12.6.2: {}
 

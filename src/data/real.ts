@@ -1,9 +1,9 @@
-import { dataType } from "../core.ts";
+import { pgType } from "../core.ts";
 
 /**
  * PostgreSQL real type.
  */
-export const real = dataType(
+export const real = pgType(
   "real",
   (x: number) => x,
   (x) => x as number

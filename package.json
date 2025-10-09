@@ -11,7 +11,6 @@
 	"dependencies": {
 		"@standard-schema/spec": "^1.0.0",
 		"pg-socket": "link:vendor/pg-socket",
-		"postgres": "^3.4.7",
 		"yiss": "link:"
 	}
 }

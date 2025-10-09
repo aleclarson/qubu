@@ -1,10 +1,10 @@
 import { pgType } from "../core.ts";
 
 /**
- * PostgreSQL smallint type.
+ * PostgreSQL serial pseudo-type.
  */
-export const smallint = pgType(
-  "smallint",
+export const serial = pgType(
+  "serial",
   (x: number) => x,
   (x) => x as number
 );

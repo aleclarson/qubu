@@ -1,9 +1,9 @@
-import { dataType } from "../core.ts";
+import { pgType } from "../core.ts";
 
 /**
  * PostgreSQL time type.
  */
-export const time = dataType(
+export const time = pgType(
   "time",
   (x: Date | string) => x,
   (x) => x as string
@@ -12,7 +12,7 @@ export const time = dataType(
 /**
  * PostgreSQL time with time zone type.
  */
-export const timeWithTimeZone = dataType(
+export const timeWithTimeZone = pgType(
   "timetz",
   (x: Date | string) => x,
   (x) => x as string
