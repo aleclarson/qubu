@@ -1,10 +1,6 @@
-import { pgType } from '../core.ts'
+import { $type, pgType } from '../core.ts'
 
 /**
  * PostgreSQL bigserial pseudo-type.
  */
-export const bigserial = pgType(
-  'bigserial',
-  (x: bigint) => x,
-  x => x as bigint
-)
+export const bigserial = pgType('bigserial', $type<bigint>(), BigInt, false)

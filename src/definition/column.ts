@@ -1,20 +1,16 @@
-import {
-  comma,
-  ident,
-  pgArrayType,
-  sequence,
-  sql,
-  SQL,
-  unsafe,
-} from '../core.ts'
+import { StandardSchemaV1 } from '@standard-schema/spec'
+import { array, comma, sequence, sql, SQL, unsafe } from '../core.ts'
 import {
   ColumnConstraints,
   ColumnName,
   ColumnNullable,
+  ColumnStandardSchema,
   ColumnTable,
   ColumnType,
+  IdentColumn,
 } from '../symbols.ts'
-import type { Table } from './table.ts'
+import { isColumnIdentifier, withoutNamespace } from '../tokens.ts'
+import { tableRef, type Table } from './table.ts'
 
 export type OnDeleteAction =
   | 'restrict'
@@ -38,6 +34,7 @@ export class Column<In = any, Out = any, Nullable extends boolean = any> {
   protected [ColumnName]: string
   protected [ColumnType]: SQL.Type<string, In, Out>
   protected [ColumnNullable]: Nullable
+  protected [ColumnStandardSchema]: StandardSchemaV1<In, any> | null = null
 
   constructor(
     name: string,
@@ -56,7 +53,18 @@ export class Column<In = any, Out = any, Nullable extends boolean = any> {
    */
   $type<T extends Out>(): Column<Extract<T, In>, T, Nullable>
   $type<T extends In, U extends Out>(): Column<T, U, Nullable>
-  $type() {
+  /**
+   * Attach a [Standard Schema][1] validator to the column, which
+   * ensures the data is the expected shape at runtime. Most useful
+   * for JSON columns.
+   *
+   * [1]: https://standardschema.dev/
+   */
+  $type<T extends StandardSchemaV1<In, any>>(schema: T): this
+  $type(schema?: StandardSchemaV1<any>) {
+    if (schema) {
+      this[ColumnStandardSchema] = schema
+    }
     return this
   }
 
@@ -64,7 +72,7 @@ export class Column<In = any, Out = any, Nullable extends boolean = any> {
    * Update the column's data type to an array.
    */
   array(): Column<In[], Out[], Nullable> {
-    this[ColumnType] = pgArrayType(this[ColumnType]) as SQL.Type
+    this[ColumnType] = array(this[ColumnType]) as SQL.Type
     return this as Column<any, any, Nullable>
   }
 
@@ -88,18 +96,20 @@ export class Column<In = any, Out = any, Nullable extends boolean = any> {
     this[ColumnConstraints].push(unsafe('check'), () => sql(expression()))
     return this
   }
-  references(resolve: () => OneOrMore<SQL.ColumnIdentifier>) {
+  references(resolve: () => Table | OneOrMore<SQL.ColumnIdentifier>) {
     this[ColumnConstraints].push(unsafe('references'), () => {
       const columns = resolve()
       return Array.isArray(columns)
-        ? sql(columns[0].context[ColumnTable], [
+        ? sql(columns[0][IdentColumn][ColumnTable], [
             sequence(
               // Ensure only the column name is used, not the table name.
-              columns.map(c => ident(c.context[ColumnName])),
+              columns.map(withoutNamespace),
               comma
             ),
           ])
-        : sql(columns.context[ColumnTable], [columns.context[ColumnName]])
+        : isColumnIdentifier(columns)
+          ? sql(columns[IdentColumn][ColumnTable], [withoutNamespace(columns)])
+          : sql(tableRef(columns))
     })
     return this
   }

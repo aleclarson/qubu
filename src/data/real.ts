@@ -1,10 +1,6 @@
-import { pgType } from '../core.ts'
+import { $type, pgType } from '../core.ts'
 
 /**
  * PostgreSQL real type.
  */
-export const real = pgType(
-  'real',
-  (x: number) => x,
-  x => x as number
-)
+export const real = pgType('real', $type<number>(), $type<number>())
