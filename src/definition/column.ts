@@ -1,5 +1,5 @@
 import { StandardSchemaV1 } from '@standard-schema/spec'
-import { array, comma, sequence, sql, SQL, unsafe } from '../core.ts'
+import { array, comma, InferSQL, sequence, SQL, unsafe } from '../core.ts'
 import {
   ColumnConstraints,
   ColumnName,
@@ -93,14 +93,16 @@ export class Column<In = any, Out = any, Nullable extends boolean = any> {
     return this
   }
   check(expression: () => SQL.Part[]) {
-    this[ColumnConstraints].push(unsafe('check'), () => sql(expression()))
+    // Note: We don't use `sql.fromArray` here because the expression
+    // should be wrapped in parentheses.
+    this[ColumnConstraints].push(unsafe('check'), () => InferSQL(expression()))
     return this
   }
   references(resolve: () => Table | OneOrMore<SQL.ColumnIdentifier>) {
     this[ColumnConstraints].push(unsafe('references'), () => {
       const columns = resolve()
       return Array.isArray(columns)
-        ? sql(columns[0][IdentColumn][ColumnTable], [
+        ? InferSQL(columns[0][IdentColumn][ColumnTable], [
             sequence(
               // Ensure only the column name is used, not the table name.
               columns.map(withoutNamespace),
@@ -108,17 +110,19 @@ export class Column<In = any, Out = any, Nullable extends boolean = any> {
             ),
           ])
         : isColumnIdentifier(columns)
-          ? sql(columns[IdentColumn][ColumnTable], [withoutNamespace(columns)])
-          : sql(tableRef(columns))
+          ? InferSQL(columns[IdentColumn][ColumnTable], [
+              withoutNamespace(columns),
+            ])
+          : InferSQL(tableRef(columns))
     })
     return this
   }
   onDelete(action: OnDeleteAction) {
-    this[ColumnConstraints].push(unsafe('on delete'), unsafe(action))
+    this[ColumnConstraints].push(unsafe(`on delete ${action}`))
     return this
   }
   onUpdate(action: OnUpdateAction) {
-    this[ColumnConstraints].push(unsafe('on update'), unsafe(action))
+    this[ColumnConstraints].push(unsafe(`on update ${action}`))
     return this
   }
 }

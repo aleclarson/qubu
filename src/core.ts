@@ -15,9 +15,12 @@ import {
   SQLAlias,
   SQLDecoder,
   SQLFields,
+  SQLTokenize,
   SQLTokens,
+  SQLWithQueries,
 } from './symbols.ts'
 import {
+  clause,
   empty,
   ident,
   isToken,
@@ -25,6 +28,7 @@ import {
   sequence,
   Token,
   tokenize,
+  tokenizePart,
   unsafe,
 } from './tokens.ts'
 
@@ -76,31 +80,50 @@ export function array<Id extends string, In, Out>(
   )
 }
 
+/**
+ * Useful for conditional syntax. If the condition is falsy, exclude
+ * the given syntax from the query.
+ * @example
+ * ```ts
+ * select(users.id, $if(isAdmin, users.email), users.name)
+ * ```
+ */
+export const $if = <T>(
+  condition: unknown,
+  truthy: SQL<T>
+): SQL<T | undefined> | typeof empty => (condition ? truthy : empty)
+
 export class SQL<Out = any> {
   protected [SQLTokens]: Token[] = []
-  protected [SQLDecoder]: SQL.Decoder<Out> | null = null
-  protected [SQLFields]: Record<string, SQL.Decoder<Out>> | null = null
-  protected [SQLAlias]: SQL.Identifier | null = null
+  protected [SQLWithQueries]: Record<string, SQL> | null = null
 
-  /**
-   * Set the alias for this SQL object.
-   * @returns The same SQL object.
-   */
-  as(alias: string) {
-    this[SQLAlias] = ident(alias)
-    return this
+  protected [SQLTokenize](tokens: Token[], root?: SQL) {
+    if (root && this[SQLFields]) {
+      // An alias implies a `WITH` query.
+      if (this[SQLAlias]) {
+        const alias = this[SQLAlias][IdentName]
+        const withQueries = (root[SQLWithQueries] ||= {})
+        if (withQueries[alias] && withQueries[alias] !== this) {
+          throw new Error(`Alias appears twice: ${this[SQLAlias]}`)
+        }
+        withQueries[alias] = this
+        tokens.push(this[SQLAlias][PgIdent])
+        return
+      }
+      assert(!root[SQLFields], 'Cannot have multiple field sets')
+      root[SQLFields] = this[SQLFields]
+    }
+    for (const token of this[SQLTokens]) {
+      tokens.push(token)
+    }
   }
 
   /**
-   * Set the data type of the SQL object, controlling how the result
-   * is parsed.
+   * Extend the SQL object by appending a new part.
    * @returns The same SQL object.
    */
-  mapWith<T extends SQL.Type>(dataType: T | null): SQL<SQL.InferOutput<T>>
-  mapWith<T>(decoder: ((sqlType: unknown) => T) | null): SQL<T>
-  mapWith(dataType: SQL.Type | ((sqlType: unknown) => unknown) | null) {
-    this[SQLDecoder] =
-      dataType && typeof dataType !== 'function' ? dataType.decode : dataType
+  $append(part: SQL.Part) {
+    tokenizePart(part, this)
     return this
   }
 
@@ -113,6 +136,24 @@ export class SQL<Out = any> {
       sql: renderQuery(this[SQLTokens], params),
       params,
     }
+  }
+}
+
+/**
+ * SQL "expressions" always represent a value, but cannot be executed
+ * directly. They rely on SQL statements to execute them.
+ */
+export class SQLExpression<Out = any> extends SQL<Out> {
+  protected [SQLAlias]: SQL.Identifier | null = null
+  protected [SQLDecoder]: SQL.Decoder<Out> | null = null
+
+  /**
+   * Set the alias for this SQL object.
+   * @returns The same SQL object.
+   */
+  as(alias: string) {
+    this[SQLAlias] = ident(alias)
+    return this
   }
 
   /**
@@ -135,6 +176,9 @@ export class SQL<Out = any> {
 
   /**
    * Check if the SQL object evaluates to `not null`.
+   *
+   * **Note:** This always returns `true` for JSON null (e.g.
+   * `JSON.stringify(null)`).
    */
   isNotNull() {
     return sql(this, unsafe('is not null')).mapWith(boolean)
@@ -150,7 +194,8 @@ export class SQL<Out = any> {
      */
     nullsFirst?: boolean
     /**
-     * Change the sort order to descending.
+     * Change the sort order to "descending" and flip the `nullsFirst`
+     * option.
      * @default false
      */
     reverse?: boolean
@@ -158,7 +203,9 @@ export class SQL<Out = any> {
     return sql(
       this,
       unsafe(options?.reverse ? 'desc' : 'asc'),
-      options?.nullsFirst ? unsafe('nulls first') : undefined
+      options?.nullsFirst
+        ? unsafe(options?.reverse ? 'nulls last' : 'nulls first')
+        : undefined
     )
   }
 
@@ -172,7 +219,8 @@ export class SQL<Out = any> {
      */
     nullsLast?: boolean
     /**
-     * Change the sort order to ascending.
+     * Change the sort order to "ascending" and flip the `nullsLast`
+     * option.
      * @default false
      */
     reverse?: boolean
@@ -180,7 +228,9 @@ export class SQL<Out = any> {
     return sql(
       this,
       unsafe(options?.reverse ? 'asc' : 'desc'),
-      options?.nullsLast ? unsafe('nulls last') : undefined
+      options?.nullsLast
+        ? unsafe(options?.reverse ? 'nulls first' : 'nulls last')
+        : undefined
     )
   }
 
@@ -190,28 +240,52 @@ export class SQL<Out = any> {
   cast<T>(type: SQL.Type<string, any, T>) {
     return sql(sequence([this, unsafe('::'), type], empty)).mapWith(type)
   }
+
+  /**
+   * Set the data type of the SQL object, controlling how the result
+   * is parsed.
+   * @returns The same SQL object.
+   */
+  mapWith<T extends SQL.Type>(dataType: T | null): SQL<SQL.InferOutput<T>>
+  mapWith<T>(decoder: ((sqlType: unknown) => T) | null): SQL<T>
+  mapWith(dataType: SQL.Type | ((sqlType: unknown) => unknown) | null) {
+    this[SQLDecoder] =
+      dataType && typeof dataType !== 'function' ? dataType.decode : dataType
+    return this
+  }
 }
 
-// prettier-ignore
-const binaryOperators = {
-  "=": 1, "!=": 1, ">": 1, ">=": 1, "<": 1, "<=": 1, "in": 1, "not in": 1,
-  "like": 1, "not like": 1, "ilike": 1, "not ilike": 1, "between": 1,
-  "not between": 1
-} as const
+/**
+ * SQL "components" are things like modifiers and clauses that cannot
+ * be executed directly. They rely on SQL statements to execute them.
+ */
+export class SQLComponent<
+  Keyword extends string = string,
+  Out = any,
+> extends SQL<Out> {}
 
-export type BinaryOperator = keyof typeof binaryOperators
+/**
+ * A "returning clause" is a special SQL component that defines the
+ * fields of a INSERT, UPDATE, or DELETE statement's result set.
+ * Without it, these statements have no result set.
+ */
+export class SQLReturningClause<Out = any> extends SQLComponent<
+  'returning',
+  Out
+> {
+  protected [SQLFields]: Record<string, SQL.Decoder> | null = null
+}
 
-/** The `and` operator. */
-export const and = (...parts: SQL.Part[]) =>
-  sql(unsafe('and'), ...parts).mapWith(boolean)
-
-/** The `or` operator. */
-export const or = (...parts: SQL.Part[]) =>
-  sql(unsafe('or'), ...parts).mapWith(boolean)
-
-/** The `not` operator. */
-export const not = (...parts: SQL.Part[]) =>
-  sql(unsafe('not'), ...parts).mapWith(boolean)
+/**
+ * SQL "statements" are executable queries like SELECT, INSERT,
+ * CREATE, and so on.
+ */
+export class SQLStatement<
+  Out = any,
+  Keyword extends string = string,
+> extends SQL<Out> {
+  protected [SQLFields]: Record<string, SQL.Decoder> | null = null
+}
 
 export declare namespace SQL {
   export type Primitive =
@@ -223,7 +297,12 @@ export declare namespace SQL {
     | null
     | undefined
 
-  export type Part = pgTokens[keyof pgTokens] | SQL | Table | Primitive | Part[]
+  export type Part =
+    | pgTokens[keyof pgTokens]
+    | SQLExpression
+    | Table
+    | Primitive
+    | Part[]
 
   /**
    * An escaped string.
@@ -233,7 +312,7 @@ export declare namespace SQL {
   /**
    * An escape hatch for raw SQL.
    */
-  export type Syntax = { [PgSyntax]: string }
+  export type Syntax<T extends string = string> = { [PgSyntax]: T }
 
   /**
    * A clause is a syntactic component of a statement, usually
@@ -303,26 +382,30 @@ export declare namespace SQL {
  * SQL instances are flattened (e.g. `sql(a, sql(b, c))` is the same
  * as `sql(a, b, c)`).
  */
-export function sql<T extends readonly SQL.Part[]>(...parts: T) {
+export function sql<const T extends readonly SQL.Part[]>(...parts: T) {
   return fromArray(parts)
 }
 
-function fromArray(parts: readonly SQL.Part[]) {
+type InferSQL<T extends readonly SQL.Part[]> = T[0]
+
+function fromArray<const T extends readonly SQL.Part[]>(parts: T): InferSQL<T> {
   const root = new SQL()
-  root[SQLTokens] = tokenize(parts, root)
+  tokenize(parts, root)
   return root
 }
 
 sql.fromArray = fromArray
 sql.unsafe = unsafe
+sql.clause = clause
 sql.sequence = sequence
 sql.ident = ident
 
 /**
- * You can use this or `sql(null)` to store a SQL null value in a
- * `json` or `jsonb` column.
+ * If you need to store `"null"` in a `json` or `jsonb` column, use
+ * this. JS nulls are always treated as SQL nulls, never as JSON
+ * nulls.
  */
-sql.null = () => sql(null) as SQL<null>
+sql.jsonNull = () => ({ toJSON: () => null })
 
 /**
  * Coerce a JavaScript array to an escaped SQL array.
@@ -374,3 +457,23 @@ function render(token: Token, params: unknown[]): string {
   }
   return '(' + renderQuery(token, params) + ')'
 }
+
+/** The `and` operator. */
+export function and(...parts: SQL.Part[]) {
+  return sql(unsafe('and'), ...parts).mapWith(boolean)
+}
+
+/** Concatenate parts with the `and` operator. Empty parts are omitted. */
+and.sequence = (parts: readonly SQL.Part[]) => sequence(parts, unsafe('and'))
+
+/** The `or` operator. */
+export function or(...parts: SQL.Part[]) {
+  return sql(unsafe('or'), ...parts).mapWith(boolean)
+}
+
+/** Concatenate parts with the `or` operator. Empty parts are omitted. */
+or.sequence = (parts: readonly SQL.Part[]) => sequence(parts, unsafe('or'))
+
+/** The `not` operator. */
+export const not = (...parts: SQL.Part[]) =>
+  sql(unsafe('not'), ...parts).mapWith(boolean)

@@ -1,5 +1,5 @@
 import { assert } from 'radashi'
-import { sql, SQL } from './core.ts'
+import { InferSQL, SQL, SQLExpression } from './core.ts'
 import { Column } from './definition/column.ts'
 import { Table, tableRef } from './definition/table.ts'
 import {
@@ -16,14 +16,16 @@ import {
   PgType,
   SQLAlias,
   SQLDecoder,
-  SQLFields,
+  SQLTokenize,
   SQLTokens,
 } from './symbols.ts'
 
 /**
  * An escape hatch for raw SQL.
  */
-export const unsafe = (syntax: string): SQL.Syntax => ({ [PgSyntax]: syntax })
+export const unsafe = <T extends string>(syntax: T): SQL.Syntax<T> => ({
+  [PgSyntax]: syntax,
+})
 
 /**
  * Declare a SQL clause.
@@ -33,7 +35,7 @@ export const clause = (keyword: string, ...parts: SQL.Part[]): SQL.Clause => ({
   parts,
 })
 
-/** Empty token */
+/** Empty token. This gets omitted from the query when tokenized. */
 export const empty = unsafe('')
 /** Whitespace token */
 export const space = unsafe(' ')
@@ -49,7 +51,7 @@ export const dot = unsafe('.')
 export function ident(id: string): SQL.Identifier
 export function ident<TColumn extends Column>(
   id: string,
-  context: TColumn
+  column: TColumn
 ): SQL.ColumnIdentifier<TColumn>
 
 /** @internal */
@@ -59,9 +61,9 @@ export function ident(
 ): SQL.Identifier {
   return {
     [PgIdent]: escapeIdentifier(name),
-    name,
-    namespace: null,
-    column,
+    [IdentName]: name,
+    [IdentNamespace]: null,
+    [IdentColumn]: column,
   }
 }
 
@@ -73,7 +75,10 @@ export function ident(
 export const sequence = (
   parts: readonly SQL.Part[],
   separator: SQL.Syntax = space
-): SQL.Sequence => ({ [PgSequence]: tokenize(parts), separator })
+): SQL.Sequence => ({
+  [PgSequence]: tokenize(parts),
+  separator,
+})
 
 /**
  * Alias a SQL part. If the alias already matches the part's identity
@@ -88,12 +93,12 @@ export function withAlias(
   alias: string,
   fields?: Record<string, SQL.Decoder>
 ) {
-  if (part instanceof SQL) {
+  if (part instanceof SQLExpression) {
     if (fields && part[SQLDecoder]) {
       assert(fields[alias] == null, `Alias appears twice: ${alias}`)
       fields[alias] = part[SQLDecoder]
     }
-    if (alias === part[SQLAlias]?.[IdentName]) {
+    if (alias === part[SQLAlias]) {
       return part
     }
   } else if (isColumnIdentifier(part)) {
@@ -106,7 +111,7 @@ export function withAlias(
     }
   }
   // No decoder found, so we'll just return the value as is.
-  return sql(part).as(alias)
+  return InferSQL(part).as(alias)
 }
 
 export function withoutNamespace(id: SQL.Identifier): SQL.Identifier {
@@ -122,18 +127,25 @@ export interface pgTokens {
   [PgClause]: SQL.Clause
 }
 
+const pgTokens: (keyof pgTokens)[] = [
+  PgType,
+  PgIdent,
+  PgParam,
+  PgSequence,
+  PgSyntax,
+  PgClause,
+]
+
 /**
  * Type guard for database tokens.
  */
-export function isToken<T extends keyof pgTokens>(
+export function isToken<T extends keyof pgTokens = keyof pgTokens>(
   value: unknown,
-  type: T
+  type?: T
 ): value is pgTokens[T] {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    Object.prototype.hasOwnProperty.call(value, type)
-  )
+  return typeof value === 'object' && value !== null && type
+    ? Object.prototype.hasOwnProperty.call(value, type)
+    : pgTokens.some(token => Object.prototype.hasOwnProperty.call(value, token))
 }
 
 export function isColumnIdentifier(
@@ -157,71 +169,90 @@ export type Token = string | SQL.Param | SQL.Sequence | Token[]
  * ⚠︎ Arrays are wrapped in parentheses, not flattened.
  */
 export function tokenize(parts: readonly SQL.Part[], root?: SQL): Token[] {
-  const tokens: Token[] = []
+  // The goal is to flatten as much as possible, in order to reduce
+  // memory usage and to avoid nested structures for easier debugging.
+  const tokens: Token[] = root?.[SQLTokens] ?? []
   for (const part of parts) {
-    let token: Token | undefined
-    if (part == null) {
-      token = 'null' // Treat undefined as null
-    } else if (
-      typeof part === 'boolean' ||
-      typeof part === 'number' ||
-      typeof part === 'bigint'
-    ) {
-      // Even if an attacker manages to overwrite the `toString`
-      // method on a prototype or instance, this will always be safe.
-      token = String(part)
-    } else if (typeof part === 'string') {
-      token = { [PgParam]: part }
-    } else if (Array.isArray(part)) {
-      token = tokenize(part) // parenthesized expression
-    } else if (typeof part === 'object') {
-      if (part instanceof SQL) {
-        for (const token of part[SQLTokens]) {
-          tokens.push(token)
-        }
-        if (part[SQLAlias]) {
-          tokens.push('as', tokenizeIdentifier(part[SQLAlias]))
-        }
-        if (root && part[SQLFields]) {
-          assert(!root[SQLFields], 'Cannot have multiple field sets')
-          root[SQLFields] = part[SQLFields]
-        }
-        continue
-      }
-      if (isToken(part, PgIdent)) {
-        token = tokenizeIdentifier(part)
-      } else if (isToken(part, PgParam) || isToken(part, PgSequence)) {
-        token = part
-      } else if (isToken(part, PgType)) {
-        token = part[PgType] // Type name
-      } else if (isToken(part, PgSyntax)) {
-        if (part[PgSyntax] === '') {
-          continue
-        }
-        token = part[PgSyntax] // Raw SQL
-      } else if (part instanceof Date) {
-        token = { [PgParam]: part.toISOString() }
-      } else if (part instanceof Table) {
-        token = tokenizeIdentifier(tableRef(part))
-      }
-    }
-    if (!token) {
-      throw new Error(`Invalid part: ${Object.prototype.toString.call(part)}`)
-    }
-    tokens.push(token)
+    tokenizePart(part, root, tokens)
   }
   return tokens
 }
 
+/**
+ * Like `tokenize()`, but for a single part. If you pass a `root` SQL
+ * object without a `tokens` array, the SQL object will be extended
+ * with the new tokens. Otherwise, a new tokens array is created and
+ * returned.
+ */
+export function tokenizePart(
+  part: SQL.Part,
+  root: SQL | undefined,
+  tokens: Token[] = root?.[SQLTokens] ?? []
+) {
+  let token: Token | undefined
+  if (part == null) {
+    token = 'null' // Treat undefined as null
+  } else if (
+    typeof part === 'boolean' ||
+    typeof part === 'number' ||
+    typeof part === 'bigint'
+  ) {
+    // Even if an attacker manages to overwrite the `toString`
+    // method on a prototype or instance, this will always be safe.
+    token = String(part)
+  } else if (typeof part === 'string') {
+    token = { [PgParam]: part }
+  } else if (Array.isArray(part)) {
+    token = tokenize(part) // parenthesized expression
+  } else if (typeof part === 'object') {
+    if (part instanceof SQLExpression) {
+      part[SQLTokenize](tokens, root)
+      if (part[SQLAlias]) {
+        tokens.push('as', escapeIdentifier(part[SQLAlias]))
+      }
+      return tokens
+    }
+    if (isToken(part, PgClause)) {
+      tokens.push(part[PgClause])
+      for (const token of tokenize(part.parts, root)) {
+        tokens.push(token)
+      }
+      return tokens
+    }
+    if (isToken(part, PgIdent)) {
+      token = tokenizeIdentifier(part)
+    } else if (isToken(part, PgParam) || isToken(part, PgSequence)) {
+      token = part
+    } else if (isToken(part, PgType)) {
+      token = part[PgType] // Type name
+    } else if (isToken(part, PgSyntax)) {
+      if (part[PgSyntax] === '') {
+        return tokens
+      }
+      token = part[PgSyntax] // Raw SQL
+    } else if (part instanceof Date) {
+      token = { [PgParam]: part.toISOString() }
+    } else if (part instanceof Table) {
+      token = tokenizeIdentifier(tableRef(part))
+    }
+  }
+  if (!token) {
+    throw new Error(`Invalid part: ${Object.prototype.toString.call(part)}`)
+  }
+  tokens.push(token)
+  return tokens
+}
+
 function tokenizeIdentifier(id: SQL.Identifier): string {
-  return id.namespace
-    ? tokenizeIdentifier(id.namespace) + '.' + id[PgIdent]
+  return id[IdentNamespace]
+    ? tokenizeIdentifier(id[IdentNamespace]) + '.' + id[PgIdent]
     : id[PgIdent]
 }
 
 const safeIdentifierRegex = /^[a-z][a-z0-9_]*$/
 const doubleQuoteRegex = /"/g
 
+// List generated with `SELECT * FROM pg_get_keywords() WHERE catcode = 'R';`
 // prettier-ignore
 const reservedWords = new Set([
   'all', 'analyse', 'analyze', 'and', 'any', 'array', 'as', 'asc', 'asymmetric',

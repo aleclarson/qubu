@@ -23,10 +23,9 @@ const User = pgTable('user', {
   name: text(),
 })
 
-const dumbUser = User.as('dumb_user')
+const user1 = sql(select(User.name), from(User), where(User.id.is('=', 1)))
 
-User.id
-dumbUser.id
+const dumbUser = User.as('dumb_user')
 
 sql(
   select({
@@ -40,11 +39,15 @@ sql(
     and(dumbUser.name, isNotNull())
   ),
   orderBy(dumbUser.id.asc())
-).toQuery(db)
+)
 
 test('select distinct on', () => {
   const query = select(
     distinctOn(dumbUser.id, dumbUser.name),
+    {
+      id: dumbUser.id,
+      name: dumbUser.name,
+    },
     from(dumbUser),
     where(
       isEqual(dumbUser.id, 1),

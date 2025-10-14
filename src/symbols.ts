@@ -24,6 +24,8 @@ export const SQLDecoder = Symbol.for('sql.decoder')
 export const SQLAlias = Symbol.for('sql.alias')
 export const SQLTokens = Symbol.for('sql.tokens')
 export const SQLFields = Symbol.for('sql.fields')
+export const SQLWithQueries = Symbol.for('sql.withQueries')
+export const SQLTokenize = Symbol.for('sql.tokenize')
 
 // Identifier metadata
 export const IdentName = Symbol.for('ident.name')
