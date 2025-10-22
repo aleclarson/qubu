@@ -1,0 +1,46 @@
+import { Column } from './definition/column.ts'
+import { PgType } from './symbols.ts'
+
+const inOut = (arg: any) => arg
+
+/**
+ * Shortcut for encoding and decoding functions that don't do any
+ * processing. Exists for type safety at compile time.
+ */
+export const $type = <T>() => inOut as (value: T) => T
+
+/**
+ * Declare a database type, with serialization and parsing functions.
+ */
+export function pgType<
+  Id extends string,
+  In,
+  Out,
+  DefaultNullable extends boolean = true,
+>(
+  id: Id,
+  encode: (jsType: In) => any,
+  decode: (sqlType: any) => Out,
+  nullable = true as DefaultNullable
+) {
+  function type(name = '') {
+    return new Column(name, type, nullable)
+  }
+  type[PgType] = id
+  type.encode = encode
+  type.decode = decode
+  return type
+}
+
+/**
+ * Declare an array variant of a given data type.
+ */
+export function array<Id extends string, In, Out>(
+  type: SQL.Type<Id, In, Out>
+): SQL.Type<`${Id}[]`, In[], Out[]> {
+  return pgType(
+    `${type[PgType]}[]`,
+    (data: In[]) => data.map(encode.bind(null, type)),
+    (data: any[]) => data.map(type.decode)
+  )
+}

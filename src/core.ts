@@ -1,12 +1,9 @@
-import { assert } from 'radashi'
+import { assert, isArray } from 'radashi'
+import { BinaryOperator, binaryOperators } from './binaryOperator.ts'
 import { boolean } from './data/boolean.ts'
 import { Column } from './definition/column.ts'
 import { Table } from './definition/table.ts'
 import {
-  IdentColumn,
-  IdentName,
-  IdentNamespace,
-  PgClause,
   PgIdent,
   PgParam,
   PgSequence,
@@ -15,280 +12,275 @@ import {
   SQLAlias,
   SQLDecoder,
   SQLFields,
+  SQLKeyword,
   SQLTokenize,
   SQLTokens,
-  SQLWithQueries,
 } from './symbols.ts'
 import {
-  clause,
   empty,
   ident,
-  isToken,
   pgTokens,
   sequence,
+  space,
   Token,
   tokenize,
   tokenizePart,
   unsafe,
 } from './tokens.ts'
-
-/**
- * Declare a database type, with serialization and parsing functions.
- */
-export function pgType<
-  Id extends string,
-  In,
-  Out,
-  DefaultNullable extends boolean = true,
->(
-  id: Id,
-  encode: (jsType: In) => any,
-  decode: (sqlType: any) => Out,
-  nullable = true as DefaultNullable
-) {
-  function type(name = '') {
-    return new Column(name, type, nullable)
-  }
-  type[PgType] = id
-  type.encode = encode
-  type.decode = decode
-  return type
-}
-
-const inOut = (arg: any) => arg
-
-/**
- * Shortcut for encoding and decoding functions that don't do any
- * processing. Exists for type safety at compile time.
- */
-export const $type = <T>() => inOut as (value: T) => T
-
-function encode<T extends SQL.Type>(type: T, value: SQL.InferInput<T>) {
-  return value == null ? null : type.encode(value)
-}
-
-/**
- * Declare an array variant of a given data type.
- */
-export function array<Id extends string, In, Out>(
-  type: SQL.Type<Id, In, Out>
-): SQL.Type<`${Id}[]`, In[], Out[]> {
-  return pgType(
-    `${type[PgType]}[]`,
-    (data: In[]) => data.map(encode.bind(null, type)),
-    (data: any[]) => data.map(type.decode)
-  )
-}
-
-/**
- * Useful for conditional syntax. If the condition is falsy, exclude
- * the given syntax from the query.
- * @example
- * ```ts
- * select(users.id, $if(isAdmin, users.email), users.name)
- * ```
- */
-export const $if = <T>(
-  condition: unknown,
-  truthy: SQL<T>
-): SQL<T | undefined> | typeof empty => (condition ? truthy : empty)
+import { columnsProxy } from './util.ts'
 
 export class SQL<Out = any> {
   protected [SQLTokens]: Token[] = []
-  protected [SQLWithQueries]: Record<string, SQL> | null = null
 
-  protected [SQLTokenize](tokens: Token[], root?: SQL) {
-    if (root && this[SQLFields]) {
-      // An alias implies a `WITH` query.
-      if (this[SQLAlias]) {
-        const alias = this[SQLAlias][IdentName]
-        const withQueries = (root[SQLWithQueries] ||= {})
-        if (withQueries[alias] && withQueries[alias] !== this) {
-          throw new Error(`Alias appears twice: ${this[SQLAlias]}`)
-        }
-        withQueries[alias] = this
-        tokens.push(this[SQLAlias][PgIdent])
-        return
-      }
-      assert(!root[SQLFields], 'Cannot have multiple field sets')
-      root[SQLFields] = this[SQLFields]
-    }
+  // Default behavior is to dissolve into tokens.
+  protected [SQLTokenize](tokens: Token[]) {
     for (const token of this[SQLTokens]) {
       tokens.push(token)
     }
   }
 
   /**
-   * Extend the SQL object by appending a new part.
+   * Extend the SQL object by appending a new part. Any separator
+   * other than `space` (the default) will be prefixed to each new
+   * part.
    * @returns The same SQL object.
    */
-  $append(part: SQL.Part) {
-    tokenizePart(part, this)
+  $append(part: SQL.Part | SQL.Part[], separator: Token.Syntax = space) {
+    if (separator[PgSyntax] === ' ') {
+      tokenizePart(part, this[SQLTokens])
+    } else {
+      const { length } = this[SQLTokens]
+      const tokens = isArray(part) ? tokenize(part) : tokenizePart(part)
+      tokens.unshift(this[SQLTokens][length - 1])
+      this[SQLTokens][length - 1] = {
+        [PgSequence]: tokens,
+        separator,
+      } satisfies Token.Sequence
+    }
     return this
+  }
+}
+
+export namespace SQL {
+  export function isType(value: object): value is SQL.Type {
+    return Object.prototype.hasOwnProperty.call(value, PgType)
+  }
+
+  export function isClause(value: object): value is SQL.Query | SQL.Component {
+    return Object.prototype.hasOwnProperty.call(value, SQLKeyword)
   }
 
   /**
-   * Generate the SQL string and parameter values for this SQL object.
+   * SQL "expressions" always represent a value, but cannot be executed
+   * directly. They rely on SQL statements to execute them.
    */
-  toQuery() {
-    const params: unknown[] = []
-    return {
-      sql: renderQuery(this[SQLTokens], params),
-      params,
+  export class Expression<Out = any> extends SQL<Out> {
+    protected [SQLAlias]: Token.Identifier | null = null
+    protected [SQLDecoder]: SQL.Decoder<Out> | null = null
+
+    protected override [SQLTokenize](tokens: Token[]) {
+      super[SQLTokenize](tokens)
+      if (this[SQLAlias]) {
+        tokens.push('as', this[SQLAlias][PgIdent])
+      }
+    }
+
+    /**
+     * Set the alias for this SQL object.
+     * @returns The same SQL object.
+     */
+    as(alias: string) {
+      this[SQLAlias] = ident(alias)
+      return this
+    }
+
+    /**
+     * Compare the SQL object to a given value.
+     */
+    is(operator: BinaryOperator, value: SQL.Part) {
+      assert(binaryOperators[operator], 'Invalid binary operator')
+      return this.$append([unsafe(operator), value]).mapWith(boolean)
+    }
+
+    /**
+     * Check if the SQL object evaluates to `null`.
+     *
+     * **Note:** This always returns `false` for JSON null (e.g.
+     * `JSON.stringify(null)`).
+     */
+    isNull() {
+      return this.$append(unsafe('is null')).mapWith(boolean)
+    }
+
+    /**
+     * Check if the SQL object evaluates to `not null`.
+     *
+     * **Note:** This always returns `true` for JSON null (e.g.
+     * `JSON.stringify(null)`).
+     */
+    isNotNull() {
+      return this.$append(unsafe('is not null')).mapWith(boolean)
+    }
+
+    /**
+     * Ascending sort order. Append an `asc` modifier to the SQL object.
+     */
+    asc(options?: {
+      /**
+       * Rows where the preceding expression is `null` should come first.
+       * @default false
+       */
+      nullsFirst?: boolean
+      /**
+       * Change the sort order to "descending" and flip the `nullsFirst`
+       * option.
+       * @default false
+       */
+      reverse?: boolean
+    }) {
+      return this.$append([
+        unsafe(options?.reverse ? 'desc' : 'asc'),
+        options?.nullsFirst
+          ? unsafe(options?.reverse ? 'nulls last' : 'nulls first')
+          : undefined,
+      ])
+    }
+
+    /**
+     * Descending sort order. Append a `desc` modifier to the SQL object.
+     */
+    desc(options?: {
+      /**
+       * Rows where the preceding expression is `null` should come last.
+       * @default false
+       */
+      nullsLast?: boolean
+      /**
+       * Change the sort order to "ascending" and flip the `nullsLast`
+       * option.
+       * @default false
+       */
+      reverse?: boolean
+    }) {
+      return this.$append([
+        unsafe(options?.reverse ? 'asc' : 'desc'),
+        options?.nullsLast
+          ? unsafe(options?.reverse ? 'nulls first' : 'nulls last')
+          : undefined,
+      ])
+    }
+
+    /**
+     * Cast a value to a given type.
+     */
+    cast<T>(type: SQL.Type<string, any, T>) {
+      return this.$append([unsafe('::'), type], empty).mapWith(type)
+    }
+
+    /**
+     * Set the data type of the SQL object, controlling how the result
+     * is parsed.
+     * @returns The same SQL object.
+     */
+    mapWith<T extends SQL.Type>(dataType: T | null): SQL<SQL.InferOutput<T>>
+    mapWith<T>(decoder: ((sqlType: unknown) => T) | null): SQL<T>
+    mapWith(dataType: SQL.Type | ((sqlType: unknown) => unknown) | null) {
+      this[SQLDecoder] =
+        dataType && typeof dataType !== 'function' ? dataType.decode : dataType
+      return this
     }
   }
-}
-
-/**
- * SQL "expressions" always represent a value, but cannot be executed
- * directly. They rely on SQL statements to execute them.
- */
-export class SQLExpression<Out = any> extends SQL<Out> {
-  protected [SQLAlias]: SQL.Identifier | null = null
-  protected [SQLDecoder]: SQL.Decoder<Out> | null = null
 
   /**
-   * Set the alias for this SQL object.
-   * @returns The same SQL object.
+   * SQL "components" are things like modifiers and clauses that cannot
+   * be executed directly. They rely on SQL statements to execute them.
    */
-  as(alias: string) {
-    this[SQLAlias] = ident(alias)
-    return this
+  export class Component<Out = any> extends SQL<Out> {
+    protected [SQLKeyword]: string
+
+    constructor(keyword: string) {
+      super()
+      this[SQLKeyword] = keyword
+      this[SQLTokens].push(keyword)
+    }
   }
 
   /**
-   * Compare the SQL object to a given value.
+   * A "returning clause" is a special SQL component that defines the
+   * fields of a INSERT, UPDATE, or DELETE statement's result set.
+   * Without it, these statements have no result set.
    */
-  is(operator: BinaryOperator, value: SQL.Part) {
-    assert(binaryOperators[operator], 'Invalid binary operator')
-    return sql(this, unsafe(operator), value).mapWith(boolean)
+  export class ReturningClause<Out = any> extends Component<Out> {
+    protected [SQLFields]: Record<string, SQL.Decoder> | null
+
+    constructor(fields: Record<string, SQL.Decoder> | null = null) {
+      super('returning')
+      this[SQLFields] = fields
+    }
   }
 
   /**
-   * Check if the SQL object evaluates to `null`.
-   *
-   * **Note:** This always returns `false` for JSON null (e.g.
-   * `JSON.stringify(null)`).
+   * An executable query like SELECT, INSERT, CREATE, and so on.
    */
-  isNull() {
-    return sql(this, unsafe('is null')).mapWith(boolean)
+  export class Query<Out = any> extends SQL<Out> {
+    protected [SQLKeyword]: string
+    protected [SQLFields]: Record<string, SQL.Decoder> | null
+
+    constructor(
+      keyword: string,
+      fields: Record<string, SQL.Decoder> | null = null
+    ) {
+      super()
+      this[SQLKeyword] = keyword
+      this[SQLFields] = fields
+      this[SQLTokens].push(keyword)
+    }
+
+    protected [SQLTokenize](tokens: Token[]) {
+      // Statements are preserved.
+      tokens.push(this)
+    }
+
+    as(alias: string) {
+      const subquery = new Subquery(alias, this)
+      const fields = this[SQLFields]
+      if (fields) {
+        return columnsProxy(subquery, key => {
+          if (Object.prototype.hasOwnProperty.call(fields, key)) {
+            return fields[key]
+          }
+        })
+      }
+      // INSERT, UPDATE, DELETE, etc. without a returning clause
+      return subquery
+    }
   }
 
   /**
-   * Check if the SQL object evaluates to `not null`.
-   *
-   * **Note:** This always returns `true` for JSON null (e.g.
-   * `JSON.stringify(null)`).
+   * A subquery is a SQL statement that is nested within another SQL
+   * statement. It must be given an alias, so it can be referenced in
+   * the outer statement.
    */
-  isNotNull() {
-    return sql(this, unsafe('is not null')).mapWith(boolean)
+  export class Subquery<Out = any> extends Query<Out> {
+    protected [SQLAlias]: Token.Identifier
+    constructor(alias: string, statement: Query<Out>) {
+      super(statement[SQLKeyword], statement[SQLFields])
+      this[SQLTokens] = statement[SQLTokens]
+      this[SQLAlias] = ident(alias)
+    }
   }
 
   /**
-   * Ascending sort order. Append an `asc` modifier to the SQL object.
+   * Use “interface merging” to add your own custom primitives to the
+   * SQL type system. The underlying client library needs to know how
+   * to encode and decode these primitives to and from SQL.
    */
-  asc(options?: {
-    /**
-     * Rows where the preceding expression is `null` should come first.
-     * @default false
-     */
-    nullsFirst?: boolean
-    /**
-     * Change the sort order to "descending" and flip the `nullsFirst`
-     * option.
-     * @default false
-     */
-    reverse?: boolean
-  }) {
-    return sql(
-      this,
-      unsafe(options?.reverse ? 'desc' : 'asc'),
-      options?.nullsFirst
-        ? unsafe(options?.reverse ? 'nulls last' : 'nulls first')
-        : undefined
-    )
-  }
+  export interface CustomPrimitives {}
 
-  /**
-   * Descending sort order. Append a `desc` modifier to the SQL object.
-   */
-  desc(options?: {
-    /**
-     * Rows where the preceding expression is `null` should come last.
-     * @default false
-     */
-    nullsLast?: boolean
-    /**
-     * Change the sort order to "ascending" and flip the `nullsLast`
-     * option.
-     * @default false
-     */
-    reverse?: boolean
-  }) {
-    return sql(
-      this,
-      unsafe(options?.reverse ? 'asc' : 'desc'),
-      options?.nullsLast
-        ? unsafe(options?.reverse ? 'nulls first' : 'nulls last')
-        : undefined
-    )
-  }
+  export type CustomPrimitive = CustomPrimitives[keyof CustomPrimitives]
 
-  /**
-   * Cast a value to a given type.
-   */
-  cast<T>(type: SQL.Type<string, any, T>) {
-    return sql(sequence([this, unsafe('::'), type], empty)).mapWith(type)
-  }
-
-  /**
-   * Set the data type of the SQL object, controlling how the result
-   * is parsed.
-   * @returns The same SQL object.
-   */
-  mapWith<T extends SQL.Type>(dataType: T | null): SQL<SQL.InferOutput<T>>
-  mapWith<T>(decoder: ((sqlType: unknown) => T) | null): SQL<T>
-  mapWith(dataType: SQL.Type | ((sqlType: unknown) => unknown) | null) {
-    this[SQLDecoder] =
-      dataType && typeof dataType !== 'function' ? dataType.decode : dataType
-    return this
-  }
-}
-
-/**
- * SQL "components" are things like modifiers and clauses that cannot
- * be executed directly. They rely on SQL statements to execute them.
- */
-export class SQLComponent<
-  Keyword extends string = string,
-  Out = any,
-> extends SQL<Out> {}
-
-/**
- * A "returning clause" is a special SQL component that defines the
- * fields of a INSERT, UPDATE, or DELETE statement's result set.
- * Without it, these statements have no result set.
- */
-export class SQLReturningClause<Out = any> extends SQLComponent<
-  'returning',
-  Out
-> {
-  protected [SQLFields]: Record<string, SQL.Decoder> | null = null
-}
-
-/**
- * SQL "statements" are executable queries like SELECT, INSERT,
- * CREATE, and so on.
- */
-export class SQLStatement<
-  Out = any,
-  Keyword extends string = string,
-> extends SQL<Out> {
-  protected [SQLFields]: Record<string, SQL.Decoder> | null = null
-}
-
-export declare namespace SQL {
   export type Primitive =
+    | CustomPrimitive
     | string
     | number
     | bigint
@@ -299,49 +291,11 @@ export declare namespace SQL {
 
   export type Part =
     | pgTokens[keyof pgTokens]
-    | SQLExpression
+    | SQL
+    | Type
     | Table
     | Primitive
-    | Part[]
-
-  /**
-   * An escaped string.
-   */
-  export type Param = { [PgParam]: string | unknown[] }
-
-  /**
-   * An escape hatch for raw SQL.
-   */
-  export type Syntax<T extends string = string> = { [PgSyntax]: T }
-
-  /**
-   * A clause is a syntactic component of a statement, usually
-   * introduced by a keyword like `SELECT`, `WHERE`, `FROM`, or `ORDER
-   * BY`, that specifies a particular action or operation in the
-   * query.
-   */
-  export type Clause = { [PgClause]: string; parts: SQL.Part[] }
-
-  /**
-   * A sequence of tokens, with a given separator between each item.
-   */
-  export type Sequence = { [PgSequence]: Token[]; separator: SQL.Syntax }
-
-  /**
-   * An identifier, safe from SQL injection. Often refers to a column or
-   * table name.
-   */
-  export type Identifier = {
-    [PgIdent]: string
-    /** The unescaped name of the identifier. */
-    [IdentName]: string
-    [IdentNamespace]: Identifier | null
-    [IdentColumn]: Column | null
-  }
-
-  export type ColumnIdentifier<TColumn extends Column = Column> = Identifier & {
-    [IdentColumn]: TColumn
-  }
+    | readonly Part[]
 
   export type Encoder<In = unknown> = (jsType: In) => unknown
   export type Decoder<Out = unknown> = (sqlType: unknown) => Out
@@ -364,15 +318,22 @@ export declare namespace SQL {
   /**
    * Infer the output type of a given data type.
    */
-  export type InferOutput<T extends Type | SQL | ColumnIdentifier> =
+  export type InferOutput<T extends Type | SQL | Token.ColumnIdentifier> =
     T extends Type<any, any, infer TOutput>
       ? TOutput
       : T extends SQL<infer TOutput>
         ? TOutput
-        : T extends ColumnIdentifier<Column<any, infer TColumnOutput>>
+        : T extends Token.ColumnIdentifier<Column<any, infer TColumnOutput>>
           ? TColumnOutput
           : unknown
 }
+
+type toSQL<T extends readonly SQL.Part[]> = T[0] extends
+  | SQL.Query
+  | SQL.Expression
+  | SQL.Component
+  ? T[0]
+  : SQL.Expression<unknown>
 
 /**
  * Concatenate chunks of SQL. If later nested in a `SQL.Sequence`, the
@@ -382,30 +343,47 @@ export declare namespace SQL {
  * SQL instances are flattened (e.g. `sql(a, sql(b, c))` is the same
  * as `sql(a, b, c)`).
  */
-export function sql<const T extends readonly SQL.Part[]>(...parts: T) {
+export function sql<
+  const T extends readonly [
+    SQL.Query | SQL.Expression | SQL.Component,
+    ...SQL.Part[],
+  ],
+>(...parts: T): T[0]
+export function sql<const T extends readonly SQL.Part[]>(...parts: T): toSQL<T>
+export function sql(...parts: readonly SQL.Part[]) {
   return fromArray(parts)
 }
 
-type InferSQL<T extends readonly SQL.Part[]> = T[0]
-
-function fromArray<const T extends readonly SQL.Part[]>(parts: T): InferSQL<T> {
-  const root = new SQL()
-  tokenize(parts, root)
+function fromArray<
+  const T extends readonly [
+    SQL.Query | SQL.Expression | SQL.Component,
+    ...SQL.Part[],
+  ],
+>(parts: T): T[0]
+function fromArray<const T extends readonly SQL.Part[]>(parts: T): toSQL<T>
+function fromArray(parts: readonly SQL.Part[]) {
+  let root: SQL
+  if (parts[0] instanceof SQL) [root, ...parts] = parts
+  else root = new SQL.Expression()
+  tokenize(parts, root[SQLTokens])
   return root
 }
 
 sql.fromArray = fromArray
-sql.unsafe = unsafe
-sql.clause = clause
-sql.sequence = sequence
+
+// Tokens
 sql.ident = ident
+sql.sequence = sequence
+sql.unsafe = unsafe
+
+const jsonNull = { toJSON: () => null }
 
 /**
  * If you need to store `"null"` in a `json` or `jsonb` column, use
  * this. JS nulls are always treated as SQL nulls, never as JSON
  * nulls.
  */
-sql.jsonNull = () => ({ toJSON: () => null })
+sql.jsonNull = () => jsonNull
 
 /**
  * Coerce a JavaScript array to an escaped SQL array.
@@ -431,36 +409,30 @@ sql.literal = (data: any) => {
   return data
 }
 
-export function renderQuery(tokens: Token[], params: unknown[]): string {
-  let sql = ''
-  for (const token of tokens) {
-    sql += render(token, params)
-  }
-  return sql
-}
-
-function render(token: Token, params: unknown[]): string {
-  if (typeof token === 'string') {
-    return token
-  }
-  if (isToken(token, PgParam)) {
-    const index = 1 + params.indexOf(token[PgParam])
-    return '$' + (index || params.push(token[PgParam]))
-  }
-  if (isToken(token, PgSequence)) {
-    let sequence = ''
-    for (let i = 0; i < token[PgSequence].length; i++) {
-      if (i > 0) sequence += token.separator[PgSyntax]
-      sequence += render(token[PgSequence][i], params)
-    }
-    return sequence
-  }
-  return '(' + renderQuery(token, params) + ')'
-}
+/**
+ * Useful for conditional syntax. If the condition is falsy, exclude
+ * the given syntax from the query.
+ *
+ * ⚠️ The `condition` is JavaScript, not SQL. Use `caseWhen()` for SQL
+ * conditions.
+ *
+ * @example
+ * ```ts
+ * select(users.id, $if(isAdmin, users.email), users.name)
+ * ```
+ */
+export const $if = <T>(
+  condition: unknown,
+  truthy: SQL<T>
+): SQL<T | undefined> | typeof empty => (condition ? truthy : empty)
 
 /** The `and` operator. */
 export function and(...parts: SQL.Part[]) {
-  return sql(unsafe('and'), ...parts).mapWith(boolean)
+  return sql(new SQL.Component('and'), ...parts).mapWith(boolean)
+}
+
+export function caseWhen() {
+  // TODO: implement
 }
 
 /** Concatenate parts with the `and` operator. Empty parts are omitted. */

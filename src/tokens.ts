@@ -1,5 +1,5 @@
 import { assert } from 'radashi'
-import { InferSQL, SQL, SQLExpression } from './core.ts'
+import { sql, SQL } from './core.ts'
 import { Column } from './definition/column.ts'
 import { Table, tableRef } from './definition/table.ts'
 import {
@@ -8,7 +8,6 @@ import {
   IdentColumn,
   IdentName,
   IdentNamespace,
-  PgClause,
   PgIdent,
   PgParam,
   PgSequence,
@@ -17,22 +16,13 @@ import {
   SQLAlias,
   SQLDecoder,
   SQLTokenize,
-  SQLTokens,
 } from './symbols.ts'
 
 /**
  * An escape hatch for raw SQL.
  */
-export const unsafe = <T extends string>(syntax: T): SQL.Syntax<T> => ({
+export const unsafe = <T extends string>(syntax: T): Token.Syntax<T> => ({
   [PgSyntax]: syntax,
-})
-
-/**
- * Declare a SQL clause.
- */
-export const clause = (keyword: string, ...parts: SQL.Part[]): SQL.Clause => ({
-  [PgClause]: keyword,
-  parts,
 })
 
 /** Empty token. This gets omitted from the query when tokenized. */
@@ -48,17 +38,17 @@ export const dot = unsafe('.')
  * Declare an identifier. Often refers to a column, table, or schema
  * name or alias.
  */
-export function ident(id: string): SQL.Identifier
+export function ident(id: string): Token.Identifier
 export function ident<TColumn extends Column>(
   id: string,
   column: TColumn
-): SQL.ColumnIdentifier<TColumn>
+): Token.ColumnIdentifier<TColumn>
 
 /** @internal */
 export function ident(
   name: string,
   column: Column | null = null
-): SQL.Identifier {
+): Token.Identifier {
   return {
     [PgIdent]: escapeIdentifier(name),
     [IdentName]: name,
@@ -74,8 +64,8 @@ export function ident(
  */
 export const sequence = (
   parts: readonly SQL.Part[],
-  separator: SQL.Syntax = space
-): SQL.Sequence => ({
+  separator: Token.Syntax = space
+): Token.Sequence => ({
   [PgSequence]: tokenize(parts),
   separator,
 })
@@ -93,64 +83,96 @@ export function withAlias(
   alias: string,
   fields?: Record<string, SQL.Decoder>
 ) {
-  if (part instanceof SQLExpression) {
-    if (fields && part[SQLDecoder]) {
-      assert(fields[alias] == null, `Alias appears twice: ${alias}`)
-      fields[alias] = part[SQLDecoder]
-    }
-    if (alias === part[SQLAlias]) {
-      return part
-    }
-  } else if (isColumnIdentifier(part)) {
-    if (fields) {
-      assert(fields[alias] == null, `Alias appears twice: ${alias}`)
-      fields[alias] = part[IdentColumn][ColumnType].decode
-    }
-    if (alias === part[IdentColumn][ColumnName]) {
-      return part
+  if (part !== null && typeof part === 'object') {
+    if (part instanceof SQL) {
+      if (fields && part instanceof SQL.Expression && part[SQLDecoder]) {
+        assert(fields[alias] == null, `Alias appears twice: ${alias}`)
+        fields[alias] = part[SQLDecoder]
+      }
+      if (
+        part instanceof SQL.Expression &&
+        alias === part[SQLAlias]?.[IdentName]
+      ) {
+        return part
+      }
+    } else if (isColumnIdentifier(part)) {
+      if (fields) {
+        assert(fields[alias] == null, `Alias appears twice: ${alias}`)
+        fields[alias] = part[IdentColumn][ColumnType].decode
+      }
+      if (alias === part[IdentColumn][ColumnName]) {
+        return part
+      }
     }
   }
   // No decoder found, so we'll just return the value as is.
-  return InferSQL(part).as(alias)
+  return sql(part).as(alias)
 }
 
-export function withoutNamespace(id: SQL.Identifier): SQL.Identifier {
+export function withoutNamespace(id: Token.Identifier): Token.Identifier {
   return { ...id, [IdentNamespace]: null }
 }
 
-export interface pgTokens {
-  [PgType]: SQL.Type
-  [PgIdent]: SQL.Identifier
-  [PgParam]: SQL.Param
-  [PgSequence]: SQL.Sequence
-  [PgSyntax]: SQL.Syntax
-  [PgClause]: SQL.Clause
+export namespace Token {
+  /**
+   * An escaped string or JS array.
+   */
+  export type Param = { [PgParam]: string | unknown[] }
+
+  /**
+   * An escape hatch for raw SQL.
+   */
+  export type Syntax<T extends string = string> = { [PgSyntax]: T }
+
+  /**
+   * A sequence of tokens, with a given separator between each item.
+   */
+  export type Sequence = {
+    [PgSequence]: Token[]
+    separator: Token.Syntax
+  }
+
+  /**
+   * An identifier, safe from SQL injection. Often refers to a column or
+   * table name.
+   */
+  export type Identifier = {
+    [PgIdent]: string
+    /** The unescaped name of the identifier. */
+    [IdentName]: string
+    [IdentNamespace]: Identifier | null
+    [IdentColumn]: Column | null
+  }
+
+  export type ColumnIdentifier<TColumn extends Column = Column> = Identifier & {
+    [IdentColumn]: TColumn
+  }
 }
 
-const pgTokens: (keyof pgTokens)[] = [
-  PgType,
-  PgIdent,
-  PgParam,
-  PgSequence,
-  PgSyntax,
-  PgClause,
-]
+export interface pgTokens {
+  [PgIdent]: Token.Identifier
+  [PgParam]: Token.Param
+  [PgSequence]: Token.Sequence
+  [PgSyntax]: Token.Syntax
+}
+
+const pgTokens: (keyof pgTokens)[] = [PgIdent, PgParam, PgSequence, PgSyntax]
 
 /**
  * Type guard for database tokens.
  */
 export function isToken<T extends keyof pgTokens = keyof pgTokens>(
-  value: unknown,
+  value: object,
   type?: T
 ): value is pgTokens[T] {
-  return typeof value === 'object' && value !== null && type
+  return type
     ? Object.prototype.hasOwnProperty.call(value, type)
     : pgTokens.some(token => Object.prototype.hasOwnProperty.call(value, token))
 }
 
 export function isColumnIdentifier(
-  token: unknown
-): token is SQL.ColumnIdentifier {
+  token: object
+): token is Token.ColumnIdentifier {
   return isToken(token, PgIdent) && token[IdentColumn] !== null
 }
 
@@ -160,7 +182,7 @@ export function isColumnIdentifier(
  * Notably, JS arrays are not flattened, but treated as a
  * parenthesized expression.
  */
-export type Token = string | SQL.Param | SQL.Sequence | Token[]
+export type Token = string | Token.Param | Token.Sequence | SQL.Query | Token[]
 
 /**
  * Simplify the array of tokens such that only raw SQL, escaped
@@ -168,12 +190,14 @@ export type Token = string | SQL.Param | SQL.Sequence | Token[]
  *
  * ⚠︎ Arrays are wrapped in parentheses, not flattened.
  */
-export function tokenize(parts: readonly SQL.Part[], root?: SQL): Token[] {
+export function tokenize(
+  parts: readonly SQL.Part[],
+  tokens: Token[] = []
+): Token[] {
   // The goal is to flatten as much as possible, in order to reduce
   // memory usage and to avoid nested structures for easier debugging.
-  const tokens: Token[] = root?.[SQLTokens] ?? []
   for (const part of parts) {
-    tokenizePart(part, root, tokens)
+    tokenizePart(part, tokens)
   }
   return tokens
 }
@@ -184,11 +208,7 @@ export function tokenize(parts: readonly SQL.Part[], root?: SQL): Token[] {
  * with the new tokens. Otherwise, a new tokens array is created and
  * returned.
  */
-export function tokenizePart(
-  part: SQL.Part,
-  root: SQL | undefined,
-  tokens: Token[] = root?.[SQLTokens] ?? []
-) {
+export function tokenizePart(part: SQL.Part, tokens: Token[] = []) {
   let token: Token | undefined
   if (part == null) {
     token = 'null' // Treat undefined as null
@@ -205,31 +225,21 @@ export function tokenizePart(
   } else if (Array.isArray(part)) {
     token = tokenize(part) // parenthesized expression
   } else if (typeof part === 'object') {
-    if (part instanceof SQLExpression) {
-      part[SQLTokenize](tokens, root)
-      if (part[SQLAlias]) {
-        tokens.push('as', escapeIdentifier(part[SQLAlias]))
-      }
-      return tokens
-    }
-    if (isToken(part, PgClause)) {
-      tokens.push(part[PgClause])
-      for (const token of tokenize(part.parts, root)) {
-        tokens.push(token)
-      }
+    if (part instanceof SQL) {
+      part[SQLTokenize](tokens)
       return tokens
     }
     if (isToken(part, PgIdent)) {
       token = tokenizeIdentifier(part)
     } else if (isToken(part, PgParam) || isToken(part, PgSequence)) {
       token = part
-    } else if (isToken(part, PgType)) {
-      token = part[PgType] // Type name
     } else if (isToken(part, PgSyntax)) {
       if (part[PgSyntax] === '') {
-        return tokens
+        return tokens // no-op
       }
       token = part[PgSyntax] // Raw SQL
+    } else if (SQL.isType(part)) {
+      token = part[PgType] // Type name
     } else if (part instanceof Date) {
       token = { [PgParam]: part.toISOString() }
     } else if (part instanceof Table) {
@@ -243,7 +253,7 @@ export function tokenizePart(
   return tokens
 }
 
-function tokenizeIdentifier(id: SQL.Identifier): string {
+function tokenizeIdentifier(id: Token.Identifier): string {
   return id[IdentNamespace]
     ? tokenizeIdentifier(id[IdentNamespace]) + '.' + id[PgIdent]
     : id[PgIdent]

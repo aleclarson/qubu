@@ -1,4 +1,4 @@
-import { pgType } from '../core.ts'
+import { pgType } from '../type.ts'
 
 /**
  * PostgreSQL json type.

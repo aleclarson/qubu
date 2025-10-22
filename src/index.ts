@@ -1,3 +1,5 @@
+export * from './casing.ts'
+export * from './client.ts'
 export * from './core.ts'
 
 export * from './definition/column.ts'

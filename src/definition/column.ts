@@ -1,5 +1,5 @@
 import { StandardSchemaV1 } from '@standard-schema/spec'
-import { array, comma, InferSQL, sequence, SQL, unsafe } from '../core.ts'
+import { sql, SQL } from '../core.ts'
 import {
   ColumnConstraints,
   ColumnName,
@@ -9,7 +9,15 @@ import {
   ColumnType,
   IdentColumn,
 } from '../symbols.ts'
-import { isColumnIdentifier, withoutNamespace } from '../tokens.ts'
+import {
+  comma,
+  isColumnIdentifier,
+  sequence,
+  Token,
+  unsafe,
+  withoutNamespace,
+} from '../tokens.ts'
+import { array } from '../type.ts'
 import { tableRef, type Table } from './table.ts'
 
 export type OnDeleteAction =
@@ -95,14 +103,14 @@ export class Column<In = any, Out = any, Nullable extends boolean = any> {
   check(expression: () => SQL.Part[]) {
     // Note: We don't use `sql.fromArray` here because the expression
     // should be wrapped in parentheses.
-    this[ColumnConstraints].push(unsafe('check'), () => InferSQL(expression()))
+    this[ColumnConstraints].push(unsafe('check'), () => sql(expression()))
     return this
   }
-  references(resolve: () => Table | OneOrMore<SQL.ColumnIdentifier>) {
+  references(resolve: () => Table | OneOrMore<Token.ColumnIdentifier>) {
     this[ColumnConstraints].push(unsafe('references'), () => {
       const columns = resolve()
       return Array.isArray(columns)
-        ? InferSQL(columns[0][IdentColumn][ColumnTable], [
+        ? sql(columns[0][IdentColumn][ColumnTable], [
             sequence(
               // Ensure only the column name is used, not the table name.
               columns.map(withoutNamespace),
@@ -110,10 +118,8 @@ export class Column<In = any, Out = any, Nullable extends boolean = any> {
             ),
           ])
         : isColumnIdentifier(columns)
-          ? InferSQL(columns[IdentColumn][ColumnTable], [
-              withoutNamespace(columns),
-            ])
-          : InferSQL(tableRef(columns))
+          ? sql(columns[IdentColumn][ColumnTable], [withoutNamespace(columns)])
+          : sql(tableRef(columns))
     })
     return this
   }

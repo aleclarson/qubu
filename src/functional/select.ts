@@ -1,10 +1,9 @@
 import { assert } from 'radashi'
-import { InferSQL, SQL } from '../core.ts'
+import { sql, SQL } from '../core.ts'
 import {
   ColumnType,
   IdentColumn,
   IdentName,
-  PgClause,
   PgIdent,
   SQLAlias,
   SQLDecoder,
@@ -12,31 +11,27 @@ import {
   SQLTokens,
 } from '../symbols.ts'
 import {
-  clause,
   comma,
   empty,
   ident,
   isToken,
   sequence,
+  Token,
   unsafe,
   withAlias,
 } from '../tokens.ts'
 
-export type SelectClausePart =
-  | SQL
-  | SQL.Clause
-  | SQL.Identifier
-  | Record<string, SQL.Part>
+export type SelectClausePart = SQL | Token.Identifier | Record<string, SQL.Part>
 
 export const select = <const T extends SelectClausePart[]>(...parts: T) => {
-  const statement = InferSQL(unsafe('select'))
+  const selectQuery = new SQL.Query('select')
 
   const fieldMappers: Record<string, SQL.Decoder> = {}
-  statement[SQLFields] = fieldMappers
+  selectQuery[SQLFields] = fieldMappers
 
   const selectedFields = parts.map(part => {
-    if (isToken(part, PgClause)) {
-      statement.$append(part)
+    if (SQL.isClause(part)) {
+      selectQuery.$append(part)
       return empty // Not a field.
     }
     if (isToken(part, PgIdent)) {
@@ -63,20 +58,22 @@ export const select = <const T extends SelectClausePart[]>(...parts: T) => {
     )
   })
 
-  statement.$append(sequence(selectedFields, comma))
+  selectQuery.$append(sequence(selectedFields, comma))
 
-  return statement.mapWith(rows => {
-    const keys = Object.keys(fieldMappers)
-    return (rows as Record<string, unknown>[]).map(row => {
-      for (const key of keys) {
-        if (row[key] != null) {
-          row[key] = fieldMappers[key](row[key])
-        }
-      }
-      // TODO: type inference
-      return row
-    })
-  })
+  return selectQuery
+  
+  // .mapWith(rows => {
+  //   const keys = Object.keys(fieldMappers)
+  //   return (rows as Record<string, unknown>[]).map(row => {
+  //     for (const key of keys) {
+  //       if (row[key] != null) {
+  //         row[key] = fieldMappers[key](row[key])
+  //       }
+  //     }
+  //     // TODO: type inference
+  //     return row
+  //   })
+  // })
 }
 
 /**
@@ -119,7 +116,7 @@ export const selectDistinctOn = <const T extends SelectClausePart[]>(
  * select($if(someCondition, distinct()), users.id, users.name)
  * ```
  */
-export const distinct = () => clause('distinct')
+export const distinct = () => component('distinct')
 
 /**
  * In PostgreSQL, `DISTINCT ON` selects the first row of each set of
@@ -138,7 +135,7 @@ export const distinct = () => clause('distinct')
  * ```
  */
 export function distinctOn(...columns: (SQL.Identifier | string)[]) {
-  return clause('distinct on', [
+  return component('distinct on', [
     sequence(
       columns.map(column =>
         typeof column === 'string' ? ident(column) : column
@@ -148,11 +145,11 @@ export function distinctOn(...columns: (SQL.Identifier | string)[]) {
   ])
 }
 
-export const from = (tableRef: SQL.Part) => clause('from', tableRef)
+export const from = (tableRef: SQL.Part) => component('from', tableRef)
 
 const join = (type: string) => (tableRef: SQL.Part) => ({
   on: (...parts: SQL.Part[]) =>
-    clause(`${type} join`, tableRef, unsafe('on'), ...parts),
+    component(`${type} join`, tableRef, unsafe('on'), ...parts),
 })
 
 export const innerJoin = join('inner')
@@ -161,5 +158,5 @@ export const fullJoin = join('full')
 export const crossJoin = join('cross')
 export const naturalJoin = join('natural')
 
-export const where = InferSQL.bind(null, unsafe('where'))
-export const orderBy = InferSQL.bind(null, unsafe('order by'))
+export const where = sql.bind(null, unsafe('where'))
+export const orderBy = sql.bind(null, unsafe('order by'))

@@ -1,4 +1,4 @@
-import { $type, pgType } from '../core.ts'
+import { $type, pgType } from '../type.ts'
 
 /**
  * PostgreSQL real type.
