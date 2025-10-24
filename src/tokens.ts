@@ -13,9 +13,9 @@ import {
   PgSequence,
   PgSyntax,
   PgType,
+  SequenceDelimiter,
   SQLAlias,
   SQLDecoder,
-  SQLTokenize,
 } from './symbols.ts'
 
 /**
@@ -62,13 +62,19 @@ export function ident(
  * given separator between each item. If no separator is provided, the
  * tokens are joined with a space.
  */
-export const sequence = (
+export function sequence(
   parts: readonly SQL.Part[],
-  separator: Token.Syntax = space
-): Token.Sequence => ({
-  [PgSequence]: tokenize(parts),
-  separator,
-})
+  delimiter: Token.Syntax = space
+) {
+  const tokens = tokenize(parts)
+  if (tokens.length === 1) {
+    return tokens[0]
+  }
+  return {
+    [PgSequence]: tokenize(parts),
+    [SequenceDelimiter]: delimiter,
+  } satisfies Token.Sequence
+}
 
 /**
  * Alias a SQL part. If the alias already matches the part's identity
@@ -85,14 +91,11 @@ export function withAlias(
 ) {
   if (part !== null && typeof part === 'object') {
     if (part instanceof SQL) {
-      if (fields && part instanceof SQL.Expression && part[SQLDecoder]) {
+      if (fields && SQL.isExpression(part) && part[SQLDecoder]) {
         assert(fields[alias] == null, `Alias appears twice: ${alias}`)
         fields[alias] = part[SQLDecoder]
       }
-      if (
-        part instanceof SQL.Expression &&
-        alias === part[SQLAlias]?.[IdentName]
-      ) {
+      if (SQL.isExpression(part) && alias === part[SQLAlias]?.[IdentName]) {
         return part
       }
     } else if (isColumnIdentifier(part)) {
@@ -129,7 +132,7 @@ export namespace Token {
    */
   export type Sequence = {
     [PgSequence]: Token[]
-    separator: Token.Syntax
+    [SequenceDelimiter]: Token.Syntax
   }
 
   /**
@@ -225,10 +228,6 @@ export function tokenizePart(part: SQL.Part, tokens: Token[] = []) {
   } else if (Array.isArray(part)) {
     token = tokenize(part) // parenthesized expression
   } else if (typeof part === 'object') {
-    if (part instanceof SQL) {
-      part[SQLTokenize](tokens)
-      return tokens
-    }
     if (isToken(part, PgIdent)) {
       token = tokenizeIdentifier(part)
     } else if (isToken(part, PgParam) || isToken(part, PgSequence)) {

@@ -4,17 +4,17 @@ import { boolean } from './data/boolean.ts'
 import { Column } from './definition/column.ts'
 import { Table } from './definition/table.ts'
 import {
+  PgExpression,
   PgIdent,
   PgParam,
   PgSequence,
   PgSyntax,
   PgType,
+  SequenceDelimiter,
   SQLAlias,
   SQLDecoder,
   SQLFields,
   SQLKeyword,
-  SQLTokenize,
-  SQLTokens,
 } from './symbols.ts'
 import {
   empty,
@@ -29,14 +29,13 @@ import {
 } from './tokens.ts'
 import { columnsProxy } from './util.ts'
 
-export class SQL<Out = any> {
-  protected [SQLTokens]: Token[] = []
+export class SQL<Out = any> implements Token.Sequence {
+  [PgSequence]: Token[];
+  [SequenceDelimiter]: Token.Syntax
 
-  // Default behavior is to dissolve into tokens.
-  protected [SQLTokenize](tokens: Token[]) {
-    for (const token of this[SQLTokens]) {
-      tokens.push(token)
-    }
+  constructor(sequence: Token[] = [], delimiter: Token.Syntax = space) {
+    this[PgSequence] = sequence
+    this[SequenceDelimiter] = delimiter
   }
 
   /**
@@ -45,16 +44,25 @@ export class SQL<Out = any> {
    * part.
    * @returns The same SQL object.
    */
-  $append(part: SQL.Part | SQL.Part[], separator: Token.Syntax = space) {
-    if (separator[PgSyntax] === ' ') {
-      tokenizePart(part, this[SQLTokens])
+  $append(
+    part: SQL.Part | SQL.Part[],
+    separator: Token.Syntax = this[SequenceDelimiter]
+  ) {
+    if (separator[PgSyntax] === this[SequenceDelimiter][PgSyntax]) {
+      tokenizePart(part, this[PgSequence])
     } else {
-      const { length } = this[SQLTokens]
-      const tokens = isArray(part) ? tokenize(part) : tokenizePart(part)
-      tokens.unshift(this[SQLTokens][length - 1])
-      this[SQLTokens][length - 1] = {
+      const { length } = this[PgSequence]
+
+      const tokens = [this[PgSequence][length - 1]]
+      if (isArray(part)) {
+        tokenize(part, tokens)
+      } else {
+        tokenizePart(part, tokens)
+      }
+
+      this[PgSequence][length - 1] = {
         [PgSequence]: tokens,
-        separator,
+        [SequenceDelimiter]: separator,
       } satisfies Token.Sequence
     }
     return this
@@ -66,8 +74,8 @@ export namespace SQL {
     return Object.prototype.hasOwnProperty.call(value, PgType)
   }
 
-  export function isClause(value: object): value is SQL.Query | SQL.Component {
-    return Object.prototype.hasOwnProperty.call(value, SQLKeyword)
+  export function isExpression(value: object): value is SQL.Expression {
+    return Object.prototype.hasOwnProperty.call(value, PgExpression)
   }
 
   /**
@@ -75,22 +83,18 @@ export namespace SQL {
    * directly. They rely on SQL statements to execute them.
    */
   export class Expression<Out = any> extends SQL<Out> {
+    protected [PgExpression] = true as const
     protected [SQLAlias]: Token.Identifier | null = null
     protected [SQLDecoder]: SQL.Decoder<Out> | null = null
-
-    protected override [SQLTokenize](tokens: Token[]) {
-      super[SQLTokenize](tokens)
-      if (this[SQLAlias]) {
-        tokens.push('as', this[SQLAlias][PgIdent])
-      }
-    }
 
     /**
      * Set the alias for this SQL object.
      * @returns The same SQL object.
      */
     as(alias: string) {
+      assert(this[SQLAlias] == null, 'Alias already set')
       this[SQLAlias] = ident(alias)
+      this[PgSequence].push('as', this[SQLAlias][PgIdent])
       return this
     }
 
@@ -196,12 +200,13 @@ export namespace SQL {
    * be executed directly. They rely on SQL statements to execute them.
    */
   export class Component<Out = any> extends SQL<Out> {
-    protected [SQLKeyword]: string
-
     constructor(keyword: string) {
       super()
-      this[SQLKeyword] = keyword
-      this[SQLTokens].push(keyword)
+      this[PgSequence].push(keyword)
+    }
+
+    get [SQLKeyword]() {
+      return this[PgSequence][0] as string
     }
   }
 
@@ -223,22 +228,18 @@ export namespace SQL {
    * An executable query like SELECT, INSERT, CREATE, and so on.
    */
   export class Query<Out = any> extends SQL<Out> {
-    protected [SQLKeyword]: string
     protected [SQLFields]: Record<string, SQL.Decoder> | null
 
     constructor(
       keyword: string,
       fields: Record<string, SQL.Decoder> | null = null
     ) {
-      super()
-      this[SQLKeyword] = keyword
+      super([keyword])
       this[SQLFields] = fields
-      this[SQLTokens].push(keyword)
     }
 
-    protected [SQLTokenize](tokens: Token[]) {
-      // Statements are preserved.
-      tokens.push(this)
+    get [SQLKeyword]() {
+      return this[PgSequence][0] as string
     }
 
     as(alias: string) {
@@ -265,10 +266,13 @@ export namespace SQL {
     protected [SQLAlias]: Token.Identifier
     constructor(alias: string, statement: Query<Out>) {
       super(statement[SQLKeyword], statement[SQLFields])
-      this[SQLTokens] = statement[SQLTokens]
+      this[PgSequence] = statement[PgSequence]
+      this[SequenceDelimiter] = statement[SequenceDelimiter]
       this[SQLAlias] = ident(alias)
     }
   }
+
+  export type TableReference = SQL.Subquery | Table
 
   /**
    * Use “interface merging” to add your own custom primitives to the
@@ -365,7 +369,7 @@ function fromArray(parts: readonly SQL.Part[]) {
   let root: SQL
   if (parts[0] instanceof SQL) [root, ...parts] = parts
   else root = new SQL.Expression()
-  tokenize(parts, root[SQLTokens])
+  tokenize(parts, root[PgSequence])
   return root
 }
 

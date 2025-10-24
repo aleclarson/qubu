@@ -5,8 +5,8 @@ import {
   PgParam,
   PgSequence,
   PgSyntax,
+  SequenceDelimiter,
   SQLAlias,
-  SQLTokens,
 } from './symbols.ts'
 import { comma, isToken, sequence, Token } from './tokens.ts'
 
@@ -45,16 +45,14 @@ export class PgDatabase {
       ? [
           'with',
           subquerySequence(queries as SQL.Subquery[]),
-          ...lastQuery[SQLTokens],
+          ...lastQuery[PgSequence],
         ]
-      : lastQuery[SQLTokens]
+      : lastQuery[PgSequence]
 
     const params: unknown[] = []
     const sql = renderTokens(tokens, params)
-    console.log('query', { sql, params })
 
     await this.connect()
-    console.log('connected')
 
     return this.adapter.query(this.client, sql, params) as Promise<
       SQL.InferOutput<T>
@@ -65,7 +63,7 @@ export class PgDatabase {
 function subquerySequence(queries: SQL.Subquery[]) {
   return sequence(
     queries.map(query => {
-      return sequence([query[SQLAlias][PgIdent], 'as', query[SQLTokens]])
+      return sequence([query[SQLAlias][PgIdent], 'as', query[PgSequence]])
     }),
     comma
   )
@@ -91,7 +89,7 @@ function renderToken(token: Token, params: unknown[]): string {
   if (isToken(token, PgSequence)) {
     let sequence = ''
     for (let i = 0; i < token[PgSequence].length; i++) {
-      if (i > 0) sequence += token.separator[PgSyntax]
+      if (i > 0) sequence += token[SequenceDelimiter][PgSyntax]
       sequence += renderToken(token[PgSequence][i], params)
     }
     return sequence
@@ -100,7 +98,7 @@ function renderToken(token: Token, params: unknown[]): string {
     return token[SQLAlias][PgIdent] // Subquery reference
   }
   if (token instanceof SQL.Query) {
-    return renderTokens(token[SQLTokens], params)
+    return renderTokens(token[PgSequence], params)
   }
   return '(' + renderTokens(token, params) + ')'
 }

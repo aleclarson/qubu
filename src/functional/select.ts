@@ -5,10 +5,10 @@ import {
   IdentColumn,
   IdentName,
   PgIdent,
+  PgSequence,
   SQLAlias,
   SQLDecoder,
   SQLFields,
-  SQLTokens,
 } from '../symbols.ts'
 import {
   comma,
@@ -30,26 +30,27 @@ export const select = <const T extends SelectClausePart[]>(...parts: T) => {
   selectQuery[SQLFields] = fieldMappers
 
   const selectedFields = parts.map(part => {
-    if (SQL.isClause(part)) {
-      selectQuery.$append(part)
-      return empty // Not a field.
-    }
     if (isToken(part, PgIdent)) {
       if (part[IdentColumn]) {
         fieldMappers[part[IdentName]] = part[IdentColumn][ColumnType].decode
       }
       return part
     }
-    if (part instanceof SQL) {
+    if (SQL.isExpression(part)) {
       assert(
         part[SQLAlias] !== null,
-        'Must use .as() to alias SQL in a select clause'
+        'Must use .as() to alias SQL expressions in a select clause'
       )
       if (part[SQLDecoder]) {
-        fieldMappers[part[SQLAlias]] = part[SQLDecoder]
+        fieldMappers[part[SQLAlias][IdentName]] = part[SQLDecoder]
       }
       return part
     }
+    if (part instanceof SQL) {
+      selectQuery.$append(part)
+      return empty // Not a field.
+    }
+    // Convert plain object to a sequence of aliased expressions.
     return sequence(
       Object.entries(part).map(([alias, value]) =>
         withAlias(value, alias, fieldMappers)
@@ -61,7 +62,7 @@ export const select = <const T extends SelectClausePart[]>(...parts: T) => {
   selectQuery.$append(sequence(selectedFields, comma))
 
   return selectQuery
-  
+
   // .mapWith(rows => {
   //   const keys = Object.keys(fieldMappers)
   //   return (rows as Record<string, unknown>[]).map(row => {
@@ -84,12 +85,14 @@ export function selectDistinct<const T extends SelectClausePart[]>(
   ...parts: T
 ) {
   const query = select(...parts)
-  query[SQLTokens][0] += ' distinct'
+  query[PgSequence][0] += ' distinct'
   return query
 }
 
 /**
- * Identical to `select(distinctOn(…), …)` but harder to make optional.
+ * Identical to `select(distinctOn(…), …)`
+ *
+ * Easier to import, but harder to make optional.
  * @example
  * ```ts
  * // These are identical:
@@ -98,7 +101,7 @@ export function selectDistinct<const T extends SelectClausePart[]>(
  * ```
  */
 export const selectDistinctOn = <const T extends SelectClausePart[]>(
-  columns: (SQL.Identifier | string)[],
+  columns: (Token.Identifier | string)[],
   ...parts: T
 ) => select(distinctOn(...columns), ...parts)
 
@@ -116,7 +119,7 @@ export const selectDistinctOn = <const T extends SelectClausePart[]>(
  * select($if(someCondition, distinct()), users.id, users.name)
  * ```
  */
-export const distinct = () => component('distinct')
+export const distinct = () => new SQL.Component('distinct')
 
 /**
  * In PostgreSQL, `DISTINCT ON` selects the first row of each set of
@@ -134,8 +137,8 @@ export const distinct = () => component('distinct')
  * )
  * ```
  */
-export function distinctOn(...columns: (SQL.Identifier | string)[]) {
-  return component('distinct on', [
+export function distinctOn(...columns: (Token.Identifier | string)[]) {
+  return sql(new SQL.Component('distinct on'), [
     sequence(
       columns.map(column =>
         typeof column === 'string' ? ident(column) : column
@@ -145,18 +148,47 @@ export function distinctOn(...columns: (SQL.Identifier | string)[]) {
   ])
 }
 
-export const from = (tableRef: SQL.Part) => component('from', tableRef)
+/**
+ * The `FROM` clause of a SELECT statement.
+ */
+export const from = (
+  ...tables: [SQL.TableReference, ...SQL.TableReference[]]
+) => sql(new SQL.Component('from'), sequence(tables, comma))
 
-const join = (type: string) => (tableRef: SQL.Part) => ({
+const join = (type: string) => (tableRef: SQL.TableReference) => ({
   on: (...parts: SQL.Part[]) =>
-    component(`${type} join`, tableRef, unsafe('on'), ...parts),
+    sql(new SQL.Component(`${type} join`), tableRef, unsafe('on'), ...parts),
 })
 
+/**
+ * The `INNER JOIN` clause of a SELECT statement.
+ */
 export const innerJoin = join('inner')
+/**
+ * The `LEFT JOIN` clause of a SELECT statement.
+ */
 export const leftJoin = join('left')
+/**
+ * The `FULL JOIN` clause of a SELECT statement.
+ */
 export const fullJoin = join('full')
+/**
+ * The `CROSS JOIN` clause of a SELECT statement.
+ */
 export const crossJoin = join('cross')
+/**
+ * The `NATURAL JOIN` clause of a SELECT statement.
+ */
 export const naturalJoin = join('natural')
 
-export const where = sql.bind(null, unsafe('where'))
-export const orderBy = sql.bind(null, unsafe('order by'))
+/**
+ * The `WHERE` clause of a SELECT statement.
+ */
+export const where = (...parts: SQL.Part[]) =>
+  sql(new SQL.Component('where'), ...parts)
+
+/**
+ * The `ORDER BY` clause of a SELECT statement.
+ */
+export const orderBy = (...parts: SQL.Part[]) =>
+  sql(new SQL.Component('order by'), ...parts)

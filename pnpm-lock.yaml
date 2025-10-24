@@ -30,12 +30,18 @@ importers:
       '@types/node':
         specifier: ^24.6.2
         version: 24.6.2
+      picospawn:
+        specifier: ^0.3.10
+        version: 0.3.10
       prettier:
         specifier: ^3.6.2
         version: 3.6.2
       radashi:
         specifier: ^12.6.2
         version: 12.6.2
+      tinyglobby:
+        specifier: ^0.2.15
+        version: 0.2.15
       type-fest:
         specifier: ^5.0.1
         version: 5.0.1
@@ -471,6 +477,9 @@ packages:
   picomatch@4.0.3:
     resolution: {integrity: sha512-5gTmgEY/sqK6gFXLIsQNH19lWb4ebPDLA4SdLP7dsWkIXHWlG66oPuVvXSGFPppYZz8ZDZq0dYYrbHfBCVUb1Q==}
     engines: {node: '>=12'}
+
+  picospawn@0.3.10:
+    resolution: {integrity: sha512-eQ0YZcpKLvdyO18Qi/YSCTdsyzGrjnH7MwJrOUQH3XyYNxu5tIoZO/qnPa7TRMJ9SHOWfBT+nYBxtMWVNKAm6A==}
 
   postcss@8.5.6:
     resolution: {integrity: sha512-3Ybi1tAuwAP9s0r1UQ2J4n5Y0G05bJkpUIO0/bI9MhwmD70S5aTWbXGBwxHrelT+XM1k6dM0pk+SwNkpTRN7Pg==}
@@ -935,6 +944,8 @@ snapshots:
   picocolors@1.1.1: {}
 
   picomatch@4.0.3: {}
+
+  picospawn@0.3.10: {}
 
   postcss@8.5.6:
     dependencies:
