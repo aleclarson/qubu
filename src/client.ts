@@ -8,7 +8,7 @@ import {
   SequenceDelimiter,
   SQLAlias,
 } from './symbols.ts'
-import { comma, isToken, sequence, Token } from './tokens.ts'
+import { comma, isToken, seq, Token } from './tokens.ts'
 
 export function postgres<TClient>(
   client: TClient,
@@ -61,9 +61,9 @@ export class PgDatabase {
 }
 
 function subquerySequence(queries: SQL.Subquery[]) {
-  return sequence(
+  return seq(
     queries.map(query => {
-      return sequence([query[SQLAlias][PgIdent], 'as', query[PgSequence]])
+      return seq([query[SQLAlias][PgIdent], 'as', query[PgSequence]])
     }),
     comma
   )

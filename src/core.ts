@@ -1,9 +1,14 @@
-import { assert, isArray } from 'radashi'
+import { assert } from 'radashi'
 import { BinaryOperator, binaryOperators } from './binaryOperator.ts'
 import { boolean } from './data/boolean.ts'
 import { Column } from './definition/column.ts'
-import { Table } from './definition/table.ts'
+import { getTableRef, Table } from './definition/table.ts'
 import {
+  ColumnName,
+  ColumnTable,
+  ColumnType,
+  IdentName,
+  PgColumn,
   PgExpression,
   PgIdent,
   PgParam,
@@ -18,13 +23,14 @@ import {
 } from './symbols.ts'
 import {
   empty,
+  escapeIdentifier,
   ident,
   pgTokens,
-  sequence,
+  renderIdentifier,
+  seq,
   space,
   Token,
   tokenize,
-  tokenizePart,
   unsafe,
 } from './tokens.ts'
 import { columnsProxy } from './util.ts'
@@ -45,20 +51,16 @@ export class SQL<Out = any> implements Token.Sequence {
    * @returns The same SQL object.
    */
   $append(
-    part: SQL.Part | SQL.Part[],
+    parts: readonly SQL.Part[],
     separator: Token.Syntax = this[SequenceDelimiter]
   ) {
     if (separator[PgSyntax] === this[SequenceDelimiter][PgSyntax]) {
-      tokenizePart(part, this[PgSequence])
+      tokenize(parts, this[PgSequence])
     } else {
       const { length } = this[PgSequence]
 
       const tokens = [this[PgSequence][length - 1]]
-      if (isArray(part)) {
-        tokenize(part, tokens)
-      } else {
-        tokenizePart(part, tokens)
-      }
+      tokenize(parts, tokens)
 
       this[PgSequence][length - 1] = {
         [PgSequence]: tokens,
@@ -76,6 +78,12 @@ export namespace SQL {
 
   export function isExpression(value: object): value is SQL.Expression {
     return Object.prototype.hasOwnProperty.call(value, PgExpression)
+  }
+
+  export function isColumnReference(
+    value: object
+  ): value is SQL.ColumnReference {
+    return Object.prototype.hasOwnProperty.call(value, PgColumn)
   }
 
   /**
@@ -113,7 +121,7 @@ export namespace SQL {
      * `JSON.stringify(null)`).
      */
     isNull() {
-      return this.$append(unsafe('is null')).mapWith(boolean)
+      return this.$append([unsafe('is null')]).mapWith(boolean)
     }
 
     /**
@@ -123,7 +131,7 @@ export namespace SQL {
      * `JSON.stringify(null)`).
      */
     isNotNull() {
-      return this.$append(unsafe('is not null')).mapWith(boolean)
+      return this.$append([unsafe('is not null')]).mapWith(boolean)
     }
 
     /**
@@ -195,6 +203,35 @@ export namespace SQL {
     }
   }
 
+  export class ColumnReference<Out = any> extends Expression<Out> {
+    protected [PgColumn]: Column<any, Out> | null
+    protected [ColumnName]: string
+
+    constructor(
+      column: Column<any, Out> | null,
+      id?: Token.Identifier,
+      decoder?: SQL.Decoder<Out>
+    ) {
+      let name: string
+      let escapedName: string
+      if (id) {
+        assert(!column, 'Cannot set both column and id')
+        name = id[IdentName]
+        escapedName = renderIdentifier(id)
+      } else {
+        assert(column, 'Must set either column or id')
+        const table = column[ColumnTable]
+        name = column[ColumnName]
+        escapedName =
+          renderIdentifier(getTableRef(table)) + '.' + escapeIdentifier(name)
+      }
+      super([escapedName])
+      this[PgColumn] = column
+      this[ColumnName] = name
+      this[SQLDecoder] = decoder ?? (column ? column[ColumnType].decode : null)
+    }
+  }
+
   /**
    * SQL "components" are things like modifiers and clauses that cannot
    * be executed directly. They rely on SQL statements to execute them.
@@ -246,9 +283,14 @@ export namespace SQL {
       const subquery = new Subquery(alias, this)
       const fields = this[SQLFields]
       if (fields) {
-        return columnsProxy(subquery, key => {
-          if (Object.prototype.hasOwnProperty.call(fields, key)) {
-            return fields[key]
+        const subqueryId = ident(alias)
+        return columnsProxy(subquery, name => {
+          if (Object.prototype.hasOwnProperty.call(fields, name)) {
+            return new SQL.ColumnReference(
+              null,
+              ident(name, subqueryId),
+              fields[name]
+            )
           }
         })
       }
@@ -320,16 +362,18 @@ export namespace SQL {
     T extends Type<any, infer TInput> ? TInput : never
 
   /**
-   * Infer the output type of a given data type.
+   * Infer the output type of a SQL part or column.
    */
-  export type InferOutput<T extends Type | SQL | Token.ColumnIdentifier> =
+  export type InferOutput<T extends Column | Part> =
     T extends Type<any, any, infer TOutput>
       ? TOutput
       : T extends SQL<infer TOutput>
         ? TOutput
-        : T extends Token.ColumnIdentifier<Column<any, infer TColumnOutput>>
-          ? TColumnOutput
-          : unknown
+        : T extends Column<any, infer TOutput>
+          ? TOutput
+          : T extends Primitive
+            ? T
+            : unknown
 }
 
 type toSQL<T extends readonly SQL.Part[]> = T[0] extends
@@ -377,7 +421,7 @@ sql.fromArray = fromArray
 
 // Tokens
 sql.ident = ident
-sql.sequence = sequence
+sql.sequence = seq
 sql.unsafe = unsafe
 
 const jsonNull = { toJSON: () => null }
@@ -425,22 +469,21 @@ sql.literal = (data: any) => {
  * select(users.id, $if(isAdmin, users.email), users.name)
  * ```
  */
-export const $if = <T>(
+export function $if<T>(
   condition: unknown,
   truthy: SQL<T>
-): SQL<T | undefined> | typeof empty => (condition ? truthy : empty)
+): SQL<T | undefined> | typeof empty {
+  return condition ? truthy : empty
+}
 
 /** The `and` operator. */
 export function and(...parts: SQL.Part[]) {
   return sql(new SQL.Component('and'), ...parts).mapWith(boolean)
 }
 
-export function caseWhen() {
-  // TODO: implement
-}
-
 /** Concatenate parts with the `and` operator. Empty parts are omitted. */
-and.sequence = (parts: readonly SQL.Part[]) => sequence(parts, unsafe('and'))
+and.seq = (parts: readonly SQL.Part[]) =>
+  sql(seq(parts, unsafe('and'))).mapWith(boolean)
 
 /** The `or` operator. */
 export function or(...parts: SQL.Part[]) {
@@ -448,7 +491,8 @@ export function or(...parts: SQL.Part[]) {
 }
 
 /** Concatenate parts with the `or` operator. Empty parts are omitted. */
-or.sequence = (parts: readonly SQL.Part[]) => sequence(parts, unsafe('or'))
+or.seq = (parts: readonly SQL.Part[]) =>
+  sql(seq(parts, unsafe('or'))).mapWith(boolean)
 
 /** The `not` operator. */
 export const not = (...parts: SQL.Part[]) =>

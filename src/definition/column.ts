@@ -1,4 +1,5 @@
 import { StandardSchemaV1 } from '@standard-schema/spec'
+import { assert } from 'radashi'
 import { sql, SQL } from '../core.ts'
 import {
   ColumnConstraints,
@@ -7,18 +8,11 @@ import {
   ColumnStandardSchema,
   ColumnTable,
   ColumnType,
-  IdentColumn,
+  PgColumn,
 } from '../symbols.ts'
-import {
-  comma,
-  isColumnIdentifier,
-  sequence,
-  Token,
-  unsafe,
-  withoutNamespace,
-} from '../tokens.ts'
+import { comma, ident, seq, tokenize, unsafe } from '../tokens.ts'
 import { array } from '../type.ts'
-import { tableRef, type Table } from './table.ts'
+import { getTableRef, type Table } from './table.ts'
 
 export type OnDeleteAction =
   | 'restrict'
@@ -106,20 +100,26 @@ export class Column<In = any, Out = any, Nullable extends boolean = any> {
     this[ColumnConstraints].push(unsafe('check'), () => sql(expression()))
     return this
   }
-  references(resolve: () => Table | OneOrMore<Token.ColumnIdentifier>) {
+  references(resolve: () => Table | OneOrMore<SQL.ColumnReference>) {
     this[ColumnConstraints].push(unsafe('references'), () => {
       const columns = resolve()
-      return Array.isArray(columns)
-        ? sql(columns[0][IdentColumn][ColumnTable], [
-            sequence(
-              // Ensure only the column name is used, not the table name.
-              columns.map(withoutNamespace),
-              comma
-            ),
-          ])
-        : isColumnIdentifier(columns)
-          ? sql(columns[IdentColumn][ColumnTable], [withoutNamespace(columns)])
-          : sql(tableRef(columns))
+      const tokens = tokenize(
+        Array.isArray(columns)
+          ? [
+              getTableRef(getTableFromColumn(columns[0])),
+              [
+                seq(
+                  // Ensure only the column name is used, not the table name.
+                  columns.map(column => ident(column[ColumnName])),
+                  comma
+                ),
+              ],
+            ]
+          : SQL.isColumnReference(columns)
+            ? [getTableRef(getTableFromColumn(columns)), [columns]]
+            : [getTableRef(columns)]
+      )
+      return new SQL(tokens)
     })
     return this
   }
@@ -131,4 +131,9 @@ export class Column<In = any, Out = any, Nullable extends boolean = any> {
     this[ColumnConstraints].push(unsafe(`on update ${action}`))
     return this
   }
+}
+
+function getTableFromColumn(column: SQL.ColumnReference) {
+  assert(column[PgColumn], 'Columns from derived tables are not allowed')
+  return column[PgColumn][ColumnTable]
 }

@@ -1,3 +1,4 @@
+import { SQL } from './core.ts'
 import { Column } from './definition/column.ts'
 import { PgType } from './symbols.ts'
 
@@ -36,11 +37,14 @@ export function pgType<
  * Declare an array variant of a given data type.
  */
 export function array<Id extends string, In, Out>(
-  type: SQL.Type<Id, In, Out>
+  itemType: SQL.Type<Id, In, Out>
 ): SQL.Type<`${Id}[]`, In[], Out[]> {
   return pgType(
-    `${type[PgType]}[]`,
-    (data: In[]) => data.map(encode.bind(null, type)),
-    (data: any[]) => data.map(type.decode)
+    `${itemType[PgType]}[]`,
+    (data: In[]) =>
+      data.map(item => {
+        return item == null ? null : itemType.encode(item)
+      }),
+    (data: any[]) => data.map(itemType.decode)
   )
 }

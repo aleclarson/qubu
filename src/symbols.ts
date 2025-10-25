@@ -5,6 +5,7 @@ export const PgParam = Symbol.for('pg.param')
 export const PgSequence = Symbol.for('pg.sequence')
 export const PgSyntax = Symbol.for('pg.syntax')
 export const PgExpression = Symbol.for('pg.expression')
+export const PgColumn = Symbol.for('pg.column')
 
 // Column metadata
 export const ColumnConstraints = Symbol.for('column.constraints')
@@ -28,7 +29,6 @@ export const SQLKeyword = Symbol.for('sql.keyword')
 // Identifier metadata
 export const IdentName = Symbol.for('ident.name')
 export const IdentNamespace = Symbol.for('ident.namespace')
-export const IdentColumn = Symbol.for('ident.column')
 
 // Sequence metadata
 export const SequenceDelimiter = Symbol.for('sequence.delimiter')

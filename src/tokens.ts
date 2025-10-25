@@ -1,11 +1,8 @@
 import { assert } from 'radashi'
 import { sql, SQL } from './core.ts'
-import { Column } from './definition/column.ts'
-import { Table, tableRef } from './definition/table.ts'
+import { getTableRef, Table } from './definition/table.ts'
 import {
   ColumnName,
-  ColumnType,
-  IdentColumn,
   IdentName,
   IdentNamespace,
   PgIdent,
@@ -38,22 +35,14 @@ export const dot = unsafe('.')
  * Declare an identifier. Often refers to a column, table, or schema
  * name or alias.
  */
-export function ident(id: string): Token.Identifier
-export function ident<TColumn extends Column>(
-  id: string,
-  column: TColumn
-): Token.ColumnIdentifier<TColumn>
-
-/** @internal */
 export function ident(
   name: string,
-  column: Column | null = null
+  namespace: Token.Identifier | null = null
 ): Token.Identifier {
   return {
     [PgIdent]: escapeIdentifier(name),
     [IdentName]: name,
-    [IdentNamespace]: null,
-    [IdentColumn]: column,
+    [IdentNamespace]: namespace,
   }
 }
 
@@ -62,7 +51,7 @@ export function ident(
  * given separator between each item. If no separator is provided, the
  * tokens are joined with a space.
  */
-export function sequence(
+export function seq(
   parts: readonly SQL.Part[],
   delimiter: Token.Syntax = space
 ) {
@@ -89,26 +78,24 @@ export function withAlias(
   alias: string,
   fields?: Record<string, SQL.Decoder>
 ) {
-  if (part !== null && typeof part === 'object') {
-    if (part instanceof SQL) {
-      if (fields && SQL.isExpression(part) && part[SQLDecoder]) {
-        assert(fields[alias] == null, `Alias appears twice: ${alias}`)
-        fields[alias] = part[SQLDecoder]
-      }
-      if (SQL.isExpression(part) && alias === part[SQLAlias]?.[IdentName]) {
-        return part
-      }
-    } else if (isColumnIdentifier(part)) {
-      if (fields) {
-        assert(fields[alias] == null, `Alias appears twice: ${alias}`)
-        fields[alias] = part[IdentColumn][ColumnType].decode
-      }
-      if (alias === part[IdentColumn][ColumnName]) {
-        return part
-      }
+  if (part instanceof SQL) {
+    let name: string | undefined
+    let decoder: SQL.Decoder | null | undefined
+    if (SQL.isExpression(part)) {
+      name = part[SQLAlias]?.[IdentName]
+      decoder = part[SQLDecoder]
+    } else if (SQL.isColumnReference(part)) {
+      name = part[ColumnName]
+      decoder = part[SQLDecoder]
+    }
+    if (fields && decoder) {
+      assert(fields[alias] == null, `Alias appears twice: ${alias}`)
+      fields[alias] = decoder
+    }
+    if (name && alias === name) {
+      return part
     }
   }
-  // No decoder found, so we'll just return the value as is.
   return sql(part).as(alias)
 }
 
@@ -144,11 +131,6 @@ export namespace Token {
     /** The unescaped name of the identifier. */
     [IdentName]: string
     [IdentNamespace]: Identifier | null
-    [IdentColumn]: Column | null
-  }
-
-  export type ColumnIdentifier<TColumn extends Column = Column> = Identifier & {
-    [IdentColumn]: TColumn
   }
 }
 
@@ -171,12 +153,6 @@ export function isToken<T extends keyof pgTokens = keyof pgTokens>(
   return type
     ? Object.prototype.hasOwnProperty.call(value, type)
     : pgTokens.some(token => Object.prototype.hasOwnProperty.call(value, token))
-}
-
-export function isColumnIdentifier(
-  token: object
-): token is Token.ColumnIdentifier {
-  return isToken(token, PgIdent) && token[IdentColumn] !== null
 }
 
 /**
@@ -229,7 +205,7 @@ export function tokenizePart(part: SQL.Part, tokens: Token[] = []) {
     token = tokenize(part) // parenthesized expression
   } else if (typeof part === 'object') {
     if (isToken(part, PgIdent)) {
-      token = tokenizeIdentifier(part)
+      token = renderIdentifier(part)
     } else if (isToken(part, PgParam) || isToken(part, PgSequence)) {
       token = part
     } else if (isToken(part, PgSyntax)) {
@@ -242,7 +218,7 @@ export function tokenizePart(part: SQL.Part, tokens: Token[] = []) {
     } else if (part instanceof Date) {
       token = { [PgParam]: part.toISOString() }
     } else if (part instanceof Table) {
-      token = tokenizeIdentifier(tableRef(part))
+      token = renderIdentifier(getTableRef(part))
     }
   }
   if (!token) {
@@ -252,9 +228,9 @@ export function tokenizePart(part: SQL.Part, tokens: Token[] = []) {
   return tokens
 }
 
-function tokenizeIdentifier(id: Token.Identifier): string {
+export function renderIdentifier(id: Token.Identifier): string {
   return id[IdentNamespace]
-    ? tokenizeIdentifier(id[IdentNamespace]) + '.' + id[PgIdent]
+    ? renderIdentifier(id[IdentNamespace]) + '.' + id[PgIdent]
     : id[PgIdent]
 }
 

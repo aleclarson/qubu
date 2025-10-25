@@ -15,7 +15,7 @@ import {
   empty,
   ident,
   isToken,
-  sequence,
+  seq,
   Token,
   unsafe,
   withAlias,
@@ -51,7 +51,7 @@ export const select = <const T extends SelectClausePart[]>(...parts: T) => {
       return empty // Not a field.
     }
     // Convert plain object to a sequence of aliased expressions.
-    return sequence(
+    return seq(
       Object.entries(part).map(([alias, value]) =>
         withAlias(value, alias, fieldMappers)
       ),
@@ -59,7 +59,7 @@ export const select = <const T extends SelectClausePart[]>(...parts: T) => {
     )
   })
 
-  selectQuery.$append(sequence(selectedFields, comma))
+  selectQuery.$append(seq(selectedFields, comma))
 
   return selectQuery
 
@@ -139,7 +139,7 @@ export const distinct = () => new SQL.Component('distinct')
  */
 export function distinctOn(...columns: (Token.Identifier | string)[]) {
   return sql(new SQL.Component('distinct on'), [
-    sequence(
+    seq(
       columns.map(column =>
         typeof column === 'string' ? ident(column) : column
       ),
@@ -153,7 +153,7 @@ export function distinctOn(...columns: (Token.Identifier | string)[]) {
  */
 export const from = (
   ...tables: [SQL.TableReference, ...SQL.TableReference[]]
-) => sql(new SQL.Component('from'), sequence(tables, comma))
+) => sql(new SQL.Component('from'), seq(tables, comma))
 
 const join = (type: string) => (tableRef: SQL.TableReference) => ({
   on: (...parts: SQL.Part[]) =>
