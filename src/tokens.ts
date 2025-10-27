@@ -35,10 +35,10 @@ export const dot = unsafe('.')
  * Declare an identifier. Often refers to a column, table, or schema
  * name or alias.
  */
-export function ident(
-  name: string,
+export function ident<Name extends string>(
+  name: Name,
   namespace: Token.Identifier | null = null
-): Token.Identifier {
+): Token.Identifier<Name> {
   return {
     [PgIdent]: escapeIdentifier(name),
     [IdentName]: name,
@@ -126,10 +126,10 @@ export namespace Token {
    * An identifier, safe from SQL injection. Often refers to a column or
    * table name.
    */
-  export type Identifier = {
+  export type Identifier<Name extends string = string> = {
     [PgIdent]: string
     /** The unescaped name of the identifier. */
-    [IdentName]: string
+    [IdentName]: Name
     [IdentNamespace]: Identifier | null
   }
 }

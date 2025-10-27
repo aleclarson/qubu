@@ -5,8 +5,6 @@ import {
   and,
   distinctOn,
   from,
-  isEqual,
-  isNotNull,
   orderBy,
   pgTable,
   select,
@@ -23,7 +21,11 @@ const User = pgTable('user', {
   name: text(),
 })
 
-const user1 = sql(select(User.name), from(User), where(User.id.is('=', 1)))
+const userQuery = select(
+  User.name,
+  from(User),
+  where(User.id.is('=', 1).and(User.name.isNotNull()))
+)
 
 const dumbUser = User.as('dumb_user')
 
@@ -35,7 +37,7 @@ sql(
   from(dumbUser),
   where(
     isEqual(dumbUser.id, 1),
-    and(dumbUser.name, isNotNull()),
+    and(dumbUser.name.isNotNull()),
     and(dumbUser.name, isNotNull())
   ),
   orderBy(dumbUser.id.asc())

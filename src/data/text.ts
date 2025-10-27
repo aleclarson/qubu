@@ -1,6 +1,6 @@
-import { $type, pgType } from '../type.ts'
+import { $decode, $encode, pgType } from '../type.ts'
 
 /**
  * PostgreSQL text type.
  */
-export const text = pgType('text', $type<string>(), $type<string>())
+export const text = pgType('text', $encode<string>(), $decode<string>())

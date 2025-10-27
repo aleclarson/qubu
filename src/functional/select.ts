@@ -1,41 +1,31 @@
 import { assert } from 'radashi'
 import { sql, SQL } from '../core.ts'
 import {
-  ColumnType,
-  IdentColumn,
   IdentName,
-  PgIdent,
   PgSequence,
   SQLAlias,
   SQLDecoder,
   SQLFields,
 } from '../symbols.ts'
-import {
-  comma,
-  empty,
-  ident,
-  isToken,
-  seq,
-  Token,
-  unsafe,
-  withAlias,
-} from '../tokens.ts'
+import { comma, empty, ident, seq, unsafe, withAlias } from '../tokens.ts'
+import { $decode } from '../type.ts'
 
-export type SelectClausePart = SQL | Token.Identifier | Record<string, SQL.Part>
+export type SelectClausePart = SQL | Record<string, SQL.Part>
+
+export type SelectResult<T extends SelectClausePart> =
+  T extends SQL.Expression<infer TOutput, infer Alias>
+    ? { [K in Alias]: TOutput }
+    : T extends Record<string, SQL.Part>
+      ? { [K in keyof T]: SQL.InferOutput<T[K]> }
+      : never
 
 export const select = <const T extends SelectClausePart[]>(...parts: T) => {
-  const selectQuery = new SQL.Query('select')
+  const selectQuery = new SQL.Query<SelectResult<T[number]>[]>('select')
 
   const fieldMappers: Record<string, SQL.Decoder> = {}
   selectQuery[SQLFields] = fieldMappers
 
   const selectedFields = parts.map(part => {
-    if (isToken(part, PgIdent)) {
-      if (part[IdentColumn]) {
-        fieldMappers[part[IdentName]] = part[IdentColumn][ColumnType].decode
-      }
-      return part
-    }
     if (SQL.isExpression(part)) {
       assert(
         part[SQLAlias] !== null,
@@ -47,7 +37,7 @@ export const select = <const T extends SelectClausePart[]>(...parts: T) => {
       return part
     }
     if (part instanceof SQL) {
-      selectQuery.$append(part)
+      selectQuery.$append([part])
       return empty // Not a field.
     }
     // Convert plain object to a sequence of aliased expressions.
@@ -59,7 +49,7 @@ export const select = <const T extends SelectClausePart[]>(...parts: T) => {
     )
   })
 
-  selectQuery.$append(seq(selectedFields, comma))
+  selectQuery.$append([seq(selectedFields, comma)])
 
   return selectQuery
 
@@ -101,7 +91,7 @@ export function selectDistinct<const T extends SelectClausePart[]>(
  * ```
  */
 export const selectDistinctOn = <const T extends SelectClausePart[]>(
-  columns: (Token.Identifier | string)[],
+  columns: (SQL.ColumnReference | string)[],
   ...parts: T
 ) => select(distinctOn(...columns), ...parts)
 
@@ -137,7 +127,7 @@ export const distinct = () => new SQL.Component('distinct')
  * )
  * ```
  */
-export function distinctOn(...columns: (Token.Identifier | string)[]) {
+export function distinctOn(...columns: (SQL.ColumnReference | string)[]) {
   return sql(new SQL.Component('distinct on'), [
     seq(
       columns.map(column =>
@@ -151,14 +141,25 @@ export function distinctOn(...columns: (Token.Identifier | string)[]) {
 /**
  * The `FROM` clause of a SELECT statement.
  */
-export const from = (
-  ...tables: [SQL.TableReference, ...SQL.TableReference[]]
-) => sql(new SQL.Component('from'), seq(tables, comma))
+export function from<T extends [SQL.TableReference, ...SQL.TableReference[]]>(
+  ...tables: T
+) {
+  return new SQL.Component(
+    'from',
+    $decode<SQL.InferOutput<T[number]>>()
+  ).$append([seq(tables, comma)])
+}
 
-const join = (type: string) => (tableRef: SQL.TableReference) => ({
-  on: (...parts: SQL.Part[]) =>
-    sql(new SQL.Component(`${type} join`), tableRef, unsafe('on'), ...parts),
-})
+const join =
+  <JoinType extends string>(type: JoinType) =>
+  <T extends SQL.TableReference>(tableRef: T) => ({
+    on: (...parts: SQL.Part[]) =>
+      new SQL.Component(`${type} join`, $decode<SQL.InferOutput<T>>()).$append([
+        tableRef,
+        unsafe('on'),
+        ...parts,
+      ]),
+  })
 
 /**
  * The `INNER JOIN` clause of a SELECT statement.
@@ -184,11 +185,13 @@ export const naturalJoin = join('natural')
 /**
  * The `WHERE` clause of a SELECT statement.
  */
-export const where = (...parts: SQL.Part[]) =>
-  sql(new SQL.Component('where'), ...parts)
+export function where(...parts: SQL.Part[]) {
+  return new SQL.Component('where').$append(parts)
+}
 
 /**
  * The `ORDER BY` clause of a SELECT statement.
  */
-export const orderBy = (...parts: SQL.Part[]) =>
-  sql(new SQL.Component('order by'), ...parts)
+export function orderBy(...parts: SQL.Part[]) {
+  return new SQL.Component('order by').$append(parts)
+}

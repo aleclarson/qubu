@@ -1,6 +1,6 @@
-import { $type, pgType } from '../type.ts'
+import { $decode, $encode, pgType } from '../type.ts'
 
 /**
  * PostgreSQL 64-bit integer type.
  */
-export const bigint = pgType('bigint', $type<bigint>(), $type<bigint>())
+export const bigint = pgType('bigint', $encode<bigint>(), $decode<bigint>())

@@ -39,12 +39,12 @@ export class PgDatabase {
     this.connected = null
   }
 
-  async query<T extends SQL.Query>(...queries: [...SQL.Subquery[], T]) {
+  async query<T extends SQL.Query>(...queries: [...SQL.QueryIdentifier[], T]) {
     const lastQuery = queries.pop() as T
     const tokens = queries.length
       ? [
           'with',
-          subquerySequence(queries as SQL.Subquery[]),
+          subquerySequence(queries as SQL.QueryIdentifier[]),
           ...lastQuery[PgSequence],
         ]
       : lastQuery[PgSequence]
@@ -60,7 +60,7 @@ export class PgDatabase {
   }
 }
 
-function subquerySequence(queries: SQL.Subquery[]) {
+function subquerySequence(queries: SQL.QueryIdentifier[]) {
   return seq(
     queries.map(query => {
       return seq([query[SQLAlias][PgIdent], 'as', query[PgSequence]])
@@ -94,7 +94,7 @@ function renderToken(token: Token, params: unknown[]): string {
     }
     return sequence
   }
-  if (token instanceof SQL.Subquery) {
+  if (token instanceof SQL.QueryIdentifier) {
     return token[SQLAlias][PgIdent] // Subquery reference
   }
   if (token instanceof SQL.Query) {

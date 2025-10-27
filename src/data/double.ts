@@ -1,10 +1,10 @@
-import { $type, pgType } from '../type.ts'
+import { $decode, $encode, pgType } from '../type.ts'
 
 /**
  * PostgreSQL double precision type.
  */
 export const doublePrecision = pgType(
   'double precision',
-  $type<number>(),
-  $type<number>()
+  $encode<number>(),
+  $decode<number>()
 )

@@ -1,12 +1,12 @@
-import { $type, pgType } from '../type.ts'
+import { $decode, $encode, pgType } from '../type.ts'
 
 /**
  * PostgreSQL timestamp type.
  */
 export const timestamp = pgType(
   'timestamp',
-  $type<Date | string>(),
-  $type<Date>()
+  $encode<Date | string>(),
+  $decode<Date>()
 )
 
 /**
@@ -14,8 +14,8 @@ export const timestamp = pgType(
  */
 export const timestampWithTimeZone = pgType(
   'timestamptz',
-  $type<Date | string>(),
-  $type<Date>()
+  $encode<Date | string>(),
+  $decode<Date>()
 )
 
 export { timestampWithTimeZone as timestamptz }

@@ -1,4 +1,4 @@
-import { $type, pgType } from '../type.ts'
+import { $decode, $encode, pgType } from '../type.ts'
 
 /**
  * PostgreSQL numeric type.
@@ -10,6 +10,6 @@ export const numeric = (precision?: number, scale?: number) =>
         ? `(${precision}${scale !== undefined ? `,${scale}` : ''})`
         : ''
     }`,
-    $type<number>(),
-    $type<number>()
+    $encode<number>(),
+    $decode<number>()
   )

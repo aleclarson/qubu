@@ -8,7 +8,13 @@ const inOut = (arg: any) => arg
  * Shortcut for encoding and decoding functions that don't do any
  * processing. Exists for type safety at compile time.
  */
-export const $type = <T>() => inOut as (value: T) => T
+export const $encode = <T>() => inOut as (value: T) => T
+
+/**
+ * Shortcut for decoding functions that don't do any processing.
+ * Exists for type safety at compile time.
+ */
+export const $decode = <T>() => inOut as (value: unknown) => T
 
 /**
  * Declare a database type, with serialization and parsing functions.

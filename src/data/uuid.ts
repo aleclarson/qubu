@@ -1,6 +1,6 @@
-import { $type, pgType } from '../type.ts'
+import { $decode, $encode, pgType } from '../type.ts'
 
 /**
  * PostgreSQL uuid type.
  */
-export const uuid = pgType('uuid', $type<string>(), $type<string>())
+export const uuid = pgType('uuid', $encode<string>(), $decode<string>())

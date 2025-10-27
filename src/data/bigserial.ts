@@ -1,6 +1,6 @@
-import { $type, pgType } from '../type.ts'
+import { $encode, pgType } from '../type.ts'
 
 /**
  * PostgreSQL bigserial pseudo-type.
  */
-export const bigserial = pgType('bigserial', $type<bigint>(), BigInt, false)
+export const bigserial = pgType('bigserial', $encode<bigint>(), BigInt, false)

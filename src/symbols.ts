@@ -6,6 +6,7 @@ export const PgSequence = Symbol.for('pg.sequence')
 export const PgSyntax = Symbol.for('pg.syntax')
 export const PgExpression = Symbol.for('pg.expression')
 export const PgColumn = Symbol.for('pg.column')
+export const PgTable = Symbol.for('pg.table')
 
 // Column metadata
 export const ColumnConstraints = Symbol.for('column.constraints')

@@ -5,6 +5,7 @@ import {
   ColumnTable,
   ColumnType,
   IdentNamespace,
+  PgTable,
   SQLAlias,
   TableColumns,
   TableName,
@@ -40,7 +41,7 @@ export function pgTable<TColumns extends object>(
 /**
  * Create an identifier that references a given table.
  */
-export function getTableRef(table: Table) {
+export function getTableRef(table: Table<any>) {
   const ref = ident(table[TableName])
   if (table[TableSchema]) {
     ref[IdentNamespace] = ident(table[TableSchema])
@@ -48,20 +49,25 @@ export function getTableRef(table: Table) {
   return ref
 }
 
-export class Table<Columns extends object = {}> {
+export class Table<TColumns extends object = {}> {
   protected [TableSchema]: string | undefined
   protected [TableName]: string
-  protected [TableColumns]: Columns
+  protected [TableColumns]: TColumns
 
-  constructor(tableName: string, columns: Columns, schemaName?: string) {
+  constructor(tableName: string, columns: TColumns, schemaName?: string) {
     this[TableSchema] = schemaName
     this[TableName] = tableName
     this[TableColumns] = columns
   }
 
-  as(alias: string): AliasedTableWithColumns<Columns> {
-    const table = sql(getTableRef(this)).as(alias)
+  as(
+    alias: string
+  ): SQL.InferOutput<Table<TColumns>> extends infer TOutput extends object[]
+    ? AliasedTableWithColumns<TOutput[number]>
+    : never {
     const columns = this[TableColumns] as Record<string, Column>
+    const table = sql(getTableRef(this)).as(alias) as SQL.TableIdentifier<any>
+    table[PgTable] = this
 
     return columnsProxy(table, name => {
       if (Object.prototype.hasOwnProperty.call(columns, name)) {
@@ -76,17 +82,24 @@ export class Table<Columns extends object = {}> {
   }
 }
 
-export type TableWithColumns<Columns extends object> = Table<Columns> &
-  MapColumnsToReferences<Columns>
+export type TableWithColumns<TColumns extends object> = Table<TColumns> & {
+  [K in keyof TColumns]: K extends string
+    ? SQL.ColumnReference<SQL.InferColumnType<TColumns[K]>, K>
+    : never
+}
 
 /**
  * An identifier for an aliased table, with its columns.
  */
-export type AliasedTableWithColumns<Columns extends object> = SQL.Expression &
-  MapColumnsToReferences<Columns>
+export type AliasedTableWithColumns<Out extends object> = //
+  SQL.TableIdentifier<Out[]> & MapColumnsToReferences<Out>
 
-type MapColumnsToReferences<Columns extends object> = {
-  [ColumnName in string & keyof Columns]: SQL.ColumnReference<
-    SQL.InferOutput<Extract<Columns[ColumnName], Column>>
-  >
+/**
+ * An identifier for an aliased query, with its columns.
+ */
+export type AliasedQueryWithColumns<Out extends object> = //
+  SQL.QueryIdentifier<Out[]> & MapColumnsToReferences<Out>
+
+type MapColumnsToReferences<Out extends object> = {
+  [K in keyof Out]: K extends string ? SQL.ColumnReference<Out[K], K> : never
 }

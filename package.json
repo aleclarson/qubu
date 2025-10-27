@@ -12,12 +12,11 @@
 		"radashi": "^12.6.2",
 		"tinyglobby": "^0.2.15",
 		"type-fest": "^5.0.1",
-		"vitest": "^3.2.4"
+		"vitest": "^3.2.4",
+		"yiss": "link:"
 	},
 	"dependencies": {
-		"@standard-schema/spec": "^1.0.0",
-		"pg-socket": "link:vendor/pg-socket",
-		"yiss": "link:"
+		"@standard-schema/spec": "^1.0.0"
 	},
 	"scripts": {
 		"test": "vitest",

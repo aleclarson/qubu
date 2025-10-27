@@ -2,7 +2,11 @@ import { assert } from 'radashi'
 import { BinaryOperator, binaryOperators } from './binaryOperator.ts'
 import { boolean } from './data/boolean.ts'
 import { Column } from './definition/column.ts'
-import { getTableRef, Table } from './definition/table.ts'
+import {
+  AliasedQueryWithColumns,
+  getTableRef,
+  Table,
+} from './definition/table.ts'
 import {
   ColumnName,
   ColumnTable,
@@ -14,6 +18,7 @@ import {
   PgParam,
   PgSequence,
   PgSyntax,
+  PgTable,
   PgType,
   SequenceDelimiter,
   SQLAlias,
@@ -90,35 +95,38 @@ export namespace SQL {
    * SQL "expressions" always represent a value, but cannot be executed
    * directly. They rely on SQL statements to execute them.
    */
-  export class Expression<Out = any> extends SQL<Out> {
+  export class Expression<
+    Out = any,
+    Alias extends string = string,
+  > extends SQL<Out> {
     protected [PgExpression] = true as const
-    protected [SQLAlias]: Token.Identifier | null = null
+    protected [SQLAlias]: Token.Identifier<Alias> | null = null
     protected [SQLDecoder]: SQL.Decoder<Out> | null = null
 
     /**
      * Set the alias for this SQL object.
      * @returns The same SQL object.
      */
-    as(alias: string) {
+    as<Alias extends string>(alias: Alias): SQL.Expression<Out, Alias> {
       assert(this[SQLAlias] == null, 'Alias already set')
-      this[SQLAlias] = ident(alias)
+      this[SQLAlias] = ident(alias) as Token.Identifier<any>
       this[PgSequence].push('as', this[SQLAlias][PgIdent])
-      return this
+      return this as SQL.Expression<Out, any>
     }
 
     /**
      * Compare the SQL object to a given value.
      */
-    is(operator: BinaryOperator, value: SQL.Part) {
+    is(operator: BinaryOperator, ...parts: SQL.Part[]) {
       assert(binaryOperators[operator], 'Invalid binary operator')
-      return this.$append([unsafe(operator), value]).mapWith(boolean)
+      return this.$append([unsafe(operator), ...parts]).mapWith(boolean)
     }
 
     /**
      * Check if the SQL object evaluates to `null`.
      *
-     * **Note:** This always returns `false` for JSON null (e.g.
-     * `JSON.stringify(null)`).
+     * **Note:** This always returns `false` for JSON null; e.g.
+     * `JSON.stringify(null)`.
      */
     isNull() {
       return this.$append([unsafe('is null')]).mapWith(boolean)
@@ -127,11 +135,27 @@ export namespace SQL {
     /**
      * Check if the SQL object evaluates to `not null`.
      *
-     * **Note:** This always returns `true` for JSON null (e.g.
-     * `JSON.stringify(null)`).
+     * **Note:** This always returns `true` for JSON null; e.g.
+     * `JSON.stringify(null)`.
      */
     isNotNull() {
       return this.$append([unsafe('is not null')]).mapWith(boolean)
+    }
+
+    /**
+     * Append an `and` clause to the SQL object.
+     * @returns The same SQL object.
+     */
+    and(...parts: SQL.Part[]) {
+      return this.$append([unsafe('and'), ...parts]) as SQL.Expression<boolean>
+    }
+
+    /**
+     * Append an `or` clause to the SQL object.
+     * @returns The same SQL object.
+     */
+    or(...parts: SQL.Part[]) {
+      return this.$append([unsafe('or'), ...parts]) as SQL.Expression<boolean>
     }
 
     /**
@@ -155,7 +179,7 @@ export namespace SQL {
         options?.nullsFirst
           ? unsafe(options?.reverse ? 'nulls last' : 'nulls first')
           : undefined,
-      ])
+      ]) as SQL<never>
     }
 
     /**
@@ -179,7 +203,7 @@ export namespace SQL {
         options?.nullsLast
           ? unsafe(options?.reverse ? 'nulls first' : 'nulls last')
           : undefined,
-      ])
+      ]) as SQL<never>
     }
 
     /**
@@ -194,8 +218,10 @@ export namespace SQL {
      * is parsed.
      * @returns The same SQL object.
      */
-    mapWith<T extends SQL.Type>(dataType: T | null): SQL<SQL.InferOutput<T>>
-    mapWith<T>(decoder: ((sqlType: unknown) => T) | null): SQL<T>
+    mapWith<T extends SQL.Type>(
+      dataType: T | null
+    ): SQL.Expression<SQL.InferOutput<T>>
+    mapWith<T>(decoder: ((sqlType: unknown) => T) | null): SQL.Expression<T>
     mapWith(dataType: SQL.Type | ((sqlType: unknown) => unknown) | null) {
       this[SQLDecoder] =
         dataType && typeof dataType !== 'function' ? dataType.decode : dataType
@@ -203,13 +229,23 @@ export namespace SQL {
     }
   }
 
-  export class ColumnReference<Out = any> extends Expression<Out> {
+  /**
+   * You get a `TableIdentifier` when you call `as()` on a `Table`.
+   */
+  export interface TableIdentifier<Out = any> extends Expression<Out> {
+    [PgTable]: Table<any>
+  }
+
+  export class ColumnReference<
+    Out = any,
+    Name extends string = string,
+  > extends Expression<Out, Name> {
     protected [PgColumn]: Column<any, Out> | null
-    protected [ColumnName]: string
+    protected [ColumnName]: Name
 
     constructor(
       column: Column<any, Out> | null,
-      id?: Token.Identifier,
+      id?: Token.Identifier<Name>,
       decoder?: SQL.Decoder<Out>
     ) {
       let name: string
@@ -227,7 +263,7 @@ export namespace SQL {
       }
       super([escapedName])
       this[PgColumn] = column
-      this[ColumnName] = name
+      this[ColumnName] = name as Name
       this[SQLDecoder] = decoder ?? (column ? column[ColumnType].decode : null)
     }
   }
@@ -236,35 +272,26 @@ export namespace SQL {
    * SQL "components" are things like modifiers and clauses that cannot
    * be executed directly. They rely on SQL statements to execute them.
    */
-  export class Component<Out = any> extends SQL<Out> {
-    constructor(keyword: string) {
-      super()
-      this[PgSequence].push(keyword)
+  export class Component<
+    K extends string = string,
+    Out = any,
+  > extends SQL<Out> {
+    protected [SQLDecoder]: SQL.Decoder<Out> | null = null
+
+    constructor(keyword: K, decoder: SQL.Decoder<Out> | null = null) {
+      super([keyword])
+      this[SQLDecoder] = decoder
     }
 
     get [SQLKeyword]() {
-      return this[PgSequence][0] as string
-    }
-  }
-
-  /**
-   * A "returning clause" is a special SQL component that defines the
-   * fields of a INSERT, UPDATE, or DELETE statement's result set.
-   * Without it, these statements have no result set.
-   */
-  export class ReturningClause<Out = any> extends Component<Out> {
-    protected [SQLFields]: Record<string, SQL.Decoder> | null
-
-    constructor(fields: Record<string, SQL.Decoder> | null = null) {
-      super('returning')
-      this[SQLFields] = fields
+      return this[PgSequence][0] as K
     }
   }
 
   /**
    * An executable query like SELECT, INSERT, CREATE, and so on.
    */
-  export class Query<Out = any> extends SQL<Out> {
+  export class Query<Out extends any[] = any[]> extends SQL<Out> {
     protected [SQLFields]: Record<string, SQL.Decoder> | null
 
     constructor(
@@ -279,12 +306,12 @@ export namespace SQL {
       return this[PgSequence][0] as string
     }
 
-    as(alias: string) {
-      const subquery = new Subquery(alias, this)
+    as(alias: string): AliasedQueryWithColumns<Out> {
+      const query = new QueryIdentifier(alias, this)
       const fields = this[SQLFields]
       if (fields) {
         const subqueryId = ident(alias)
-        return columnsProxy(subquery, name => {
+        return columnsProxy(query, name => {
           if (Object.prototype.hasOwnProperty.call(fields, name)) {
             return new SQL.ColumnReference(
               null,
@@ -295,16 +322,14 @@ export namespace SQL {
         })
       }
       // INSERT, UPDATE, DELETE, etc. without a returning clause
-      return subquery
+      return query as AliasedQueryWithColumns<Out>
     }
   }
 
   /**
-   * A subquery is a SQL statement that is nested within another SQL
-   * statement. It must be given an alias, so it can be referenced in
-   * the outer statement.
+   * You get a `QueryIdentifier` when you call `as()` on a `Query`.
    */
-  export class Subquery<Out = any> extends Query<Out> {
+  export class QueryIdentifier<Out extends any[] = any[]> extends Query<Out> {
     protected [SQLAlias]: Token.Identifier
     constructor(alias: string, statement: Query<Out>) {
       super(statement[SQLKeyword], statement[SQLFields])
@@ -314,7 +339,7 @@ export namespace SQL {
     }
   }
 
-  export type TableReference = SQL.Subquery | Table
+  export type TableReference = Table | TableIdentifier | QueryIdentifier
 
   /**
    * Use “interface merging” to add your own custom primitives to the
@@ -364,16 +389,27 @@ export namespace SQL {
   /**
    * Infer the output type of a SQL part or column.
    */
-  export type InferOutput<T extends Column | Part> =
+  export type InferOutput<T extends Query | Column | Part> =
     T extends Type<any, any, infer TOutput>
       ? TOutput
-      : T extends SQL<infer TOutput>
+      : T extends Query<infer TOutput>
         ? TOutput
-        : T extends Column<any, infer TOutput>
+        : T extends SQL<infer TOutput>
           ? TOutput
-          : T extends Primitive
-            ? T
-            : unknown
+          : T extends Table<infer TColumns>
+            ? {
+                [K in keyof TColumns]: InferColumnType<TColumns[K]>
+              }[]
+            : T extends Column
+              ? InferColumnType<T>
+              : T extends Primitive
+                ? T
+                : unknown
+
+  export type InferColumnType<T> =
+    T extends Column<any, infer TOutput, infer TNullable>
+      ? TOutput | (TNullable extends true ? null : never)
+      : never
 }
 
 type toSQL<T extends readonly SQL.Part[]> = T[0] extends
@@ -391,13 +427,11 @@ type toSQL<T extends readonly SQL.Part[]> = T[0] extends
  * SQL instances are flattened (e.g. `sql(a, sql(b, c))` is the same
  * as `sql(a, b, c)`).
  */
-export function sql<
-  const T extends readonly [
-    SQL.Query | SQL.Expression | SQL.Component,
-    ...SQL.Part[],
-  ],
->(...parts: T): T[0]
-export function sql<const T extends readonly SQL.Part[]>(...parts: T): toSQL<T>
+export function sql<T extends SQL.Query | SQL.Expression | SQL.Component>(
+  result: T,
+  ...parts: SQL.Part[]
+): T
+export function sql<const T extends SQL.Part[]>(...parts: T): SQL.Expression<T>
 export function sql(...parts: readonly SQL.Part[]) {
   return fromArray(parts)
 }
@@ -476,24 +510,57 @@ export function $if<T>(
   return condition ? truthy : empty
 }
 
-/** The `and` operator. */
+/**
+ * The `and` operator.
+ *
+ * @example
+ * ```ts
+ * query.where(x.is('!=', 0), and(y.is('!=', 0)), and(z.is('!=', 0)))
+ * // WHERE x != 0 AND y != 0 AND z != 0
+ * ```
+ */
 export function and(...parts: SQL.Part[]) {
-  return sql(new SQL.Component('and'), ...parts).mapWith(boolean)
+  return new SQL.Component('and').$append(parts)
 }
 
-/** Concatenate parts with the `and` operator. Empty parts are omitted. */
+/**
+ * Concatenate parts with the `and` operator. Empty parts are omitted.
+ *
+ * @example
+ * ```ts
+ * and.seq([x.is('!=', 0), y.is('!=', 0), z.is('!=', 0)])
+ * // x != 0 AND y != 0 AND z != 0
+ * ```
+ */
 and.seq = (parts: readonly SQL.Part[]) =>
   sql(seq(parts, unsafe('and'))).mapWith(boolean)
 
-/** The `or` operator. */
+/**
+ * The `or` operator.
+ *
+ * @example
+ * ```ts
+ * query.where(x.is('!=', 0), or(y.is('!=', 0)), or(z.is('!=', 0)))
+ * // WHERE x != 0 OR y != 0 OR z != 0
+ * ```
+ */
 export function or(...parts: SQL.Part[]) {
-  return sql(unsafe('or'), ...parts).mapWith(boolean)
+  return new SQL.Component('or').$append(parts)
 }
 
-/** Concatenate parts with the `or` operator. Empty parts are omitted. */
+/**
+ * Concatenate parts with the `or` operator. Empty parts are omitted.
+ *
+ * @example
+ * ```ts
+ * or.seq([x.is('!=', 0), y.is('!=', 0), z.is('!=', 0)])
+ * // x != 0 OR y != 0 OR z != 0
+ * ```
+ */
 or.seq = (parts: readonly SQL.Part[]) =>
   sql(seq(parts, unsafe('or'))).mapWith(boolean)
 
 /** The `not` operator. */
-export const not = (...parts: SQL.Part[]) =>
-  sql(unsafe('not'), ...parts).mapWith(boolean)
+export function not(...parts: SQL.Part[]) {
+  return sql(unsafe('not'), ...parts).mapWith(boolean)
+}

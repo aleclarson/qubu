@@ -11,12 +11,6 @@ importers:
       '@standard-schema/spec':
         specifier: ^1.0.0
         version: 1.0.0
-      pg-socket:
-        specifier: link:vendor/pg-socket
-        version: link:vendor/pg-socket
-      yiss:
-        specifier: 'link:'
-        version: 'link:'
     devDependencies:
       '@alloc/prettier-config':
         specifier: ^1.0.0
@@ -48,6 +42,9 @@ importers:
       vitest:
         specifier: ^3.2.4
         version: 3.2.4(@types/node@24.6.2)
+      yiss:
+        specifier: 'link:'
+        version: 'link:'
 
 packages:
 
