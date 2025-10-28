@@ -1,14 +1,7 @@
 import { ClientAdapter } from './adapter.ts'
-import { SQL } from './core.ts'
-import {
-  PgIdent,
-  PgParam,
-  PgSequence,
-  PgSyntax,
-  SequenceDelimiter,
-  SQLAlias,
-} from './symbols.ts'
-import { comma, isToken, seq, Token } from './tokens.ts'
+import { renderTokens, SQL } from './core.ts'
+import { PgIdent, PgSequence, SQLAlias } from './symbols.ts'
+import { comma, seq } from './tokens.ts'
 
 export function postgres<TClient>(
   client: TClient,
@@ -67,38 +60,4 @@ function subquerySequence(queries: SQL.QueryIdentifier[]) {
     }),
     comma
   )
-}
-
-function renderTokens(tokens: Token[], params: unknown[]): string {
-  let sql = ''
-  for (const token of tokens) {
-    if (sql.length) sql += ' '
-    sql += renderToken(token, params)
-  }
-  return sql
-}
-
-function renderToken(token: Token, params: unknown[]): string {
-  if (typeof token === 'string') {
-    return token
-  }
-  if (isToken(token, PgParam)) {
-    const index = 1 + params.indexOf(token[PgParam])
-    return '$' + (index || params.push(token[PgParam]))
-  }
-  if (isToken(token, PgSequence)) {
-    let sequence = ''
-    for (let i = 0; i < token[PgSequence].length; i++) {
-      if (i > 0) sequence += token[SequenceDelimiter][PgSyntax]
-      sequence += renderToken(token[PgSequence][i], params)
-    }
-    return sequence
-  }
-  if (token instanceof SQL.QueryIdentifier) {
-    return token[SQLAlias][PgIdent] // Subquery reference
-  }
-  if (token instanceof SQL.Query) {
-    return renderTokens(token[PgSequence], params)
-  }
-  return '(' + renderTokens(token, params) + ')'
 }

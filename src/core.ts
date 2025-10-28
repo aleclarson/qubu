@@ -1,4 +1,4 @@
-import { assert } from 'radashi'
+import { assert, mapValues } from 'radashi'
 import { BinaryOperator, binaryOperators } from './binaryOperator.ts'
 import { boolean } from './data/boolean.ts'
 import { Column } from './definition/column.ts'
@@ -25,11 +25,13 @@ import {
   SQLDecoder,
   SQLFields,
   SQLKeyword,
+  TableColumns,
 } from './symbols.ts'
 import {
   empty,
   escapeIdentifier,
   ident,
+  isToken,
   pgTokens,
   renderIdentifier,
   seq,
@@ -57,19 +59,19 @@ export class SQL<Out = any> implements Token.Sequence {
    */
   $append(
     parts: readonly SQL.Part[],
-    separator: Token.Syntax = this[SequenceDelimiter]
+    delimiter: Token.Syntax = this[SequenceDelimiter]
   ) {
-    if (separator[PgSyntax] === this[SequenceDelimiter][PgSyntax]) {
-      tokenize(parts, this[PgSequence])
+    if (delimiter[PgSyntax] === this[SequenceDelimiter][PgSyntax]) {
+      tokenize(parts, this[PgSequence], delimiter)
     } else {
       const { length } = this[PgSequence]
 
       const tokens = [this[PgSequence][length - 1]]
-      tokenize(parts, tokens)
+      tokenize(parts, tokens, delimiter)
 
       this[PgSequence][length - 1] = {
         [PgSequence]: tokens,
-        [SequenceDelimiter]: separator,
+        [SequenceDelimiter]: delimiter,
       } satisfies Token.Sequence
     }
     return this
@@ -99,9 +101,9 @@ export namespace SQL {
     Out = any,
     Alias extends string = string,
   > extends SQL<Out> {
-    protected [PgExpression] = true as const
-    protected [SQLAlias]: Token.Identifier<Alias> | null = null
-    protected [SQLDecoder]: SQL.Decoder<Out> | null = null
+    [PgExpression] = true as const;
+    [SQLAlias]: Token.Identifier<Alias> | null = null;
+    [SQLDecoder]: SQL.Decoder<Out> | null = null
 
     /**
      * Set the alias for this SQL object.
@@ -232,16 +234,64 @@ export namespace SQL {
   /**
    * You get a `TableIdentifier` when you call `as()` on a `Table`.
    */
-  export interface TableIdentifier<Out = any> extends Expression<Out> {
-    [PgTable]: Table<any>
+  export class TableIdentifier<Out extends object = any> extends SQL<Out[]> {
+    [PgTable]: Table<any>;
+    [SQLAlias]: Token.Identifier
+
+    constructor(alias: string, table: Table<any>) {
+      const aliasToken = ident(alias)
+      super([renderIdentifier(getTableRef(table)), 'as', aliasToken[PgIdent]])
+      this[PgTable] = table
+      this[SQLAlias] = aliasToken
+    }
+
+    /**
+     * Select all columns from the table using wildcard syntax.
+     * @returns `SQL.TableWildcard`
+     */
+    get ['*'](): SQL.TableWildcard<Out> {
+      return new SQL.TableWildcard(this)
+    }
+  }
+
+  /**
+   * You get a `TableWildcard` when you access `["*"]` on a `Table`.
+   */
+  export class TableWildcard<Out extends object = any> extends SQL<Out[]> {
+    [SQLFields]: Record<string, SQL.Decoder>
+
+    constructor(table: Table<any> | TableIdentifier | QueryIdentifier) {
+      const id = table instanceof Table ? getTableRef(table) : table[SQLAlias]
+
+      let fields: Record<string, SQL.Decoder>
+      if (table instanceof QueryIdentifier) {
+        assert(
+          table[SQLFields],
+          'Query must be SELECT or have a RETURNING clause'
+        )
+        fields = table[SQLFields]
+      } else {
+        fields = mapValues(
+          table instanceof Table
+            ? table[TableColumns]
+            : table[PgTable][TableColumns],
+          column => {
+            return column[ColumnType].decode
+          }
+        )
+      }
+
+      super([renderIdentifier(id) + '.*'])
+      this[SQLFields] = fields
+    }
   }
 
   export class ColumnReference<
     Out = any,
     Name extends string = string,
   > extends Expression<Out, Name> {
-    protected [PgColumn]: Column<any, Out> | null
-    protected [ColumnName]: Name
+    [PgColumn]: Column<any, Out> | null;
+    [ColumnName]: Name
 
     constructor(
       column: Column<any, Out> | null,
@@ -251,7 +301,6 @@ export namespace SQL {
       let name: string
       let escapedName: string
       if (id) {
-        assert(!column, 'Cannot set both column and id')
         name = id[IdentName]
         escapedName = renderIdentifier(id)
       } else {
@@ -276,7 +325,7 @@ export namespace SQL {
     K extends string = string,
     Out = any,
   > extends SQL<Out> {
-    protected [SQLDecoder]: SQL.Decoder<Out> | null = null
+    [SQLDecoder]: SQL.Decoder<Out> | null = null
 
     constructor(keyword: K, decoder: SQL.Decoder<Out> | null = null) {
       super([keyword])
@@ -291,8 +340,8 @@ export namespace SQL {
   /**
    * An executable query like SELECT, INSERT, CREATE, and so on.
    */
-  export class Query<Out extends any[] = any[]> extends SQL<Out> {
-    protected [SQLFields]: Record<string, SQL.Decoder> | null
+  export class Query<Out extends object = any> extends SQL<Out[]> {
+    [SQLFields]: Record<string, SQL.Decoder> | null
 
     constructor(
       keyword: string,
@@ -306,6 +355,12 @@ export namespace SQL {
       return this[PgSequence][0] as string
     }
 
+    /**
+     * Declare an alias for the query with the `as` operator. The
+     * returned query identifier also has its columns mapped to column
+     * references.
+     * @returns `SQL.QueryIdentifier`
+     */
     as(alias: string): AliasedQueryWithColumns<Out> {
       const query = new QueryIdentifier(alias, this)
       const fields = this[SQLFields]
@@ -324,18 +379,37 @@ export namespace SQL {
       // INSERT, UPDATE, DELETE, etc. without a returning clause
       return query as AliasedQueryWithColumns<Out>
     }
+
+    /**
+     * Generate raw SQL from a `SQL.Query` object and return the
+     * parameter values.
+     */
+    static toString(query: SQL.Query): [sql: string, params: unknown[]] {
+      const tokens = query[PgSequence]
+      const params: unknown[] = []
+      return [renderTokens(tokens, params), params]
+    }
   }
 
   /**
    * You get a `QueryIdentifier` when you call `as()` on a `Query`.
    */
-  export class QueryIdentifier<Out extends any[] = any[]> extends Query<Out> {
-    protected [SQLAlias]: Token.Identifier
-    constructor(alias: string, statement: Query<Out>) {
-      super(statement[SQLKeyword], statement[SQLFields])
-      this[PgSequence] = statement[PgSequence]
-      this[SequenceDelimiter] = statement[SequenceDelimiter]
+  export class QueryIdentifier<Out extends object = any> extends SQL<Out[]> {
+    [SQLAlias]: Token.Identifier;
+    [SQLFields]: Record<string, SQL.Decoder> | null
+
+    constructor(alias: string, query: Query<Out>) {
+      super(query[PgSequence], query[SequenceDelimiter])
       this[SQLAlias] = ident(alias)
+      this[SQLFields] = query[SQLFields]
+    }
+
+    /**
+     * Select all columns from the table using wildcard syntax.
+     * @returns `SQL.TableWildcard`
+     */
+    get ['*'](): SQL.TableWildcard<Out> {
+      return new SQL.TableWildcard(this)
     }
   }
 
@@ -447,7 +521,7 @@ function fromArray(parts: readonly SQL.Part[]) {
   let root: SQL
   if (parts[0] instanceof SQL) [root, ...parts] = parts
   else root = new SQL.Expression()
-  tokenize(parts, root[PgSequence])
+  tokenize(parts, root[PgSequence], root[SequenceDelimiter])
   return root
 }
 
@@ -563,4 +637,40 @@ or.seq = (parts: readonly SQL.Part[]) =>
 /** The `not` operator. */
 export function not(...parts: SQL.Part[]) {
   return sql(unsafe('not'), ...parts).mapWith(boolean)
+}
+
+export function renderTokens(tokens: Token[], params: unknown[]): string {
+  let sql = ''
+  for (const token of tokens) {
+    const chunk = renderToken(token, params)
+    if (!chunk) continue
+    if (sql.length) sql += ' '
+    sql += chunk
+  }
+  return sql
+}
+
+function renderToken(token: Token, params: unknown[]): string {
+  if (typeof token === 'string') {
+    return token
+  }
+  if (isToken(token, PgParam)) {
+    const index = 1 + params.indexOf(token[PgParam])
+    return '$' + (index || params.push(token[PgParam]))
+  }
+  if (isToken(token, PgSequence)) {
+    let sequence = ''
+    for (let i = 0; i < token[PgSequence].length; i++) {
+      if (i > 0) sequence += token[SequenceDelimiter][PgSyntax]
+      sequence += renderToken(token[PgSequence][i], params)
+    }
+    return sequence
+  }
+  if (token instanceof SQL.QueryIdentifier) {
+    return token[SQLAlias][PgIdent] // Subquery reference
+  }
+  if (token instanceof SQL.Query) {
+    return renderTokens(token[PgSequence], params)
+  }
+  return '(' + renderTokens(token, params) + ')'
 }

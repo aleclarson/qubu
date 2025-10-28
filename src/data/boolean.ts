@@ -1,6 +1,6 @@
-import { $encode, pgType } from '../type.ts'
+import { $decode, $encode, pgType } from '../type.ts'
 
 /**
  * PostgreSQL boolean type.
  */
-export const boolean = pgType('boolean', $encode<boolean>(), $encode<boolean>())
+export const boolean = pgType('boolean', $encode<boolean>(), $decode<boolean>())

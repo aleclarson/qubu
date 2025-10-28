@@ -1,6 +1,10 @@
 import { $decode, $encode, pgType } from '../type.ts'
 
-export interface ByteArrayDefinition {
+/**
+ * The JS type for `bytea` columns is determined by the client
+ * adapter.
+ */
+export interface ByteArrayType {
   input: unknown
   output: unknown
 }
@@ -10,6 +14,6 @@ export interface ByteArrayDefinition {
  */
 export const bytea = pgType(
   'bytea',
-  $encode<ByteArrayDefinition['input']>(),
-  $decode<ByteArrayDefinition['output']>()
+  $encode<ByteArrayType['input']>(),
+  $decode<ByteArrayType['output']>()
 )

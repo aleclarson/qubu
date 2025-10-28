@@ -1,8 +1,6 @@
-import { assert } from 'radashi'
-import { sql, SQL } from './core.ts'
+import { SQL } from './core.ts'
 import { getTableRef, Table } from './definition/table.ts'
 import {
-  ColumnName,
   IdentName,
   IdentNamespace,
   PgIdent,
@@ -11,8 +9,6 @@ import {
   PgSyntax,
   PgType,
   SequenceDelimiter,
-  SQLAlias,
-  SQLDecoder,
 } from './symbols.ts'
 
 /**
@@ -54,49 +50,11 @@ export function ident<Name extends string>(
 export function seq(
   parts: readonly SQL.Part[],
   delimiter: Token.Syntax = space
-) {
-  const tokens = tokenize(parts)
-  if (tokens.length === 1) {
-    return tokens[0]
-  }
+): Token.Sequence {
   return {
-    [PgSequence]: tokenize(parts),
+    [PgSequence]: tokenize(parts, [], delimiter),
     [SequenceDelimiter]: delimiter,
-  } satisfies Token.Sequence
-}
-
-/**
- * Alias a SQL part. If the alias already matches the part's identity
- * (e.g. column name or pre-existing alias), the part is returned as
- * is.
- *
- * Optionally, pass a `fields` object and any decoder associated with
- * the part will be added.
- */
-export function withAlias(
-  part: SQL.Part,
-  alias: string,
-  fields?: Record<string, SQL.Decoder>
-) {
-  if (part instanceof SQL) {
-    let name: string | undefined
-    let decoder: SQL.Decoder | null | undefined
-    if (SQL.isExpression(part)) {
-      name = part[SQLAlias]?.[IdentName]
-      decoder = part[SQLDecoder]
-    } else if (SQL.isColumnReference(part)) {
-      name = part[ColumnName]
-      decoder = part[SQLDecoder]
-    }
-    if (fields && decoder) {
-      assert(fields[alias] == null, `Alias appears twice: ${alias}`)
-      fields[alias] = decoder
-    }
-    if (name && alias === name) {
-      return part
-    }
   }
-  return sql(part).as(alias)
 }
 
 export function withoutNamespace(id: Token.Identifier): Token.Identifier {
@@ -171,12 +129,13 @@ export type Token = string | Token.Param | Token.Sequence | SQL.Query | Token[]
  */
 export function tokenize(
   parts: readonly SQL.Part[],
-  tokens: Token[] = []
+  tokens: Token[],
+  delimiter: Token.Syntax
 ): Token[] {
   // The goal is to flatten as much as possible, in order to reduce
   // memory usage and to avoid nested structures for easier debugging.
   for (const part of parts) {
-    tokenizePart(part, tokens)
+    tokenizePart(part, tokens, delimiter)
   }
   return tokens
 }
@@ -187,7 +146,11 @@ export function tokenize(
  * with the new tokens. Otherwise, a new tokens array is created and
  * returned.
  */
-export function tokenizePart(part: SQL.Part, tokens: Token[] = []) {
+export function tokenizePart(
+  part: SQL.Part,
+  tokens: Token[] = [],
+  delimiter: Token.Syntax = space
+) {
   let token: Token | undefined
   if (part == null) {
     token = 'null' // Treat undefined as null
@@ -202,11 +165,18 @@ export function tokenizePart(part: SQL.Part, tokens: Token[] = []) {
   } else if (typeof part === 'string') {
     token = { [PgParam]: part }
   } else if (Array.isArray(part)) {
-    token = tokenize(part) // parenthesized expression
+    token = tokenize(part, [], space) // parenthesized expression
   } else if (typeof part === 'object') {
-    if (isToken(part, PgIdent)) {
+    if (isToken(part, PgSequence)) {
+      // Dissolve the sequence if parent has same delimiter.
+      if (part[SequenceDelimiter][PgSyntax] === delimiter[PgSyntax]) {
+        part[PgSequence].forEach(token => tokens.push(token))
+        return tokens
+      }
+      token = part
+    } else if (isToken(part, PgIdent)) {
       token = renderIdentifier(part)
-    } else if (isToken(part, PgParam) || isToken(part, PgSequence)) {
+    } else if (isToken(part, PgParam)) {
       token = part
     } else if (isToken(part, PgSyntax)) {
       if (part[PgSyntax] === '') {

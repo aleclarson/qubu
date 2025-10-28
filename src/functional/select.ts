@@ -1,43 +1,72 @@
 import { assert } from 'radashi'
+import { withAlias } from '../alias.ts'
 import { sql, SQL } from '../core.ts'
+import { Column } from '../definition/column.ts'
+import { getTableRef, Table } from '../definition/table.ts'
 import {
+  ColumnName,
+  ColumnType,
   IdentName,
   PgSequence,
   SQLAlias,
   SQLDecoder,
   SQLFields,
+  TableColumns,
 } from '../symbols.ts'
-import { comma, empty, ident, seq, unsafe, withAlias } from '../tokens.ts'
+import { comma, empty, ident, seq, tokenizePart, unsafe } from '../tokens.ts'
 import { $decode } from '../type.ts'
 
-export type SelectClausePart = SQL | Record<string, SQL.Part>
+export type SelectClausePart = SQL | Table | Record<string, SQL.Part>
 
 export type SelectResult<T extends SelectClausePart> =
   T extends SQL.Expression<infer TOutput, infer Alias>
     ? { [K in Alias]: TOutput }
-    : T extends Record<string, SQL.Part>
-      ? { [K in keyof T]: SQL.InferOutput<T[K]> }
-      : never
+    : T extends SQL.TableWildcard<infer TOutput>
+      ? TOutput
+      : T extends Record<string, SQL.Part>
+        ? { [K in keyof T]: SQL.InferOutput<T[K]> }
+        : never
 
 export const select = <const T extends SelectClausePart[]>(...parts: T) => {
-  const selectQuery = new SQL.Query<SelectResult<T[number]>[]>('select')
+  const selectQuery = new SQL.Query<SelectResult<T[number]>>('select')
 
-  const fieldMappers: Record<string, SQL.Decoder> = {}
-  selectQuery[SQLFields] = fieldMappers
+  let fieldMappers: Record<string, SQL.Decoder> | undefined
+
+  const trailingParts: SQL.Part[] = []
 
   const selectedFields = parts.map(part => {
     if (SQL.isExpression(part)) {
+      const fieldName =
+        part[SQLAlias]?.[IdentName] ??
+        (SQL.isColumnReference(part) ? part[ColumnName] : null)
       assert(
-        part[SQLAlias] !== null,
+        fieldName != null,
         'Must use .as() to alias SQL expressions in a select clause'
       )
       if (part[SQLDecoder]) {
-        fieldMappers[part[SQLAlias][IdentName]] = part[SQLDecoder]
+        fieldMappers ||= {}
+        fieldMappers[fieldName] = part[SQLDecoder]
       }
       return part
     }
+    if (part instanceof SQL.TableWildcard) {
+      Object.assign((fieldMappers ||= {}), part[SQLFields])
+      return part
+    }
+    if (part instanceof Table) {
+      const columns = part[TableColumns] as Record<string, Column>
+      fieldMappers ||= {}
+      for (const name in columns) {
+        fieldMappers[name] = columns[name][ColumnType].decode
+      }
+      return getTableRef(part)
+    }
     if (part instanceof SQL) {
-      selectQuery.$append([part])
+      if (fieldMappers) {
+        trailingParts.push(part)
+      } else {
+        tokenizePart(part, selectQuery[PgSequence])
+      }
       return empty // Not a field.
     }
     // Convert plain object to a sequence of aliased expressions.
@@ -49,7 +78,10 @@ export const select = <const T extends SelectClausePart[]>(...parts: T) => {
     )
   })
 
-  selectQuery.$append([seq(selectedFields, comma)])
+  assert(fieldMappers, 'Must declare at least one field')
+  selectQuery[SQLFields] = fieldMappers
+
+  selectQuery.$append([seq(selectedFields, comma), ...trailingParts])
 
   return selectQuery
 
@@ -131,7 +163,7 @@ export function distinctOn(...columns: (SQL.ColumnReference | string)[]) {
   return sql(new SQL.Component('distinct on'), [
     seq(
       columns.map(column =>
-        typeof column === 'string' ? ident(column) : column
+        ident(typeof column === 'string' ? column : column[ColumnName])
       ),
       comma
     ),

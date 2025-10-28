@@ -1,11 +1,9 @@
 import { camelToSnake } from '../casing.ts'
-import { sql, SQL } from '../core.ts'
+import { SQL } from '../core.ts'
 import {
   ColumnName,
   ColumnTable,
-  ColumnType,
   IdentNamespace,
-  PgTable,
   SQLAlias,
   TableColumns,
   TableName,
@@ -22,18 +20,13 @@ export function pgTable<TColumns extends object>(
   const table = new Table(tableName, columns)
 
   for (const [key, column] of Object.entries(columns)) {
-    column[ColumnName] ??= camelToSnake(key)
+    column[ColumnName] ||= camelToSnake(key)
     column[ColumnTable] = table
   }
 
   return columnsProxy(table, name => {
     if (Object.prototype.hasOwnProperty.call(columns, name)) {
-      const column = columns[name]
-      return new SQL.ColumnReference(
-        column,
-        ident(column[ColumnName], getTableRef(table)),
-        column[ColumnType].decode
-      )
+      return new SQL.ColumnReference(columns[name])
     }
   }) as TableWithColumns<TColumns>
 }
@@ -60,25 +53,48 @@ export class Table<TColumns extends object = {}> {
     this[TableColumns] = columns
   }
 
-  as(
-    alias: string
-  ): SQL.InferOutput<Table<TColumns>> extends infer TOutput extends object[]
-    ? AliasedTableWithColumns<TOutput[number]>
-    : never {
+  /**
+   * Declare an alias for the table with the `as` operator. The
+   * returned table identifier also has its columns mapped to column
+   * references.
+   * @returns `SQL.TableIdentifier`
+   */
+  as(alias: string): AliasedTableWithColumns<{
+    [K in keyof TColumns]: SQL.InferColumnType<TColumns[K]>
+  }> {
+    const table = new SQL.TableIdentifier(alias, this)
     const columns = this[TableColumns] as Record<string, Column>
-    const table = sql(getTableRef(this)).as(alias) as SQL.TableIdentifier<any>
-    table[PgTable] = this
 
     return columnsProxy(table, name => {
       if (Object.prototype.hasOwnProperty.call(columns, name)) {
         const column = columns[name]
         return new SQL.ColumnReference(
           column,
-          ident(column[ColumnName], table[SQLAlias]),
-          column[ColumnType].decode
+          ident(column[ColumnName], table[SQLAlias])
         )
       }
     })
+  }
+
+  /**
+   * Get a column reference by name. Safe from method name conflicts.
+   * @returns `SQL.ColumnReference`
+   */
+  $get<K extends string & keyof TColumns>(
+    name: K
+  ): SQL.ColumnReference<SQL.InferColumnType<TColumns[K]>, K> {
+    const column = this[TableColumns][name] as Column<any, any>
+    return new SQL.ColumnReference(column)
+  }
+
+  /**
+   * Select all columns from the table using wildcard syntax.
+   * @returns `SQL.TableWildcard`
+   */
+  get ['*'](): SQL.TableWildcard<{
+    [K in keyof TColumns]: SQL.InferColumnType<TColumns[K]>
+  }> {
+    return new SQL.TableWildcard<any>(this)
   }
 }
 
@@ -92,7 +108,7 @@ export type TableWithColumns<TColumns extends object> = Table<TColumns> & {
  * An identifier for an aliased table, with its columns.
  */
 export type AliasedTableWithColumns<Out extends object> = //
-  SQL.TableIdentifier<Out[]> & MapColumnsToReferences<Out>
+  SQL.TableIdentifier<Out> & MapColumnsToReferences<Out>
 
 /**
  * An identifier for an aliased query, with its columns.

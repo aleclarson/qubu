@@ -1,12 +1,21 @@
 import { $decode, $encode, pgType } from '../type.ts'
 
 /**
+ * The JS type for `timestamp` and `timestamptz` columns is determined
+ * by the client adapter.
+ */
+export interface TimestampType {
+  input: unknown
+  output: unknown
+}
+
+/**
  * PostgreSQL timestamp type.
  */
 export const timestamp = pgType(
   'timestamp',
-  $encode<Date | string>(),
-  $decode<Date>()
+  $encode<TimestampType['input']>(),
+  $decode<TimestampType['output']>()
 )
 
 /**
@@ -14,8 +23,8 @@ export const timestamp = pgType(
  */
 export const timestampWithTimeZone = pgType(
   'timestamptz',
-  $encode<Date | string>(),
-  $decode<Date>()
+  $encode<TimestampType['input']>(),
+  $decode<TimestampType['output']>()
 )
 
 export { timestampWithTimeZone as timestamptz }

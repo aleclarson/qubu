@@ -10,7 +10,7 @@ import {
   ColumnType,
   PgColumn,
 } from '../symbols.ts'
-import { comma, ident, seq, tokenize, unsafe } from '../tokens.ts'
+import { comma, ident, seq, space, tokenize, unsafe } from '../tokens.ts'
 import { array } from '../type.ts'
 import { getTableRef, type Table } from './table.ts'
 
@@ -117,7 +117,9 @@ export class Column<In = any, Out = any, Nullable extends boolean = any> {
             ]
           : SQL.isColumnReference(columns)
             ? [getTableRef(getTableFromColumn(columns)), [columns]]
-            : [getTableRef(columns)]
+            : [getTableRef(columns)],
+        [],
+        space
       )
       return new SQL(tokens)
     })
