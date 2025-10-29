@@ -42,7 +42,10 @@ import {
 } from './tokens.ts'
 import { columnsProxy } from './util.ts'
 
+declare const SQLOutputType: unique symbol
+
 export class SQL<Out = any> implements Token.Sequence {
+  declare [SQLOutputType]: Out;
   [PgSequence]: Token[];
   [SequenceDelimiter]: Token.Syntax
 
@@ -361,7 +364,7 @@ export namespace SQL {
      * references.
      * @returns `SQL.QueryIdentifier`
      */
-    as(alias: string): AliasedQueryWithColumns<Out> {
+    as<Name extends string>(alias: Name): AliasedQueryWithColumns<Out, Name> {
       const query = new QueryIdentifier(alias, this)
       const fields = this[SQLFields]
       if (fields) {
@@ -377,7 +380,7 @@ export namespace SQL {
         })
       }
       // INSERT, UPDATE, DELETE, etc. without a returning clause
-      return query as AliasedQueryWithColumns<Out>
+      return query as AliasedQueryWithColumns<Out, Name>
     }
 
     /**
@@ -394,11 +397,14 @@ export namespace SQL {
   /**
    * You get a `QueryIdentifier` when you call `as()` on a `Query`.
    */
-  export class QueryIdentifier<Out extends object = any> extends SQL<Out[]> {
-    [SQLAlias]: Token.Identifier;
+  export class QueryIdentifier<
+    Out extends object = any,
+    Name extends string = string,
+  > extends SQL<Out[]> {
+    [SQLAlias]: Token.Identifier<Name>;
     [SQLFields]: Record<string, SQL.Decoder> | null
 
-    constructor(alias: string, query: Query<Out>) {
+    constructor(alias: Name, query: Query<Out>) {
       super(query[PgSequence], query[SequenceDelimiter])
       this[SQLAlias] = ident(alias)
       this[SQLFields] = query[SQLFields]
@@ -464,34 +470,25 @@ export namespace SQL {
    * Infer the output type of a SQL part or column.
    */
   export type InferOutput<T extends Query | Column | Part> =
-    T extends Type<any, any, infer TOutput>
+    T extends SQL<infer TOutput>
       ? TOutput
-      : T extends Query<infer TOutput>
-        ? TOutput
-        : T extends SQL<infer TOutput>
-          ? TOutput
-          : T extends Table<infer TColumns>
-            ? {
-                [K in keyof TColumns]: InferColumnType<TColumns[K]>
-              }[]
-            : T extends Column
-              ? InferColumnType<T>
-              : T extends Primitive
-                ? T
-                : unknown
+      : T extends Table<infer TColumns>
+        ? {
+            -readonly [K in keyof TColumns]: InferColumnType<TColumns[K]>
+          }[]
+        : T extends Column
+          ? InferColumnType<T>
+          : T extends Type<any, any, infer TOutput>
+            ? TOutput
+            : T extends Primitive
+              ? T
+              : unknown
 
   export type InferColumnType<T> =
     T extends Column<any, infer TOutput, infer TNullable>
       ? TOutput | (TNullable extends true ? null : never)
       : never
 }
-
-type toSQL<T extends readonly SQL.Part[]> = T[0] extends
-  | SQL.Query
-  | SQL.Expression
-  | SQL.Component
-  ? T[0]
-  : SQL.Expression<unknown>
 
 /**
  * Concatenate chunks of SQL. If later nested in a `SQL.Sequence`, the
@@ -505,7 +502,7 @@ export function sql<T extends SQL.Query | SQL.Expression | SQL.Component>(
   result: T,
   ...parts: SQL.Part[]
 ): T
-export function sql<const T extends SQL.Part[]>(...parts: T): SQL.Expression<T>
+export function sql<Out>(...parts: SQL.Part[]): SQL.Expression<Out>
 export function sql(...parts: readonly SQL.Part[]) {
   return fromArray(parts)
 }
@@ -516,7 +513,7 @@ function fromArray<
     ...SQL.Part[],
   ],
 >(parts: T): T[0]
-function fromArray<const T extends readonly SQL.Part[]>(parts: T): toSQL<T>
+function fromArray<Out>(parts: readonly SQL.Part[]): SQL.Expression<Out>
 function fromArray(parts: readonly SQL.Part[]) {
   let root: SQL
   if (parts[0] instanceof SQL) [root, ...parts] = parts

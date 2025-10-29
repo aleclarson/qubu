@@ -1,4 +1,5 @@
 import { assert } from 'radashi'
+import { Simplify, UnionToIntersection } from 'type-fest'
 import { withAlias } from '../alias.ts'
 import { sql, SQL } from '../core.ts'
 import { Column } from '../definition/column.ts'
@@ -16,16 +17,35 @@ import {
 import { comma, empty, ident, seq, tokenizePart, unsafe } from '../tokens.ts'
 import { $decode } from '../type.ts'
 
+type EnforceSingleField<T> = keyof T extends infer K
+  ? K extends string
+    ? [keyof T] extends [K]
+      ? T
+      : never
+    : never
+  : never
+
 export type SelectClausePart = SQL | Table | Record<string, SQL.Part>
 
-export type SelectResult<T extends SelectClausePart> =
-  T extends SQL.Expression<infer TOutput, infer Alias>
-    ? { [K in Alias]: TOutput }
-    : T extends SQL.TableWildcard<infer TOutput>
-      ? TOutput
-      : T extends Record<string, SQL.Part>
-        ? { [K in keyof T]: SQL.InferOutput<T[K]> }
-        : never
+export type SelectResult<T extends SelectClausePart> = Simplify<
+  UnionToIntersection<
+    T extends SQL.Expression<infer TOutput, infer Alias>
+      ? string extends Alias
+        ? never
+        : { [K in Alias]: TOutput }
+      : T extends SQL.TableWildcard<infer TOutput>
+        ? TOutput
+        : T extends SQL.QueryIdentifier<infer TOutput, infer Alias>
+          ? string extends Alias
+            ? never
+            : { [K in Alias]: EnforceSingleField<TOutput>[keyof TOutput] }
+          : T extends Record<string, SQL.Part>
+            ? PropertyKey extends keyof T
+              ? never
+              : { [K in keyof T]: SQL.InferOutput<T[K]> }
+            : never
+  >
+>
 
 export const select = <const T extends SelectClausePart[]>(...parts: T) => {
   const selectQuery = new SQL.Query<SelectResult<T[number]>>('select')
@@ -33,7 +53,6 @@ export const select = <const T extends SelectClausePart[]>(...parts: T) => {
   let fieldMappers: Record<string, SQL.Decoder> | undefined
 
   const trailingParts: SQL.Part[] = []
-
   const selectedFields = parts.map(part => {
     if (SQL.isExpression(part)) {
       const fieldName =
@@ -43,8 +62,8 @@ export const select = <const T extends SelectClausePart[]>(...parts: T) => {
         fieldName != null,
         'Must use .as() to alias SQL expressions in a select clause'
       )
+      fieldMappers ||= {}
       if (part[SQLDecoder]) {
-        fieldMappers ||= {}
         fieldMappers[fieldName] = part[SQLDecoder]
       }
       return part
@@ -69,8 +88,9 @@ export const select = <const T extends SelectClausePart[]>(...parts: T) => {
       }
       return empty // Not a field.
     }
-    // Convert plain object to a sequence of aliased expressions.
+    fieldMappers ||= {}
     return seq(
+      // Convert plain object to a sequence of aliased expressions.
       Object.entries(part).map(([alias, value]) =>
         withAlias(value, alias, fieldMappers)
       ),
@@ -226,4 +246,11 @@ export function where(...parts: SQL.Part[]) {
  */
 export function orderBy(...parts: SQL.Part[]) {
   return new SQL.Component('order by').$append(parts)
+}
+
+export function count(target?: SQL.Part) {
+  if (target !== undefined) {
+    return new SQL.Expression<number>([seq(['count(', target, ')'], empty)])
+  }
+  return new SQL.Expression<number>(['count(*)'])
 }

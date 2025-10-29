@@ -113,8 +113,10 @@ export type AliasedTableWithColumns<Out extends object> = //
 /**
  * An identifier for an aliased query, with its columns.
  */
-export type AliasedQueryWithColumns<Out extends object> = //
-  SQL.QueryIdentifier<Out[]> & MapColumnsToReferences<Out>
+export type AliasedQueryWithColumns<
+  Out extends object,
+  Name extends string,
+> = SQL.QueryIdentifier<Out, Name> & MapColumnsToReferences<Out>
 
 type MapColumnsToReferences<Out extends object> = {
   [K in keyof Out]: K extends string ? SQL.ColumnReference<Out[K], K> : never

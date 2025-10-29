@@ -122,15 +122,18 @@ export function isToken<T extends keyof pgTokens = keyof pgTokens>(
 export type Token = string | Token.Param | Token.Sequence | SQL.Query | Token[]
 
 /**
- * Simplify the array of tokens such that only raw SQL, escaped
- * values, identifiers, and parenthesized expressions are left over.
+ * Process an array of SQL parts into an array of tokens. A "token" is
+ * either a string (raw SQL syntax), an escaped parameter, a token
+ * sequence, a parenthesized expression (nested arrays), or a
+ * `SQL.Query` object (a subquery).
  *
- * ⚠︎ Arrays are wrapped in parentheses, not flattened.
+ * Notably, token sequences are flattened if their delimiter is the
+ * same as the `delimiter` argument.
  */
 export function tokenize(
   parts: readonly SQL.Part[],
-  tokens: Token[],
-  delimiter: Token.Syntax
+  tokens: Token[] = [],
+  delimiter: Token.Syntax = space
 ): Token[] {
   // The goal is to flatten as much as possible, in order to reduce
   // memory usage and to avoid nested structures for easier debugging.
@@ -141,10 +144,7 @@ export function tokenize(
 }
 
 /**
- * Like `tokenize()`, but for a single part. If you pass a `root` SQL
- * object without a `tokens` array, the SQL object will be extended
- * with the new tokens. Otherwise, a new tokens array is created and
- * returned.
+ * Like `tokenize()`, but for a single part.
  */
 export function tokenizePart(
   part: SQL.Part,
@@ -165,7 +165,7 @@ export function tokenizePart(
   } else if (typeof part === 'string') {
     token = { [PgParam]: part }
   } else if (Array.isArray(part)) {
-    token = tokenize(part, [], space) // parenthesized expression
+    token = tokenize(part) // parenthesized expression
   } else if (typeof part === 'object') {
     if (isToken(part, PgSequence)) {
       // Dissolve the sequence if parent has same delimiter.
