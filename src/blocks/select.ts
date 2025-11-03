@@ -1,21 +1,25 @@
 import { assert } from 'radashi'
 import { Simplify, UnionToIntersection } from 'type-fest'
 import { withAlias } from '../alias.ts'
-import { sql, SQL } from '../core.ts'
-import { Column } from '../definition/column.ts'
-import { getTableRef, Table } from '../definition/table.ts'
+import {
+  comma,
+  empty,
+  ident,
+  seq,
+  sql,
+  SQL,
+  tokenizePart,
+  unsafe,
+} from '../core.ts'
 import {
   ColumnName,
-  ColumnType,
   IdentName,
   PgSequence,
   SQLAlias,
   SQLDecoder,
   SQLFields,
-  TableColumns,
-} from '../symbols.ts'
-import { comma, empty, ident, seq, tokenizePart, unsafe } from '../tokens.ts'
-import { $decode } from '../type.ts'
+} from '../core/symbols.ts'
+import { $decode, noopDecoder } from '../core/type.ts'
 
 type EnforceSingleField<T> = keyof T extends infer K
   ? K extends string
@@ -25,7 +29,7 @@ type EnforceSingleField<T> = keyof T extends infer K
     : never
   : never
 
-export type SelectClausePart = SQL | Table | Record<string, SQL.Part>
+export type SelectClausePart = SQL | Record<string, SQL.Part>
 
 export type SelectResult<T extends SelectClausePart> = Simplify<
   UnionToIntersection<
@@ -42,7 +46,7 @@ export type SelectResult<T extends SelectClausePart> = Simplify<
           : T extends Record<string, SQL.Part>
             ? PropertyKey extends keyof T
               ? never
-              : { [K in keyof T]: SQL.InferOutput<T[K]> }
+              : { -readonly [K in keyof T]: SQL.InferOutput<T[K]> }
             : never
   >
 >
@@ -63,22 +67,23 @@ export const select = <const T extends SelectClausePart[]>(...parts: T) => {
         'Must use .as() to alias SQL expressions in a select clause'
       )
       fieldMappers ||= {}
-      if (part[SQLDecoder]) {
-        fieldMappers[fieldName] = part[SQLDecoder]
-      }
+      fieldMappers[fieldName] = part[SQLDecoder] || noopDecoder
       return part
     }
     if (part instanceof SQL.TableWildcard) {
       Object.assign((fieldMappers ||= {}), part[SQLFields])
       return part
     }
-    if (part instanceof Table) {
-      const columns = part[TableColumns] as Record<string, Column>
+    if (part instanceof SQL.QueryIdentifier) {
+      assert(part[SQLFields], 'Query must be SELECT or have a RETURNING clause')
+      const fieldNames = Object.keys(part[SQLFields])
+      assert(
+        fieldNames.length === 1,
+        `Query must have exactly one column, got ${fieldNames.length}`
+      )
       fieldMappers ||= {}
-      for (const name in columns) {
-        fieldMappers[name] = columns[name][ColumnType].decode
-      }
-      return getTableRef(part)
+      fieldMappers[fieldNames[0]] = part[SQLFields][fieldNames[0]]
+      return seq([[part], unsafe('as'), part[SQLAlias]])
     }
     if (part instanceof SQL) {
       if (fieldMappers) {
@@ -225,14 +230,40 @@ export const leftJoin = join('left')
  * The `FULL JOIN` clause of a SELECT statement.
  */
 export const fullJoin = join('full')
+
 /**
  * The `CROSS JOIN` clause of a SELECT statement.
  */
-export const crossJoin = join('cross')
+export const crossJoin = <T extends SQL.TableReference>(tableRef: T) =>
+  new SQL.Component('cross join', $decode<SQL.InferOutput<T>>()).$append([
+    tableRef,
+  ])
+
 /**
- * The `NATURAL JOIN` clause of a SELECT statement.
+ * The `NATURAL JOIN` clause of a SELECT statement. Identical to
+ * `NATURAL INNER JOIN`.
  */
-export const naturalJoin = join('natural')
+export const naturalJoin = <T extends SQL.TableReference>(tableRef: T) =>
+  new SQL.Component('natural join', $decode<SQL.InferOutput<T>>()).$append([
+    tableRef,
+  ])
+
+/**
+ * The `NATURAL LEFT JOIN` clause of a SELECT statement.
+ */
+export const naturalLeftJoin = <T extends SQL.TableReference>(tableRef: T) =>
+  new SQL.Component('natural left join', $decode<SQL.InferOutput<T>>()).$append(
+    [tableRef]
+  )
+
+/**
+ * The `NATURAL RIGHT JOIN` clause of a SELECT statement.
+ */
+export const naturalRightJoin = <T extends SQL.TableReference>(tableRef: T) =>
+  new SQL.Component(
+    'natural right join',
+    $decode<SQL.InferOutput<T>>()
+  ).$append([tableRef])
 
 /**
  * The `WHERE` clause of a SELECT statement.
@@ -246,11 +277,4 @@ export function where(...parts: SQL.Part[]) {
  */
 export function orderBy(...parts: SQL.Part[]) {
   return new SQL.Component('order by').$append(parts)
-}
-
-export function count(target?: SQL.Part) {
-  if (target !== undefined) {
-    return new SQL.Expression<number>([seq(['count(', target, ')'], empty)])
-  }
-  return new SQL.Expression<number>(['count(*)'])
 }

@@ -1,5 +1,5 @@
-import { camelToSnake } from '../casing.ts'
 import { SQL } from '../core.ts'
+import { camelToSnake } from '../core/casing.ts'
 import {
   ColumnName,
   ColumnTable,
@@ -8,8 +8,8 @@ import {
   TableColumns,
   TableName,
   TableSchema,
-} from '../symbols.ts'
-import { ident } from '../tokens.ts'
+} from '../core/symbols.ts'
+import { ident } from '../core/tokens.ts'
 import { columnsProxy } from '../util.ts'
 import { Column } from './column.ts'
 
@@ -60,7 +60,7 @@ export class Table<TColumns extends object = {}> {
    * @returns `SQL.TableIdentifier`
    */
   as(alias: string): AliasedTableWithColumns<{
-    [K in keyof TColumns]: SQL.InferColumnType<TColumns[K]>
+    -readonly [K in keyof TColumns]: SQL.InferColumnType<TColumns[K]>
   }> {
     const table = new SQL.TableIdentifier(alias, this)
     const columns = this[TableColumns] as Record<string, Column>
@@ -89,17 +89,26 @@ export class Table<TColumns extends object = {}> {
 
   /**
    * Select all columns from the table using wildcard syntax.
+   * Optionally omit specific columns.
    * @returns `SQL.TableWildcard`
    */
-  get ['*'](): SQL.TableWildcard<{
-    [K in keyof TColumns]: SQL.InferColumnType<TColumns[K]>
-  }> {
-    return new SQL.TableWildcard<any>(this)
+  $all<TOmit extends string>(options: {
+    omit: readonly TOmit[]
+  }): SQL.TableWildcard<{
+    -readonly [K in keyof Omit<TColumns, TOmit>]: SQL.InferColumnType<
+      TColumns[K]
+    >
+  }>
+  $all(): SQL.TableWildcard<{
+    -readonly [K in keyof TColumns]: SQL.InferColumnType<TColumns[K]>
+  }>
+  $all(options?: { omit?: readonly string[] }) {
+    return new SQL.TableWildcard<any>(this, options?.omit)
   }
 }
 
 export type TableWithColumns<TColumns extends object> = Table<TColumns> & {
-  [K in keyof TColumns]: K extends string
+  readonly [K in keyof TColumns]: K extends string
     ? SQL.ColumnReference<SQL.InferColumnType<TColumns[K]>, K>
     : never
 }
@@ -119,5 +128,7 @@ export type AliasedQueryWithColumns<
 > = SQL.QueryIdentifier<Out, Name> & MapColumnsToReferences<Out>
 
 type MapColumnsToReferences<Out extends object> = {
-  [K in keyof Out]: K extends string ? SQL.ColumnReference<Out[K], K> : never
+  readonly [K in keyof Out]: K extends string
+    ? SQL.ColumnReference<Out[K], K>
+    : never
 }

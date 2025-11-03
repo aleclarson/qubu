@@ -1,6 +1,9 @@
 {
 	"name": "yiss",
-	"main": "src/index.ts",
+	"exports": {
+		".": "./src/index.ts",
+		"./blocks": "./src/blocks.ts"
+	},
 	"prettier": "@alloc/prettier-config",
 	"devDependencies": {
 		"@alloc/prettier-config": "^1.0.0",

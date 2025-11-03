@@ -1,5 +1,5 @@
-import { SQL } from './core.ts'
-import { getTableRef, Table } from './definition/table.ts'
+import { SQL } from '../core.ts'
+import { getTableRef, Table } from '../definition/table.ts'
 import {
   IdentName,
   IdentNamespace,
@@ -9,6 +9,7 @@ import {
   PgSyntax,
   PgType,
   SequenceDelimiter,
+  SQLAlias,
 } from './symbols.ts'
 
 /**
@@ -57,6 +58,9 @@ export function seq(
   }
 }
 
+/**
+ * Clone an identifier without its namespace.
+ */
 export function withoutNamespace(id: Token.Identifier): Token.Identifier {
   return { ...id, [IdentNamespace]: null }
 }
@@ -230,4 +234,40 @@ export function escapeIdentifier(name: string) {
     return '"' + name + '"'
   }
   return name
+}
+
+export function renderTokens(tokens: Token[], params: unknown[]): string {
+  let sql = ''
+  for (const token of tokens) {
+    const chunk = renderToken(token, params)
+    if (!chunk) continue
+    if (sql.length) sql += ' '
+    sql += chunk
+  }
+  return sql
+}
+
+function renderToken(token: Token, params: unknown[]): string {
+  if (typeof token === 'string') {
+    return token
+  }
+  if (isToken(token, PgParam)) {
+    const index = 1 + params.indexOf(token[PgParam])
+    return '$' + (index || params.push(token[PgParam]))
+  }
+  if (isToken(token, PgSequence)) {
+    let sequence = ''
+    for (let i = 0; i < token[PgSequence].length; i++) {
+      if (i > 0) sequence += token[SequenceDelimiter][PgSyntax]
+      sequence += renderToken(token[PgSequence][i], params)
+    }
+    return sequence
+  }
+  if (token instanceof SQL.QueryIdentifier) {
+    return token[SQLAlias][PgIdent] // Subquery reference
+  }
+  if (token instanceof SQL.Query) {
+    return renderTokens(token[PgSequence], params)
+  }
+  return '(' + renderTokens(token, params) + ')'
 }

@@ -1,6 +1,7 @@
 import { assert } from 'radashi'
 import { sql, SQL } from './core.ts'
-import { ColumnName, IdentName, SQLAlias, SQLDecoder } from './symbols.ts'
+import { ColumnName, IdentName, SQLAlias, SQLDecoder } from './core/symbols.ts'
+import { noopDecoder } from './core/type.ts'
 
 /**
  * Alias a SQL part. If the alias already matches the part's identity
@@ -25,9 +26,9 @@ export function withAlias(
       name = part[ColumnName]
       decoder = part[SQLDecoder]
     }
-    if (fields && decoder) {
+    if (fields) {
       assert(fields[alias] == null, `Alias appears twice: ${alias}`)
-      fields[alias] = decoder
+      fields[alias] = decoder || noopDecoder
     }
     if (name && alias === name) {
       return part

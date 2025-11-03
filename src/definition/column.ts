@@ -9,9 +9,9 @@ import {
   ColumnTable,
   ColumnType,
   PgColumn,
-} from '../symbols.ts'
-import { comma, ident, seq, space, tokenize, unsafe } from '../tokens.ts'
-import { array } from '../type.ts'
+} from '../core/symbols.ts'
+import { comma, ident, seq, space, tokenize, unsafe } from '../core/tokens.ts'
+import { array } from '../core/type.ts'
 import { getTableRef, type Table } from './table.ts'
 
 export type OnDeleteAction =

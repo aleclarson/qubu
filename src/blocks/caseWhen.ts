@@ -1,5 +1,5 @@
 import { SQL } from '../core.ts'
-import { unsafe } from '../tokens.ts'
+import { unsafe } from '../core/tokens.ts'
 
 export function caseWhen<T extends SQL.Part>(condition: SQL.Part, result: T) {
   return new CaseWhen<SQL.InferOutput<T>>(condition, result)

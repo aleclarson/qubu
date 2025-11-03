@@ -1,7 +1,7 @@
 import { ClientAdapter } from './adapter.ts'
 import { renderTokens, SQL } from './core.ts'
-import { PgIdent, PgSequence, SQLAlias } from './symbols.ts'
-import { comma, seq } from './tokens.ts'
+import { PgIdent, PgSequence, SQLAlias } from './core/symbols.ts'
+import { comma, seq } from './core/tokens.ts'
 
 export function postgres<TClient>(
   client: TClient,
