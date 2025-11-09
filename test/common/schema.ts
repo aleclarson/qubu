@@ -1,4 +1,4 @@
-import { pgTable, text, uuid } from 'yiss'
+import { pgTable, text, uuid } from 'qubu'
 
 export const users = pgTable('users', {
   id: uuid().primaryKey(),

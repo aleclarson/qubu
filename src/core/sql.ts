@@ -1,6 +1,4 @@
 import { assert, mapValues, omit } from 'radashi'
-import { BinaryOperator, binaryOperators } from '../binaryOperator.ts'
-import { boolean } from '../data/boolean.ts'
 import { Column } from '../definition/column.ts'
 import {
   AliasedQueryWithColumns,
@@ -8,6 +6,7 @@ import {
   Table,
 } from '../definition/table.ts'
 import { columnsProxy } from '../util.ts'
+import { BooleanOps } from './booleanOps.ts'
 import {
   ColumnName,
   ColumnTable,
@@ -42,6 +41,7 @@ import {
   tokenize,
   unsafe,
 } from './tokens.ts'
+import { boolean } from './type.ts'
 
 declare const SQLOutputType: unique symbol
 
@@ -123,9 +123,14 @@ export namespace SQL {
     /**
      * Compare the SQL object to a given value.
      */
-    is(operator: BinaryOperator, ...parts: SQL.Part[]) {
-      assert(binaryOperators[operator], 'Invalid binary operator')
-      return this.$append([unsafe(operator), ...parts]).mapWith(boolean)
+    is(operator: keyof BooleanOps, ...parts: SQL.Part[]) {
+      const type = BooleanOps[operator]
+      assert(type, 'Invalid binary operator')
+      return this.$append([
+        type === 2 ? unsafe('is') : empty,
+        unsafe(operator),
+        ...parts,
+      ]).mapWith(boolean)
     }
 
     /**
@@ -523,12 +528,9 @@ export namespace SQL {
 }
 
 /**
- * Concatenate chunks of SQL. If later nested in a `SQL.Sequence`, the
- * chunks will be joined with that sequence's separator. Otherwise,
- * they're joined with a space.
- *
- * SQL instances are flattened (e.g. `sql(a, sql(b, c))` is the same
- * as `sql(a, b, c)`).
+ * Concatenate a sequence of SQL parts, using a space as the
+ * delimiter. Nested sequences are flattened if they have the same
+ * delimiter.
  */
 export function sql<T extends SQL.Query | SQL.Expression | SQL.Component>(
   result: T,

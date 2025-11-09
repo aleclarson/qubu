@@ -92,17 +92,17 @@ export class Table<TColumns extends object = {}> {
    * Optionally omit specific columns.
    * @returns `SQL.TableWildcard`
    */
-  $all<TOmit extends string>(options: {
+  $getAll<TOmit extends string>(options: {
     omit: readonly TOmit[]
   }): SQL.TableWildcard<{
     -readonly [K in keyof Omit<TColumns, TOmit>]: SQL.InferColumnType<
       TColumns[K]
     >
   }>
-  $all(): SQL.TableWildcard<{
+  $getAll(): SQL.TableWildcard<{
     -readonly [K in keyof TColumns]: SQL.InferColumnType<TColumns[K]>
   }>
-  $all(options?: { omit?: readonly string[] }) {
+  $getAll(options?: { omit?: readonly string[] }) {
     return new SQL.TableWildcard<any>(this, options?.omit)
   }
 }

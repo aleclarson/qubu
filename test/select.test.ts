@@ -7,13 +7,13 @@ import {
   selectDistinct,
   selectDistinctOn,
   SQL,
-} from 'yiss'
+} from 'qubu/blocks'
 import { posts, users } from './common/schema.ts'
 
 const { toString } = SQL.Query
 
 test('Select all columns (SELECT *)', () => {
-  const query = select(users['*'], from(users))
+  const query = select(users.$getAll(), from(users))
   expect(toString(query)).toMatchInlineSnapshot(`
     [
       "select users.* from users",
@@ -72,7 +72,7 @@ test('DISTINCT queries', () => {
     ]
   `)
 
-  query = select(distinct(), users['*'], from(users))
+  query = select(distinct(), users.$getAll(), from(users))
   expect(toString(query)).toMatchInlineSnapshot(`
     [
       "select distinct users.* from users",
@@ -80,7 +80,7 @@ test('DISTINCT queries', () => {
     ]
   `)
 
-  query = selectDistinctOn([users.name], users['*'], from(users))
+  query = selectDistinctOn([users.name], users.$getAll(), from(users))
   expect(toString(query)).toMatchInlineSnapshot(`
     [
       "select distinct on (name) users.* from users",
@@ -88,7 +88,7 @@ test('DISTINCT queries', () => {
     ]
   `)
 
-  query = select(distinctOn(users.name), users['*'], from(users))
+  query = select(distinctOn(users.name), users.$getAll(), from(users))
   expect(toString(query)).toMatchInlineSnapshot(`
     [
       "select distinct on (name) users.* from users",

@@ -2,7 +2,9 @@ import { sql, SQL } from './core/sql.ts'
 import { empty, seq, unsafe } from './core/tokens.ts'
 import { boolean } from './core/type.ts'
 
+export * from './core/booleanOps.ts'
 export * from './core/casing.ts'
+export * from './core/mathOps.ts'
 export * from './core/sql.ts'
 export * from './core/tokens.ts'
 export * from './core/type.ts'
@@ -24,10 +26,17 @@ export * from './functions.ts'
  * select(users.id, $if(isAdmin, users.email), users.name)
  * ```
  */
-export function $if<T>(
+export function $if<T, Alias extends string>(
   condition: unknown,
-  truthy: SQL<T>
-): SQL<T | undefined> | typeof empty {
+  truthy: SQL.Expression<T, Alias>
+): SQL.Expression<T | undefined, Alias> | typeof empty
+
+export function $if<T extends SQL>(
+  condition: unknown,
+  truthy: T
+): T | typeof empty
+
+export function $if(condition: unknown, truthy: SQL): SQL | typeof empty {
   return condition ? truthy : empty
 }
 

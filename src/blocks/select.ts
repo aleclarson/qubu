@@ -2,6 +2,7 @@ import { assert } from 'radashi'
 import { Simplify, UnionToIntersection } from 'type-fest'
 import { withAlias } from '../alias.ts'
 import {
+  boolean,
   comma,
   empty,
   ident,
@@ -195,6 +196,11 @@ export function distinctOn(...columns: (SQL.ColumnReference | string)[]) {
   ])
 }
 
+const formatTableReference = (table: SQL.TableReference): SQL.Part =>
+  table instanceof SQL.QueryIdentifier
+    ? seq([[table], unsafe('as'), table[SQLAlias]])
+    : table
+
 /**
  * The `FROM` clause of a SELECT statement.
  */
@@ -204,7 +210,7 @@ export function from<T extends [SQL.TableReference, ...SQL.TableReference[]]>(
   return new SQL.Component(
     'from',
     $decode<SQL.InferOutput<T[number]>>()
-  ).$append([seq(tables, comma)])
+  ).$append([seq(tables.map(formatTableReference), comma)])
 }
 
 const join =
@@ -212,7 +218,7 @@ const join =
   <T extends SQL.TableReference>(tableRef: T) => ({
     on: (...parts: SQL.Part[]) =>
       new SQL.Component(`${type} join`, $decode<SQL.InferOutput<T>>()).$append([
-        tableRef,
+        formatTableReference(tableRef),
         unsafe('on'),
         ...parts,
       ]),
@@ -236,7 +242,7 @@ export const fullJoin = join('full')
  */
 export const crossJoin = <T extends SQL.TableReference>(tableRef: T) =>
   new SQL.Component('cross join', $decode<SQL.InferOutput<T>>()).$append([
-    tableRef,
+    formatTableReference(tableRef),
   ])
 
 /**
@@ -245,7 +251,7 @@ export const crossJoin = <T extends SQL.TableReference>(tableRef: T) =>
  */
 export const naturalJoin = <T extends SQL.TableReference>(tableRef: T) =>
   new SQL.Component('natural join', $decode<SQL.InferOutput<T>>()).$append([
-    tableRef,
+    formatTableReference(tableRef),
   ])
 
 /**
@@ -253,7 +259,7 @@ export const naturalJoin = <T extends SQL.TableReference>(tableRef: T) =>
  */
 export const naturalLeftJoin = <T extends SQL.TableReference>(tableRef: T) =>
   new SQL.Component('natural left join', $decode<SQL.InferOutput<T>>()).$append(
-    [tableRef]
+    [formatTableReference(tableRef)]
   )
 
 /**
@@ -263,13 +269,27 @@ export const naturalRightJoin = <T extends SQL.TableReference>(tableRef: T) =>
   new SQL.Component(
     'natural right join',
     $decode<SQL.InferOutput<T>>()
-  ).$append([tableRef])
+  ).$append([formatTableReference(tableRef)])
 
 /**
  * The `WHERE` clause of a SELECT statement.
  */
 export function where(...parts: SQL.Part[]) {
   return new SQL.Component('where').$append(parts)
+}
+
+/**
+ * The `EXISTS` predicate.
+ */
+export function exists(query: SQL.Query) {
+  return new SQL.Expression<boolean>(['exists', [query]]).mapWith(boolean)
+}
+
+/**
+ * The `NOT EXISTS` predicate.
+ */
+export function notExists(query: SQL.Query) {
+  return new SQL.Expression<boolean>(['not exists', [query]]).mapWith(boolean)
 }
 
 /**

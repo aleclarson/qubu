@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
-import { count, from, select, SQL, where } from 'yiss'
+import { count, SQL } from 'qubu'
+import { exists, from, select, where } from 'qubu/blocks'
 import { posts, users } from './common/schema.ts'
 
 const { toString } = SQL.Query
@@ -25,8 +26,58 @@ test('Scalar subquery in SELECT list (single value)', () => {
   `)
 })
 
-test.skip('Subquery with IN operator', () => {})
+test('Subquery with IN operator', () => {
+  const user = users.as('u')
 
-test.skip('Subquery with EXISTS', () => {})
+  const postAuthorIds = select(posts.authorId, from(posts))
 
-test.skip('Basic subquery as table source with required alias', () => {})
+  const query = select(
+    user.id,
+    from(user),
+    where(user.id.is('in', [postAuthorIds]))
+  )
+
+  expect(toString(query)).toMatchInlineSnapshot(`
+    [
+      "select u.id from users as u where u.id in (select posts.author_id from posts)",
+      [],
+    ]
+  `)
+})
+
+test('Subquery with EXISTS', () => {
+  const user = users.as('u')
+
+  const userPosts = select(
+    posts.id,
+    from(posts),
+    where(posts.authorId.is('=', user.id))
+  )
+
+  const query = select(user.id, from(user), where(exists(userPosts)))
+
+  expect(toString(query)).toMatchInlineSnapshot(`
+    [
+      "select u.id from users as u where exists (select posts.id from posts where posts.author_id = u.id)",
+      [],
+    ]
+  `)
+})
+
+test('Basic subquery as table source with required alias', () => {
+  const postAuthors = select(
+    {
+      authorId: posts.authorId,
+    },
+    from(posts)
+  ).as('postAuthors')
+
+  const query = select(postAuthors.authorId, from(postAuthors))
+
+  expect(toString(query)).toMatchInlineSnapshot(`
+    [
+      "select "postAuthors"."authorId" from (select posts.author_id as "authorId" from posts) as "postAuthors"",
+      [],
+    ]
+  `)
+})

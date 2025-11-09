@@ -1,19 +1,19 @@
-import { PgDatabase } from './client.ts'
-import { SQL } from './core.ts';
+import { QueryClient } from './client.ts'
+import { SQL } from './core.ts'
 
-export class PgFluentDatabase extends PgDatabase {
+export class QueryBuilder extends QueryClient {
   select() {}
 
-  insert() {}
+  insertInto() {}
 
   update() {}
 
-  delete() {}
+  deleteFrom() {}
 }
 
-class PgFluentQuery<Out extends object> implements PromiseLike<Out[]> {
+export class QueryPromise<Out extends object> implements PromiseLike<Out[]> {
   constructor(private readonly query: SQL.Query<Out>) {}
-  
+
   then<TResult1 = Out, TResult2 = never>(
     onfulfilled?:
       | ((value: Out) => TResult1 | PromiseLike<TResult1>)

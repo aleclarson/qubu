@@ -1,20 +1,20 @@
-import { ClientAdapter } from './adapter.ts'
+import { QubuAdapter } from './adapter.ts'
 import { renderTokens, SQL } from './core.ts'
 import { PgIdent, PgSequence, SQLAlias } from './core/symbols.ts'
 import { comma, seq } from './core/tokens.ts'
 
-export function postgres<TClient>(
-  client: TClient,
-  adapter: ClientAdapter<TClient>
-) {
-  return new PgDatabase(client, adapter)
+/**
+ * Wrap a query driver with a Qubu adapter.
+ */
+export function qubu<TDriver>(driver: TDriver, adapter: QubuAdapter<TDriver>) {
+  return new QueryClient(driver, adapter)
 }
 
-export class PgDatabase {
+export class QueryClient {
   protected connected: Promise<void> | null = null
   constructor(
-    protected readonly client: unknown,
-    protected readonly adapter: ClientAdapter<unknown>
+    protected readonly driver: unknown,
+    protected readonly adapter: QubuAdapter<unknown>
   ) {}
 
   /**
@@ -24,11 +24,11 @@ export class PgDatabase {
    * implemented by the underlying client.
    */
   async connect() {
-    await (this.connected ||= this.adapter.connect(this.client))
+    await (this.connected ||= this.adapter.connect(this.driver))
   }
 
   async close() {
-    await this.connected?.then(() => this.adapter.close(this.client))
+    await this.connected?.then(() => this.adapter.close(this.driver))
     this.connected = null
   }
 
@@ -47,7 +47,7 @@ export class PgDatabase {
 
     await this.connect()
 
-    return this.adapter.query(this.client, sql, params) as Promise<
+    return this.adapter.query(this.driver, sql, params) as Promise<
       SQL.InferOutput<T>
     >
   }
