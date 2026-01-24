@@ -1,24 +1,26 @@
 import { assert } from 'radashi'
 import { sql, SQL } from './sql.ts'
-import { unsafe } from './tokens.ts'
+import { unsafeMap } from './tokens.ts'
 
 // prettier-ignore
-export const MathOps = {
-  "+": 1, "-": 1, "*": 1, "/": 1, "%": 1, "**": 1,
-  "^": 1, "|/": 1, "||/": 1, "@": 1, "&": 1, "|": 1,
-  "#": 1, "~": 1, "<<": 1, ">>": 1,
-} as const
+export const mathOperatorRegistry = unsafeMap(
+  "+", "-", "*", "/", "%", "**",
+  "^", "|/", "||/", "@", "&", "|",
+  "#", "~", "<<", ">>",
+)
 
-type DefaultMathOps = Record<keyof typeof MathOps, number>
+type BuiltinMathOps = Record<keyof typeof mathOperatorRegistry, number>
 
-export interface MathOps extends DefaultMathOps {}
+export interface MathOperatorRegistry extends BuiltinMathOps {}
+
+export type MathOperator = keyof MathOperatorRegistry
 
 type MathPrimitive = number | bigint | null | undefined
 
 type MathPart =
   | Exclude<SQL.Part, SQL.Primitive | readonly SQL.Part[]>
   | MathPrimitive
-  | keyof MathOps
+  | MathOperator
   | readonly MathPart[]
 
 /**
@@ -31,14 +33,15 @@ type MathPart =
  * ```
  */
 export function calc(...parts: MathPart[]): SQL.Expression<number> {
-  return sql.fromArray(
-    parts.map(part => {
+  return sql(
+    ...parts.map(part => {
       if (typeof part === 'number' || typeof part === 'bigint') {
         return part
       }
       if (typeof part === 'string') {
-        assert(MathOps[part], 'Invalid math operator')
-        return unsafe(part)
+        return (
+          mathOperatorRegistry[part] || assert(false, 'Invalid math operator')
+        )
       }
       if (Array.isArray(part)) {
         return [calc(...part)]

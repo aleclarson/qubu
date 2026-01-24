@@ -1,5 +1,7 @@
+import { UnionToIntersection } from 'type-fest'
 import { SQL } from '../core.ts'
 import { getTableRef, Table } from '../definition/table.ts'
+import { compareDelimiters, Delimiter } from './seq.ts'
 import {
   IdentName,
   IdentNamespace,
@@ -19,14 +21,18 @@ export const unsafe = <T extends string>(syntax: T): Token.Syntax<T> => ({
   [PgSyntax]: syntax,
 })
 
-/** Empty token. This gets omitted from the query when tokenized. */
-export const empty = unsafe('')
-/** Whitespace token */
-export const space = unsafe(' ')
-/** Comma token */
-export const comma = unsafe(', ')
-/** Dot token */
-export const dot = unsafe('.')
+/**
+ * Create a map of `unsafe()` tokens.
+ */
+export const unsafeMap = <T extends string>(
+  ...tokens: readonly T[]
+): UnionToIntersection<
+  T extends string ? { [K in T]: Token.Syntax<T> } : never
+> =>
+  tokens.reduce((acc, token) => {
+    acc[token] = unsafe(token)
+    return acc
+  }, {} as any)
 
 /**
  * Declare an identifier. Often refers to a column, table, or schema
@@ -40,21 +46,6 @@ export function ident<Name extends string>(
     [PgIdent]: escapeIdentifier(name),
     [IdentName]: name,
     [IdentNamespace]: namespace,
-  }
-}
-
-/**
- * A sequence is a syntax unit made up of a list of tokens, with a
- * given separator between each item. If no separator is provided, the
- * tokens are joined with a space.
- */
-export function seq(
-  parts: readonly SQL.Part[],
-  delimiter: Token.Syntax = space
-): Token.Sequence {
-  return {
-    [PgSequence]: tokenize(parts, [], delimiter),
-    [SequenceDelimiter]: delimiter,
   }
 }
 
@@ -137,7 +128,7 @@ export type Token = string | Token.Param | Token.Sequence | SQL.Query | Token[]
 export function tokenize(
   parts: readonly SQL.Part[],
   tokens: Token[] = [],
-  delimiter: Token.Syntax = space
+  delimiter: Delimiter = ' '
 ): Token[] {
   // The goal is to flatten as much as possible, in order to reduce
   // memory usage and to avoid nested structures for easier debugging.
@@ -153,7 +144,7 @@ export function tokenize(
 export function tokenizePart(
   part: SQL.Part,
   tokens: Token[] = [],
-  delimiter: Token.Syntax = space
+  delimiter: Delimiter = ' '
 ) {
   let token: Token | undefined
   if (part == null) {
@@ -173,7 +164,7 @@ export function tokenizePart(
   } else if (typeof part === 'object') {
     if (isToken(part, PgSequence)) {
       // Dissolve the sequence if parent has same delimiter.
-      if (part[SequenceDelimiter][PgSyntax] === delimiter[PgSyntax]) {
+      if (compareDelimiters(part[SequenceDelimiter], delimiter)) {
         part[PgSequence].forEach(token => tokens.push(token))
         return tokens
       }
@@ -199,6 +190,20 @@ export function tokenizePart(
     throw new Error(`Invalid part: ${Object.prototype.toString.call(part)}`)
   }
   tokens.push(token)
+  return tokens
+}
+
+/**
+ * Tokenize a function call. This assumes a `""` (empty string)
+ * delimiter between each returned token.
+ */
+export function tokenizeCall(name: string, ...args: SQL.Part[]): Token[] {
+  const tokens = [name, '(']
+  for (let i = 0; i < args.length; i++) {
+    if (i > 0) tokens.push(', ')
+    tokenizePart(args[i], tokens, '')
+  }
+  tokens.push(')')
   return tokens
 }
 

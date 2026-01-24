@@ -1,4 +1,3 @@
-import { expect, test } from 'vitest'
 import {
   distinct,
   distinctOn,
@@ -7,7 +6,8 @@ import {
   selectDistinct,
   selectDistinctOn,
   SQL,
-} from 'qubu/blocks'
+} from 'qubu'
+import { expect, test } from 'vitest'
 import { posts, users } from './common/schema.ts'
 
 const { toString } = SQL.Query

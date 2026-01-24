@@ -91,9 +91,17 @@ export class Table<TColumns extends object = {}> {
    * Select all columns from the table using wildcard syntax.
    * Optionally omit specific columns.
    * @returns `SQL.TableWildcard`
+   * @example
+   * ```ts
+   * select(users.$getAll(), from(users))
+   * // SELECT users.* FROM users
+   *
+   * select(users.$getAll({ omit: ['id'] }), from(users))
+   * // SELECT users.name, users.email FROM users
+   * ```
    */
   $getAll<TOmit extends string>(options: {
-    omit: readonly TOmit[]
+    omit?: readonly TOmit[]
   }): SQL.TableWildcard<{
     -readonly [K in keyof Omit<TColumns, TOmit>]: SQL.InferColumnType<
       TColumns[K]

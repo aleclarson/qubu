@@ -1,6 +1,6 @@
 import type { StandardSchemaV1 } from '@standard-schema/spec'
 import { assert } from 'radashi'
-import { sql, SQL } from '../core.ts'
+import { array, ident, seq, sql, SQL, tokenize, unsafe } from '../core.ts'
 import {
   ColumnConstraints,
   ColumnName,
@@ -10,8 +10,6 @@ import {
   ColumnType,
   PgColumn,
 } from '../core/symbols.ts'
-import { comma, ident, seq, space, tokenize, unsafe } from '../core/tokens.ts'
-import { array } from '../core/type.ts'
 import { getTableRef, type Table } from './table.ts'
 
 export type OnDeleteAction =
@@ -111,15 +109,13 @@ export class Column<In = any, Out = any, Nullable extends boolean = any> {
                 seq(
                   // Ensure only the column name is used, not the table name.
                   columns.map(column => ident(column[ColumnName])),
-                  comma
+                  ', '
                 ),
               ],
             ]
           : SQL.isColumnReference(columns)
             ? [getTableRef(getTableFromColumn(columns)), [columns]]
-            : [getTableRef(columns)],
-        [],
-        space
+            : [getTableRef(columns)]
       )
       return new SQL(tokens)
     })

@@ -6,7 +6,7 @@ import {
   Table,
 } from '../definition/table.ts'
 import { columnsProxy } from '../util.ts'
-import { BooleanOps } from './booleanOps.ts'
+import { compareDelimiters, Delimiter, seq, validateDelimiter } from './seq.ts'
 import {
   ColumnName,
   ColumnTable,
@@ -17,7 +17,6 @@ import {
   PgIdent,
   PgParam,
   PgSequence,
-  PgSyntax,
   PgTable,
   PgType,
   SequenceDelimiter,
@@ -28,15 +27,11 @@ import {
   TableColumns,
 } from './symbols.ts'
 import {
-  comma,
-  empty,
   escapeIdentifier,
   ident,
   pgTokens,
   renderIdentifier,
   renderTokens,
-  seq,
-  space,
   Token,
   tokenize,
   unsafe,
@@ -50,22 +45,21 @@ export class SQL<Out = any> implements Token.Sequence {
   [PgSequence]: Token[];
   [SequenceDelimiter]: Token.Syntax
 
-  constructor(sequence: Token[] = [], delimiter: Token.Syntax = space) {
+  constructor(sequence: Token[] = [], delimiter: Delimiter = ' ') {
     this[PgSequence] = sequence
-    this[SequenceDelimiter] = delimiter
+    this[SequenceDelimiter] = validateDelimiter(delimiter)
   }
 
   /**
    * Extend the SQL object by appending a new part. Any separator
-   * other than `space` (the default) will be prefixed to each new
-   * part.
-   * @returns The same SQL object.
+   * other than `" "` (space) will be prefixed to each new part.
+   * @returns `this`
    */
   $append(
     parts: readonly SQL.Part[],
-    delimiter: Token.Syntax = this[SequenceDelimiter]
+    delimiter: Delimiter = this[SequenceDelimiter]
   ) {
-    if (delimiter[PgSyntax] === this[SequenceDelimiter][PgSyntax]) {
+    if (compareDelimiters(delimiter, this[SequenceDelimiter])) {
       tokenize(parts, this[PgSequence], delimiter)
     } else {
       const { length } = this[PgSequence]
@@ -75,7 +69,7 @@ export class SQL<Out = any> implements Token.Sequence {
 
       this[PgSequence][length - 1] = {
         [PgSequence]: tokens,
-        [SequenceDelimiter]: delimiter,
+        [SequenceDelimiter]: validateDelimiter(delimiter),
       } satisfies Token.Sequence
     }
     return this
@@ -110,27 +104,15 @@ export namespace SQL {
     [SQLDecoder]: SQL.Decoder<Out> | null = null
 
     /**
-     * Set the alias for this SQL object.
-     * @returns The same SQL object.
+     * Set the column alias for this expression.
+     * @returns `this`
+     * @see https://neon.com/postgresql/postgresql-tutorial/postgresql-column-alias
      */
     as<Alias extends string>(alias: Alias): SQL.Expression<Out, Alias> {
       assert(this[SQLAlias] == null, 'Alias already set')
       this[SQLAlias] = ident(alias) as Token.Identifier<any>
       this[PgSequence].push('as', this[SQLAlias][PgIdent])
       return this as SQL.Expression<Out, any>
-    }
-
-    /**
-     * Compare the SQL object to a given value.
-     */
-    is(operator: keyof BooleanOps, ...parts: SQL.Part[]) {
-      const type = BooleanOps[operator]
-      assert(type, 'Invalid binary operator')
-      return this.$append([
-        type === 2 ? unsafe('is') : empty,
-        unsafe(operator),
-        ...parts,
-      ]).mapWith(boolean)
     }
 
     /**
@@ -221,7 +203,7 @@ export namespace SQL {
      * Cast a value to a given type.
      */
     cast<T>(type: SQL.Type<string, any, T>) {
-      return this.$append([unsafe('::'), type], empty).mapWith(type)
+      return this.$append([unsafe('::'), type], '').mapWith(type)
     }
 
     /**
@@ -240,6 +222,18 @@ export namespace SQL {
     }
   }
 
+  export class AggregateExpression<
+    Out = any,
+    Alias extends string = string,
+  > extends Expression<Out, Alias> {
+    /**
+     * @see https://www.tigerdata.com/learn/understanding-filter-in-postgresql-with-examples
+     */
+    filterWhere(...parts: SQL.Part[]) {
+      return this.$append([unsafe('filter'), [unsafe('where'), ...parts]])
+    }
+  }
+
   /**
    * You get a `TableIdentifier` when you call `as()` on a `Table`.
    */
@@ -255,16 +249,27 @@ export namespace SQL {
     }
 
     /**
+     * Get a column reference by name. Safe from method name conflicts.
+     * @returns `SQL.ColumnReference`
+     */
+    $get<K extends string & keyof Out>(
+      name: K
+    ): SQL.ColumnReference<Out[K], K> {
+      const column = this[PgTable][TableColumns][name] as Column<any, any>
+      return new SQL.ColumnReference(column)
+    }
+
+    /**
      * Select all columns from the table using wildcard syntax.
      * @returns `SQL.TableWildcard`
      */
-    $all<TOmit extends string>(options: {
+    $getAll<TOmit extends string>(options: {
       omit: readonly TOmit[]
     }): SQL.TableWildcard<{
       [K in keyof Omit<Out, TOmit>]: Out[K]
     }>
-    $all(): SQL.TableWildcard<Out>
-    $all(options?: { omit?: readonly string[] }) {
+    $getAll(): SQL.TableWildcard<Out>
+    $getAll(options?: { omit?: readonly string[] }) {
       return new SQL.TableWildcard(this, options?.omit)
     }
   }
@@ -276,8 +281,7 @@ export namespace SQL {
     [SQLFields]: Record<string, SQL.Decoder>
 
     constructor(
-      table: Table<any> | TableIdentifier | QueryIdentifier,
-      omitFields?: readonly string[]
+      readonly table: Table<any> | TableIdentifier | QueryIdentifier,
     ) {
       let fields: Record<string, SQL.Decoder>
       if (table instanceof QueryIdentifier) {
@@ -297,15 +301,20 @@ export namespace SQL {
         )
       }
 
-      const tokens: Token[] = []
+      super()
+      this[SQLFields] = fields
+    }
+
+    toSQL() {
+      const tokens = this[PgSequence]
       const tableToken = renderIdentifier(
-        table instanceof Table ? getTableRef(table) : table[SQLAlias]
+        this.table instanceof Table ? getTableRef(this.table) : this.table[SQLAlias]
       )
 
       if (omitFields) {
         fields = omit(fields, omitFields)
 
-        const columns = seq([], comma)
+        const columns = seq([], ', ')
         for (const name of Object.keys(fields)) {
           columns[PgSequence].push(`${tableToken}.${escapeIdentifier(name)}`)
         }
@@ -314,8 +323,7 @@ export namespace SQL {
         tokens.push(tableToken + '.*')
       }
 
-      super(tokens)
-      this[SQLFields] = fields
+      return tokens
     }
   }
 
@@ -445,13 +453,13 @@ export namespace SQL {
      * Optionally omit specific columns.
      * @returns `SQL.TableWildcard`
      */
-    $all<TOmit extends string>(options: {
+    $getAll<TOmit extends string>(options: {
       omit: readonly TOmit[]
     }): SQL.TableWildcard<{
       [K in keyof Omit<Out, TOmit>]: Out[K]
     }>
-    $all(): SQL.TableWildcard<Out>
-    $all(options?: { omit?: readonly string[] }) {
+    $getAll(): SQL.TableWildcard<Out>
+    $getAll(options?: { omit?: readonly string[] }) {
       return new SQL.TableWildcard(this, options?.omit)
     }
   }
@@ -538,17 +546,6 @@ export function sql<T extends SQL.Query | SQL.Expression | SQL.Component>(
 ): T
 export function sql<Out>(...parts: SQL.Part[]): SQL.Expression<Out>
 export function sql(...parts: readonly SQL.Part[]) {
-  return fromArray(parts)
-}
-
-function fromArray<
-  const T extends readonly [
-    SQL.Query | SQL.Expression | SQL.Component,
-    ...SQL.Part[],
-  ],
->(parts: T): T[0]
-function fromArray<Out>(parts: readonly SQL.Part[]): SQL.Expression<Out>
-function fromArray(parts: readonly SQL.Part[]) {
   let root: SQL
   if (parts[0] instanceof SQL) [root, ...parts] = parts
   else root = new SQL.Expression()
@@ -556,11 +553,10 @@ function fromArray(parts: readonly SQL.Part[]) {
   return root
 }
 
-sql.fromArray = fromArray
-
-// Tokens
-sql.ident = ident
-sql.sequence = seq
+/**
+ * Any raw SQL string. Never pass user input to this function, unless
+ * you're sure it doesn't contain malicious SQL.
+ */
 sql.unsafe = unsafe
 
 const jsonNull = { toJSON: () => null }

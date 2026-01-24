@@ -1,6 +1,5 @@
+import { count, exists, from, select, SQL, where } from 'qubu'
 import { expect, test } from 'vitest'
-import { count, SQL } from 'qubu'
-import { exists, from, select, where } from 'qubu/blocks'
 import { posts, users } from './common/schema.ts'
 
 const { toString } = SQL.Query
