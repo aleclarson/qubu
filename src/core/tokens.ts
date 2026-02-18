@@ -21,6 +21,9 @@ export const unsafe = <T extends string>(syntax: T): Token.Syntax<T> => ({
   [PgSyntax]: syntax,
 })
 
+/** Empty token. This gets omitted from the query when tokenized. */
+export const empty = unsafe('')
+
 /**
  * Create a map of `unsafe()` tokens.
  */

@@ -3,7 +3,6 @@ import { Simplify, UnionToIntersection } from 'type-fest'
 import { withAlias } from '../alias.ts'
 import {
   boolean,
-  comma,
   empty,
   ident,
   seq,
@@ -21,6 +20,8 @@ import {
   SQLFields,
 } from '../core/symbols.ts'
 import { $decode, noopDecoder } from '../core/type.ts'
+
+const { formatTableReference } = SQL
 
 type EnforceSingleField<T> = keyof T extends infer K
   ? K extends string
@@ -100,14 +101,14 @@ export const select = <const T extends SelectClausePart[]>(...parts: T) => {
       Object.entries(part).map(([alias, value]) =>
         withAlias(value, alias, fieldMappers)
       ),
-      comma
+      ', '
     )
   })
 
   assert(fieldMappers, 'Must declare at least one field')
   selectQuery[SQLFields] = fieldMappers
 
-  selectQuery.$append([seq(selectedFields, comma), ...trailingParts])
+  selectQuery.$append([seq(selectedFields, ', '), ...trailingParts])
 
   return selectQuery
 
@@ -191,15 +192,10 @@ export function distinctOn(...columns: (SQL.ColumnReference | string)[]) {
       columns.map(column =>
         ident(typeof column === 'string' ? column : column[ColumnName])
       ),
-      comma
+      ', '
     ),
   ])
 }
-
-const formatTableReference = (table: SQL.TableReference): SQL.Part =>
-  table instanceof SQL.QueryIdentifier
-    ? seq([[table], unsafe('as'), table[SQLAlias]])
-    : table
 
 /**
  * The `FROM` clause of a SELECT statement.
@@ -210,7 +206,7 @@ export function from<T extends [SQL.TableReference, ...SQL.TableReference[]]>(
   return new SQL.Component(
     'from',
     $decode<SQL.InferOutput<T[number]>>()
-  ).$append([seq(tables.map(formatTableReference), comma)])
+  ).$append([seq(tables.map(formatTableReference), ', ')])
 }
 
 const join =

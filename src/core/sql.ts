@@ -281,7 +281,7 @@ export namespace SQL {
     [SQLFields]: Record<string, SQL.Decoder>
 
     constructor(
-      readonly table: Table<any> | TableIdentifier | QueryIdentifier,
+      readonly table: Table<any> | TableIdentifier | QueryIdentifier
     ) {
       let fields: Record<string, SQL.Decoder>
       if (table instanceof QueryIdentifier) {
@@ -308,7 +308,9 @@ export namespace SQL {
     toSQL() {
       const tokens = this[PgSequence]
       const tableToken = renderIdentifier(
-        this.table instanceof Table ? getTableRef(this.table) : this.table[SQLAlias]
+        this.table instanceof Table
+          ? getTableRef(this.table)
+          : this.table[SQLAlias]
       )
 
       if (omitFields) {
@@ -465,6 +467,11 @@ export namespace SQL {
   }
 
   export type TableReference = Table | TableIdentifier | QueryIdentifier
+
+  export const formatTableReference = (table: SQL.TableReference): SQL.Part =>
+    SQLAlias in table && table[SQLAlias] != null
+      ? seq([[table], unsafe('as'), table[SQLAlias]])
+      : table
 
   /**
    * Use “interface merging” to add your own custom primitives to the

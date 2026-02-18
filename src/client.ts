@@ -1,7 +1,6 @@
 import { QubuAdapter } from './adapter.ts'
-import { renderTokens, SQL } from './core.ts'
+import { renderTokens, seq, SQL } from './core.ts'
 import { PgIdent, PgSequence, SQLAlias } from './core/symbols.ts'
-import { comma, seq } from './core/tokens.ts'
 
 /**
  * Wrap a query driver with a Qubu adapter.
@@ -58,6 +57,6 @@ function subquerySequence(queries: SQL.QueryIdentifier[]) {
     queries.map(query => {
       return seq([query[SQLAlias][PgIdent], 'as', query[PgSequence]])
     }),
-    comma
+    ', '
   )
 }
