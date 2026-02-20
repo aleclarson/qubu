@@ -282,7 +282,8 @@ export namespace SQL {
     [SQLFields]: Record<string, SQL.Decoder>
 
     constructor(
-      readonly table: Table<any> | TableIdentifier | QueryIdentifier
+      readonly table: Table<any> | TableIdentifier | QueryIdentifier,
+      readonly omitFields?: readonly string[]
     ) {
       let fields: Record<string, SQL.Decoder>
       if (table instanceof QueryIdentifier) {
@@ -302,6 +303,10 @@ export namespace SQL {
         )
       }
 
+      if (omitFields) {
+        fields = omit(fields, omitFields)
+      }
+
       super()
       this[SQLFields] = fields
     }
@@ -314,11 +319,9 @@ export namespace SQL {
           : this.table[SQLAlias]
       )
 
-      if (omitFields) {
-        fields = omit(fields, omitFields)
-
+      if (this.omitFields) {
         const columns = seq([], ', ')
-        for (const name of Object.keys(fields)) {
+        for (const name of Object.keys(this[SQLFields])) {
           columns[PgSequence].push(`${tableToken}.${escapeIdentifier(name)}`)
         }
         tokens.push(columns)
