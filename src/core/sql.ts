@@ -6,7 +6,7 @@ import {
   Table,
 } from '../definition/table.ts'
 import { columnsProxy } from '../util.ts'
-import { compareDelimiters, Delimiter, seq, validateDelimiter } from './seq.ts'
+import { compareDelimiters, Delimiter, validateDelimiter } from './delimiter.ts'
 import {
   ColumnName,
   ColumnTable,
@@ -32,11 +32,12 @@ import {
   pgTokens,
   renderIdentifier,
   renderTokens,
+  seq,
   Token,
   tokenize,
-  unsafe,
 } from './tokens.ts'
 import { boolean } from './type.ts'
+import { unsafe } from './unsafe.ts'
 
 declare const SQLOutputType: unique symbol
 

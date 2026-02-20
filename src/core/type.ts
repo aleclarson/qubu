@@ -1,5 +1,5 @@
-import { SQL } from '../core.ts'
 import { Column } from '../definition/column.ts'
+import { SQL } from './sql.ts'
 import { PgType } from './symbols.ts'
 
 export const noopDecoder = (arg: unknown) => arg

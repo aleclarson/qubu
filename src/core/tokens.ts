@@ -1,7 +1,6 @@
-import { UnionToIntersection } from 'type-fest'
-import { SQL } from '../core.ts'
 import { getTableRef, Table } from '../definition/table.ts'
-import { compareDelimiters, Delimiter } from './seq.ts'
+import { compareDelimiters, Delimiter, validateDelimiter } from './delimiter.ts'
+import { SQL } from './sql.ts'
 import {
   IdentName,
   IdentNamespace,
@@ -13,51 +12,42 @@ import {
   SequenceDelimiter,
   SQLAlias,
 } from './symbols.ts'
-
-/**
- * An escape hatch for raw SQL.
- */
-export const unsafe = <T extends string>(syntax: T): Token.Syntax<T> => ({
-  [PgSyntax]: syntax,
-})
+import { unsafe } from './unsafe.ts'
 
 /** Empty token. This gets omitted from the query when tokenized. */
 export const empty = unsafe('')
 
 /**
- * Create a map of `unsafe()` tokens.
- */
-export const unsafeMap = <T extends string>(
-  ...tokens: readonly T[]
-): UnionToIntersection<
-  T extends string ? { [K in T]: Token.Syntax<T> } : never
-> =>
-  tokens.reduce((acc, token) => {
-    acc[token] = unsafe(token)
-    return acc
-  }, {} as any)
-
-/**
  * Declare an identifier. Often refers to a column, table, or schema
  * name or alias.
  */
-export function ident<Name extends string>(
+export const ident = <Name extends string>(
   name: Name,
   namespace: Token.Identifier | null = null
-): Token.Identifier<Name> {
-  return {
-    [PgIdent]: escapeIdentifier(name),
-    [IdentName]: name,
-    [IdentNamespace]: namespace,
-  }
-}
+): Token.Identifier<Name> => ({
+  [PgIdent]: escapeIdentifier(name),
+  [IdentName]: name,
+  [IdentNamespace]: namespace,
+})
 
 /**
  * Clone an identifier without its namespace.
  */
-export function withoutNamespace(id: Token.Identifier): Token.Identifier {
-  return { ...id, [IdentNamespace]: null }
-}
+export const withoutNamespace = (id: Token.Identifier): Token.Identifier => ({
+  ...id,
+  [IdentNamespace]: null,
+})
+
+/**
+ * A sequence of SQL parts by a given delimiter (space by default).
+ */
+export const seq = (
+  parts: readonly SQL.Part[],
+  delimiter: Delimiter = ' '
+): Token.Sequence => ({
+  [PgSequence]: tokenize(parts, [], delimiter),
+  [SequenceDelimiter]: validateDelimiter(delimiter),
+})
 
 export namespace Token {
   /**

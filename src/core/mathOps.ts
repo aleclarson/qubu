@@ -1,6 +1,6 @@
 import { assert } from 'radashi'
 import { sql, SQL } from './sql.ts'
-import { unsafeMap } from './tokens.ts'
+import { unsafeMap } from './unsafe.ts'
 
 // prettier-ignore
 export const mathOperatorRegistry = unsafeMap(

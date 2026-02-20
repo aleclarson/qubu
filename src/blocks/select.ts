@@ -2,9 +2,11 @@ import { assert } from 'radashi'
 import { Simplify, UnionToIntersection } from 'type-fest'
 import { withAlias } from '../alias.ts'
 import {
+  $decode,
   boolean,
   empty,
   ident,
+  noopDecoder,
   seq,
   sql,
   SQL,
@@ -19,7 +21,6 @@ import {
   SQLDecoder,
   SQLFields,
 } from '../core/symbols.ts'
-import { $decode, noopDecoder } from '../core/type.ts'
 
 const { formatTableReference } = SQL
 

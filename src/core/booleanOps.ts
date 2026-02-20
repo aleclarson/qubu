@@ -1,7 +1,7 @@
 import { assert } from 'radashi'
 import { sql, SQL } from './sql.ts'
-import { unsafe } from './tokens.ts'
 import { boolean } from './type.ts'
+import { unsafe } from './unsafe.ts'
 
 // prettier-ignore
 export const booleanOperatorRegistry = {
