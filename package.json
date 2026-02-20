@@ -22,6 +22,8 @@
   },
   "scripts": {
     "test": "vitest",
-    "test:bun": "bun test ./src/bun/test"
+    "test:bun": "bun test ./src/bun/test",
+    "typecheck": "vitest typecheck --run",
+    "lint": "prettier --check . && npm run typecheck"
   }
 }
