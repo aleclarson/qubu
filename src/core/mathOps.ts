@@ -3,13 +3,13 @@ import { sql, SQL } from './sql.ts'
 import { unsafeMap } from './unsafe.ts'
 
 // prettier-ignore
-export const mathOperatorRegistry = unsafeMap(
+export const MathOperatorRegistry = unsafeMap(
   "+", "-", "*", "/", "%", "**",
   "^", "|/", "||/", "@", "&", "|",
   "#", "~", "<<", ">>",
 )
 
-type BuiltinMathOps = Record<keyof typeof mathOperatorRegistry, number>
+type BuiltinMathOps = Record<keyof typeof MathOperatorRegistry, number>
 
 export interface MathOperatorRegistry extends BuiltinMathOps {}
 
@@ -40,7 +40,7 @@ export function calc(...parts: MathPart[]): SQL.Expression<number> {
       }
       if (typeof part === 'string') {
         return (
-          mathOperatorRegistry[part] || assert(false, 'Invalid math operator')
+          MathOperatorRegistry[part] || assert(false, 'Invalid math operator')
         )
       }
       if (Array.isArray(part)) {

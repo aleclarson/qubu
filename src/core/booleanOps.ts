@@ -1,16 +1,16 @@
 import { assert } from 'radashi'
 import { sql, SQL } from './sql.ts'
 import { boolean } from './type.ts'
-import { unsafe } from './unsafe.ts'
+import { unsafe, unsafeMap } from './unsafe.ts'
 
 // prettier-ignore
-export const booleanOperatorRegistry = {
-  "=": 1, "!=": 1, ">": 1, ">=": 1, "<": 1, "<=": 1, "in": 1, "not in": 1,
-  "like": 1, "not like": 1, "ilike": 1, "not ilike": 1, "between": 1,
-  "not between": 1,
-} as const
+export const BooleanOperatorRegistry = unsafeMap(
+  "=", "!=", ">", ">=", "<", "<=", "in", "not in",
+  "like", "not like", "ilike", "not ilike", "between",
+  "not between",
+)
 
-type BuiltinBooleanOps = Record<keyof typeof booleanOperatorRegistry, number>
+type BuiltinBooleanOps = Record<keyof typeof BooleanOperatorRegistry, number>
 
 export interface BooleanOperatorRegistry extends BuiltinBooleanOps {}
 
@@ -31,7 +31,7 @@ export function is(
 ): SQL.Expression<boolean> {
   return sql(
     left,
-    booleanOperatorRegistry[op] || assert(false, 'Invalid boolean operator'),
+    BooleanOperatorRegistry[op] || assert(false, 'Invalid boolean operator'),
     right
   ).mapWith(boolean)
 }
