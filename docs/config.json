@@ -1,0 +1,18 @@
+{
+  "link": {
+    "underline": "hover"
+  },
+  "reference": {
+    "enabled": false
+  },
+  "navigation": {
+    "order": [
+      "getting-started.md",
+      "concepts/",
+      "guides/",
+      "reference/",
+      "troubleshooting.md"
+    ],
+    "duration": 125
+  }
+}
