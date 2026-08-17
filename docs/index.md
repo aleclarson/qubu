@@ -1,6 +1,6 @@
 # Qubu
 
-> Build typed, parameterized SQL as ordinary TypeScript values, inspect the rendered statement, and hand execution to the database adapter you choose.
+> Query builder for TypeScript: reads like SQL, declarative schema, highly composable, type inference, simple type declarations
 
 Qubu is a functional-first SQL builder for TypeScript. Tables, expressions,
 clauses, and complete queries are values that compose without a mutable query
