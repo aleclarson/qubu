@@ -2,7 +2,9 @@
   "name": "qubu",
   "exports": {
     ".": "./src/index.ts",
-    "./postgres": "./src/dialects/postgres.ts"
+    "./postgres": "./src/dialects/postgres.ts",
+    "./vite": "./src/vite/index.ts",
+    "./globals": "./src/vite/ambient.d.ts"
   },
   "prettier": "@alloc/prettier-config",
   "devDependencies": {

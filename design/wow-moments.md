@@ -195,6 +195,29 @@ That small center makes the rest of Qubu extensible. Expressions, clauses, CTEs,
 
 **The feeling:** “I can understand the engine before I need to extend it.”
 
+## 9. An opt-in compiler hint removes import ceremony
+
+The module can declare its intent once and keep the query itself focused on SQL:
+
+```ts
+'use qubu'
+
+const users = table('users', {
+  id: integer(),
+  name: text(),
+})
+
+const query = select(
+  { id: users.id, name: users.name },
+  from(users),
+  where(eq(users.id, 42))
+)
+```
+
+The Vite plugin injects only the referenced named imports, while `qubu/globals` gives the TypeScript compiler the same ambient API.
+
+**The feeling:** “The imports disappeared without giving up normal module semantics.”
+
 ## The bar
 
 A new feature earns a place in this catalog when it demonstrates at least one of these qualities:
