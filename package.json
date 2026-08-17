@@ -1,11 +1,16 @@
 {
   "name": "qubu",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
   "exports": {
     ".": "./src/index.ts",
+    "./mysql": "./src/dialects/mysql.ts",
     "./postgres": "./src/dialects/postgres.ts",
     "./sqlite": "./src/dialects/sqlite.ts",
-    "./mysql": "./src/dialects/mysql.ts",
     "./vite": "./src/vite/index.ts",
+    "./package.json": "./package.json",
     "./globals": "./src/vite/ambient.d.ts"
   },
   "prettier": "@alloc/prettier-config",
@@ -20,16 +25,30 @@
     "qubu": "link:",
     "radashi": "^12.6.2",
     "tinyglobby": "^0.2.15",
+    "tsdown": "^0.22.14",
     "type-fest": "^5.0.1",
+    "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   },
   "dependencies": {
     "@standard-schema/spec": "^1.0.0"
   },
   "scripts": {
+    "build": "tsdown",
     "test": "vitest",
     "test:bun": "bun test ./src/bun/test",
     "typecheck": "vitest --typecheck --run",
     "lint": "prettier --check . && npm run typecheck"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": "./dist/index.mjs",
+      "./mysql": "./dist/mysql.mjs",
+      "./postgres": "./dist/postgres.mjs",
+      "./sqlite": "./dist/sqlite.mjs",
+      "./vite": "./dist/vite.mjs",
+      "./package.json": "./package.json",
+      "./globals": "./dist/vite/ambient.d.ts"
+    }
   }
 }
