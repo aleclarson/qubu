@@ -1,98 +1,101 @@
+import { expect, expectTypeOf, test } from 'vitest'
 import {
+  alias,
+  aliasExpression,
+  all,
+  asc,
+  count,
+  desc,
   distinct,
-  distinctOn,
+  eq,
+  fetchFirst,
   from,
+  groupBy,
+  innerJoin,
+  integer,
+  isNotNull,
+  orderBy,
+  postgresDialect,
+  render,
   select,
-  selectDistinct,
-  selectDistinctOn,
-  SQL,
-} from 'qubu'
-import { expect, test } from 'vitest'
-import { posts, users } from './common/schema.ts'
+  table,
+  text,
+  value,
+  where,
+} from '../src/index.ts'
 
-const { toString } = SQL.Query
-
-test('Select all columns (SELECT *)', () => {
-  const query = select(users.$getAll(), from(users))
-  expect(toString(query)).toMatchInlineSnapshot(`
-    [
-      "select users.* from users",
-      [],
-    ]
-  `)
+const users = table('users', {
+  id: integer(),
+  name: text(),
+  email: text({ nullable: true }),
 })
 
-test('Select specific columns', () => {
-  const query = select(users.id, users.name, from(users))
-  expect(toString(query)).toMatchInlineSnapshot(`
-    [
-      "select users.id, users.name from users",
-      [],
-    ]
-  `)
+const posts = table('posts', {
+  id: integer(),
+  authorId: integer(),
+  title: text(),
 })
 
-test('Select with table alias', () => {
-  const u = users.as('u')
-  const query = select(u.name, from(u))
-  expect(toString(query)).toMatchInlineSnapshot(`
-    [
-      "select u.name from users as u",
-      [],
-    ]
-  `)
+test('renders a parameterized standard SQL select', () => {
+  const query = select(
+    {
+      id: users.id,
+      displayName: users.name,
+    },
+    from(users),
+    where(eq(users.id, 7)),
+    orderBy(desc(users.name)),
+    fetchFirst(10)
+  )
+
+  expect(render(query)).toEqual({
+    text: 'SELECT "users"."id" AS "id", "users"."name" AS "displayName" FROM "users" WHERE ("users"."id" = ?) ORDER BY "users"."name" DESC FETCH FIRST ? ROWS ONLY',
+    parameters: [7, 10],
+  })
 })
 
-test('Select from multiple tables', () => {
-  const query = select(users.name, posts.body, from(users, posts))
-  expect(toString(query)).toMatchInlineSnapshot(`
-    [
-      "select users.name, posts.body from users, posts",
-      [],
-    ]
-  `)
+test('renders aliases, joins, grouping, and distinct', () => {
+  const author = alias(users, 'author')
+  const query = select(
+    [author.name, aliasExpression(count(posts.id), 'postCount')],
+    from(author),
+    innerJoin(posts, eq(author.id, posts.authorId)),
+    where(isNotNull(author.email)),
+    groupBy(author.name),
+    orderBy(asc(author.name)),
+    distinct()
+  )
+
+  expect(render(query).text).toBe(
+    'SELECT DISTINCT "author"."name", COUNT("posts"."id") AS "postCount" FROM "users" AS "author" INNER JOIN "posts" ON ("author"."id" = "posts"."authorId") WHERE ("author"."email" IS NOT NULL) GROUP BY "author"."name" ORDER BY "author"."name" ASC'
+  )
 })
 
-test('Select with column aliases (AS)', () => {
-  const query = select(users.name.as('username'), from(users))
-  expect(toString(query)).toMatchInlineSnapshot(`
-    [
-      "select users.name as username from users",
-      [],
-    ]
-  `)
+test('renders wildcard projections and PostgreSQL placeholders through a dialect', () => {
+  const query = select(all(users), from(users), where(eq(users.id, value(3))))
+
+  expect(render(query, postgresDialect())).toEqual({
+    text: 'SELECT "users".* FROM "users" WHERE ("users"."id" = $1)',
+    parameters: [3],
+  })
 })
 
-test('DISTINCT queries', () => {
-  let query = selectDistinct(users.name, from(users))
-  expect(toString(query)).toMatchInlineSnapshot(`
-    [
-      "select distinct users.name from users",
-      [],
-    ]
-  `)
+test('tracks source requirements in the select type', () => {
+  // @ts-expect-error A table-backed column needs its source in FROM or JOIN.
+  select({ id: users.id })
+})
 
-  query = select(distinct(), users.$getAll(), from(users))
-  expect(toString(query)).toMatchInlineSnapshot(`
-    [
-      "select distinct users.* from users",
-      [],
-    ]
-  `)
+test('preserves selected row types', () => {
+  const query = select(
+    {
+      id: users.id,
+      email: users.email,
+    },
+    from(users)
+  )
 
-  query = selectDistinctOn([users.name], users.$getAll(), from(users))
-  expect(toString(query)).toMatchInlineSnapshot(`
-    [
-      "select distinct on (name) users.* from users",
-      [],
-    ]
-  `)
-
-  query = select(distinctOn(users.name), users.$getAll(), from(users))
-  expect(toString(query)).toMatchInlineSnapshot(`
-    [
-      "select distinct on (name) users.* from users",
-      [],
-    ]
-  `)
+  expectTypeOf(query.row).toEqualTypeOf<{
+    id: number
+    email: string | null
+  }>()
 })

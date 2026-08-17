@@ -1,86 +1,64 @@
-# qubu MVP Roadmap
+# qubu SELECT MVP
 
-This document outlines the path to a 1.0.0 (MVP) release for `qubu`. The goal is to provide a stable, type-safe, and functional-first SQL query builder for PostgreSQL.
+The first coherent release is a fully composable, standard-SQL `SELECT` builder. Mutations and driver execution are deliberately outside this milestone so the fragment and type model can settle around one complete statement family.
 
-## 1. Core Statement Support
-Implement the full lifecycle of the four primary SQL statements.
+## 1. Core Rendering
 
-- [x] **SELECT**
-  - [x] `select(columns, ...)`
-  - [x] `from(tables)`
-  - [x] `distinct()`, `distinctOn(columns)`
-  - [x] Column & Table aliasing (`.as()`)
-  - [ ] `limit(n)`, `offset(n)`
-  - [ ] `groupBy(columns)`, `having(conditions)`
-- [ ] **INSERT**
-  - [x] `insertInto(table)`
-  - [x] `values(data)`
-  - [ ] `returning(columns)`
-  - [ ] `onConflict(...)` (Full implementation)
-- [ ] **UPDATE**
-  - [ ] `update(table)`
-  - [ ] `set(data)`
-  - [ ] `where(conditions)`
-  - [ ] `returning(columns)`
-- [ ] **DELETE**
-  - [ ] `deleteFrom(table)`
-  - [ ] `where(conditions)`
-  - [ ] `returning(columns)`
+- [x] Render SQL text and ordered bound parameters.
+- [x] Escape identifiers through a dialect.
+- [x] Render standard `?` placeholders.
+- [x] Provide an explicit unsafe syntax escape hatch.
+- [x] Keep fragments small and independently composable.
 
-## 2. Clauses & Operators
-Enhance the expressiveness of queries while maintaining type safety.
+## 2. Definitions and Type Inference
 
-- [ ] **Joins**
-  - [x] `innerJoin`, `leftJoin`, `fullJoin`, `crossJoin`
-  - [ ] Type-safe join conditions (ensure columns belong to joined tables)
-- [ ] **Conditions (WHERE/HAVING)**
-  - [x] `is(left, op, right)` (Functional approach)
-  - [ ] Logical operators: `and()`, `or()`, `not()`
-  - [ ] Null checks: `isNull()`, `isNotNull()`
-  - [ ] Pattern matching: `like()`, `ilike()`
-  - [ ] Range/Set: `between()`, `in()`
-- [ ] **Ordering**
-  - [x] `orderBy(columns)`
-  - [x] `.asc()`, `.desc()`
-  - [x] `nullsFirst()`, `nullsLast()`
-- [ ] **CTEs & Subqueries**
-  - [x] Basic CTE support in `QueryClient`
-  - [ ] Better API for defining and using CTEs
-  - [x] `exists(query)`, `notExists(query)`
+- [x] Declare tables and typed columns once.
+- [x] Track nullable column output types.
+- [x] Expose table and derived-source column references.
+- [x] Infer object and list projection row types.
+- [x] Track source requirements through expressions and clauses.
+- [x] Track parameter types through composed fragments.
 
-## 3. PostgreSQL Specifics
-Embrace the dialect as per the [Vision](VISION.md).
+## 3. SELECT Statements
 
-- [ ] **JSONB Support**
-  - [ ] Operators: `->`, `->>`, `#>`, `#>>`
-  - [ ] Containment: `@>`, `<@`, `?`, `?|`, `?&`
-- [ ] **Array Support**
-  - [x] `arrayLiteral`
-  - [ ] Array operators: `&&`, `@>`, `<@`
-- [ ] **Casting**
-  - [x] `.cast(type)`
+- [x] Object, list, column, and wildcard projections.
+- [x] `DISTINCT`.
+- [x] `FROM` with multiple sources.
+- [x] `INNER`, `LEFT`, `RIGHT`, `FULL`, `CROSS`, and `NATURAL` joins.
+- [x] `WHERE`.
+- [x] `GROUP BY` and `HAVING`.
+- [x] `ORDER BY`, direction, and null ordering.
+- [x] Standard `OFFSET` and `FETCH FIRST/NEXT` pagination.
+- [x] Common table expressions.
+- [x] Derived-table and scalar subqueries.
+- [x] `EXISTS`, `IN`, and comparison predicates.
+- [x] `UNION`, `UNION ALL`, `INTERSECT`, and `EXCEPT`.
 
-## 4. Type Safety & Inference
-The "Zero Magic" promise backed by TypeScript.
+## 4. Expressions
 
-- [x] Infer SELECT results from column definitions.
-- [ ] Infer RETURNING results for INSERT/UPDATE/DELETE.
-- [ ] Strict typing for table/column references in clauses.
-- [ ] Support for Standard Schema (`$type(schema)`) in column definitions.
+- [x] Values and explicit parameters.
+- [x] Equality and relational comparisons.
+- [x] `IS NULL`, `LIKE`, `IN`, `BETWEEN`, and distinctness predicates.
+- [x] `AND`, `OR`, and `NOT`.
+- [x] Arithmetic operators.
+- [x] Standard function-call and aggregate primitives.
+- [x] Aliases, casts, and simple `CASE` expressions.
 
-## 5. Client & Adapters
-Ensuring `qubu` can actually run queries.
+## 5. Dialects and Extension Points
 
-- [x] Generic `QueryClient`
-- [x] Bun Native Adapter
-- [ ] `pg` (Node-Postgres) Adapter
-- [ ] Transaction Support (`client.transaction(async tx => ... )`)
-- [ ] Connection Pooling integration
+- [x] Standard SQL dialect.
+- [x] PostgreSQL placeholder dialect as an optional adapter module.
+- [x] Public custom fragments.
+- [x] Public custom clauses with explicit placement and ordering.
+- [ ] Dialect-specific expression and pagination modules.
+- [ ] Adapter contracts for execution and driver value encoding.
 
-## 6. Documentation & Testing
-- [ ] **API Reference:** Comprehensive JSDoc for all exported functions.
-- [ ] **Examples:** A dedicated `examples/` directory with common patterns.
-- [ ] **Testing:**
-  - [ ] 100% coverage for core SQL generation.
-  - [ ] Integration tests against a real PostgreSQL instance (via Docker/Testcontainers).
-  - [ ] Performance benchmarks for query building.
+## 6. Deliberately Deferred
+
+- [ ] `INSERT`, `UPDATE`, and `DELETE`.
+- [ ] Transactions, connection pooling, and driver adapters.
+- [ ] Schema introspection and migrations.
+- [ ] Full window-function and vendor-specific syntax coverage.
+- [ ] Runtime row decoding beyond user-supplied column types.
+
+The completion criterion is not the number of helpers. It is that the standard `SELECT` model remains understandable, type propagation survives nested composition, and dialect extensions do not require changes to a central builder object.

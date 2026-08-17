@@ -1,7 +1,8 @@
 {
   "name": "qubu",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./postgres": "./src/dialects/postgres.ts"
   },
   "prettier": "@alloc/prettier-config",
   "devDependencies": {
