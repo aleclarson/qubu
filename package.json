@@ -3,6 +3,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./postgres": "./src/dialects/postgres.ts",
+    "./sqlite": "./src/dialects/sqlite.ts",
+    "./mysql": "./src/dialects/mysql.ts",
     "./vite": "./src/vite/index.ts",
     "./globals": "./src/vite/ambient.d.ts"
   },
@@ -26,7 +28,7 @@
   "scripts": {
     "test": "vitest",
     "test:bun": "bun test ./src/bun/test",
-    "typecheck": "vitest typecheck --run",
+    "typecheck": "vitest --typecheck --run",
     "lint": "prettier --check . && npm run typecheck"
   }
 }

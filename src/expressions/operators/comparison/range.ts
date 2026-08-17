@@ -1,6 +1,7 @@
 import { makeExpression } from '../../types.ts'
 import {
   expressionOperand,
+  isNullOperand,
   type Operand,
   type OperandParameters,
   type OperandRequires,
@@ -15,6 +16,11 @@ export function between<
   L extends Operand<T>,
   H extends Operand<T>,
 >(expression: Expression<T, TReq, TParams, any>, lower: L, upper: H) {
+  if (isNullOperand(lower) || isNullOperand(upper)) {
+    throw new TypeError(
+      'between() does not accept NULL bounds; use an explicit NULL predicate'
+    )
+  }
   const lowerExpression = expressionOperand(lower)
   const upperExpression = expressionOperand(upper)
   return makeExpression('operator', context => {
@@ -39,6 +45,10 @@ export function inList<
 >(expression: Expression<T, TReq, TParams, any>, values: TValues) {
   const valueExpressions = values.map(expressionOperand)
   return makeExpression('operator', context => {
+    if (values.length === 0) {
+      context.append('(1 = 0)')
+      return
+    }
     context.append('(')
     context.render(expression)
     context.append(' IN (')
@@ -61,6 +71,10 @@ export function notIn<
 >(expression: Expression<T, TReq, TParams, any>, values: TValues) {
   const valueExpressions = values.map(expressionOperand)
   return makeExpression('operator', context => {
+    if (values.length === 0) {
+      context.append('(1 = 1)')
+      return
+    }
     context.append('(')
     context.render(expression)
     context.append(' NOT IN (')

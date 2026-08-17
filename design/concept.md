@@ -79,6 +79,19 @@ This is not dialect erasure: portable syntax is the default, and divergence is v
 
 Values are parameters. Identifiers are quoted by the dialect. `unsafe` primitives are explicit and are the caller’s responsibility. Type-level checks focus on high-value mistakes—wrong field names, missing sources, aliases, nullability, and result shapes—rather than attempting to encode every SQL grammar rule.
 
+The first-party schema helpers cover common application values: `timestamp`
+and `dateTime` expose `Date`, `uuid` exposes `string`, `json<T>()` lets the
+caller choose the decoded JSON shape, `bigint` exposes `bigint`, and `binary`
+or `blob` expose `Uint8Array`. These helpers describe application input/output
+types only; a driver or execution adapter remains responsible for encoding and
+decoding database-specific representations.
+
+Mutation input types come from the same definitions. `column<Output, Insert,
+Update>()` can describe different application-facing read, insert, and update
+values; `hasDefault: true` makes an insert field optional, `generated: true`
+omits it from inserts and updates, and `nullable: true` permits explicit
+`null` without confusing it with an omitted default.
+
 ## Scope boundary
 
 The project owns query construction and rendering. It does not own ORM behavior, migrations, relationship loading, connection lifecycle, or hidden execution. Those concerns can consume the rendered query through separate adapters once the `SELECT` model is stable.

@@ -2,6 +2,10 @@ import { createQuery } from './types.ts'
 import type { AnySelectClause } from './clauses/types.ts'
 import { renderSelection, selectionRow } from './select/render.ts'
 import { validateClauses } from './select/validate.ts'
+import {
+  renderPagination,
+  type AnyPaginationClause,
+} from './clauses/pagination.ts'
 import type {
   ScopeValidation,
   SelectParameters,
@@ -13,8 +17,10 @@ export type {
   AvailableScope,
   ClauseScope,
   MissingScope,
+  QueryParameters,
   RequiredScope,
   ScopeValidation,
+  SelectParameters,
   SelectQuery,
 } from './select/types.ts'
 
@@ -47,6 +53,11 @@ export function select<
     const afterSelect = orderedClauses.filter(
       clause => clause.placement === 'after-select'
     )
+    const paginationClauses = afterSelect.filter(
+      (clause): clause is AnyPaginationClause =>
+        clause.clauseKind === 'offset' || clause.clauseKind === 'fetch'
+    )
+    let renderedPagination = false
 
     for (const clause of beforeSelect) {
       context.render(clause)
@@ -65,6 +76,13 @@ export function select<
 
     for (const clause of afterSelect) {
       if (clause === distinctClause) continue
+      if (clause.clauseKind === 'offset' || clause.clauseKind === 'fetch') {
+        if (renderedPagination) continue
+        renderedPagination = true
+        context.append(' ')
+        renderPagination(context, paginationClauses)
+        continue
+      }
       context.append(' ')
       context.render(clause)
     }

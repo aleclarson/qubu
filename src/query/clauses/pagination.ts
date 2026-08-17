@@ -1,8 +1,42 @@
+import type { RenderContext } from '../../core/fragment.ts'
+import type { PaginationPart } from '../../core/dialect.ts'
 import { createClause, type SelectClause } from './types.ts'
 
 export interface OffsetClause extends SelectClause<never, number> {
   readonly clauseKind: 'offset'
   readonly rows: number
+}
+
+export type AnyPaginationClause = OffsetClause | FetchClause
+
+function toPaginationPart(clause: AnyPaginationClause): PaginationPart {
+  return clause.clauseKind === 'offset'
+    ? { kind: 'offset', rows: clause.rows }
+    : { kind: 'fetch', rows: clause.rows, direction: clause.direction }
+}
+
+export function renderPagination(
+  context: RenderContext,
+  clauses: readonly AnyPaginationClause[]
+) {
+  const parts = clauses.map(toPaginationPart)
+  if (context.dialect.pagination) {
+    context.dialect.pagination.render(context, parts)
+    return
+  }
+
+  parts.forEach((part, index) => {
+    if (index > 0) context.append(' ')
+    if (part.kind === 'offset') {
+      context.append('OFFSET ')
+      context.parameter(part.rows)
+      context.append(' ROWS')
+    } else {
+      context.append(`FETCH ${part.direction} `)
+      context.parameter(part.rows)
+      context.append(' ROWS ONLY')
+    }
+  })
 }
 
 export function offset(rows: number): OffsetClause {
@@ -11,11 +45,11 @@ export function offset(rows: number): OffsetClause {
   }
 
   return Object.assign(
-    createClause('offset', 'after-select', 90, context => {
-      context.append('OFFSET ')
-      context.parameter(rows)
-      context.append(' ROWS')
-    }),
+    createClause('offset', 'after-select', 90, context =>
+      renderPagination(context, [
+        { clauseKind: 'offset', rows } as OffsetClause,
+      ])
+    ),
     { clauseKind: 'offset' as const, rows }
   )
 }
@@ -35,11 +69,11 @@ function fetchRows(
   }
 
   return Object.assign(
-    createClause('fetch', 'after-select', 100, context => {
-      context.append(`FETCH ${direction} `)
-      context.parameter(rows)
-      context.append(' ROWS ONLY')
-    }),
+    createClause('fetch', 'after-select', 100, context =>
+      renderPagination(context, [
+        { clauseKind: 'fetch', direction, rows } as FetchClause,
+      ])
+    ),
     { clauseKind: 'fetch' as const, direction, rows }
   )
 }

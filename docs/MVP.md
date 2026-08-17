@@ -1,64 +1,63 @@
-# qubu SELECT MVP
+# Qubu MVP release
 
-The first coherent release is a fully composable, standard-SQL `SELECT` builder. Mutations and driver execution are deliberately outside this milestone so the fragment and type model can settle around one complete statement family.
+The MVP is the first release intended to serve many simple applications’
+query-building needs. It keeps the functional fragment model small while
+covering the complete read/write path from a typed statement to a driver-owned
+execution adapter.
 
-## 1. Core Rendering
+## What is included
 
-- [x] Render SQL text and ordered bound parameters.
-- [x] Escape identifiers through a dialect.
-- [x] Render standard `?` placeholders.
-- [x] Provide an explicit unsafe syntax escape hatch.
-- [x] Keep fragments small and independently composable.
+- Parameterized, composable `SELECT` queries with projections, wildcards,
+  joins, grouping, ordering, CTEs, subqueries, set operations, and source-scope
+  diagnostics.
+- Standard SQL rendering plus explicit PostgreSQL, SQLite, and MySQL dialect
+  policies for identifiers, placeholders, and pagination. PostgreSQL also
+  exposes the dialect-specific `ilike` expression.
+- Schema helpers for common application values: dates/timestamps, UUIDs,
+  caller-typed JSON, bigint, and binary values. Column metadata describes
+  selectable output, insert input, update input, defaults, generated columns,
+  and nullability.
+- Typed `INSERT`, `UPDATE`, and `DELETE` statements with bound values,
+  `DEFAULT VALUES`, multi-row `VALUES`, `INSERT ... SELECT`, source-aware
+  assignments and predicates, and reusable typed `RETURNING` projections.
+- NULL-safe equality: `eq(column, null)` and `ne(column, null)` render
+  `IS NULL` and `IS NOT NULL`; invalid relational NULL comparisons are rejected.
+  Empty `IN` and `NOT IN` lists render portable false/true predicates.
+- A driver-neutral execution boundary. Adapters receive rendered SQL and
+  ordered raw parameter values, then own driver encoding, row decoding,
+  pooling, transactions, retries, and error types.
+- An opt-in Vite compiler hint with matching ambient declarations for the
+  public runtime catalog.
 
-## 2. Definitions and Type Inference
+## Rendering and execution boundary
 
-- [x] Declare tables and typed columns once.
-- [x] Track nullable column output types.
-- [x] Expose table and derived-source column references.
-- [x] Infer object and list projection row types.
-- [x] Track source requirements through expressions and clauses.
-- [x] Track parameter types through composed fragments.
+```mermaid
+flowchart LR
+  A[Typed query functions] --> B[Composable fragments]
+  B --> C[Dialect renderer]
+  C --> D[SQL text plus ordered values]
+  D --> E[Driver-owned adapter]
+  E --> F[Typed application rows]
+```
 
-## 3. SELECT Statements
+The compile-time parameter contract is a union of the value types accepted by
+the composed fragments. Runtime rendering remains the authority for order;
+`RenderedQuery.parameters` follows the placeholders in `RenderedQuery.text`.
+This avoids claiming an ordered tuple that the renderer does not maintain at
+the type level.
 
-- [x] Object, list, column, and wildcard projections.
-- [x] `DISTINCT`.
-- [x] `FROM` with multiple sources.
-- [x] `INNER`, `LEFT`, `RIGHT`, `FULL`, `CROSS`, and `NATURAL` joins.
-- [x] `WHERE`.
-- [x] `GROUP BY` and `HAVING`.
-- [x] `ORDER BY`, direction, and null ordering.
-- [x] Standard `OFFSET` and `FETCH FIRST/NEXT` pagination.
-- [x] Common table expressions.
-- [x] Derived-table and scalar subqueries.
-- [x] `EXISTS`, `IN`, and comparison predicates.
-- [x] `UNION`, `UNION ALL`, `INTERSECT`, and `EXCEPT`.
+## Safety defaults
 
-## 4. Expressions
+Values are bound parameters and identifiers are quoted through the dialect.
+`UPDATE` and `DELETE` require a `WHERE` clause unless the caller explicitly
+passes `allowAll()`. Raw SQL remains available only through the existing
+explicit unsafe primitives. Adapter errors are not caught or rewritten by the
+core.
 
-- [x] Values and explicit parameters.
-- [x] Equality and relational comparisons.
-- [x] `IS NULL`, `LIKE`, `IN`, `BETWEEN`, and distinctness predicates.
-- [x] `AND`, `OR`, and `NOT`.
-- [x] Arithmetic operators.
-- [x] Standard function-call and aggregate primitives.
-- [x] Aliases, casts, and simple `CASE` expressions.
+## Deferred after MVP
 
-## 5. Dialects and Extension Points
-
-- [x] Standard SQL dialect.
-- [x] PostgreSQL placeholder dialect as an optional adapter module.
-- [x] Public custom fragments.
-- [x] Public custom clauses with explicit placement and ordering.
-- [ ] Dialect-specific expression and pagination modules.
-- [ ] Adapter contracts for execution and driver value encoding.
-
-## 6. Deliberately Deferred
-
-- [ ] `INSERT`, `UPDATE`, and `DELETE`.
-- [ ] Transactions, connection pooling, and driver adapters.
-- [ ] Schema introspection and migrations.
-- [ ] Full window-function and vendor-specific syntax coverage.
-- [ ] Runtime row decoding beyond user-supplied column types.
-
-The completion criterion is not the number of helpers. It is that the standard `SELECT` model remains understandable, type propagation survives nested composition, and dialect extensions do not require changes to a central builder object.
+- Dialect-aware `ON CONFLICT` upsert support.
+- Recursive CTEs, `JOIN ... USING`, and lateral joins.
+- Typed window-function composition and broader vendor-specific syntax.
+- Schema introspection, migrations, ORM behavior, relationship loading,
+  connection lifecycle, and transaction orchestration.

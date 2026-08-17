@@ -44,6 +44,16 @@ const query = select(
 
 **The feeling:** “I wrote a query, not a type-level program.”
 
+### Compile-time parameter metadata
+
+The type of a composed query records the union of value types that its
+fragments accept. This is intentionally value-type metadata rather than an
+ordered tuple: rendering is responsible for the ordered runtime
+`parameters` array, while the fragment model remains a small renderer instead
+of growing a parallel type-level AST. The contract survives expressions,
+clauses, CTEs, set operations, and custom fragments through
+`ParametersOf<typeof query>` or `QueryParameters<typeof query>`.
+
 ## 2. Invalid scope fails at the point of composition
 
 A column carries the identity of the source that provides it. The compiler can explain a missing `FROM`/`JOIN` source without requiring a manually authored query-state type.

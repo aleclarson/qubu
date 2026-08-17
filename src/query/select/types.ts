@@ -48,3 +48,13 @@ export type SelectParameters<
   TSelection,
   TClauses extends readonly AnySelectClause[],
 > = SelectionParameters<TSelection> | ParametersOf<TClauses[number]>
+
+/**
+ * Compile-time parameter metadata for a SELECT query.
+ *
+ * This is deliberately a union of the value types accepted by the composed
+ * fragments. Rendering is the source of truth for parameter order; an
+ * ordered tuple cannot be recovered from the intentionally small fragment
+ * renderer without introducing an AST or a second type-level sequence.
+ */
+export type QueryParameters<TQuery> = ParametersOf<TQuery>

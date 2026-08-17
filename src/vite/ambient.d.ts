@@ -9,12 +9,17 @@ declare global {
   const alias: typeof import('qubu').alias
   const aliasExpression: typeof import('qubu').aliasExpression
   const all: typeof import('qubu').all
+  const allowAll: typeof import('qubu').allowAll
+  const allowUnrestricted: typeof import('qubu').allowUnrestricted
   const and: typeof import('qubu').and
   const asExpression: typeof import('qubu').asExpression
   const asc: typeof import('qubu').asc
   const asValue: typeof import('qubu').asValue
   const avg: typeof import('qubu').avg
   const average: typeof import('qubu').average
+  const bigint: typeof import('qubu').bigint
+  const binary: typeof import('qubu').binary
+  const blob: typeof import('qubu').blob
   const between: typeof import('qubu').between
   const boolean: typeof import('qubu').boolean
   const call: typeof import('qubu').call
@@ -31,17 +36,23 @@ declare global {
   const cte: typeof import('qubu').cte
   const customClause: typeof import('qubu').customClause
   const date: typeof import('qubu').date
+  const dateTime: typeof import('qubu').dateTime
+  const defaultValues: typeof import('qubu').defaultValues
+  const deleteFrom: typeof import('qubu').deleteFrom
   const desc: typeof import('qubu').desc
   const distinct: typeof import('qubu').distinct
   const divide: typeof import('qubu').divide
   const eq: typeof import('qubu').eq
   const equal: typeof import('qubu').equal
   const except: typeof import('qubu').except
+  const execute: typeof import('qubu').execute
+  const executeQuery: typeof import('qubu').executeQuery
   const exists: typeof import('qubu').exists
   const fetchFirst: typeof import('qubu').fetchFirst
   const fetchNext: typeof import('qubu').fetchNext
   const fragment: typeof import('qubu').fragment
   const from: typeof import('qubu').from
+  const fromSelect: typeof import('qubu').fromSelect
   const fullJoin: typeof import('qubu').fullJoin
   const groupBy: typeof import('qubu').groupBy
   const greaterThan: typeof import('qubu').greaterThan
@@ -50,17 +61,22 @@ declare global {
   const gte: typeof import('qubu').gte
   const having: typeof import('qubu').having
   const identifier: typeof import('qubu').identifier
+  const ilike: typeof import('qubu').ilike
   const inList: typeof import('qubu').inList
   const inQuery: typeof import('qubu').inQuery
   const inSelect: typeof import('qubu').inSelect
   const innerJoin: typeof import('qubu').innerJoin
   const integer: typeof import('qubu').integer
+  const insertFrom: typeof import('qubu').insertFrom
+  const insertInto: typeof import('qubu').insertInto
+  const insertSelect: typeof import('qubu').insertSelect
   const intersect: typeof import('qubu').intersect
   const isDistinctFrom: typeof import('qubu').isDistinctFrom
   const isNotDistinctFrom: typeof import('qubu').isNotDistinctFrom
   const isNotNull: typeof import('qubu').isNotNull
   const isNull: typeof import('qubu').isNull
   const isTrue: typeof import('qubu').isTrue
+  const json: typeof import('qubu').json
   const keyword: typeof import('qubu').keyword
   const leftJoin: typeof import('qubu').leftJoin
   const like: typeof import('qubu').like
@@ -96,6 +112,7 @@ declare global {
   const qualifiedIdentifier: typeof import('qubu').qualifiedIdentifier
   const render: typeof import('qubu').render
   const rightJoin: typeof import('qubu').rightJoin
+  const returning: typeof import('qubu').returning
   const routineName: typeof import('qubu').routineName
   const scalar: typeof import('qubu').scalar
   const select: typeof import('qubu').select
@@ -106,21 +123,39 @@ declare global {
   const syntax: typeof import('qubu').syntax
   const table: typeof import('qubu').table
   const text: typeof import('qubu').text
+  const timestamp: typeof import('qubu').timestamp
   const toSql: typeof import('qubu').toSql
   const union: typeof import('qubu').union
   const unionAll: typeof import('qubu').unionAll
   const unsafe: typeof import('qubu').unsafe
   const unsafeExpression: typeof import('qubu').unsafeExpression
+  const unsafeMutation: typeof import('qubu').unsafeMutation
+  const update: typeof import('qubu').update
   const upper: typeof import('qubu').upper
   const value: typeof import('qubu').value
+  const values: typeof import('qubu').values
   const where: typeof import('qubu').where
   const withCte: typeof import('qubu').withCte
   const withQueries: typeof import('qubu').withQueries
+  const mysqlDialect: typeof import('qubu').mysqlDialect
+  const removeFrom: typeof import('qubu').removeFrom
+  const sqliteDialect: typeof import('qubu').sqliteDialect
 
   type ColumnDefinition<
     TOutput = unknown,
     TNullable extends boolean = false,
-  > = import('qubu').ColumnDefinition<TOutput, TNullable>
+    TInsert = TOutput,
+    TUpdate = TInsert,
+    THasDefault extends boolean = false,
+    TGenerated extends boolean = false,
+  > = import('qubu').ColumnDefinition<
+    TOutput,
+    TNullable,
+    TInsert,
+    TUpdate,
+    THasDefault,
+    TGenerated
+  >
   type ColumnReference<
     TOutput = unknown,
     TName extends string = string,
@@ -138,6 +173,13 @@ declare global {
     TRequires = any,
     TParameters = any,
   > = import('qubu').Fragment<TOutput, TRequires, TParameters>
+  type QueryAdapter = import('qubu').QueryAdapter
+  type RenderedQuery = import('qubu').RenderedQuery
+  type MutationQuery<
+    TRow extends object = Record<string, unknown>,
+    TParameters = never,
+    TKind extends import('qubu').MutationKind = import('qubu').MutationKind,
+  > = import('qubu').MutationQuery<TRow, TParameters, TKind>
   type Query<
     TRow extends object = import('qubu').Row,
     TParameters = never,

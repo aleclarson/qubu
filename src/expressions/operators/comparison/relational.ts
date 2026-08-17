@@ -1,22 +1,53 @@
 import { makeExpression, type Expression } from '../../types.ts'
 import {
   expressionOperand,
+  isNullOperand,
+  type ComparisonParameters,
   type Operand,
-  type OperandParameters,
   type OperandRequires,
 } from '../shared.ts'
 import type { BooleanExpression } from './types.ts'
 
-type ComparisonResult<LReq, LParams, R> = BooleanExpression<
+type ComparisonResult<
+  LReq,
+  LParams,
+  R,
+  TOperator extends string,
+> = BooleanExpression<
   LReq | OperandRequires<R>,
-  LParams | OperandParameters<R>
+  LParams | ComparisonParameters<R, TOperator>
 >
 
-export function comparison<T, LRequires, LParameters, R extends Operand<T>>(
-  operator: string,
+export function comparison<
+  T,
+  LRequires,
+  LParameters,
+  const TOperator extends string,
+  R extends Operand<T>,
+>(
+  operator: TOperator,
   left: Expression<T, LRequires, LParameters, any>,
   right: R
-): ComparisonResult<LRequires, LParameters, R> {
+): ComparisonResult<LRequires, LParameters, R, TOperator> {
+  if (isNullOperand(right)) {
+    if (operator === '=' || operator === '<>') {
+      const nullOperator = operator === '=' ? 'IS NULL' : 'IS NOT NULL'
+      return makeExpression('operator', context => {
+        context.append('(')
+        context.render(left)
+        context.append(` ${nullOperator})`)
+      }) as ComparisonResult<LRequires, LParameters, R, TOperator>
+    }
+    if (
+      operator !== 'IS DISTINCT FROM' &&
+      operator !== 'IS NOT DISTINCT FROM'
+    ) {
+      throw new TypeError(
+        `Cannot compare NULL with ${operator}; use isNull(), isNotNull(), or a distinctness predicate`
+      )
+    }
+  }
+
   const rightExpression = expressionOperand(right)
   return makeExpression('operator', context => {
     context.append('(')
@@ -24,7 +55,7 @@ export function comparison<T, LRequires, LParameters, R extends Operand<T>>(
     context.append(` ${operator} `)
     context.render(rightExpression)
     context.append(')')
-  }) as ComparisonResult<LRequires, LParameters, R>
+  }) as ComparisonResult<LRequires, LParameters, R, TOperator>
 }
 
 export function equal<T, LReq, LParams, R extends Operand<T>>(

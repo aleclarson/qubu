@@ -29,6 +29,33 @@ const query = select({ id: users.id }, from(users), where(eq(users.id, 42)));`
   )
 })
 
+test('executes a transformed directive module through the injected runtime imports', () => {
+  const plugin = qubu()
+  const result = plugin.transform(
+    `"use qubu";
+const users = table('users', { id: integer(), name: text() });
+const query = select({ id: users.id }, from(users), where(eq(users.id, 42)));
+const rendered = render(query);`,
+    '/workspace/query.ts'
+  )
+  const importLine = result?.code
+    .split('\n')
+    .find(line => line.startsWith('import '))
+  const names = importLine?.match(/\{ (.+) \}/)?.[1].split(', ') ?? []
+  const executable =
+    result?.code.replace(`${importLine}\n`, '') + '\nreturn rendered'
+  const run = Function(...names, executable) as (...values: unknown[]) => {
+    text: string
+    parameters: readonly unknown[]
+  }
+  const values = names.map(name => (runtime as Record<string, unknown>)[name])
+
+  expect(run(...values)).toEqual({
+    text: 'SELECT "users"."id" AS "id" FROM "users" WHERE ("users"."id" = ?)',
+    parameters: [42],
+  })
+})
+
 test('ignores strings, comments, and member properties', () => {
   const plugin = qubu()
   const result = plugin.transform(

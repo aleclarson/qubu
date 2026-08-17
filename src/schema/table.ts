@@ -9,12 +9,58 @@ import {
   type Source,
   type SourceColumns,
 } from './source.ts'
-import { type ColumnDefinition, type ColumnOutput } from './column.ts'
+import {
+  type ColumnDefinition,
+  type ColumnHasDefault,
+  type ColumnInsertInput,
+  type ColumnIsGenerated,
+  type ColumnOutput,
+  type ColumnUpdateInput,
+} from './column.ts'
 
-export type TableDefinitions = Record<string, ColumnDefinition<any, any>>
+export type TableDefinitions = Record<
+  string,
+  ColumnDefinition<any, any, any, any, any, any>
+>
+
+export type AnyTable = Source<any, any> & {
+  readonly tableName: string
+  readonly definitions: TableDefinitions
+}
 
 export type TableRow<TDefinitions extends TableDefinitions> = {
   -readonly [K in keyof TDefinitions]: ColumnOutput<TDefinitions[K]>
+}
+
+type RequiredInsertKeys<TDefinitions extends TableDefinitions> = {
+  [K in keyof TDefinitions]-?: ColumnHasDefault<TDefinitions[K]> extends true
+    ? never
+    : ColumnIsGenerated<TDefinitions[K]> extends true
+      ? never
+      : K
+}[keyof TDefinitions]
+
+type OptionalInsertKeys<TDefinitions extends TableDefinitions> = Exclude<
+  keyof TDefinitions,
+  RequiredInsertKeys<TDefinitions>
+>
+
+export type TableInsertInput<TDefinitions extends TableDefinitions> = {
+  -readonly [K in RequiredInsertKeys<TDefinitions>]: ColumnInsertInput<
+    TDefinitions[K]
+  >
+} & {
+  -readonly [K in OptionalInsertKeys<TDefinitions>]?: ColumnInsertInput<
+    TDefinitions[K]
+  >
+}
+
+export type TableUpdateInput<TDefinitions extends TableDefinitions> = {
+  -readonly [K in keyof TDefinitions as ColumnIsGenerated<
+    TDefinitions[K]
+  > extends true
+    ? never
+    : K]?: ColumnUpdateInput<TDefinitions[K]>
 }
 
 export type TableIdentity<TName extends string> = {
