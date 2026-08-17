@@ -218,9 +218,9 @@ table is often better than prose when readers need to scan for defaults,
 constraints, or differences.
 
 ```md
-| Option | Applies to | Default | Notes |
-| --- | --- | --- | --- |
-| `--out <dir>` | build, dev | `dist` | Directory for generated files. |
+| Option        | Applies to | Default | Notes                          |
+| ------------- | ---------- | ------- | ------------------------------ |
+| `--out <dir>` | build, dev | `dist`  | Directory for generated files. |
 ```
 
 Qualify claims where the boundary matters. Prefer "when X, use Y" over broad
@@ -267,8 +267,8 @@ comments are syntax highlighted correctly.
 {
   "navigation": {
     // Keep the getting-started page before generated folder entries.
-    "order": ["getting-started.md", "guides/"]
-  }
+    "order": ["getting-started.md", "guides/"],
+  },
 }
 ```
 
