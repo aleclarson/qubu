@@ -162,7 +162,11 @@ declare global {
     TName extends string = string,
     TMetadata = never,
   > = import('qubu').ColumnReference<TName, TMetadata>
-  type Dialect = import('qubu').Dialect
+  type Dialect<
+    TCapabilities extends
+      import('qubu').DialectCapability = import('qubu').DialectCapability,
+  > = import('qubu').Dialect<TCapabilities>
+  type DialectCapability = import('qubu').DialectCapability
   type Expression<
     TMetadata = any,
     TKind extends import('qubu').ExpressionKind = import('qubu').ExpressionKind,
@@ -175,6 +179,7 @@ declare global {
       import('qubu').QueryCardinality = import('qubu').QueryCardinality,
   > = import('qubu').CardinalityMeta<TCardinality>
   type CardinalityOf<T> = import('qubu').CardinalityOf<T>
+  type CapabilitiesOf<T> = import('qubu').CapabilitiesOf<T>
   type ResultMeta<TOutput, TNullableFrom = never> = import('qubu').ResultMeta<
     TOutput,
     TNullableFrom
@@ -185,12 +190,17 @@ declare global {
   type ProvidesOuterSourceMeta<TSource> =
     import('qubu').ProvidesOuterSourceMeta<TSource>
   type NullableSourceMeta<TSource> = import('qubu').NullableSourceMeta<TSource>
+  type RequiresCapabilityMeta<
+    TCapability extends
+      import('qubu').DialectCapability = import('qubu').DialectCapability,
+  > = import('qubu').RequiresCapabilityMeta<TCapability>
   type QueryAdapter = import('qubu').QueryAdapter
   type RenderedQuery = import('qubu').RenderedQuery
   type MutationQuery<
     TRow extends object = Record<string, unknown>,
     TKind extends import('qubu').MutationKind = import('qubu').MutationKind,
-  > = import('qubu').MutationQuery<TRow, TKind>
+    TMetadata = never,
+  > = import('qubu').MutationQuery<TRow, TKind, TMetadata>
   type Query<
     TRow extends object = import('qubu').Row,
     TCardinality extends

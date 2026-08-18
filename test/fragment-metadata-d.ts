@@ -17,6 +17,7 @@ import type {
   QueryCardinality,
   RequiresOf,
   RequiresOuterSourceMeta,
+  RequiresCapabilityMeta,
   RequiresSourceMeta,
   ResultMeta,
   SourceIdentity,
@@ -241,5 +242,6 @@ export type PublicMetadataUnionIsClosedForCurrentFacts = Assert<
     | AggregateMeta<unknown>
     | GroupingMeta<unknown, unknown>
     | CardinalityMeta<QueryCardinality>
+    | RequiresCapabilityMeta
   >
 >

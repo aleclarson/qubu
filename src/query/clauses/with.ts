@@ -1,4 +1,8 @@
-import { parenthesize } from '../../core/fragment.ts'
+import {
+  parenthesize,
+  type CapabilityMetadataOf,
+  type RequiresOuterMetadataOf,
+} from '../../core/fragment.ts'
 import { identifier } from '../../core/primitives/identifier.ts'
 import {
   createColumnReference,
@@ -18,29 +22,40 @@ export type CteIdentity<TName extends string> = {
   readonly name: TName
 }
 
-export type CteSource<TName extends string, TRow extends object> = Source<
-  CteIdentity<TName>,
-  TRow
-> & {
+export type CteSource<
+  TName extends string,
+  TRow extends object,
+  TMetadata = never,
+> = Source<CteIdentity<TName>, TRow, TMetadata> & {
   readonly cteName: TName
-  readonly query: Query<TRow, any>
+  readonly query: Query<TRow, any, TMetadata>
   readonly columns: SourceColumns<TRow, CteIdentity<TName>>
 } & SourceColumns<TRow, CteIdentity<TName>>
 
-export type AnyCteSource = Source<any, any> & {
+export type AnyCteSource = Source<any, any, any> & {
   readonly cteName: string
-  readonly query: Query<any, any>
+  readonly query: Query<any, any, any>
   readonly columns: Record<string, unknown>
 }
 
-export function cte<const TName extends string, TQuery extends Query<any, any>>(
+export function cte<
+  const TName extends string,
+  TQuery extends Query<any, any, any>,
+>(
   name: TName,
   query: TQuery
-): CteSource<TName, QueryRow<TQuery>> {
+): CteSource<
+  TName,
+  QueryRow<TQuery>,
+  RequiresOuterMetadataOf<TQuery> | CapabilityMetadataOf<TQuery>
+> {
   type TRow = QueryRow<TQuery>
   type TIdentity = CteIdentity<TName>
+  type TMetadata =
+    | RequiresOuterMetadataOf<TQuery>
+    | CapabilityMetadataOf<TQuery>
   const reference = identifier(name)
-  const source = createSource<TIdentity, TRow>(
+  const source = createSource<TIdentity, TRow, TMetadata>(
     'cte',
     context => context.render(reference),
     reference
@@ -62,19 +77,24 @@ export function cte<const TName extends string, TQuery extends Query<any, any>>(
   })
   exposeColumns(source, columns)
 
-  return source as CteSource<TName, TRow>
+  return source as CteSource<TName, TRow, TMetadata>
 }
 
-export interface WithClause extends SelectClause<never> {
+export interface WithClause<TMetadata = never> extends SelectClause<TMetadata> {
   readonly clauseKind: 'with'
   readonly ctes: readonly AnyCteSource[]
 }
 
 export function withCte<const TCtes extends readonly AnyCteSource[]>(
   ...ctes: TCtes
-): WithClause {
+): WithClause<
+  RequiresOuterMetadataOf<TCtes[number]> | CapabilityMetadataOf<TCtes[number]>
+> {
+  type TMetadata =
+    | RequiresOuterMetadataOf<TCtes[number]>
+    | CapabilityMetadataOf<TCtes[number]>
   return Object.assign(
-    createClause('with', 'before-select', 10, context => {
+    createClause<TMetadata>('with', 'before-select', 10, context => {
       context.append('WITH ')
       ctes.forEach((entry, index) => {
         if (index > 0) context.append(', ')
@@ -84,7 +104,7 @@ export function withCte<const TCtes extends readonly AnyCteSource[]>(
       })
     }),
     { clauseKind: 'with' as const, ctes }
-  ) as WithClause
+  ) as WithClause<TMetadata>
 }
 
 export const withQueries = withCte

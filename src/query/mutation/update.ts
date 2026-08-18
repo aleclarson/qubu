@@ -14,6 +14,7 @@ import {
   type MutationRow,
   type MutationSafetyValidation,
   type MutationScopeValidation,
+  type MutationCapabilityMetadata,
   validateMutationClauses,
 } from './types.ts'
 
@@ -67,7 +68,14 @@ export function update<
   ...clauses: TClauses &
     MutationScopeValidation<TTable, TClauses> &
     MutationSafetyValidation<TClauses>
-): MutationQuery<MutationRow<TClauses>, 'update'> {
+): MutationQuery<
+  MutationRow<TClauses>,
+  'update',
+  MutationCapabilityMetadata<
+    | TClauses[number]
+    | (TAssignments extends object ? TAssignments[keyof TAssignments] : never)
+  >
+> {
   const normalizedClauses = clauses as readonly MutationClause[]
   validateMutationClauses('UPDATE', normalizedClauses)
   validateUpdate(table, assignments)
@@ -102,7 +110,14 @@ export function update<
     }
   })
 
-  return query as unknown as MutationQuery<MutationRow<TClauses>, 'update'>
+  return query as unknown as MutationQuery<
+    MutationRow<TClauses>,
+    'update',
+    MutationCapabilityMetadata<
+      | TClauses[number]
+      | (TAssignments extends object ? TAssignments[keyof TAssignments] : never)
+    >
+  >
 }
 
 function renderAssignmentValue(context: RenderContext, value: unknown) {

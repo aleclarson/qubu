@@ -2,6 +2,7 @@ import type { AnySource } from '../../schema/source.ts'
 import type { ProvidedSourceIdentity } from '../../schema/source.ts'
 import type { BooleanExpression } from '../../expressions/operators/comparison.ts'
 import {
+  type CapabilityMetadataOf,
   type InheritedMetadata,
   type NullableSourceMeta,
   type RequiresOuterMetadataOf,
@@ -32,6 +33,7 @@ function join<
   TSource,
   | InheritedMetadata<TCondition>
   | RequiresOuterMetadataOf<TSource>
+  | CapabilityMetadataOf<TSource>
   | (TJoinType extends 'LEFT'
       ? NullableSourceMeta<ProvidedSourceIdentity<TSource>>
       : never)
@@ -55,6 +57,7 @@ function join<
     TSource,
     | InheritedMetadata<TCondition>
     | RequiresOuterMetadataOf<TSource>
+    | CapabilityMetadataOf<TSource>
     | (TJoinType extends 'LEFT'
         ? NullableSourceMeta<ProvidedSourceIdentity<TSource>>
         : never)
@@ -91,12 +94,18 @@ export function fullJoin<
 
 export function crossJoin<TSource extends AnySource>(
   source: TSource
-): JoinClause<TSource, RequiresOuterMetadataOf<TSource>> {
+): JoinClause<
+  TSource,
+  RequiresOuterMetadataOf<TSource> | CapabilityMetadataOf<TSource>
+> {
   return join<'CROSS', TSource, undefined>('CROSS', source)
 }
 
 export function naturalJoin<TSource extends AnySource>(
   source: TSource
-): JoinClause<TSource, RequiresOuterMetadataOf<TSource>> {
+): JoinClause<
+  TSource,
+  RequiresOuterMetadataOf<TSource> | CapabilityMetadataOf<TSource>
+> {
   return join<'NATURAL', TSource, undefined>('NATURAL', source)
 }

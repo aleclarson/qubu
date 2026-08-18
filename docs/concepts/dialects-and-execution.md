@@ -10,7 +10,7 @@ default is `standardDialect()`:
 | Dialect      | Import              | Identifiers   | Placeholders    | Pagination policy                     |
 | ------------ | ------------------- | ------------- | --------------- | ------------------------------------- |
 | Standard SQL | `standardDialect()` | double quotes | `?`             | `OFFSET ... ROWS FETCH ... ROWS ONLY` |
-| PostgreSQL   | `postgresDialect()` | double quotes | `$1`, `$2`, ... | `LIMIT ... OFFSET ...`                |
+| PostgreSQL   | `postgresDialect()` | double quotes | `$1`, `$2`, ... | `LIMIT ... OFFSET ...`; `ILIKE`       |
 | SQLite       | `sqliteDialect()`   | double quotes | `?`             | `LIMIT ... OFFSET ...`                |
 | MySQL        | `mysqlDialect()`    | backticks     | `?`             | `LIMIT ... OFFSET ...`                |
 
@@ -28,9 +28,44 @@ postgres.text
 // ... WHERE ("users"."id" = $1)
 ```
 
-PostgreSQL-specific expressions remain explicit too. Import `ilike` from
-`qubu/postgres` or the package root and use it at the call site when the query
-requires PostgreSQL behavior.
+## Capability requirements
+
+Portable syntax stays portable, while dialect-specific syntax carries a
+capability requirement to the rendering boundary. PostgreSQL's `ilike()` is
+the first such feature:
+
+```ts
+const postgresQuery = select(
+  { name: users.name },
+  from(users),
+  where(ilike(users.name, '%ada%'))
+)
+
+render(postgresQuery, postgresDialect()) // supported
+render(postgresQuery, sqliteDialect()) // TypeScript error
+```
+
+The same check runs at runtime when a dialect or query has been widened or
+received from an untyped integration. Use the portable operator when the
+query must render across dialects:
+
+```ts
+const portableQuery = select(
+  { name: users.name },
+  from(users),
+  where(like(users.name, '%ada%'))
+)
+
+render(portableQuery)
+render(portableQuery, sqliteDialect())
+```
+
+Custom dialects that implement a supported capability advertise it through
+`createDialect({ capabilities: ['ilike'] })`. A dialect without that
+advertisement is rejected for capability-bearing fragments.
+
+Import `ilike` from `qubu/postgres` or the package root when the query requires
+PostgreSQL behavior.
 
 ## The adapter owns the driver
 

@@ -1,6 +1,7 @@
 import { identifier } from '../../core/primitives/identifier.ts'
 import { isExpression } from '../../expressions/types.ts'
 import type { RenderContext } from '../../core/fragment.ts'
+import type { CapabilityMetadataOf } from '../../core/fragment.ts'
 import type { Query } from '../types.ts'
 import type {
   ColumnHasDefault,
@@ -10,6 +11,7 @@ import type { AnyTable, TableInsertInput } from '../../schema/table.ts'
 import {
   createMutation,
   type MutationQuery,
+  type MutationCapabilityMetadata,
   type MutationReturningClause,
   type MutationRow,
   type MutationScopeValidation,
@@ -37,7 +39,7 @@ export function defaultValues(): DefaultValuesSource {
 }
 
 export interface InsertSelectSource<
-  TQuery extends Query<any, any> = Query<any, any>,
+  TQuery extends Query<any, any, any> = Query<any, any, any>,
   TColumns extends readonly string[] = readonly string[],
 > {
   readonly insertKind: 'select'
@@ -46,7 +48,7 @@ export interface InsertSelectSource<
 }
 
 export function insertSelect<
-  TQuery extends Query<any, any>,
+  TQuery extends Query<any, any, any>,
   const TColumns extends readonly [string, ...string[]],
 >(query: TQuery, columns: TColumns): InsertSelectSource<TQuery, TColumns> {
   return Object.freeze({
@@ -63,6 +65,11 @@ export type InsertSource =
   | ValuesSource<any>
   | DefaultValuesSource
   | InsertSelectSource<any, any>
+
+type InsertSourceCapabilityMetadata<TSource extends InsertSource> =
+  TSource extends InsertSelectSource<infer TQuery, any>
+    ? CapabilityMetadataOf<TQuery>
+    : never
 
 type InsertRow<TTable extends AnyTable> = TableInsertInput<
   TTable['definitions']
@@ -132,7 +139,12 @@ export function insertInto<
   table: TTable,
   source: TSource & ValidInsertSource<TTable, TSource>,
   ...clauses: TClauses & MutationScopeValidation<TTable, TClauses>
-): MutationQuery<MutationRow<TClauses>, 'insert'> {
+): MutationQuery<
+  MutationRow<TClauses>,
+  'insert',
+  | MutationCapabilityMetadata<TClauses[number]>
+  | InsertSourceCapabilityMetadata<TSource>
+> {
   validateInsert(table, source)
 
   const returningClauses = clauses as readonly MutationReturningClause[]
@@ -175,7 +187,12 @@ export function insertInto<
     }
   })
 
-  return query as MutationQuery<MutationRow<TClauses>, 'insert'>
+  return query as unknown as MutationQuery<
+    MutationRow<TClauses>,
+    'insert',
+    | MutationCapabilityMetadata<TClauses[number]>
+    | InsertSourceCapabilityMetadata<TSource>
+  >
 }
 
 function renderTargetColumns(

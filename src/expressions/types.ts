@@ -8,11 +8,16 @@ import {
   type NullableSourceMeta,
   type OutputOf,
   type RequiresOf,
+  type RequiresCapabilityMeta,
   type RequiresSourceMeta,
   type ResultMeta,
   type Fragment,
   type RenderContext,
 } from '../core/fragment.ts'
+import {
+  assertDialectCapability,
+  type DialectCapability,
+} from '../core/dialect.ts'
 
 export type ExpressionKind =
   | 'value'
@@ -35,6 +40,31 @@ export type ExpressionOutput<T> = OutputOf<T>
 export type ExpressionRequires<T> = RequiresOf<T>
 export type ExpressionNullability<T> = NullabilityOf<T>
 
+/** Add a concrete dialect requirement without dropping expression metadata. */
+export function withDialectCapability<
+  const TCapability extends DialectCapability,
+  TExpression extends AnyExpression,
+>(
+  expression: TExpression,
+  capability: TCapability
+): Expression<
+  | import('../core/fragment.ts').MetadataOf<TExpression>
+  | import('../core/fragment.ts').RequiresCapabilityMeta<TCapability>,
+  TExpression['expressionKind']
+> {
+  type TMetadata =
+    | import('../core/fragment.ts').MetadataOf<TExpression>
+    | import('../core/fragment.ts').RequiresCapabilityMeta<TCapability>
+
+  return makeExpression<TMetadata, TExpression['expressionKind']>(
+    expression.expressionKind,
+    context => {
+      assertDialectCapability(context.dialect, capability)
+      context.render(expression)
+    }
+  )
+}
+
 /** An expression whose result is known to be assignable to `TOutput`. */
 export type ExpressionWithOutput<
   TOutput,
@@ -44,7 +74,8 @@ export type ExpressionWithOutput<
   | RequiresSourceMeta<unknown>
   | NullableSourceMeta<unknown>
   | ExpressionMeta<unknown>
-  | AggregateMeta<unknown>,
+  | AggregateMeta<unknown>
+  | RequiresCapabilityMeta,
   TKind
 >
 

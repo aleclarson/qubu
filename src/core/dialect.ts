@@ -1,5 +1,8 @@
 import type { RenderContext } from './fragment.ts'
 
+/** Capabilities whose syntax must be explicitly supported by a dialect. */
+export type DialectCapability = 'ilike'
+
 export type PaginationKind = 'offset' | 'fetch'
 
 export interface PaginationPart {
@@ -16,18 +19,25 @@ export interface DialectPagination {
   ) => void
 }
 
-export interface Dialect {
+export interface Dialect<
+  TCapabilities extends DialectCapability = DialectCapability,
+> {
   readonly name: string
   quoteIdentifier(identifier: string): string
   placeholder(position: number): string
   readonly pagination?: DialectPagination
+  /** Capabilities advertised by this dialect at the rendering boundary. */
+  readonly capabilities?: readonly TCapabilities[]
 }
 
-export interface DialectOptions {
+export interface DialectOptions<
+  TCapabilities extends DialectCapability = never,
+> {
   readonly name: string
   readonly quoteIdentifier?: (identifier: string) => string
   readonly placeholder: (position: number) => string
   readonly pagination?: DialectPagination
+  readonly capabilities?: readonly TCapabilities[]
 }
 
 const quoteIdentifier = (identifier: string) =>
@@ -37,11 +47,29 @@ const quoteIdentifier = (identifier: string) =>
  * Create a dialect from the few rendering decisions that SQL builders need
  * to leave open. More involved syntax can be supplied as a custom fragment.
  */
-export function createDialect(options: DialectOptions): Dialect {
+export function createDialect<
+  const TCapabilities extends DialectCapability = never,
+>(options: DialectOptions<TCapabilities>): Dialect<TCapabilities> {
   return Object.freeze({
     name: options.name,
     quoteIdentifier: options.quoteIdentifier ?? quoteIdentifier,
     placeholder: options.placeholder,
     pagination: options.pagination,
-  })
+    capabilities: Object.freeze([...(options.capabilities ?? [])]),
+  }) as Dialect<TCapabilities>
+}
+
+/**
+ * Check a capability at runtime for callers that intentionally bypass the
+ * typed render boundary or use a dialect supplied by an older integration.
+ */
+export function assertDialectCapability(
+  dialect: Dialect,
+  capability: DialectCapability
+): void {
+  if (dialect.capabilities?.includes(capability)) return
+
+  throw new Error(
+    `Dialect "${dialect.name}" does not support the "${capability}" capability`
+  )
 }

@@ -1,4 +1,4 @@
-import type { Dialect } from './dialect.ts'
+import type { Dialect, DialectCapability } from './dialect.ts'
 
 declare const fragmentMetadata: unique symbol
 
@@ -65,6 +65,14 @@ export type CardinalityMeta<
   readonly cardinality: TCardinality
 }
 
+/** A fragment whose syntax must be rendered by a dialect with this capability. */
+export type RequiresCapabilityMeta<
+  TCapability extends DialectCapability = DialectCapability,
+> = {
+  readonly kind: 'requires-capability'
+  readonly capability: TCapability
+}
+
 export type FragmentMeta =
   | ResultMeta<unknown, unknown>
   | RequiresSourceMeta<unknown>
@@ -76,6 +84,7 @@ export type FragmentMeta =
   | AggregateMeta
   | GroupingMeta
   | CardinalityMeta
+  | RequiresCapabilityMeta
 
 export interface RenderContext {
   readonly dialect: Dialect
@@ -188,6 +197,13 @@ type Cardinality<TMetadata> = TMetadata extends {
   ? TCardinality
   : never
 
+type RequiredCapabilities<TMetadata> = TMetadata extends {
+  readonly kind: 'requires-capability'
+  readonly capability: infer TCapability extends DialectCapability
+}
+  ? TCapability
+  : never
+
 export type InheritedMetadataOf<TMetadata> = WithoutResult<TMetadata>
 export type InheritedMetadata<T> = InheritedMetadataOf<MetadataOf<T>>
 
@@ -229,6 +245,12 @@ export type HasAggregate<T> = [
   : true
 
 export type CardinalityOf<T> = Cardinality<MetadataOf<T>>
+
+export type CapabilitiesOf<T> = RequiredCapabilities<MetadataOf<T>>
+
+export type CapabilityMetadataOf<T> = [CapabilitiesOf<T>] extends [never]
+  ? never
+  : RequiresCapabilityMeta<CapabilitiesOf<T>>
 
 export function fragment<TMetadata = never>(
   render: RenderFunction

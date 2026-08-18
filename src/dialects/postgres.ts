@@ -2,7 +2,10 @@ import { createDialect, type PaginationPart } from '../core/dialect.ts'
 import type { RenderContext } from '../core/fragment.ts'
 import { comparison } from '../expressions/operators/comparison/relational.ts'
 import type { Operand } from '../expressions/operators/shared.ts'
-import type { ExpressionWithOutput } from '../expressions/types.ts'
+import {
+  withDialectCapability,
+  type ExpressionWithOutput,
+} from '../expressions/types.ts'
 
 const postgresPagination = {
   render(context: RenderContext, parts: readonly PaginationPart[]) {
@@ -29,6 +32,7 @@ export function postgresDialect() {
     name: 'postgresql',
     placeholder: position => `$${position}`,
     pagination: postgresPagination,
+    capabilities: ['ilike'],
   })
 }
 
@@ -37,5 +41,5 @@ export function ilike<
   TLeft extends ExpressionWithOutput<string>,
   R extends Operand<string>,
 >(left: TLeft, pattern: R) {
-  return comparison('ILIKE', left, pattern)
+  return withDialectCapability(comparison('ILIKE', left, pattern), 'ilike')
 }

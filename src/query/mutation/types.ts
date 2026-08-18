@@ -1,4 +1,5 @@
 import type {
+  CapabilityMetadataOf,
   Fragment,
   RenderFunction,
   RequiresOf,
@@ -13,23 +14,30 @@ export type MutationKind = 'insert' | 'update' | 'delete'
 export interface MutationQuery<
   TRow extends object = Record<string, unknown>,
   TKind extends MutationKind = MutationKind,
-> extends Query<TRow, 'many'> {
+  TMetadata = never,
+> extends Query<TRow, 'many', TMetadata> {
   readonly queryKind: TKind
 }
 
 export type AnyMutationQuery = MutationQuery<any, any>
 
-export function createMutation<TKind extends MutationKind, TRow extends object>(
+export function createMutation<
+  TKind extends MutationKind,
+  TRow extends object,
+  TMetadata = never,
+>(
   queryKind: TKind,
   row: TRow,
   render: RenderFunction
-): MutationQuery<TRow, TKind> {
+): MutationQuery<TRow, TKind, TMetadata> {
   return {
     queryKind,
     row,
     render,
-  } as MutationQuery<TRow, TKind>
+  } as MutationQuery<TRow, TKind, TMetadata>
 }
+
+export type MutationCapabilityMetadata<T> = CapabilityMetadataOf<T>
 
 export interface AllowAllClause extends Fragment<never> {
   readonly clauseKind: 'allow-all'

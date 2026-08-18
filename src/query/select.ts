@@ -14,14 +14,18 @@ import type {
   ScopeValidation,
   SelectQuery,
 } from './select/types.ts'
-import type { RequiresOuterSourceMeta } from '../core/fragment.ts'
+import type {
+  CapabilityMetadataOf,
+  RequiresOuterSourceMeta,
+} from '../core/fragment.ts'
 import { type Selection, type SelectionOutput } from './selection.ts'
+import type { SelectionItems } from './selection.ts'
 
-type SelectMetadata<TSelection, TClauses extends readonly AnySelectClause[]> = [
-  RequiredOuterScope<TSelection, TClauses>,
-] extends [never]
-  ? never
-  : RequiresOuterSourceMeta<RequiredOuterScope<TSelection, TClauses>>
+type SelectMetadata<TSelection, TClauses extends readonly AnySelectClause[]> =
+  | ([RequiredOuterScope<TSelection, TClauses>] extends [never]
+      ? never
+      : RequiresOuterSourceMeta<RequiredOuterScope<TSelection, TClauses>>)
+  | CapabilityMetadataOf<SelectionItems<TSelection> | TClauses[number]>
 
 export type {
   AvailableScope,

@@ -1,16 +1,47 @@
 import { standardDialect } from '../dialects/standard.ts'
-import type { Dialect } from './dialect.ts'
-import type { AnyFragment, RenderContext } from './fragment.ts'
+import type { Dialect, DialectCapability } from './dialect.ts'
+import type { AnyFragment, CapabilitiesOf, RenderContext } from './fragment.ts'
 
 export interface RenderedQuery {
   readonly text: string
   readonly parameters: readonly unknown[]
 }
 
-export interface RenderOptions {
-  readonly dialect?: Dialect
+export interface RenderOptions<
+  TCapabilities extends DialectCapability = DialectCapability,
+> {
+  readonly dialect?: Dialect<TCapabilities>
 }
 
+type IsAny<T> = 0 extends 1 & T ? true : false
+
+type MissingCapabilities<TQuery, TCapabilities extends DialectCapability> =
+  IsAny<CapabilitiesOf<TQuery>> extends true
+    ? never
+    : Exclude<CapabilitiesOf<TQuery>, TCapabilities>
+
+export type RenderCapabilityValidation<
+  TQuery,
+  TCapabilities extends DialectCapability,
+> = [MissingCapabilities<TQuery, TCapabilities>] extends [never]
+  ? unknown
+  : {
+      readonly __missing_dialect_capabilities__: MissingCapabilities<
+        TQuery,
+        TCapabilities
+      >
+    }
+
+export function render<TQuery extends AnyFragment>(
+  query: TQuery & RenderCapabilityValidation<TQuery, never>
+): RenderedQuery
+export function render<
+  TQuery extends AnyFragment,
+  TCapabilities extends DialectCapability,
+>(
+  query: TQuery & RenderCapabilityValidation<TQuery, TCapabilities>,
+  options: RenderOptions<TCapabilities> | Dialect<TCapabilities>
+): RenderedQuery
 export function render(
   query: AnyFragment,
   options: RenderOptions | Dialect = {}
