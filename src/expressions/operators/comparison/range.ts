@@ -1,21 +1,16 @@
-import { makeExpression } from '../../types.ts'
 import {
-  expressionOperand,
-  isNullOperand,
-  type Operand,
-  type OperandParameters,
-  type OperandRequires,
-} from '../shared.ts'
-import type { BooleanExpression } from './types.ts'
-import type { Expression } from '../../types.ts'
+  makeExpression,
+  type ExpressionWithOutput,
+  type ResultExpression,
+} from '../../types.ts'
+import { expressionOperand, isNullOperand, type Operand } from '../shared.ts'
 
 export function between<
   T,
-  TReq,
-  TParams,
-  L extends Operand<T>,
-  H extends Operand<T>,
->(expression: Expression<T, TReq, TParams, any>, lower: L, upper: H) {
+  TExpression extends ExpressionWithOutput<T>,
+  L extends Operand<NoInfer<T>>,
+  H extends Operand<NoInfer<T>>,
+>(expression: TExpression, lower: L, upper: H) {
   if (isNullOperand(lower) || isNullOperand(upper)) {
     throw new TypeError(
       'between() does not accept NULL bounds; use an explicit NULL predicate'
@@ -31,18 +26,14 @@ export function between<
     context.append(' AND ')
     context.render(upperExpression)
     context.append(')')
-  }) as BooleanExpression<
-    TReq | OperandRequires<L> | OperandRequires<H>,
-    TParams | OperandParameters<L> | OperandParameters<H>
-  >
+  }) as ResultExpression<boolean, TExpression | L | H, 'operator'>
 }
 
 export function inList<
   T,
-  TReq,
-  TParams,
-  const TValues extends readonly Operand<T>[],
->(expression: Expression<T, TReq, TParams, any>, values: TValues) {
+  TExpression extends ExpressionWithOutput<T>,
+  const TValues extends readonly Operand<NoInfer<T>>[],
+>(expression: TExpression, values: TValues) {
   const valueExpressions = values.map(expressionOperand)
   return makeExpression('operator', context => {
     if (values.length === 0) {
@@ -57,18 +48,14 @@ export function inList<
       context.render(value)
     })
     context.append('))')
-  }) as BooleanExpression<
-    TReq | OperandRequires<TValues[number]>,
-    TParams | OperandParameters<TValues[number]>
-  >
+  }) as ResultExpression<boolean, TExpression | TValues[number], 'operator'>
 }
 
 export function notIn<
   T,
-  TReq,
-  TParams,
-  const TValues extends readonly Operand<T>[],
->(expression: Expression<T, TReq, TParams, any>, values: TValues) {
+  TExpression extends ExpressionWithOutput<T>,
+  const TValues extends readonly Operand<NoInfer<T>>[],
+>(expression: TExpression, values: TValues) {
   const valueExpressions = values.map(expressionOperand)
   return makeExpression('operator', context => {
     if (values.length === 0) {
@@ -83,8 +70,5 @@ export function notIn<
       context.render(value)
     })
     context.append('))')
-  }) as BooleanExpression<
-    TReq | OperandRequires<TValues[number]>,
-    TParams | OperandParameters<TValues[number]>
-  >
+  }) as ResultExpression<boolean, TExpression | TValues[number], 'operator'>
 }

@@ -2,7 +2,6 @@ import type { AnyTable } from '../../schema/table.ts'
 import {
   createMutation,
   type MutationClause,
-  type MutationParameters,
   type MutationQuery,
   type MutationReturningClause,
   type MutationRow,
@@ -19,11 +18,7 @@ export function deleteFrom<
   ...clauses: TClauses &
     MutationScopeValidation<TTable, TClauses> &
     MutationSafetyValidation<TClauses>
-): MutationQuery<
-  MutationRow<TClauses>,
-  MutationParameters<TClauses>,
-  'delete'
-> {
+): MutationQuery<MutationRow<TClauses>, 'delete'> {
   const normalizedClauses = clauses as readonly MutationClause[]
   validateMutationClauses('DELETE', normalizedClauses)
 
@@ -47,11 +42,7 @@ export function deleteFrom<
     }
   })
 
-  return query as unknown as MutationQuery<
-    MutationRow<TClauses>,
-    MutationParameters<TClauses>,
-    'delete'
-  >
+  return query as unknown as MutationQuery<MutationRow<TClauses>, 'delete'>
 }
 
 export const removeFrom = deleteFrom

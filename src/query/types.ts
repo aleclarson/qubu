@@ -1,26 +1,32 @@
-import { fragment, type Fragment } from '../core/fragment.ts'
+import {
+  fragment,
+  type Fragment,
+  type RenderFunction,
+} from '../core/fragment.ts'
 
 export type Row = Record<string, unknown>
 
 export type QueryKind = 'select' | 'set' | 'insert' | 'update' | 'delete'
 
-export interface Query<TRow extends object = Row, TParameters = never>
-  extends Fragment<readonly TRow[], never, TParameters> {
+export interface Query<TRow extends object = Row>
+  extends Fragment<import('../core/fragment.ts').ResultMeta<readonly TRow[]>> {
   readonly queryKind: QueryKind
   readonly row: TRow
 }
 
-export type AnyQuery = Query<any, any>
-export type QueryRow<T> = T extends Query<infer TRow, any> ? TRow : never
+export type AnyQuery = Query<any>
+export type QueryRow<T> = T extends Query<infer TRow> ? TRow : never
 
-export function createQuery<TRow extends object, TParameters = never>(
+export function createQuery<TRow extends object>(
   queryKind: QueryKind,
   row: TRow,
-  render: Fragment['render']
-): Query<TRow, TParameters> {
+  render: RenderFunction
+): Query<TRow> {
   return Object.freeze({
     queryKind,
     row,
-    ...fragment<readonly TRow[], never, TParameters>(render),
-  }) as Query<TRow, TParameters>
+    ...fragment<import('../core/fragment.ts').ResultMeta<readonly TRow[]>>(
+      render
+    ),
+  }) as Query<TRow>
 }

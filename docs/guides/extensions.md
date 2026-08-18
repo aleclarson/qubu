@@ -12,7 +12,7 @@ import { customClause, from, render, select, table, text } from 'qubu'
 
 const users = table('users', { name: text() })
 
-const fetchWithTies = customClause<never, number>({
+const fetchWithTies = customClause({
   name: 'fetch-with-ties',
   order: 100,
   render(context) {
@@ -28,9 +28,9 @@ render(query)
 // ... FETCH FIRST ? ROWS WITH TIES
 ```
 
-The `number` parameter metadata documents the value bound by the custom
-renderer, and the rendered parameter is still ordered with every other
-parameter in the query.
+`context.parameter(10)` binds the value at render time, and the rendered
+parameter is still ordered with every other parameter in the query. Parameter
+value types are intentionally not part of fragment metadata.
 
 ## Add a policy with `createDialect()`
 
@@ -57,12 +57,16 @@ through the optional `pagination` renderer.
 
 `fragment()`, `makeExpression()`, `parameter()`, `identifier()`, `syntax()`, and
 `customClause()` are the public building blocks for extensions. Preserve the
-same metadata that built-ins preserve:
+same metadata model that built-ins use:
 
-- require every source that the expression reads;
-- expose the correct output type;
-- declare the value types the renderer can parameterize; and
+- use `RequiresSourceMeta<Source>` for every source that the expression reads;
+- use `ResultMeta<Output>` when the fragment exposes a typed result;
+- inherit child source and nullability facts when composing fragments; and
 - use `context.parameter()` for values instead of concatenating them into SQL.
+
+`sequence()` is useful for a reusable fragment assembled from arbitrary child
+fragments: its `const` type parameter preserves the children's metadata, so
+source-scope checking continues to work without `as const` at the call site.
 
 ## Use unsafe primitives only for intentional raw syntax
 

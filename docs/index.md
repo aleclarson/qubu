@@ -5,7 +5,8 @@
 Qubu is a functional-first SQL builder for TypeScript. Tables, expressions,
 clauses, and complete queries are values that compose without a mutable query
 builder. The result keeps SQL recognizable while TypeScript tracks selected
-row shapes, source scope, nullability, and accepted parameter types.
+row shapes, source scope, and nullability; rendering still collects runtime
+parameters in placeholder order.
 
 ## Start here
 

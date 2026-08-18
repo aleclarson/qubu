@@ -47,7 +47,7 @@ Join functions add a source and make the join condition part of the same scope
 check as the projection and `WHERE` clause:
 
 ```ts
-import { innerJoin, isNotNull } from 'qubu'
+import { aliasExpression, count, innerJoin, isNotNull, leftJoin } from 'qubu'
 
 const posts = table('posts', {
   id: integer(),
@@ -66,6 +66,25 @@ const query = select(
 Use `innerJoin`, `leftJoin`, `rightJoin`, or `fullJoin` with an `ON` condition.
 `crossJoin` and `naturalJoin` add a source without a condition; use them only
 when that SQL behavior is intentional.
+
+`leftJoin()` also carries nullability into the selected row. A column from the
+joined source is nullable because the row may be missing, while an expression
+with a deliberately non-nullable result such as `count()` remains non-null:
+
+```ts
+const summary = select(
+  {
+    userName: users.name,
+    postTitle: posts.title,
+    postCount: aliasExpression(count(posts.id), 'postCount'),
+  },
+  from(users),
+  leftJoin(posts, eq(users.id, posts.authorId))
+)
+
+// typeof summary.row:
+// { userName: string; postTitle: string | null; postCount: number }
+```
 
 Compose boolean expressions explicitly:
 

@@ -1,6 +1,6 @@
 import { standardDialect } from '../dialects/standard.ts'
 import type { Dialect } from './dialect.ts'
-import type { Fragment, RenderContext } from './fragment.ts'
+import type { AnyFragment, RenderContext } from './fragment.ts'
 
 export interface RenderedQuery {
   readonly text: string
@@ -12,7 +12,7 @@ export interface RenderOptions {
 }
 
 export function render(
-  query: Fragment,
+  query: AnyFragment,
   options: RenderOptions | Dialect = {}
 ): RenderedQuery {
   const dialect = isDialect(options)

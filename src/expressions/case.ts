@@ -1,23 +1,14 @@
 import { asValue } from './value.ts'
 import type { BooleanExpression } from './operators/comparison.ts'
-import {
-  type OperandParameters,
-  type OperandRequires,
-  type Operand,
-} from './operators/shared.ts'
-import { makeExpression, type Expression } from './types.ts'
+import { type Operand, type OperandNullability } from './operators/shared.ts'
+import { makeExpression, type ResultExpression } from './types.ts'
 
 export function caseWhen<
   T,
-  TWhenRequires,
-  TWhenParameters,
+  TCondition extends BooleanExpression<any>,
   TThen extends Operand<T>,
   TElse extends Operand<T>,
->(
-  condition: BooleanExpression<TWhenRequires, TWhenParameters>,
-  thenValue: TThen,
-  elseValue: TElse
-) {
+>(condition: TCondition, thenValue: TThen, elseValue: TElse) {
   const thenExpression = asValue(thenValue)
   const elseExpression = asValue(elseValue)
   return makeExpression('operator', context => {
@@ -28,10 +19,10 @@ export function caseWhen<
     context.append(' ELSE ')
     context.render(elseExpression)
     context.append(' END')
-  }) as Expression<
+  }) as ResultExpression<
     T,
-    TWhenRequires | OperandRequires<TThen> | OperandRequires<TElse>,
-    TWhenParameters | OperandParameters<TThen> | OperandParameters<TElse>,
-    'operator'
+    TCondition | TThen | TElse,
+    'operator',
+    OperandNullability<TThen> | OperandNullability<TElse>
   >
 }

@@ -3,7 +3,7 @@ import type { AnySource, Source } from '../../schema/source.ts'
 
 export interface FromClause<
   TSources extends readonly AnySource[] = readonly AnySource[],
-> extends SelectClause<never, never> {
+> extends SelectClause<never> {
   readonly clauseKind: 'from'
   readonly sources: TSources
 }

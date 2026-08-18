@@ -1,34 +1,42 @@
-import { makeExpression, type Expression } from '../../types.ts'
+import {
+  makeExpression,
+  type AnyExpression,
+  type ExpressionWithOutput,
+  type ExpressionOutput,
+  type ResultExpression,
+} from '../../types.ts'
+import type { NullabilityOf } from '../../../core/fragment.ts'
 import {
   expressionOperand,
   isNullOperand,
-  type ComparisonParameters,
+  type IsNullOperand,
   type Operand,
-  type OperandRequires,
+  type OperandNullability,
 } from '../shared.ts'
-import type { BooleanExpression } from './types.ts'
 
-type ComparisonResult<
-  LReq,
-  LParams,
-  R,
-  TOperator extends string,
-> = BooleanExpression<
-  LReq | OperandRequires<R>,
-  LParams | ComparisonParameters<R, TOperator>
+type ComparisonResult<TLeft, R, TOperator extends string> = ResultExpression<
+  boolean,
+  TLeft | R,
+  'operator',
+  TOperator extends 'IS DISTINCT FROM' | 'IS NOT DISTINCT FROM'
+    ? never
+    : TOperator extends '=' | '<>'
+      ? IsNullOperand<R> extends true
+        ? never
+        : NullabilityOf<TLeft> | OperandNullability<R>
+      : NullabilityOf<TLeft> | OperandNullability<R>
 >
 
 export function comparison<
   T,
-  LRequires,
-  LParameters,
+  TLeft extends ExpressionWithOutput<T>,
   const TOperator extends string,
-  R extends Operand<T>,
+  R extends Operand<NoInfer<T>>,
 >(
   operator: TOperator,
-  left: Expression<T, LRequires, LParameters, any>,
+  left: TLeft,
   right: R
-): ComparisonResult<LRequires, LParameters, R, TOperator> {
+): ComparisonResult<TLeft, R, TOperator> {
   if (isNullOperand(right)) {
     if (operator === '=' || operator === '<>') {
       const nullOperator = operator === '=' ? 'IS NULL' : 'IS NOT NULL'
@@ -36,7 +44,7 @@ export function comparison<
         context.append('(')
         context.render(left)
         context.append(` ${nullOperator})`)
-      }) as ComparisonResult<LRequires, LParameters, R, TOperator>
+      }) as ComparisonResult<TLeft, R, TOperator>
     }
     if (
       operator !== 'IS DISTINCT FROM' &&
@@ -55,87 +63,91 @@ export function comparison<
     context.append(` ${operator} `)
     context.render(rightExpression)
     context.append(')')
-  }) as ComparisonResult<LRequires, LParameters, R, TOperator>
+  }) as ComparisonResult<TLeft, R, TOperator>
 }
 
-export function equal<T, LReq, LParams, R extends Operand<T>>(
-  left: Expression<T, LReq, LParams, any>,
-  right: R
-) {
+export function equal<
+  T,
+  TLeft extends ExpressionWithOutput<T>,
+  R extends Operand<NoInfer<T>>,
+>(left: TLeft, right: R) {
   return comparison('=', left, right)
 }
 
 export const eq = equal
 
-export function notEqual<T, LReq, LParams, R extends Operand<T>>(
-  left: Expression<T, LReq, LParams, any>,
-  right: R
-) {
+export function notEqual<
+  T,
+  TLeft extends ExpressionWithOutput<T>,
+  R extends Operand<NoInfer<T>>,
+>(left: TLeft, right: R) {
   return comparison('<>', left, right)
 }
 
 export const ne = notEqual
 
-export function lessThan<T, LReq, LParams, R extends Operand<T>>(
-  left: Expression<T, LReq, LParams, any>,
-  right: R
-) {
+export function lessThan<
+  TLeft extends AnyExpression,
+  R extends Operand<Exclude<ExpressionOutput<TLeft>, null>>,
+>(left: TLeft, right: R) {
   return comparison('<', left, right)
 }
 
 export const lt = lessThan
 
-export function lessThanOrEqual<T, LReq, LParams, R extends Operand<T>>(
-  left: Expression<T, LReq, LParams, any>,
-  right: R
-) {
+export function lessThanOrEqual<
+  TLeft extends AnyExpression,
+  R extends Operand<Exclude<ExpressionOutput<TLeft>, null>>,
+>(left: TLeft, right: R) {
   return comparison('<=', left, right)
 }
 
 export const lte = lessThanOrEqual
 
-export function greaterThan<T, LReq, LParams, R extends Operand<T>>(
-  left: Expression<T, LReq, LParams, any>,
-  right: R
-) {
+export function greaterThan<
+  TLeft extends AnyExpression,
+  R extends Operand<Exclude<ExpressionOutput<TLeft>, null>>,
+>(left: TLeft, right: R) {
   return comparison('>', left, right)
 }
 
 export const gt = greaterThan
 
-export function greaterThanOrEqual<T, LReq, LParams, R extends Operand<T>>(
-  left: Expression<T, LReq, LParams, any>,
-  right: R
-) {
+export function greaterThanOrEqual<
+  TLeft extends AnyExpression,
+  R extends Operand<Exclude<ExpressionOutput<TLeft>, null>>,
+>(left: TLeft, right: R) {
   return comparison('>=', left, right)
 }
 
 export const gte = greaterThanOrEqual
 
-export function like<TReq, TParams, R extends Operand<string>>(
-  left: Expression<string, TReq, TParams, any>,
-  pattern: R
-) {
+export function like<
+  TLeft extends ExpressionWithOutput<string>,
+  R extends Operand<string>,
+>(left: TLeft, pattern: R) {
   return comparison('LIKE', left, pattern)
 }
 
-export function notLike<TReq, TParams, R extends Operand<string>>(
-  left: Expression<string, TReq, TParams, any>,
-  pattern: R
-) {
+export function notLike<
+  TLeft extends ExpressionWithOutput<string>,
+  R extends Operand<string>,
+>(left: TLeft, pattern: R) {
   return comparison('NOT LIKE', left, pattern)
 }
 
-export function isDistinctFrom<T, LReq, LParams, R extends Operand<T>>(
-  left: Expression<T, LReq, LParams, any>,
-  right: R
-) {
+export function isDistinctFrom<
+  T,
+  TLeft extends ExpressionWithOutput<T>,
+  R extends Operand<NoInfer<T>>,
+>(left: TLeft, right: R) {
   return comparison('IS DISTINCT FROM', left, right)
 }
 
-export function isNotDistinctFrom<T, LReq, LParams, R extends Operand<T>>(
-  left: Expression<T, LReq, LParams, any>,
-  right: R
-) {
+export function isNotDistinctFrom<
+  T,
+  TLeft extends ExpressionWithOutput<T>,
+  R extends Operand<NoInfer<T>>,
+>(left: TLeft, right: R) {
   return comparison('IS NOT DISTINCT FROM', left, right)
 }

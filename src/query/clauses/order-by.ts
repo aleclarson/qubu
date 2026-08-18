@@ -1,92 +1,82 @@
-import type { Fragment } from '../../core/fragment.ts'
-import { makeExpression, type Expression } from '../../expressions/types.ts'
+import { type Fragment, type InheritedMetadata } from '../../core/fragment.ts'
+import { makeExpression, type AnyExpression } from '../../expressions/types.ts'
 import { createClause, type SelectClause } from './types.ts'
 
 export type OrderDirection = 'ASC' | 'DESC'
 export type NullsOrder = 'FIRST' | 'LAST'
 
-export interface OrderTerm<TRequires = never, TParameters = never>
-  extends Fragment<never, TRequires, TParameters> {
+export interface OrderTerm<TMetadata = never> extends Fragment<TMetadata> {
   readonly orderKind: 'term'
-  readonly expression: Expression<any, TRequires, TParameters, any>
+  readonly expression: AnyExpression
   readonly direction?: OrderDirection
   readonly nulls?: NullsOrder
 }
 
-function orderTerm<TRequires, TParameters>(
-  expression: Expression<any, TRequires, TParameters, any>,
+function orderTerm<TExpression extends AnyExpression>(
+  expression: TExpression,
   direction?: OrderDirection,
   nulls?: NullsOrder
-): OrderTerm<TRequires, TParameters> {
-  const base = makeExpression('operator', context => {
-    context.render(expression)
-    if (direction) context.append(` ${direction}`)
-    if (nulls) context.append(` NULLS ${nulls}`)
-  })
+): OrderTerm<InheritedMetadata<TExpression>> {
+  const base = makeExpression<InheritedMetadata<TExpression>, 'operator'>(
+    'operator',
+    context => {
+      context.render(expression)
+      if (direction) context.append(` ${direction}`)
+      if (nulls) context.append(` NULLS ${nulls}`)
+    }
+  )
   return Object.freeze({
     ...base,
     orderKind: 'term' as const,
     expression,
     direction,
     nulls,
-  }) as OrderTerm<TRequires, TParameters>
+  }) as OrderTerm<InheritedMetadata<TExpression>>
 }
 
-export function order<TRequires, TParameters>(
-  expression: Expression<any, TRequires, TParameters, any>,
+export function order<TExpression extends AnyExpression>(
+  expression: TExpression,
   direction?: OrderDirection,
   nulls?: NullsOrder
 ) {
   return orderTerm(expression, direction, nulls)
 }
 
-export function asc<TRequires, TParameters>(
-  expression: Expression<any, TRequires, TParameters, any>,
+export function asc<TExpression extends AnyExpression>(
+  expression: TExpression,
   nulls?: NullsOrder
 ) {
   return orderTerm(expression, 'ASC', nulls)
 }
 
-export function desc<TRequires, TParameters>(
-  expression: Expression<any, TRequires, TParameters, any>,
+export function desc<TExpression extends AnyExpression>(
+  expression: TExpression,
   nulls?: NullsOrder
 ) {
   return orderTerm(expression, 'DESC', nulls)
 }
 
-export function nullsFirst<TRequires, TParameters>(
-  expression: Expression<any, TRequires, TParameters, any>
+export function nullsFirst<TExpression extends AnyExpression>(
+  expression: TExpression
 ) {
   return orderTerm(expression, undefined, 'FIRST')
 }
 
-export function nullsLast<TRequires, TParameters>(
-  expression: Expression<any, TRequires, TParameters, any>
+export function nullsLast<TExpression extends AnyExpression>(
+  expression: TExpression
 ) {
   return orderTerm(expression, undefined, 'LAST')
 }
 
-export interface OrderByClause<TRequires = never, TParameters = never>
-  extends SelectClause<TRequires, TParameters> {
+export interface OrderByClause<TMetadata = never>
+  extends SelectClause<TMetadata> {
   readonly clauseKind: 'order-by'
-  readonly terms: readonly OrderTerm<any, any>[]
+  readonly terms: readonly OrderTerm<any>[]
 }
 
 export function orderBy<
-  const TParts extends readonly (
-    | Expression<any, any, any, any>
-    | OrderTerm<any, any>
-  )[],
->(
-  ...parts: TParts
-): OrderByClause<
-  TParts[number] extends Fragment<any, infer TRequires, any>
-    ? TRequires
-    : never,
-  TParts[number] extends Fragment<any, any, infer TParameters>
-    ? TParameters
-    : never
-> {
+  const TParts extends readonly (AnyExpression | OrderTerm<any>)[],
+>(...parts: TParts): OrderByClause<InheritedMetadata<TParts[number]>> {
   const terms = parts.map(part =>
     'orderKind' in part ? part : orderTerm(part)
   )
@@ -99,5 +89,5 @@ export function orderBy<
       })
     }),
     { clauseKind: 'order-by' as const, terms }
-  ) as OrderByClause<any, any>
+  ) as OrderByClause<InheritedMetadata<TParts[number]>>
 }

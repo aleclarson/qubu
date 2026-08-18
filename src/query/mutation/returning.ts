@@ -2,17 +2,12 @@ import type { Fragment, RenderContext } from '../../core/fragment.ts'
 import { renderSelection, selectionRow } from '../select/render.ts'
 import type {
   Selection,
+  SelectionMetadata,
   SelectionOutput,
-  SelectionParameters,
-  SelectionRequires,
 } from '../selection.ts'
 
 export interface ReturningClause<TSelection extends Selection = Selection>
-  extends Fragment<
-    never,
-    SelectionRequires<TSelection>,
-    SelectionParameters<TSelection>
-  > {
+  extends Fragment<SelectionMetadata<TSelection>> {
   readonly clauseKind: 'returning'
   readonly selection: TSelection
   readonly row: SelectionOutput<TSelection>

@@ -1,34 +1,36 @@
 import { syntax } from '../../../core/primitives/syntax.ts'
-import { makeExpression, type Expression } from '../../types.ts'
-import { type OperandParameters, type OperandRequires } from '../shared.ts'
-import type { BooleanExpression } from './types.ts'
+import {
+  makeExpression,
+  type AnyExpression,
+  type ExpressionWithOutput,
+  type ResultExpression,
+} from '../../types.ts'
 
-export function isNull<T, TRequires, TParameters>(
-  expression: Expression<T, TRequires, TParameters, any>
-): BooleanExpression<TRequires, TParameters> {
+export function isNull<TExpression extends AnyExpression>(
+  expression: TExpression
+): ResultExpression<boolean, TExpression, 'operator', never> {
   return makeExpression('operator', context => {
     context.append('(')
     context.render(expression)
     context.append(' IS NULL)')
-  })
+  }) as ResultExpression<boolean, TExpression, 'operator', never>
 }
 
-export function isNotNull<T, TRequires, TParameters>(
-  expression: Expression<T, TRequires, TParameters, any>
-): BooleanExpression<TRequires, TParameters> {
+export function isNotNull<TExpression extends AnyExpression>(
+  expression: TExpression
+): ResultExpression<boolean, TExpression, 'operator', never> {
   return makeExpression('operator', context => {
     context.append('(')
     context.render(expression)
     context.append(' IS NOT NULL)')
-  })
+  }) as ResultExpression<boolean, TExpression, 'operator', never>
 }
 
-export function isTrue(expression: Expression<boolean, any, any, any>) {
+export function isTrue<TExpression extends ExpressionWithOutput<boolean>>(
+  expression: TExpression
+) {
   return makeExpression('operator', context => {
     context.render(expression)
     context.render(syntax(' IS TRUE'))
-  }) as BooleanExpression<
-    OperandRequires<typeof expression>,
-    OperandParameters<typeof expression>
-  >
+  }) as ResultExpression<boolean, TExpression, 'operator', never>
 }

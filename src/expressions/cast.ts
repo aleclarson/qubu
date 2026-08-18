@@ -1,18 +1,31 @@
-import { makeExpression, type Expression } from './types.ts'
+import {
+  makeExpression,
+  type AnyExpression,
+  type ResultExpression,
+} from './types.ts'
+import {
+  type InheritedMetadata,
+  type NullabilityOf,
+  type ResultMeta,
+} from '../core/fragment.ts'
 
 /** Cast using a type name supplied by the caller or an adapter. */
-export function cast<T, TRequires, TParameters, const TType extends string>(
-  expression: Expression<T, TRequires, TParameters, any>,
+export function cast<
+  T,
+  TExpression extends AnyExpression,
+  const TType extends string,
+>(
+  expression: TExpression,
   typeName: TType
-) {
-  return makeExpression<T, TRequires, TParameters, 'operator'>(
-    'operator',
-    context => {
-      context.append('CAST(')
-      context.render(expression)
-      context.append(' AS ')
-      context.append(typeName)
-      context.append(')')
-    }
-  )
+): ResultExpression<T, TExpression, 'operator'> {
+  return makeExpression<
+    ResultMeta<T, NullabilityOf<TExpression>> | InheritedMetadata<TExpression>,
+    'operator'
+  >('operator', context => {
+    context.append('CAST(')
+    context.render(expression)
+    context.append(' AS ')
+    context.append(typeName)
+    context.append(')')
+  }) as ResultExpression<T, TExpression, 'operator'>
 }

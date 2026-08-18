@@ -1,18 +1,13 @@
 import { parenthesize } from '../core/fragment.ts'
-import type { ParametersOf } from '../core/fragment.ts'
 import type { Query } from './types.ts'
 
 export type SetOperator = 'UNION' | 'UNION ALL' | 'INTERSECT' | 'EXCEPT'
 
-export function setOperation<
-  TRow extends object,
-  TLeftParameters,
-  TRight extends Query<TRow, any>,
->(
+export function setOperation<TRow extends object, TRight extends Query<TRow>>(
   operator: SetOperator,
-  left: Query<TRow, TLeftParameters>,
+  left: Query<TRow>,
   right: TRight
-): Query<TRow, TLeftParameters | ParametersOf<TRight>> {
+): Query<TRow> {
   return {
     queryKind: 'set',
     row: left.row,
@@ -21,37 +16,33 @@ export function setOperation<
       context.append(` ${operator} `)
       context.render(parenthesize(right))
     },
-  } as Query<TRow, TLeftParameters | ParametersOf<TRight>>
+  } as Query<TRow>
 }
 
-export function union<
-  TRow extends object,
-  TLeftParameters,
-  TRight extends Query<TRow, any>,
->(left: Query<TRow, TLeftParameters>, right: TRight) {
+export function union<TRow extends object, TRight extends Query<TRow>>(
+  left: Query<TRow>,
+  right: TRight
+) {
   return setOperation('UNION', left, right)
 }
 
-export function unionAll<
-  TRow extends object,
-  TLeftParameters,
-  TRight extends Query<TRow, any>,
->(left: Query<TRow, TLeftParameters>, right: TRight) {
+export function unionAll<TRow extends object, TRight extends Query<TRow>>(
+  left: Query<TRow>,
+  right: TRight
+) {
   return setOperation('UNION ALL', left, right)
 }
 
-export function intersect<
-  TRow extends object,
-  TLeftParameters,
-  TRight extends Query<TRow, any>,
->(left: Query<TRow, TLeftParameters>, right: TRight) {
+export function intersect<TRow extends object, TRight extends Query<TRow>>(
+  left: Query<TRow>,
+  right: TRight
+) {
   return setOperation('INTERSECT', left, right)
 }
 
-export function except<
-  TRow extends object,
-  TLeftParameters,
-  TRight extends Query<TRow, any>,
->(left: Query<TRow, TLeftParameters>, right: TRight) {
+export function except<TRow extends object, TRight extends Query<TRow>>(
+  left: Query<TRow>,
+  right: TRight
+) {
   return setOperation('EXCEPT', left, right)
 }

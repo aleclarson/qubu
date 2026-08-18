@@ -1,21 +1,38 @@
-import type { Fragment, RenderContext } from '../core/fragment.ts'
+import {
+  type Fragment,
+  type InheritedMetadata,
+  type NullabilityOf,
+  type OutputOf,
+  type RequiresOf,
+  type ResultMeta,
+  type RequiresSourceMeta,
+  type RenderContext,
+} from '../core/fragment.ts'
 import type { AnySource, SourceIdentity, SourceRow } from '../schema/source.ts'
 import type { AliasedExpression } from '../expressions/alias.ts'
 import type { ColumnReference } from '../expressions/column.ts'
 import type { AnyExpression } from '../expressions/types.ts'
 
 export interface Wildcard<
-  TRequires = any,
   TRow extends object = Record<string, unknown>,
-> extends Fragment<readonly TRow[], TRequires, never> {
+  TMetadata = never,
+> extends Fragment<TMetadata> {
   readonly selectionKind: 'wildcard'
   readonly source?: AnySource
+  readonly row?: TRow
 }
 
 export function all<TSource extends AnySource>(
   source: TSource
-): Wildcard<SourceIdentity<TSource>, SourceRow<TSource>>
-export function all(): Wildcard<never, Record<string, unknown>>
+): Wildcard<
+  SourceRow<TSource>,
+  | ResultMeta<SourceRow<TSource>, SourceIdentity<TSource>>
+  | RequiresSourceMeta<SourceIdentity<TSource>>
+>
+export function all(): Wildcard<
+  Record<string, unknown>,
+  ResultMeta<Record<string, unknown>>
+>
 export function all(source?: AnySource): Wildcard {
   return Object.freeze({
     selectionKind: 'wildcard' as const,
@@ -32,8 +49,8 @@ export function all(source?: AnySource): Wildcard {
 }
 
 export type SelectableItem =
-  | ColumnReference<any, any, any>
-  | AliasedExpression<any, any, any, any>
+  | ColumnReference<any, any>
+  | AliasedExpression<any, any, any>
   | Wildcard<any, any>
 export type SelectionObject = Record<string, AnyExpression>
 export type Selection =
@@ -47,13 +64,37 @@ type SelectionItems<TSelection> = TSelection extends readonly (infer TItem)[]
     ? TSelection[keyof TSelection]
     : TSelection
 
-type ItemOutput<TItem> =
-  TItem extends Wildcard<any, infer TRow>
-    ? TRow
-    : TItem extends AliasedExpression<infer TOutput, infer TAlias, any, any>
-      ? { [K in TAlias]: TOutput }
-      : TItem extends ColumnReference<infer TOutput, infer TName, any>
-        ? { [K in TName]: TOutput }
+type NullableRow<TRow extends object> = {
+  [K in keyof TRow]: TRow[K] | null
+}
+
+type NullableOutput<TOutput, TExpression, TNullableSources> = [
+  Extract<NullabilityOf<TExpression>, TNullableSources>,
+] extends [never]
+  ? TOutput
+  : TOutput | null
+
+type ItemOutput<TItem, TNullableSources> =
+  TItem extends Wildcard<infer TRow, any>
+    ? [Extract<NullabilityOf<TItem>, TNullableSources>] extends [never]
+      ? TRow
+      : NullableRow<TRow>
+    : TItem extends AliasedExpression<infer TAlias, any, any>
+      ? {
+          [K in TAlias]: NullableOutput<
+            OutputOf<TItem>,
+            TItem,
+            TNullableSources
+          >
+        }
+      : TItem extends ColumnReference<infer TName, any>
+        ? {
+            [K in TName]: NullableOutput<
+              OutputOf<TItem>,
+              TItem,
+              TNullableSources
+            >
+          }
         : never
 
 type UnionToIntersection<T> = (
@@ -64,23 +105,31 @@ type UnionToIntersection<T> = (
 
 type Simplify<T> = { [K in keyof T]: T[K] } & {}
 
-export type SelectionOutput<TSelection> = TSelection extends SelectionObject
+export type SelectionOutput<
+  TSelection,
+  TNullableSources = never,
+> = TSelection extends SelectionObject
   ? Simplify<{
       -readonly [K in keyof TSelection]: TSelection[K] extends AnyExpression
-        ? import('../expressions/types.ts').ExpressionOutput<TSelection[K]>
+        ? NullableOutput<
+            import('../expressions/types.ts').ExpressionOutput<TSelection[K]>,
+            TSelection[K],
+            TNullableSources
+          >
         : never
     }>
-  : Simplify<UnionToIntersection<ItemOutput<SelectionItems<TSelection>>>>
+  : Simplify<
+      UnionToIntersection<
+        ItemOutput<SelectionItems<TSelection>, TNullableSources>
+      >
+    >
 
-export type SelectionRequires<TSelection> =
-  SelectionItems<TSelection> extends Fragment<any, infer TRequires, any>
-    ? TRequires
-    : never
-
-export type SelectionParameters<TSelection> =
-  SelectionItems<TSelection> extends Fragment<any, any, infer TParameters>
-    ? TParameters
-    : never
+export type SelectionRequires<TSelection> = RequiresOf<
+  SelectionItems<TSelection>
+>
+export type SelectionMetadata<TSelection> = InheritedMetadata<
+  SelectionItems<TSelection>
+>
 
 export function isWildcard(value: unknown): value is Wildcard {
   return (

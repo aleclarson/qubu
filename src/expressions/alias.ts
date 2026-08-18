@@ -1,39 +1,50 @@
 import { identifier } from '../core/primitives/identifier.ts'
-import { makeExpression, type Expression } from './types.ts'
+import { makeExpression, type AnyExpression, type Expression } from './types.ts'
+import {
+  type InheritedMetadata,
+  type NullabilityOf,
+  type ResultMeta,
+} from '../core/fragment.ts'
 
 export interface AliasedExpression<
-  TOutput = unknown,
   TAlias extends string = string,
-  TRequires = never,
-  TParameters = never,
-> extends Expression<TOutput, TRequires, TParameters, 'alias'> {
+  TMetadata = never,
+  TExpression extends AnyExpression = AnyExpression,
+> extends Expression<TMetadata, 'alias'> {
   readonly aliasName: TAlias
-  readonly expression: Expression<TOutput, TRequires, TParameters, any>
+  readonly expression: TExpression
 }
 
 export function aliasExpression<
-  TOutput,
   const TAlias extends string,
-  TRequires,
-  TParameters,
+  TExpression extends AnyExpression,
 >(
-  expression: Expression<TOutput, TRequires, TParameters, any>,
+  expression: TExpression,
   name: TAlias
-): AliasedExpression<TOutput, TAlias, TRequires, TParameters> {
-  const aliased = makeExpression<TOutput, TRequires, TParameters, 'alias'>(
-    'alias',
-    context => {
-      context.render(expression)
-      context.append(' AS ')
-      context.render(identifier(name))
-    }
-  )
+): AliasedExpression<
+  TAlias,
+  | ResultMeta<
+      import('./types.ts').ExpressionOutput<TExpression>,
+      NullabilityOf<TExpression>
+    >
+  | InheritedMetadata<TExpression>,
+  TExpression
+> {
+  type TOutput = import('./types.ts').ExpressionOutput<TExpression>
+  type TMetadata =
+    | ResultMeta<TOutput, NullabilityOf<TExpression>>
+    | InheritedMetadata<TExpression>
+  const aliased = makeExpression<TMetadata, 'alias'>('alias', context => {
+    context.render(expression)
+    context.append(' AS ')
+    context.render(identifier(name))
+  })
 
   return Object.freeze({
     ...aliased,
     aliasName: name,
     expression,
-  }) as AliasedExpression<TOutput, TAlias, TRequires, TParameters>
+  }) as AliasedExpression<TAlias, TMetadata, TExpression>
 }
 
 export const asExpression = aliasExpression

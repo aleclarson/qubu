@@ -1,12 +1,14 @@
 import { routineName } from '../../core/primitives/routine.ts'
+import {
+  type InheritedMetadata,
+  type NullabilityOf,
+  type RequiresOf,
+  type ResultMeta,
+} from '../../core/fragment.ts'
 import { asValue } from '../value.ts'
 import { makeExpression, type Expression } from '../types.ts'
-import {
-  type OperandParameters,
-  type OperandRequires,
-} from '../operators/shared.ts'
 
-export type FunctionArguments<T extends readonly unknown[]> = OperandRequires<
+export type FunctionArguments<T extends readonly unknown[]> = RequiresOf<
   T[number]
 >
 
@@ -14,6 +16,7 @@ export function call<
   TOutput = unknown,
   const TName extends string = string,
   const TArguments extends readonly unknown[] = readonly unknown[],
+  TNullableFrom = NullabilityOf<TArguments[number]>,
 >(name: TName, ...args: TArguments) {
   const expressions = args.map(argument => asValue(argument as never))
   return makeExpression('function', context => {
@@ -25,9 +28,7 @@ export function call<
     })
     context.append(')')
   }) as Expression<
-    TOutput,
-    FunctionArguments<TArguments>,
-    OperandParameters<TArguments>,
+    ResultMeta<TOutput, TNullableFrom> | InheritedMetadata<TArguments[number]>,
     'function'
   >
 }

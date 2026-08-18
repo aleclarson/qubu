@@ -7,17 +7,24 @@ qubu is a functional-first, type-safe SQL `SELECT` builder for TypeScript. The c
 Everything that can be composed is a fragment. A fragment has:
 
 - a small renderer that writes SQL and parameters;
-- an output type;
+- a single metadata type containing whichever semantic facts apply;
+- a result type when it produces a value or row;
 - source requirements for its valid scope; and
-- parameter metadata for downstream composition.
+- nullability facts when an outer join can affect its result.
 
 Conceptually:
 
 ```ts
-Fragment<Output, RequiredSources, Parameters>
+Fragment<Metadata>
 ```
 
-The runtime representation is intentionally not a large mutable AST. Small primitives compose renderer functions, while the generic parameters carry the semantic consequences that TypeScript needs.
+The metadata is a union of tagged facts such as `ResultMeta<Output>`,
+`RequiresSourceMeta<Source>`, and `NullableSourceMeta<Source>`. Composition
+helpers distribute over that union and retain the source and nullability facts
+that later clauses need. Parameter values remain a runtime concern of the
+renderer rather than a fourth compile-time contract.
+
+The runtime representation is intentionally not a large mutable AST. Small primitives compose renderer functions, while the metadata union carries the semantic consequences that TypeScript needs.
 
 ```mermaid
 flowchart LR
@@ -64,7 +71,7 @@ const result = render(query)
 
 - Functions return fragments rather than mutating a shared builder.
 - Clauses can be created independently and supplied to `select` in any order; the query renderer emits standard SQL order.
-- Source requirements accumulate through expressions, predicates, projections, joins, and subqueries.
+- Source requirements accumulate through expressions, predicates, projections, joins, and subqueries; `leftJoin` also marks its source as nullable for the selected output.
 - The select projection establishes the row shape that derived sources and scalar subqueries consume.
 - Repeated conditions or ordering terms are composed explicitly with `and`, `or`, and one `orderBy` clause rather than hidden mutation.
 - `customClause` and custom fragments are public extension points; unusual syntax does not need a new global registry.

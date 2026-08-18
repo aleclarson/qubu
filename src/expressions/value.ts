@@ -1,15 +1,16 @@
 import { parameter } from '../core/primitives/parameter.ts'
 import { makeExpression, type AnyExpression, type Expression } from './types.ts'
+import type { ResultMeta } from '../core/fragment.ts'
 
 export interface ValueExpression<T = unknown>
-  extends Expression<T, never, T, 'value'> {
+  extends Expression<ResultMeta<T>, 'value'> {
   readonly value: T
 }
 
 export function value<T>(input: T): ValueExpression<T> {
-  const expression = makeExpression<T, never, T, 'value'>('value', context => {
+  const expression = makeExpression<ResultMeta<T>, 'value'>('value', context =>
     context.render(parameter(input))
-  })
+  )
   return Object.freeze({ ...expression, value: input })
 }
 
@@ -35,8 +36,9 @@ export function isValueExpression(
   )
 }
 
-export function asValue<T>(
-  input: T | Expression<T, any, any>
-): Expression<T, any, any> {
+export function asValue<TInput>(
+  input: TInput
+): TInput extends AnyExpression ? TInput : ValueExpression<TInput>
+export function asValue(input: unknown): AnyExpression {
   return isExpressionValue(input) ? input : value(input)
 }

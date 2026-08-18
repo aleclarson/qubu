@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest'
+import { expect, expectTypeOf, test } from 'vitest'
 import {
   aliasExpression,
   createDialect,
@@ -13,15 +13,31 @@ import {
   postgresDialect,
   render,
   select,
+  sequence,
   sqliteDialect,
+  syntax,
   table,
   text,
   unsafeExpression,
   where,
 } from '../src/index.ts'
-import type { SourceIdentity } from '../src/index.ts'
+import type {
+  RequiresOf,
+  RequiresSourceMeta,
+  ResultMeta,
+  SourceIdentity,
+} from '../src/index.ts'
 
 const users = table('users', { name: text() })
+
+test('preserves source metadata through sequence without call-site assertions', () => {
+  const composed = sequence([users.name, syntax('COLLATE "C"')], ' ')
+
+  expectTypeOf<RequiresOf<typeof composed>>().toEqualTypeOf<
+    SourceIdentity<typeof users>
+  >()
+  expect(render(composed).text).toBe('"users"."name" COLLATE "C"')
+})
 
 test('accepts a dialect without changing query construction', () => {
   const dialect = createDialect({
@@ -44,7 +60,7 @@ test('accepts a dialect without changing query construction', () => {
 })
 
 test('composes custom fragments and clauses', () => {
-  const customExpression = makeExpression<number, never, never, 'function'>(
+  const customExpression = makeExpression<ResultMeta<number>, 'function'>(
     'function',
     context => context.append('42')
   )
@@ -96,16 +112,18 @@ test('renders dialect-specific pagination and expressions at the boundary', () =
 })
 
 test('keeps custom clauses typed, placed, parameterized, and source-aware', () => {
-  const custom = customClause<SourceIdentity<typeof users>, string>({
-    name: 'as-of',
-    placement: 'before-select',
-    order: 5,
-    render(context) {
-      context.append('/* AS OF ')
-      context.parameter("O'Reilly")
-      context.append(' */')
-    },
-  })
+  const custom = customClause<RequiresSourceMeta<SourceIdentity<typeof users>>>(
+    {
+      name: 'as-of',
+      placement: 'before-select',
+      order: 5,
+      render(context) {
+        context.append('/* AS OF ')
+        context.parameter("O'Reilly")
+        context.append(' */')
+      },
+    }
+  )
   const dialect = createDialect({
     name: 'named',
     placeholder: position => `:p${position}`,
@@ -123,7 +141,9 @@ test('keeps custom clauses typed, placed, parameterized, and source-aware', () =
   })
 
   const posts = table('posts', { name: text() })
-  const missingSource = customClause<SourceIdentity<typeof users>>({
+  const missingSource = customClause<
+    RequiresSourceMeta<SourceIdentity<typeof users>>
+  >({
     name: 'requires-users',
     order: 5,
     render: context => context.append('/* users */'),

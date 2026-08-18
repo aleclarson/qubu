@@ -96,8 +96,8 @@ const allUsers = unionAll(first, second)
 ```
 
 Use `union`, `unionAll`, `intersect`, or `except` depending on the SQL
-operation. Parameters from both inputs remain part of the composed query and
-are rendered in traversal order.
+operation. Each input renderer still contributes its runtime parameters, which
+are collected in traversal order.
 
 ## Prefer values over a builder chain
 

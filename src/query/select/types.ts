@@ -1,15 +1,13 @@
-import type { ParametersOf, RequiresOf } from '../../core/fragment.ts'
+import type { NullableSourcesOf, RequiresOf } from '../../core/fragment.ts'
 import type { Source, SourceIdentity } from '../../schema/source.ts'
 import type { JoinClause } from '../clauses/joins.ts'
 import type { AnySelectClause } from '../clauses/types.ts'
 import type { FromClause } from '../clauses/from.ts'
-import type { SelectionParameters, SelectionRequires } from '../selection.ts'
+import type { SelectionRequires } from '../selection.ts'
 import type { Query } from '../types.ts'
 
-export interface SelectQuery<
-  TRow extends object = Record<string, unknown>,
-  TParameters = never,
-> extends Query<TRow, TParameters> {
+export interface SelectQuery<TRow extends object = Record<string, unknown>>
+  extends Query<TRow> {
   readonly queryKind: 'select'
 }
 
@@ -18,12 +16,15 @@ export type ClauseScope<TClause> =
     ? TSources[number] extends Source<any, any>
       ? SourceIdentity<TSources[number]>
       : never
-    : TClause extends JoinClause<infer TSource, any, any>
+    : TClause extends JoinClause<infer TSource, any>
       ? SourceIdentity<TSource>
       : never
 
 export type AvailableScope<TClauses extends readonly AnySelectClause[]> =
   ClauseScope<TClauses[number]>
+
+export type NullableSources<TClauses extends readonly AnySelectClause[]> =
+  NullableSourcesOf<TClauses[number]>
 
 export type RequiredScope<
   TSelection,
@@ -43,18 +44,3 @@ export type ScopeValidation<
   : {
       readonly __missing_sources__: MissingScope<TSelection, TClauses>
     }
-
-export type SelectParameters<
-  TSelection,
-  TClauses extends readonly AnySelectClause[],
-> = SelectionParameters<TSelection> | ParametersOf<TClauses[number]>
-
-/**
- * Compile-time parameter metadata for a SELECT query.
- *
- * This is deliberately a union of the value types accepted by the composed
- * fragments. Rendering is the source of truth for parameter order; an
- * ordered tuple cannot be recovered from the intentionally small fragment
- * renderer without introducing an AST or a second type-level sequence.
- */
-export type QueryParameters<TQuery> = ParametersOf<TQuery>

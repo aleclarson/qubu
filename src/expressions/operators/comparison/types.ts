@@ -1,7 +1,7 @@
 import type { Expression, ExpressionKind } from '../../types.ts'
+import type { ResultMeta } from '../../../core/fragment.ts'
 
 export type BooleanExpression<
-  TRequires = never,
-  TParameters = never,
+  TMetadata = never,
   TKind extends ExpressionKind = 'operator' | 'subquery',
-> = Expression<boolean, TRequires, TParameters, TKind>
+> = Expression<ResultMeta<boolean, unknown> | TMetadata, TKind>

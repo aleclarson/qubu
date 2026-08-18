@@ -99,9 +99,8 @@ export function table<
     Object.keys(definitions).map(columnName => [
       columnName,
       createColumnReference(columnName, source.reference) as ColumnReference<
-        unknown,
         string,
-        TIdentity
+        any
       >,
     ])
   ) as TableColumns<TDefinitions, TIdentity>

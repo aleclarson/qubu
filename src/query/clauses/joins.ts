@@ -1,30 +1,39 @@
 import type { AnySource } from '../../schema/source.ts'
+import type { SourceIdentity } from '../../schema/source.ts'
 import type { BooleanExpression } from '../../expressions/operators/comparison.ts'
+import {
+  type InheritedMetadata,
+  type NullableSourceMeta,
+} from '../../core/fragment.ts'
 import { createClause, type SelectClause } from './types.ts'
 
 export type JoinType = 'INNER' | 'LEFT' | 'RIGHT' | 'FULL' | 'CROSS' | 'NATURAL'
 
 export interface JoinClause<
   TSource extends AnySource = AnySource,
-  TRequires = never,
-  TParameters = never,
-> extends SelectClause<TRequires, TParameters> {
+  TMetadata = never,
+> extends SelectClause<TMetadata> {
   readonly clauseKind: 'join'
   readonly joinType: JoinType
   readonly source: TSource
-  readonly condition?: BooleanExpression<TRequires, TParameters>
+  readonly condition?: BooleanExpression<any>
 }
 
 function join<
   const TJoinType extends JoinType,
   TSource extends AnySource,
-  TRequires,
-  TParameters,
+  TCondition extends BooleanExpression<any> | undefined,
 >(
   joinType: TJoinType,
   source: TSource,
-  condition?: BooleanExpression<TRequires, TParameters>
-): JoinClause<TSource, TRequires, TParameters> {
+  condition?: TCondition
+): JoinClause<
+  TSource,
+  | InheritedMetadata<TCondition>
+  | (TJoinType extends 'LEFT'
+      ? NullableSourceMeta<SourceIdentity<TSource>>
+      : never)
+> {
   return Object.assign(
     createClause('join', 'after-select', 40, context => {
       context.append(`${joinType} JOIN `)
@@ -40,45 +49,51 @@ function join<
       source,
       condition,
     }
-  ) as JoinClause<TSource, TRequires, TParameters>
+  ) as JoinClause<
+    TSource,
+    | InheritedMetadata<TCondition>
+    | (TJoinType extends 'LEFT'
+        ? NullableSourceMeta<SourceIdentity<TSource>>
+        : never)
+  >
 }
 
-export function innerJoin<TSource extends AnySource, TRequires, TParameters>(
-  source: TSource,
-  condition: BooleanExpression<TRequires, TParameters>
-) {
+export function innerJoin<
+  TSource extends AnySource,
+  TCondition extends BooleanExpression<any>,
+>(source: TSource, condition: TCondition) {
   return join('INNER', source, condition)
 }
 
-export function leftJoin<TSource extends AnySource, TRequires, TParameters>(
-  source: TSource,
-  condition: BooleanExpression<TRequires, TParameters>
-) {
+export function leftJoin<
+  TSource extends AnySource,
+  TCondition extends BooleanExpression<any>,
+>(source: TSource, condition: TCondition) {
   return join('LEFT', source, condition)
 }
 
-export function rightJoin<TSource extends AnySource, TRequires, TParameters>(
-  source: TSource,
-  condition: BooleanExpression<TRequires, TParameters>
-) {
+export function rightJoin<
+  TSource extends AnySource,
+  TCondition extends BooleanExpression<any>,
+>(source: TSource, condition: TCondition) {
   return join('RIGHT', source, condition)
 }
 
-export function fullJoin<TSource extends AnySource, TRequires, TParameters>(
-  source: TSource,
-  condition: BooleanExpression<TRequires, TParameters>
-) {
+export function fullJoin<
+  TSource extends AnySource,
+  TCondition extends BooleanExpression<any>,
+>(source: TSource, condition: TCondition) {
   return join('FULL', source, condition)
 }
 
 export function crossJoin<TSource extends AnySource>(
   source: TSource
-): JoinClause<TSource, never, never> {
-  return join<'CROSS', TSource, never, never>('CROSS', source)
+): JoinClause<TSource, never> {
+  return join<'CROSS', TSource, undefined>('CROSS', source)
 }
 
 export function naturalJoin<TSource extends AnySource>(
   source: TSource
-): JoinClause<TSource, never, never> {
-  return join<'NATURAL', TSource, never, never>('NATURAL', source)
+): JoinClause<TSource, never> {
+  return join<'NATURAL', TSource, undefined>('NATURAL', source)
 }

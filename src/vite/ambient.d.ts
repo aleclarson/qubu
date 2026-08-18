@@ -157,37 +157,32 @@ declare global {
     TGenerated
   >
   type ColumnReference<
-    TOutput = unknown,
     TName extends string = string,
-    TSource = unknown,
-  > = import('qubu').ColumnReference<TOutput, TName, TSource>
+    TMetadata = never,
+  > = import('qubu').ColumnReference<TName, TMetadata>
   type Dialect = import('qubu').Dialect
   type Expression<
-    TOutput = unknown,
-    TRequires = any,
-    TParameters = any,
+    TMetadata = any,
     TKind extends import('qubu').ExpressionKind = import('qubu').ExpressionKind,
-  > = import('qubu').Expression<TOutput, TRequires, TParameters, TKind>
-  type Fragment<
-    TOutput = unknown,
-    TRequires = any,
-    TParameters = any,
-  > = import('qubu').Fragment<TOutput, TRequires, TParameters>
+  > = import('qubu').Expression<TMetadata, TKind>
+  type Fragment<TMetadata = any> = import('qubu').Fragment<TMetadata>
+  type FragmentMeta = import('qubu').FragmentMeta
+  type ResultMeta<TOutput, TNullableFrom = never> = import('qubu').ResultMeta<
+    TOutput,
+    TNullableFrom
+  >
+  type RequiresSourceMeta<TSource> = import('qubu').RequiresSourceMeta<TSource>
+  type NullableSourceMeta<TSource> = import('qubu').NullableSourceMeta<TSource>
   type QueryAdapter = import('qubu').QueryAdapter
   type RenderedQuery = import('qubu').RenderedQuery
   type MutationQuery<
     TRow extends object = Record<string, unknown>,
-    TParameters = never,
     TKind extends import('qubu').MutationKind = import('qubu').MutationKind,
-  > = import('qubu').MutationQuery<TRow, TParameters, TKind>
-  type Query<
-    TRow extends object = import('qubu').Row,
-    TParameters = never,
-  > = import('qubu').Query<TRow, TParameters>
-  type SelectQuery<
-    TRow extends object = Record<string, unknown>,
-    TParameters = never,
-  > = import('qubu').SelectQuery<TRow, TParameters>
+  > = import('qubu').MutationQuery<TRow, TKind>
+  type Query<TRow extends object = import('qubu').Row> =
+    import('qubu').Query<TRow>
+  type SelectQuery<TRow extends object = Record<string, unknown>> =
+    import('qubu').SelectQuery<TRow>
   type Source<
     TIdentity = unknown,
     TRow extends object = Record<string, unknown>,

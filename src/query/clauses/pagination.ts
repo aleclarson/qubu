@@ -2,7 +2,7 @@ import type { RenderContext } from '../../core/fragment.ts'
 import type { PaginationPart } from '../../core/dialect.ts'
 import { createClause, type SelectClause } from './types.ts'
 
-export interface OffsetClause extends SelectClause<never, number> {
+export interface OffsetClause extends SelectClause<never> {
   readonly clauseKind: 'offset'
   readonly rows: number
 }
@@ -54,7 +54,7 @@ export function offset(rows: number): OffsetClause {
   )
 }
 
-export interface FetchClause extends SelectClause<never, number> {
+export interface FetchClause extends SelectClause<never> {
   readonly clauseKind: 'fetch'
   readonly direction: 'FIRST' | 'NEXT'
   readonly rows: number

@@ -1,4 +1,8 @@
-import type { Fragment, ParametersOf, RequiresOf } from '../../core/fragment.ts'
+import type {
+  Fragment,
+  RenderFunction,
+  RequiresOf,
+} from '../../core/fragment.ts'
 import type { Query } from '../types.ts'
 import type { SourceIdentity } from '../../schema/source.ts'
 import type { WhereClause } from '../clauses/where.ts'
@@ -8,31 +12,26 @@ export type MutationKind = 'insert' | 'update' | 'delete'
 
 export interface MutationQuery<
   TRow extends object = Record<string, unknown>,
-  TParameters = never,
   TKind extends MutationKind = MutationKind,
-> extends Query<TRow, TParameters> {
+> extends Query<TRow> {
   readonly queryKind: TKind
 }
 
-export type AnyMutationQuery = MutationQuery<any, any, any>
+export type AnyMutationQuery = MutationQuery<any, any>
 
-export function createMutation<
-  TKind extends MutationKind,
-  TRow extends object,
-  TParameters = never,
->(
+export function createMutation<TKind extends MutationKind, TRow extends object>(
   queryKind: TKind,
   row: TRow,
-  render: Fragment['render']
-): MutationQuery<TRow, TParameters, TKind> {
+  render: RenderFunction
+): MutationQuery<TRow, TKind> {
   return {
     queryKind,
     row,
     render,
-  } as MutationQuery<TRow, TParameters, TKind>
+  } as MutationQuery<TRow, TKind>
 }
 
-export interface AllowAllClause extends Fragment<never, never, never> {
+export interface AllowAllClause extends Fragment<never> {
   readonly clauseKind: 'allow-all'
 }
 
@@ -46,7 +45,7 @@ export function allowAll(): AllowAllClause {
 export const allowUnrestricted = allowAll
 export const unsafeMutation = allowAll
 
-export type MutationConditionClause = WhereClause<any, any>
+export type MutationConditionClause = WhereClause<any>
 export type MutationClause =
   | MutationConditionClause
   | AllowAllClause
@@ -104,9 +103,6 @@ export type MutationReturning<TClauses extends readonly unknown[]> = Extract<
 export type MutationRow<TClauses extends readonly unknown[]> = ReturningRow<
   MutationReturning<TClauses>
 >
-
-export type MutationParameters<TClauses extends readonly unknown[]> =
-  ParametersOf<TClauses[number]>
 
 export type MutationScopeValidation<
   TSource,

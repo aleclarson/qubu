@@ -39,20 +39,29 @@ const query = select(
 )
 
 // inferred row: { id: number; displayName: string }
-// inferred SQL parameters: [42, 20]
+// rendered parameters: [42, 20]
 ```
 
 **The feeling:** “I wrote a query, not a type-level program.”
 
-### Compile-time parameter metadata
+### Metadata follows reusable composition
 
-The type of a composed query records the union of value types that its
-fragments accept. This is intentionally value-type metadata rather than an
-ordered tuple: rendering is responsible for the ordered runtime
-`parameters` array, while the fragment model remains a small renderer instead
-of growing a parallel type-level AST. The contract survives expressions,
-clauses, CTEs, set operations, and custom fragments through
-`ParametersOf<typeof query>` or `QueryParameters<typeof query>`.
+The metadata type is one union of tagged facts rather than a fixed trio of
+generic parameters. A helper can preserve only the facts that matter to its
+children; for example, `sequence()` retains source requirements without
+pretending that its arbitrary SQL text has a new result type:
+
+```ts
+import { sequence, syntax } from 'qubu'
+import type { RequiresOf } from 'qubu'
+
+const reusable = sequence([users.name, syntax('COLLATE "C"')], ' ')
+// RequiresOf<typeof reusable> is the identity of `users`
+```
+
+The `const` type parameter preserves the tuple at the call site, so no `as
+const` assertion is needed. Runtime parameter values are still collected in
+placeholder order by `render()`.
 
 ## 2. Invalid scope fails at the point of composition
 
@@ -153,7 +162,7 @@ postgresSql.text // ... WHERE ("users"."id" = $1)
 A custom clause can participate in the same composition model as built-ins.
 
 ```ts
-const fetchWithTies = customClause<never, number>({
+const fetchWithTies = customClause({
   name: 'fetch-with-ties',
   order: 100,
   render(context) {
@@ -193,10 +202,10 @@ The developer gets readable code, stable placeholder ordering, and no string int
 
 ## 8. The runtime core stays small enough to understand
 
-Every fragment is a renderer with semantic type metadata:
+Every fragment is a renderer with tagged semantic metadata:
 
 ```ts
-type Fragment<Output, RequiredSources, Parameters> = {
+type Fragment<Metadata> = {
   render(context: RenderContext): void
 }
 ```

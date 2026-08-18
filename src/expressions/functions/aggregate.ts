@@ -1,17 +1,16 @@
 import {
   makeExpression,
   type AnyExpression,
-  type Expression,
+  type ExpressionWithOutput,
+  type ResultExpression,
 } from '../types.ts'
 import { call } from './call.ts'
-import {
-  type OperandParameters,
-  type OperandRequires,
-} from '../operators/shared.ts'
 
+export function count(): ResultExpression<number, never, 'function', never>
 export function count<TExpression extends AnyExpression>(
-  expression?: TExpression
-) {
+  expression: TExpression
+): ResultExpression<number, TExpression, 'function', never>
+export function count(expression?: AnyExpression) {
   return makeExpression('function', context => {
     context.append('COUNT(')
     if (expression) {
@@ -20,12 +19,7 @@ export function count<TExpression extends AnyExpression>(
       context.append('*')
     }
     context.append(')')
-  }) as Expression<
-    number,
-    TExpression extends AnyExpression ? OperandRequires<TExpression> : never,
-    TExpression extends AnyExpression ? OperandParameters<TExpression> : never,
-    'function'
-  >
+  }) as ResultExpression<number, AnyExpression, 'function', never>
 }
 
 export function countDistinct<TExpression extends AnyExpression>(
@@ -35,43 +29,35 @@ export function countDistinct<TExpression extends AnyExpression>(
     context.append('COUNT(DISTINCT ')
     context.render(expression)
     context.append(')')
-  }) as Expression<
-    number,
-    OperandRequires<TExpression>,
-    OperandParameters<TExpression>,
-    'function'
-  >
+  }) as ResultExpression<number, TExpression, 'function', never>
 }
 
-export function sum<T, TReq, TParams>(
-  expression: Expression<T, TReq, TParams, any>
+export function sum<T, TExpression extends ExpressionWithOutput<T>>(
+  expression: TExpression
 ) {
-  return call<T, 'SUM', [Expression<T, TReq, TParams, any>]>('SUM', expression)
+  return call<T, 'SUM', [TExpression]>('SUM', expression)
 }
 
-export function average<T, TReq, TParams>(
-  expression: Expression<T, TReq, TParams, any>
+export function average<T, TExpression extends ExpressionWithOutput<T>>(
+  expression: TExpression
 ) {
-  return call<number, 'AVG', [Expression<T, TReq, TParams, any>]>(
-    'AVG',
-    expression
-  )
+  return call<number, 'AVG', [TExpression]>('AVG', expression)
 }
 
 export const avg = average
 
-export function minimum<T, TReq, TParams>(
-  expression: Expression<T, TReq, TParams, any>
+export function minimum<T, TExpression extends ExpressionWithOutput<T>>(
+  expression: TExpression
 ) {
-  return call<T, 'MIN', [Expression<T, TReq, TParams, any>]>('MIN', expression)
+  return call<T, 'MIN', [TExpression]>('MIN', expression)
 }
 
 export const min = minimum
 
-export function maximum<T, TReq, TParams>(
-  expression: Expression<T, TReq, TParams, any>
+export function maximum<T, TExpression extends ExpressionWithOutput<T>>(
+  expression: TExpression
 ) {
-  return call<T, 'MAX', [Expression<T, TReq, TParams, any>]>('MAX', expression)
+  return call<T, 'MAX', [TExpression]>('MAX', expression)
 }
 
 export const max = maximum

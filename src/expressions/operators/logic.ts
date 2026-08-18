@@ -1,10 +1,6 @@
-import { makeExpression } from '../types.ts'
+import { makeExpression, type ResultExpression } from '../types.ts'
 import type { BooleanExpression } from './comparison.ts'
-import {
-  renderOperands,
-  type ParametersOfOperands,
-  type RequirementsOf,
-} from './shared.ts'
+import { renderOperands } from './shared.ts'
 
 export function and<const TConditions extends readonly BooleanExpression[]>(
   ...conditions: TConditions
@@ -17,10 +13,7 @@ export function and<const TConditions extends readonly BooleanExpression[]>(
     context.append('(')
     renderOperands(context, conditions, ' AND ')
     context.append(')')
-  }) as BooleanExpression<
-    RequirementsOf<TConditions>,
-    ParametersOfOperands<TConditions>
-  >
+  }) as ResultExpression<boolean, TConditions[number], 'operator'>
 }
 
 export function or<const TConditions extends readonly BooleanExpression[]>(
@@ -34,18 +27,15 @@ export function or<const TConditions extends readonly BooleanExpression[]>(
     context.append('(')
     renderOperands(context, conditions, ' OR ')
     context.append(')')
-  }) as BooleanExpression<
-    RequirementsOf<TConditions>,
-    ParametersOfOperands<TConditions>
-  >
+  }) as ResultExpression<boolean, TConditions[number], 'operator'>
 }
 
-export function not<TRequires, TParameters>(
-  condition: BooleanExpression<TRequires, TParameters>
+export function not<TCondition extends BooleanExpression<any>>(
+  condition: TCondition
 ) {
   return makeExpression('operator', context => {
     context.append('(NOT ')
     context.render(condition)
     context.append(')')
-  }) as BooleanExpression<TRequires, TParameters>
+  }) as ResultExpression<boolean, TCondition, 'operator'>
 }

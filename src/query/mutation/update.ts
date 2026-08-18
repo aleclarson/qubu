@@ -1,16 +1,14 @@
 import { identifier } from '../../core/primitives/identifier.ts'
 import {
   isExpression,
-  type AnyExpression,
-  type Expression,
+  type ExpressionWithOutput,
 } from '../../expressions/types.ts'
-import type { ParametersOf, RequiresOf } from '../../core/fragment.ts'
+import type { RenderContext, RequiresOf } from '../../core/fragment.ts'
 import type { SourceIdentity } from '../../schema/source.ts'
 import type { AnyTable, TableUpdateInput } from '../../schema/table.ts'
 import {
   createMutation,
   type MutationClause,
-  type MutationParameters,
   type MutationQuery,
   type MutationReturningClause,
   type MutationRow,
@@ -19,7 +17,7 @@ import {
   validateMutationClauses,
 } from './types.ts'
 
-export type UpdateAssignmentValue<T> = T | Expression<T, any, any, any>
+export type UpdateAssignmentValue<T> = T | ExpressionWithOutput<T>
 
 export type UpdateAssignments<TTable extends AnyTable> = {
   -readonly [K in keyof TableUpdateInput<
@@ -38,14 +36,6 @@ type InvalidUpdateAssignments<TTable extends AnyTable, TAssignments> =
           >
         }
     : { readonly __invalid_update_assignments__: TAssignments }
-
-type AssignmentParameters<TAssignments> = TAssignments extends object
-  ? TAssignments[keyof TAssignments] extends infer TValue
-    ? TValue extends AnyExpression
-      ? ParametersOf<TValue>
-      : TValue
-    : never
-  : never
 
 type AssignmentScopeValidation<TTable extends AnyTable, TAssignments> = [
   Exclude<
@@ -77,11 +67,7 @@ export function update<
   ...clauses: TClauses &
     MutationScopeValidation<TTable, TClauses> &
     MutationSafetyValidation<TClauses>
-): MutationQuery<
-  MutationRow<TClauses>,
-  AssignmentParameters<TAssignments> | MutationParameters<TClauses>,
-  'update'
-> {
+): MutationQuery<MutationRow<TClauses>, 'update'> {
   const normalizedClauses = clauses as readonly MutationClause[]
   validateMutationClauses('UPDATE', normalizedClauses)
   validateUpdate(table, assignments)
@@ -116,17 +102,10 @@ export function update<
     }
   })
 
-  return query as unknown as MutationQuery<
-    MutationRow<TClauses>,
-    AssignmentParameters<TAssignments> | MutationParameters<TClauses>,
-    'update'
-  >
+  return query as unknown as MutationQuery<MutationRow<TClauses>, 'update'>
 }
 
-function renderAssignmentValue(
-  context: Parameters<AnyExpression['render']>[0],
-  value: unknown
-) {
+function renderAssignmentValue(context: RenderContext, value: unknown) {
   if (isExpression(value)) context.render(value)
   else context.parameter(value)
 }

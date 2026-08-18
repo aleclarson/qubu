@@ -1,6 +1,6 @@
 import { createClause, type SelectClause } from './types.ts'
 
-export interface DistinctClause extends SelectClause<never, never> {
+export interface DistinctClause extends SelectClause<never> {
   readonly clauseKind: 'distinct'
 }
 

@@ -12,7 +12,8 @@
   parameters, sequences, and dialects rather than a mutable all-purpose query
   singleton.
 - **Useful type information:** A fragment carries the semantic facts downstream
-  composition needs: output shape, source requirements, and parameter types.
+  composition needs: output shape, source requirements, and outer-join
+  nullability.
 - **Explicit extension:** Standard SQL belongs in the core. Dialect differences
   and uncommon syntax belong in separate modules or custom primitives.
 - **Safe defaults:** Values are parameters and identifiers are quoted. Raw
@@ -23,12 +24,14 @@
 Everything that can be composed is a fragment:
 
 ```ts
-Fragment<Output, RequiredSources, Parameters>
+Fragment<Metadata>
 ```
 
-The renderer stays small while metadata accumulates through composition. A
-`FROM` clause contributes sources, a projection determines the row shape, and
-expressions retain the sources and parameter types they require.
+The renderer stays small while tagged metadata accumulates through composition.
+A `FROM` clause contributes sources, a projection determines the row shape,
+expressions retain the sources they require, and `leftJoin()` carries
+nullability into selected fields. Runtime parameter collection remains in the
+renderer.
 
 The core layers are:
 

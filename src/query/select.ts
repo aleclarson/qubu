@@ -7,8 +7,8 @@ import {
   type AnyPaginationClause,
 } from './clauses/pagination.ts'
 import type {
+  NullableSources,
   ScopeValidation,
-  SelectParameters,
   SelectQuery,
 } from './select/types.ts'
 import { type Selection, type SelectionOutput } from './selection.ts'
@@ -17,10 +17,8 @@ export type {
   AvailableScope,
   ClauseScope,
   MissingScope,
-  QueryParameters,
   RequiredScope,
   ScopeValidation,
-  SelectParameters,
   SelectQuery,
 } from './select/types.ts'
 
@@ -30,10 +28,7 @@ export function select<
 >(
   selection: TSelection,
   ...clauses: TClauses & ScopeValidation<TSelection, TClauses>
-): SelectQuery<
-  SelectionOutput<TSelection>,
-  SelectParameters<TSelection, TClauses>
-> {
+): SelectQuery<SelectionOutput<TSelection, NullableSources<TClauses>>> {
   const normalizedClauses = clauses as readonly AnySelectClause[]
   validateClauses(normalizedClauses)
 
@@ -89,7 +84,6 @@ export function select<
   })
 
   return query as SelectQuery<
-    SelectionOutput<TSelection>,
-    SelectParameters<TSelection, TClauses>
+    SelectionOutput<TSelection, NullableSources<TClauses>>
   >
 }

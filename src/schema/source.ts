@@ -1,4 +1,9 @@
-import type { Fragment } from '../core/fragment.ts'
+import {
+  type Fragment,
+  type RequiresSourceMeta,
+  type RenderFunction,
+  type ResultMeta,
+} from '../core/fragment.ts'
 import type { ColumnReference } from '../expressions/column.ts'
 
 export const sourceIdentity: unique symbol = Symbol('qubu.source.identity')
@@ -7,17 +12,20 @@ export type SourceKind = 'table' | 'table-alias' | 'query-alias' | 'cte'
 
 export type SourceColumns<TRow extends object, TIdentity> = {
   readonly [K in keyof TRow]-?: K extends string
-    ? ColumnReference<TRow[K], K, TIdentity>
+    ? ColumnReference<
+        K,
+        ResultMeta<TRow[K], TIdentity> | RequiresSourceMeta<TIdentity>
+      >
     : never
 }
 
 export interface Source<
   TIdentity = unknown,
   TRow extends object = Record<string, unknown>,
-> extends Fragment<readonly TRow[], never, never> {
+> extends Fragment<ResultMeta<readonly TRow[]>> {
   readonly sourceKind: SourceKind
   readonly [sourceIdentity]: TIdentity
-  readonly reference: Fragment
+  readonly reference: Fragment<never>
   readonly columns: SourceColumns<TRow, TIdentity>
 }
 
@@ -28,8 +36,8 @@ export type SourceRow<T> = T extends Source<any, infer TRow> ? TRow : never
 
 export function createSource<TIdentity, TRow extends object>(
   sourceKind: SourceKind,
-  render: Fragment['render'],
-  reference: Fragment
+  render: RenderFunction,
+  reference: Fragment<never>
 ): Source<TIdentity, TRow> {
   return {
     sourceKind,

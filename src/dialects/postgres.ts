@@ -2,7 +2,7 @@ import { createDialect, type PaginationPart } from '../core/dialect.ts'
 import type { RenderContext } from '../core/fragment.ts'
 import { comparison } from '../expressions/operators/comparison/relational.ts'
 import type { Operand } from '../expressions/operators/shared.ts'
-import type { Expression } from '../expressions/types.ts'
+import type { ExpressionWithOutput } from '../expressions/types.ts'
 
 const postgresPagination = {
   render(context: RenderContext, parts: readonly PaginationPart[]) {
@@ -33,9 +33,9 @@ export function postgresDialect() {
 }
 
 /** PostgreSQL's case-insensitive pattern-match operator. */
-export function ilike<TRequires, TParameters, R extends Operand<string>>(
-  left: Expression<string, TRequires, TParameters, any>,
-  pattern: R
-) {
+export function ilike<
+  TLeft extends ExpressionWithOutput<string>,
+  R extends Operand<string>,
+>(left: TLeft, pattern: R) {
   return comparison('ILIKE', left, pattern)
 }

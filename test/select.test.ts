@@ -17,6 +17,7 @@ import {
   integer,
   isDistinctFrom,
   isNotNull,
+  leftJoin,
   lt,
   ne,
   notIn,
@@ -27,6 +28,7 @@ import {
   select,
   table,
   text,
+  upper,
   value,
   where,
 } from '../src/index.ts'
@@ -151,6 +153,49 @@ test('preserves selected row types', () => {
     id: number
     email: string | null
   }>()
+})
+
+test('marks left-joined results nullable without changing inner joins', () => {
+  const leftJoined = select(
+    {
+      userName: users.name,
+      postTitle: posts.title,
+      postTitleUpper: upper(posts.title),
+      postCount: aliasExpression(count(posts.id), 'postCount'),
+    },
+    from(users),
+    leftJoin(posts, eq(users.id, posts.authorId))
+  )
+  const innerJoined = select(
+    { title: posts.title },
+    from(users),
+    innerJoin(posts, eq(users.id, posts.authorId))
+  )
+  const wildcard = select(
+    all(posts),
+    from(users),
+    leftJoin(posts, eq(users.id, posts.authorId))
+  )
+
+  expectTypeOf(leftJoined.row).toEqualTypeOf<{
+    userName: string
+    postTitle: string | null
+    postTitleUpper: string | null
+    postCount: number
+  }>()
+  expectTypeOf(innerJoined.row).toEqualTypeOf<{ title: string }>()
+  expectTypeOf(wildcard.row).toEqualTypeOf<{
+    id: number | null
+    authorId: number | null
+    title: string | null
+  }>()
+})
+
+test('keeps count without a source scope-free', () => {
+  const query = select({ total: count() })
+
+  expect(render(query).text).toBe('SELECT COUNT(*) AS "total"')
+  expectTypeOf(query.row).toEqualTypeOf<{ total: number }>()
 })
 
 test('renders empty collection predicates with portable boolean semantics', () => {

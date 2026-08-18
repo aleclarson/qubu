@@ -1,30 +1,24 @@
 import { call } from './call.ts'
 import type { Operand } from '../operators/shared.ts'
-import type { Expression } from '../types.ts'
+import type { ExpressionWithOutput } from '../types.ts'
 
-export function lower<TReq, TParams>(
-  expression: Expression<string, TReq, TParams, any>
+export function lower<TExpression extends ExpressionWithOutput<string>>(
+  expression: TExpression
 ) {
-  return call<string, 'LOWER', [Expression<string, TReq, TParams, any>]>(
-    'LOWER',
-    expression
-  )
+  return call<string, 'LOWER', [TExpression]>('LOWER', expression)
 }
 
-export function upper<TReq, TParams>(
-  expression: Expression<string, TReq, TParams, any>
+export function upper<TExpression extends ExpressionWithOutput<string>>(
+  expression: TExpression
 ) {
-  return call<string, 'UPPER', [Expression<string, TReq, TParams, any>]>(
-    'UPPER',
-    expression
-  )
+  return call<string, 'UPPER', [TExpression]>('UPPER', expression)
 }
 
 export function coalesce<
   T,
-  const TExpressions extends readonly Expression<T, any, any, any>[],
+  const TExpressions extends readonly ExpressionWithOutput<T>[],
 >(...expressions: TExpressions) {
-  return call<T, 'COALESCE', TExpressions>('COALESCE', ...expressions)
+  return call<T, 'COALESCE', TExpressions, never>('COALESCE', ...expressions)
 }
 
 export function concat<const TArguments extends readonly Operand<string>[]>(

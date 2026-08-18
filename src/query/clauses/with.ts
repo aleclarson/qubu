@@ -23,17 +23,17 @@ export type CteSource<TName extends string, TRow extends object> = Source<
   TRow
 > & {
   readonly cteName: TName
-  readonly query: Query<TRow, any>
+  readonly query: Query<TRow>
   readonly columns: SourceColumns<TRow, CteIdentity<TName>>
 } & SourceColumns<TRow, CteIdentity<TName>>
 
 export type AnyCteSource = Source<any, any> & {
   readonly cteName: string
-  readonly query: Query<any, any>
+  readonly query: Query<any>
   readonly columns: Record<string, unknown>
 }
 
-export function cte<const TName extends string, TQuery extends Query<any, any>>(
+export function cte<const TName extends string, TQuery extends Query<any>>(
   name: TName,
   query: TQuery
 ): CteSource<TName, QueryRow<TQuery>> {
@@ -49,9 +49,8 @@ export function cte<const TName extends string, TQuery extends Query<any, any>>(
     Object.keys(query.row).map(columnName => [
       columnName,
       createColumnReference(columnName, reference) as ColumnReference<
-        unknown,
         string,
-        TIdentity
+        any
       >,
     ])
   ) as SourceColumns<TRow, TIdentity>
@@ -66,19 +65,14 @@ export function cte<const TName extends string, TQuery extends Query<any, any>>(
   return source as CteSource<TName, TRow>
 }
 
-export interface WithClause<TParameters = never>
-  extends SelectClause<never, TParameters> {
+export interface WithClause extends SelectClause<never> {
   readonly clauseKind: 'with'
   readonly ctes: readonly AnyCteSource[]
 }
 
 export function withCte<const TCtes extends readonly AnyCteSource[]>(
   ...ctes: TCtes
-): WithClause<
-  TCtes[number]['query'] extends Query<any, infer TParameters>
-    ? TParameters
-    : never
-> {
+): WithClause {
   return Object.assign(
     createClause('with', 'before-select', 10, context => {
       context.append('WITH ')
@@ -90,7 +84,7 @@ export function withCte<const TCtes extends readonly AnyCteSource[]>(
       })
     }),
     { clauseKind: 'with' as const, ctes }
-  ) as WithClause<any>
+  ) as WithClause
 }
 
 export const withQueries = withCte

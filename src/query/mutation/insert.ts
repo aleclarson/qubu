@@ -1,6 +1,7 @@
 import { identifier } from '../../core/primitives/identifier.ts'
-import { isExpression, type AnyExpression } from '../../expressions/types.ts'
-import type { Query, QueryRow } from '../types.ts'
+import { isExpression } from '../../expressions/types.ts'
+import type { RenderContext } from '../../core/fragment.ts'
+import type { Query } from '../types.ts'
 import type {
   ColumnHasDefault,
   ColumnIsGenerated,
@@ -8,7 +9,6 @@ import type {
 import type { AnyTable, TableInsertInput } from '../../schema/table.ts'
 import {
   createMutation,
-  type MutationParameters,
   type MutationQuery,
   type MutationReturningClause,
   type MutationRow,
@@ -37,7 +37,7 @@ export function defaultValues(): DefaultValuesSource {
 }
 
 export interface InsertSelectSource<
-  TQuery extends Query<any, any> = Query<any, any>,
+  TQuery extends Query<any> = Query<any>,
   TColumns extends readonly string[] = readonly string[],
 > {
   readonly insertKind: 'select'
@@ -46,7 +46,7 @@ export interface InsertSelectSource<
 }
 
 export function insertSelect<
-  TQuery extends Query<any, any>,
+  TQuery extends Query<any>,
   const TColumns extends readonly [string, ...string[]],
 >(query: TQuery, columns: TColumns): InsertSelectSource<TQuery, TColumns> {
   return Object.freeze({
@@ -124,20 +124,6 @@ type ValidInsertSource<TTable extends AnyTable, TSource extends InsertSource> =
             }
         : never
 
-type SourceParameters<TSource extends InsertSource> =
-  TSource extends ValuesSource<infer TRows>
-    ? TRows[number][keyof TRows[number]]
-    : TSource extends InsertSelectSource<infer TQuery, any>
-      ? QueryRow<TQuery> extends never
-        ? never
-        : import('../../core/fragment.ts').ParametersOf<TQuery>
-      : never
-
-type InsertParameters<
-  TSource extends InsertSource,
-  TClauses extends readonly unknown[],
-> = SourceParameters<TSource> | MutationParameters<TClauses>
-
 export function insertInto<
   const TTable extends AnyTable,
   const TSource extends InsertSource,
@@ -146,11 +132,7 @@ export function insertInto<
   table: TTable,
   source: TSource & ValidInsertSource<TTable, TSource>,
   ...clauses: TClauses & MutationScopeValidation<TTable, TClauses>
-): MutationQuery<
-  MutationRow<TClauses>,
-  InsertParameters<TSource, TClauses>,
-  'insert'
-> {
+): MutationQuery<MutationRow<TClauses>, 'insert'> {
   validateInsert(table, source)
 
   const returningClauses = clauses as readonly MutationReturningClause[]
@@ -193,15 +175,11 @@ export function insertInto<
     }
   })
 
-  return query as MutationQuery<
-    MutationRow<TClauses>,
-    InsertParameters<TSource, TClauses>,
-    'insert'
-  >
+  return query as MutationQuery<MutationRow<TClauses>, 'insert'>
 }
 
 function renderTargetColumns(
-  context: Parameters<AnyExpression['render']>[0],
+  context: RenderContext,
   columns: readonly string[]
 ) {
   context.append(' (')
@@ -212,10 +190,7 @@ function renderTargetColumns(
   context.append(')')
 }
 
-function renderInsertValue(
-  context: Parameters<AnyExpression['render']>[0],
-  input: unknown
-) {
+function renderInsertValue(context: RenderContext, input: unknown) {
   if (isExpression(input)) context.render(input)
   else context.parameter(input)
 }
