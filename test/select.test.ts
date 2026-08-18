@@ -86,7 +86,10 @@ test('normalizes clause order and follows rendered parameter order', () => {
 test('renders aliases, joins, grouping, and distinct', () => {
   const author = alias(users, 'author')
   const query = select(
-    [author.name, aliasExpression(count(posts.id), 'postCount')],
+    {
+      name: author.name,
+      postCount: count(posts.id),
+    },
     from(author),
     innerJoin(posts, eq(author.id, posts.authorId)),
     where(isNotNull(author.email)),
@@ -96,22 +99,44 @@ test('renders aliases, joins, grouping, and distinct', () => {
   )
 
   expect(render(query).text).toBe(
-    'SELECT DISTINCT "author"."name", COUNT("posts"."id") AS "postCount" FROM "users" AS "author" INNER JOIN "posts" ON ("author"."id" = "posts"."authorId") WHERE ("author"."email" IS NOT NULL) GROUP BY "author"."name" ORDER BY "author"."name" ASC'
+    'SELECT DISTINCT "author"."name" AS "name", COUNT("posts"."id") AS "postCount" FROM "users" AS "author" INNER JOIN "posts" ON ("author"."id" = "posts"."authorId") WHERE ("author"."email" IS NOT NULL) GROUP BY "author"."name" ORDER BY "author"."name" ASC'
   )
 })
 
-test('renders wildcard projections and PostgreSQL placeholders through a dialect', () => {
-  const query = select(all(users), from(users), where(eq(users.id, value(3))))
+test('expands all source columns into named object projections', () => {
+  const query = select(
+    { ...all(users), normalizedName: upper(users.name) },
+    from(users),
+    where(eq(users.id, value(3)))
+  )
 
   expect(render(query, postgresDialect())).toEqual({
-    text: 'SELECT "users".* FROM "users" WHERE ("users"."id" = $1)',
+    text: 'SELECT "users"."id" AS "id", "users"."name" AS "name", "users"."email" AS "email", UPPER("users"."name") AS "normalizedName" FROM "users" WHERE ("users"."id" = $1)',
     parameters: [3],
   })
+  expectTypeOf(query.row).toEqualTypeOf<{
+    id: number
+    name: string
+    email: string | null
+    normalizedName: string
+  }>()
+})
+
+test('uses object projection keys as canonical output names', () => {
+  const query = select({ total: aliasExpression(count(), 'count') })
+
+  expect(render(query).text).toBe('SELECT COUNT(*) AS "total"')
+  expectTypeOf(query.row).toEqualTypeOf<{ total: number }>()
 })
 
 test('tracks source requirements in the select type', () => {
   // @ts-expect-error A table-backed column needs its source in FROM or JOIN.
   select({ id: users.id })
+
+  expect(() => {
+    // @ts-expect-error Projections must be named objects rather than positional arrays.
+    select([users.id], from(users))
+  }).toThrowError('Selection must be a named object projection')
 })
 
 test('reports missing sources across every source-aware SELECT clause', () => {
@@ -161,7 +186,7 @@ test('marks left-joined results nullable without changing inner joins', () => {
       userName: users.name,
       postTitle: posts.title,
       postTitleUpper: upper(posts.title),
-      postCount: aliasExpression(count(posts.id), 'postCount'),
+      postCount: count(posts.id),
     },
     from(users),
     leftJoin(posts, eq(users.id, posts.authorId)),
@@ -172,7 +197,7 @@ test('marks left-joined results nullable without changing inner joins', () => {
     from(users),
     innerJoin(posts, eq(users.id, posts.authorId))
   )
-  const wildcard = select(
+  const allPosts = select(
     all(posts),
     from(users),
     leftJoin(posts, eq(users.id, posts.authorId))
@@ -185,7 +210,7 @@ test('marks left-joined results nullable without changing inner joins', () => {
     postCount: number
   }>()
   expectTypeOf(innerJoined.row).toEqualTypeOf<{ title: string }>()
-  expectTypeOf(wildcard.row).toEqualTypeOf<{
+  expectTypeOf(allPosts.row).toEqualTypeOf<{
     id: number | null
     authorId: number | null
     title: string | null

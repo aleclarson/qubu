@@ -65,13 +65,13 @@ scope checks from confusing `namesSource.name` with `users.name`.
 `scalar()` turns a query with exactly one selected field into an expression:
 
 ```ts
-import { aliasExpression, scalar, value } from 'qubu'
+import { scalar, value } from 'qubu'
 
 const firstId = select({ id: users.id }, from(users))
 const query = select(
   {
     name: users.name,
-    firstId: aliasExpression(scalar(firstId), 'firstId'),
+    firstId: scalar(firstId),
   },
   from(users)
 )

@@ -98,9 +98,10 @@ unrestricted operation is intended.
 
 ## Return typed rows
 
-`returning()` uses the same selection forms as `SELECT`. When present, the
-mutation's `row` type is inferred from that projection, so an adapter can return
-the affected rows with the same shape as a read query.
+`returning()` uses the same named object projection as `SELECT`. Use
+`{ ...all(table) }` when every table column should be returned. When present,
+the mutation's `row` type is inferred from that projection, so an adapter can
+return the affected rows with the same shape as a read query.
 
 See [Schema and type metadata](../concepts/schema-and-types.md) for custom
 output, insert, and update types, then [Dialects and execution](../concepts/dialects-and-execution.md)

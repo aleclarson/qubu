@@ -4,7 +4,8 @@
 
 ## Included
 
-- Parameterized, composable `SELECT` queries with projections, wildcards,
+- Parameterized, composable `SELECT` queries with named projections and
+  spreadable source columns,
   joins, grouping, ordering, CTEs, subqueries, set operations, and source-scope
   diagnostics.
 - Standard SQL rendering plus explicit PostgreSQL, SQLite, and MySQL dialect

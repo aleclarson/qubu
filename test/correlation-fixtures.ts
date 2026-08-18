@@ -1,5 +1,4 @@
 import {
-  aliasExpression,
   correlate,
   crossJoin,
   desc,
@@ -44,7 +43,7 @@ export const correlatedScalar = scalar(correlatedPost)
 export const correlatedQuery = select(
   {
     userId: users.id,
-    latestPostId: aliasExpression(correlatedScalar, 'latestPostId'),
+    latestPostId: correlatedScalar,
   },
   from(users),
   where(eq(users.id, 7))

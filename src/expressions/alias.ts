@@ -17,6 +17,13 @@ export interface AliasedExpression<
   readonly expression: TExpression
 }
 
+/**
+ * Render an expression with an explicit SQL output alias.
+ *
+ * Named object projections normally provide this alias through their key. This
+ * helper remains useful when an aliased expression must be composed or passed
+ * around independently of a named projection.
+ */
 export function aliasExpression<
   const TAlias extends string,
   TExpression extends AnyExpression,

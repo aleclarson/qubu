@@ -1,7 +1,6 @@
 import { expect, expectTypeOf, test } from 'vitest'
 import {
   alias,
-  aliasExpression,
   cte,
   eq,
   from,
@@ -62,7 +61,7 @@ test('uses scalar subqueries as expressions', () => {
   const query = select(
     {
       name: users.name,
-      firstId: aliasExpression(scalar(ids), 'firstId'),
+      firstId: scalar(ids),
     },
     from(users),
     where(eq(users.id, 1))

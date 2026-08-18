@@ -1,6 +1,5 @@
 import { expect, expectTypeOf, test } from 'vitest'
 import {
-  aliasExpression,
   createDialect,
   customClause,
   fetchFirst,
@@ -48,7 +47,7 @@ test('accepts a dialect without changing query construction', () => {
   const query = select(
     {
       name: users.name,
-      current: aliasExpression(unsafeExpression('CURRENT_DATE'), 'current'),
+      current: unsafeExpression('CURRENT_DATE'),
     },
     from(users)
   )
@@ -69,11 +68,7 @@ test('composes custom fragments and clauses', () => {
     order: 90,
     render: context => context.append('FETCH FIRST 1 ROW ONLY'),
   })
-  const query = select(
-    { answer: aliasExpression(customExpression, 'answer') },
-    from(users),
-    custom
-  )
+  const query = select({ answer: customExpression }, from(users), custom)
 
   expect(render(query).text).toBe(
     'SELECT 42 AS "answer" FROM "users" FETCH FIRST 1 ROW ONLY'

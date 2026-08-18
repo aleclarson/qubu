@@ -1,5 +1,4 @@
 import {
-  aliasExpression,
   count,
   eq,
   from,
@@ -37,9 +36,9 @@ export const groupedPostTotal = sum(posts.id)
 export const groupedByColumn = select(
   {
     name: users.name,
-    displayName: aliasExpression(upper(users.name), 'displayName'),
-    postCount: aliasExpression(count(posts.id), 'postCount'),
-    postTotal: aliasExpression(groupedPostTotal, 'postTotal'),
+    displayName: upper(users.name),
+    postCount: count(posts.id),
+    postTotal: groupedPostTotal,
   },
   from(users),
   leftJoin(posts, eq(users.id, posts.authorId)),
@@ -57,11 +56,8 @@ export const groupedByExpression = select(
 export const groupedWithWindow = select(
   {
     name: users.name,
-    rowNumber: aliasExpression(
-      over(rowNumber(), { partitionBy: [users.name] }),
-      'rowNumber'
-    ),
-    totalPosts: aliasExpression(over(count(posts.id)), 'totalPosts'),
+    rowNumber: over(rowNumber(), { partitionBy: [users.name] }),
+    totalPosts: over(count(posts.id)),
   },
   from(users),
   leftJoin(posts, eq(users.id, posts.authorId)),

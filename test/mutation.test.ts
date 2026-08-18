@@ -51,7 +51,7 @@ test('renders DEFAULT VALUES when a table has only generated/default columns', (
   const query = insertInto(audit, defaultValues(), returning(all(audit)))
 
   expect(render(query).text).toBe(
-    'INSERT INTO "audit" DEFAULT VALUES RETURNING "audit".*'
+    'INSERT INTO "audit" DEFAULT VALUES RETURNING "audit"."id" AS "id", "audit"."createdAt" AS "createdAt"'
   )
 })
 
@@ -88,7 +88,7 @@ test('renders safe UPDATE and DELETE statements with typed RETURNING rows', () =
     parameters: ['Ada', 7],
   })
   expect(render(removed)).toEqual({
-    text: 'DELETE FROM "users" WHERE ("users"."id" = ?) RETURNING "users".*',
+    text: 'DELETE FROM "users" WHERE ("users"."id" = ?) RETURNING "users"."id" AS "id", "users"."name" AS "name", "users"."email" AS "email"',
     parameters: [8],
   })
   expectTypeOf(changed.row).toEqualTypeOf<{ id: number; name: string }>()

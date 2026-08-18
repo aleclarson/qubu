@@ -9,7 +9,6 @@ import type {
   VisibleDependenciesOf,
 } from '../src/index.ts'
 import {
-  aliasExpression,
   all,
   count,
   eq,
@@ -94,7 +93,7 @@ export type WindowGroupingOutput = Assert<
 select(
   {
     name: users.name,
-    postCount: aliasExpression(count(posts.id), 'postCount'),
+    postCount: count(posts.id),
   },
   // @ts-expect-error A selected column must be grouped when the query contains an aggregate.
   from(users),
@@ -105,7 +104,7 @@ select(
 select(
   {
     name: users.name,
-    postCount: aliasExpression(count(posts.id), 'postCount'),
+    postCount: count(posts.id),
   },
   // @ts-expect-error HAVING cannot reference a dependency that is not grouped.
   from(users),
@@ -116,7 +115,7 @@ select(
 
 select(
   all(users),
-  // @ts-expect-error Wildcard projections are not sound in grouped queries.
+  // @ts-expect-error Every selected column must be grouped in an aggregate query.
   from(users),
   groupBy(users.id)
 )

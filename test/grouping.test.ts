@@ -1,6 +1,5 @@
 import { expect, test } from 'vitest'
 import {
-  aliasExpression,
   count,
   desc,
   eq,
@@ -21,7 +20,7 @@ test('renders grouped projections and HAVING in SQL clause order', () => {
   const query = select(
     {
       name: users.name,
-      postCount: aliasExpression(count(posts.id), 'postCount'),
+      postCount: count(posts.id),
     },
     from(users),
     leftJoin(posts, eq(users.id, posts.authorId)),
@@ -40,7 +39,7 @@ test('preserves parameter order through grouped clauses', () => {
   const query = select(
     {
       name: users.name,
-      postCount: aliasExpression(count(posts.id), 'postCount'),
+      postCount: count(posts.id),
     },
     orderBy(desc(value('name'))),
     having(gt(count(posts.id), value(1))),

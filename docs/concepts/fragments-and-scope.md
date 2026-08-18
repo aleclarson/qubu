@@ -242,19 +242,11 @@ requirement. The same requirement flows through `scalar()`, `exists()`, and
 
 ## Output shape is part of composition
 
-An object projection names the row fields directly. An aliased expression adds
-the alias to the result shape:
+An object projection names the row fields directly. The projection key also
+names the SQL output column:
 
 ```ts
-import {
-  aliasExpression,
-  from,
-  integer,
-  select,
-  table,
-  text,
-  upper,
-} from 'qubu'
+import { from, integer, select, table, text, upper } from 'qubu'
 
 const users = table('users', {
   id: integer(),
@@ -264,7 +256,7 @@ const users = table('users', {
 const query = select(
   {
     id: users.id,
-    displayName: aliasExpression(upper(users.name), 'displayName'),
+    displayName: upper(users.name),
   },
   from(users)
 )
@@ -311,13 +303,13 @@ source therefore widens the selected field, while expressions with a
 non-nullable result contract such as `count()` can keep their result type:
 
 ```ts
-import { aliasExpression, count, eq, from, leftJoin, select } from 'qubu'
+import { count, eq, from, leftJoin, select } from 'qubu'
 
 const query = select(
   {
     userName: users.name,
     postTitle: posts.title,
-    postCount: aliasExpression(count(posts.id), 'postCount'),
+    postCount: count(posts.id),
   },
   from(users),
   leftJoin(posts, eq(users.id, posts.authorId))

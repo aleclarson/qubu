@@ -27,19 +27,21 @@ render(query).text
 // SELECT "users"."id" AS "id", "users"."name" AS "name" FROM "users" WHERE ("users"."id" = ?)
 ```
 
-An object projection uses its keys as result names. You can also pass a single
-column, an array of columns or aliased expressions, or a wildcard:
+An object projection uses its keys as result names. `all(source)` returns the
+source's columns as a named projection object, so it can be spread alongside
+computed expressions:
 
 ```ts
-import { aliasExpression, all, count } from 'qubu'
+import { all, from, select, upper } from 'qubu'
 
-select(all(users), from(users))
-
-select([users.name, aliasExpression(count(users.id), 'userCount')], from(users))
+select({ ...all(users), normalizedName: upper(users.name) }, from(users))
 ```
 
-The object form is the clearest choice when the result is consumed by
-application code because the row shape is written at the selection site.
+`all(source)` expands to explicit named columns rather than emitting `source.*`.
+That keeps the SQL output and the inferred row keys aligned.
+
+Named object projections keep the row shape visible at the selection site,
+which is useful when the result is consumed by application code.
 
 ## Add joins and predicates
 
@@ -47,7 +49,7 @@ Join functions add a source and make the join condition part of the same scope
 check as the projection and `WHERE` clause:
 
 ```ts
-import { aliasExpression, count, innerJoin, isNotNull, leftJoin } from 'qubu'
+import { count, innerJoin, isNotNull, leftJoin } from 'qubu'
 
 const posts = table('posts', {
   id: integer(),
@@ -76,7 +78,7 @@ const summary = select(
   {
     userName: users.name,
     postTitle: posts.title,
-    postCount: aliasExpression(count(posts.id), 'postCount'),
+    postCount: count(posts.id),
   },
   from(users),
   leftJoin(posts, eq(users.id, posts.authorId))
@@ -153,12 +155,11 @@ driver-specific `LIMIT` form.
 
 ## Group and aggregate
 
-Aggregates are expressions, so alias them when the result needs a stable field
-name and group every non-aggregate column dependency:
+Object projection keys provide stable names for aggregates. Group every
+non-aggregate column dependency:
 
 ```ts
 import {
-  aliasExpression,
   count,
   desc,
   eq,
@@ -174,7 +175,7 @@ import {
 const counts = select(
   {
     name: users.name,
-    postCount: aliasExpression(count(posts.id), 'postCount'),
+    postCount: count(posts.id),
   },
   from(users),
   leftJoin(posts, eq(users.id, posts.authorId)),
@@ -197,18 +198,15 @@ The initial window scope supports `PARTITION BY` and `ORDER BY`; the same
 `asc()` and `desc()` terms used by a query-level `orderBy()` can be reused:
 
 ```ts
-import { aliasExpression, desc, from, over, rowNumber, select } from 'qubu'
+import { desc, from, over, rowNumber, select } from 'qubu'
 
 const rankedUsers = select(
   {
     id: users.id,
-    rowNumber: aliasExpression(
-      over(rowNumber(), {
-        partitionBy: [users.name],
-        orderBy: [desc(users.id)],
-      }),
-      'rowNumber'
-    ),
+    rowNumber: over(rowNumber(), {
+      partitionBy: [users.name],
+      orderBy: [desc(users.id)],
+    }),
   },
   from(users)
 )

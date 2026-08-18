@@ -1,5 +1,4 @@
 import {
-  aliasExpression,
   count,
   customSource,
   eq,
@@ -53,7 +52,7 @@ export const joinedEntriesQuery = select(
   {
     userId: users.id,
     value: entries.value,
-    total: aliasExpression(count(entries.key), 'total'),
+    total: count(entries.key),
   },
   from(users),
   joinedEntriesClause,

@@ -1,6 +1,5 @@
 import { expect, expectTypeOf, test } from 'vitest'
 import {
-  aliasExpression,
   count,
   desc,
   eq,
@@ -39,7 +38,7 @@ test('renders window partitioning and ordering in projections and order clauses'
   const query = select(
     {
       id: users.id,
-      rowNumber: aliasExpression(ranked, 'rowNumber'),
+      rowNumber: ranked,
     },
     from(users),
     orderBy(ranked)
@@ -59,7 +58,7 @@ test('preserves parameter order through window expressions and clauses', () => {
     orderBy: [desc(value(3))],
   })
   const query = select(
-    { count: aliasExpression(runningCount, 'count') },
+    { count: runningCount },
     from(users),
     fetchFirst(10),
     where(eq(users.id, 7))
@@ -74,10 +73,7 @@ test('preserves parameter order through window expressions and clauses', () => {
 test('preserves nullable output through window composition', () => {
   const query = select(
     {
-      title: aliasExpression(
-        over(upper(posts.title), { partitionBy: [users.id] }),
-        'title'
-      ),
+      title: over(upper(posts.title), { partitionBy: [users.id] }),
     },
     from(users),
     leftJoin(posts, eq(users.id, posts.authorId))
@@ -89,20 +85,14 @@ test('preserves nullable output through window composition', () => {
 test('checks window specification sources', () => {
   const valid = select(
     {
-      rowNumber: aliasExpression(
-        over(rowNumber(), { partitionBy: [users.id] }),
-        'rowNumber'
-      ),
+      rowNumber: over(rowNumber(), { partitionBy: [users.id] }),
     },
     from(users)
   )
 
   select(
     {
-      rowNumber: aliasExpression(
-        over(rowNumber(), { partitionBy: [users.id] }),
-        'rowNumber'
-      ),
+      rowNumber: over(rowNumber(), { partitionBy: [users.id] }),
     },
     // @ts-expect-error A window partition expression needs its source in scope.
     from(posts)

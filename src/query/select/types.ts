@@ -18,11 +18,7 @@ import type { AnySelectClause } from '../clauses/types.ts'
 import type { FromClause, FromScope } from '../clauses/from.ts'
 import type { OrderByClause } from '../clauses/order-by.ts'
 import type { WithClause } from '../clauses/with.ts'
-import type {
-  SelectionItems,
-  SelectionRequires,
-  Wildcard,
-} from '../selection.ts'
+import type { SelectionItems, SelectionRequires } from '../selection.ts'
 import type { VisibleDependenciesOf } from '../../core/fragment.ts'
 import type { Query } from '../types.ts'
 
@@ -124,22 +120,18 @@ type GroupingFailure<
   TExpression,
   TClauses extends readonly AnySelectClause[],
 > = TExpression extends unknown
-  ? TExpression extends Wildcard<any, any>
-    ? TExpression
-    : [VisibleDependenciesOf<TExpression>] extends [never]
+  ? [VisibleDependenciesOf<TExpression>] extends [never]
+    ? never
+    : [
+          Exclude<
+            VisibleDependenciesOf<TExpression>,
+            GroupingDependenciesOf<TClauses[number]>
+          >,
+        ] extends [never]
       ? never
-      : [
-            Exclude<
-              VisibleDependenciesOf<TExpression>,
-              GroupingDependenciesOf<TClauses[number]>
-            >,
-          ] extends [never]
-        ? never
-        : [Extract<TExpression, GroupingKeysOf<TClauses[number]>>] extends [
-              never,
-            ]
-          ? VisibleDependenciesOf<TExpression>
-          : never
+      : [Extract<TExpression, GroupingKeysOf<TClauses[number]>>] extends [never]
+        ? VisibleDependenciesOf<TExpression>
+        : never
   : never
 
 type SelectionGroupingFailures<

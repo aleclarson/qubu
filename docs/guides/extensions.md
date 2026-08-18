@@ -120,10 +120,10 @@ source-scope checking continues to work without `as const` at the call site.
 modeled yet. They do not quote identifiers or bind values for you:
 
 ```ts
-import { aliasExpression, select, unsafeExpression } from 'qubu'
+import { select, unsafeExpression } from 'qubu'
 
 const query = select({
-  today: aliasExpression(unsafeExpression('CURRENT_DATE'), 'today'),
+  today: unsafeExpression('CURRENT_DATE'),
 })
 ```
 
