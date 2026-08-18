@@ -31,6 +31,7 @@ declare global {
   const concat: typeof import('qubu').concat
   const count: typeof import('qubu').count
   const countDistinct: typeof import('qubu').countDistinct
+  const correlate: typeof import('qubu').correlate
   const createDialect: typeof import('qubu').createDialect
   const crossJoin: typeof import('qubu').crossJoin
   const cte: typeof import('qubu').cte
@@ -79,6 +80,7 @@ declare global {
   const json: typeof import('qubu').json
   const keyword: typeof import('qubu').keyword
   const leftJoin: typeof import('qubu').leftJoin
+  const lateral: typeof import('qubu').lateral
   const like: typeof import('qubu').like
   const limit: typeof import('qubu').limit
   const lower: typeof import('qubu').lower
@@ -178,6 +180,10 @@ declare global {
     TNullableFrom
   >
   type RequiresSourceMeta<TSource> = import('qubu').RequiresSourceMeta<TSource>
+  type RequiresOuterSourceMeta<TSource> =
+    import('qubu').RequiresOuterSourceMeta<TSource>
+  type ProvidesOuterSourceMeta<TSource> =
+    import('qubu').ProvidesOuterSourceMeta<TSource>
   type NullableSourceMeta<TSource> = import('qubu').NullableSourceMeta<TSource>
   type QueryAdapter = import('qubu').QueryAdapter
   type RenderedQuery = import('qubu').RenderedQuery
@@ -189,16 +195,19 @@ declare global {
     TRow extends object = import('qubu').Row,
     TCardinality extends
       import('qubu').QueryCardinality = import('qubu').QueryCardinality,
-  > = import('qubu').Query<TRow, TCardinality>
+    TMetadata = never,
+  > = import('qubu').Query<TRow, TCardinality, TMetadata>
   type SelectQuery<
     TRow extends object = Record<string, unknown>,
     TCardinality extends
       import('qubu').QueryCardinality = import('qubu').QueryCardinality,
-  > = import('qubu').SelectQuery<TRow, TCardinality>
+    TMetadata = never,
+  > = import('qubu').SelectQuery<TRow, TCardinality, TMetadata>
   type Source<
     TIdentity = unknown,
     TRow extends object = Record<string, unknown>,
-  > = import('qubu').Source<TIdentity, TRow>
+    TMetadata = never,
+  > = import('qubu').Source<TIdentity, TRow, TMetadata>
   type Table<
     TName extends string = string,
     TDefinitions extends

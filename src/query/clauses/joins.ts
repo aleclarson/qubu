@@ -4,6 +4,7 @@ import type { BooleanExpression } from '../../expressions/operators/comparison.t
 import {
   type InheritedMetadata,
   type NullableSourceMeta,
+  type RequiresOuterMetadataOf,
 } from '../../core/fragment.ts'
 import { createClause, type SelectClause } from './types.ts'
 
@@ -30,6 +31,7 @@ function join<
 ): JoinClause<
   TSource,
   | InheritedMetadata<TCondition>
+  | RequiresOuterMetadataOf<TSource>
   | (TJoinType extends 'LEFT'
       ? NullableSourceMeta<ProvidedSourceIdentity<TSource>>
       : never)
@@ -52,6 +54,7 @@ function join<
   ) as JoinClause<
     TSource,
     | InheritedMetadata<TCondition>
+    | RequiresOuterMetadataOf<TSource>
     | (TJoinType extends 'LEFT'
         ? NullableSourceMeta<ProvidedSourceIdentity<TSource>>
         : never)
@@ -88,12 +91,12 @@ export function fullJoin<
 
 export function crossJoin<TSource extends AnySource>(
   source: TSource
-): JoinClause<TSource, never> {
+): JoinClause<TSource, RequiresOuterMetadataOf<TSource>> {
   return join<'CROSS', TSource, undefined>('CROSS', source)
 }
 
 export function naturalJoin<TSource extends AnySource>(
   source: TSource
-): JoinClause<TSource, never> {
+): JoinClause<TSource, RequiresOuterMetadataOf<TSource>> {
   return join<'NATURAL', TSource, undefined>('NATURAL', source)
 }

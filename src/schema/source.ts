@@ -20,6 +20,7 @@ export type SourceKind =
   | 'table'
   | 'table-alias'
   | 'query-alias'
+  | 'lateral'
   | 'cte'
   | 'custom'
   | 'table-function'
@@ -38,8 +39,11 @@ export type SourceColumns<TRow extends object, TIdentity> = {
 export interface Source<
   TIdentity = unknown,
   TRow extends object = Record<string, unknown>,
+  TMetadata = never,
 > extends Fragment<
-    ResultMeta<readonly TRow[]> | ProvidesSourceMeta<TIdentity, TRow>
+    | ResultMeta<readonly TRow[]>
+    | ProvidesSourceMeta<TIdentity, TRow>
+    | TMetadata
   > {
   readonly sourceKind: SourceKind
   readonly [sourceIdentity]: TIdentity
@@ -47,7 +51,7 @@ export interface Source<
   readonly columns: SourceColumns<TRow, TIdentity>
 }
 
-export type AnySource = Source<any, any>
+export type AnySource = Source<any, any, any>
 
 /** The source-provision fact carried by a source-producing fragment. */
 export type SourceProvision<T> = Extract<
@@ -64,8 +68,8 @@ export type ProvidedSourceRow<T> =
   SourceProvision<T> extends ProvidesSourceMeta<any, infer TRow> ? TRow : never
 
 export type SourceIdentity<T> =
-  T extends Source<infer TIdentity, any> ? TIdentity : never
-export type SourceRow<T> = T extends Source<any, infer TRow> ? TRow : never
+  T extends Source<infer TIdentity, any, any> ? TIdentity : never
+export type SourceRow<T> = T extends Source<any, infer TRow, any> ? TRow : never
 
 export interface CustomSourceOptions<
   TIdentity,
@@ -85,23 +89,23 @@ export interface CustomSourceOptions<
 export type CustomSource<
   TIdentity,
   TDefinitions extends TableDefinitions,
-> = Source<TIdentity, TableRow<TDefinitions>> & {
+> = Source<TIdentity, TableRow<TDefinitions>, never> & {
   readonly identity: TIdentity
   readonly definitions: TDefinitions
   readonly columns: SourceColumns<TableRow<TDefinitions>, TIdentity>
 } & SourceColumns<TableRow<TDefinitions>, TIdentity>
 
-export function createSource<TIdentity, TRow extends object>(
+export function createSource<TIdentity, TRow extends object, TMetadata = never>(
   sourceKind: SourceKind,
   render: RenderFunction,
   reference: Fragment<never>
-): Source<TIdentity, TRow> {
+): Source<TIdentity, TRow, TMetadata> {
   return {
     sourceKind,
     render,
     reference,
     columns: {} as SourceColumns<TRow, TIdentity>,
-  } as Source<TIdentity, TRow>
+  } as Source<TIdentity, TRow, TMetadata>
 }
 
 /**

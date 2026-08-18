@@ -3,7 +3,9 @@ import type {
   GroupingKeysOf,
   HasAggregate,
   NullableSourcesOf,
+  ProvidesOuterOf,
   QueryCardinality,
+  RequiresOuterOf,
   RequiresOf,
 } from '../../core/fragment.ts'
 import type { DistinctClause } from '../clauses/distinct.ts'
@@ -27,7 +29,8 @@ import type { Query } from '../types.ts'
 export interface SelectQuery<
   TRow extends object = Record<string, unknown>,
   TCardinality extends QueryCardinality = QueryCardinality,
-> extends Query<TRow, TCardinality> {
+  TMetadata = never,
+> extends Query<TRow, TCardinality, TMetadata> {
   readonly queryKind: 'select'
 }
 
@@ -57,18 +60,36 @@ export type ClauseScope<TClause> = TClause extends FromClause
 export type AvailableScope<TClauses extends readonly AnySelectClause[]> =
   ClauseScope<TClauses[number]>
 
+export type AvailableOuterScope<TClauses extends readonly AnySelectClause[]> =
+  ProvidesOuterOf<TClauses[number]>
+
 export type NullableSources<TClauses extends readonly AnySelectClause[]> =
   NullableSourcesOf<TClauses[number]>
 
 export type RequiredScope<
   TSelection,
   TClauses extends readonly AnySelectClause[],
-> = SelectionRequires<TSelection> | RequiresOf<TClauses[number]>
+> =
+  | SelectionRequires<TSelection>
+  | RequiresOuterOf<SelectionItems<TSelection>>
+  | RequiresOf<TClauses[number]>
+  | RequiresOuterOf<TClauses[number]>
 
 export type MissingScope<
   TSelection,
   TClauses extends readonly AnySelectClause[],
-> = Exclude<RequiredScope<TSelection, TClauses>, AvailableScope<TClauses>>
+> = Exclude<
+  RequiredScope<TSelection, TClauses>,
+  AvailableScope<TClauses> | AvailableOuterScope<TClauses>
+>
+
+export type RequiredOuterScope<
+  TSelection,
+  TClauses extends readonly AnySelectClause[],
+> = Extract<
+  Exclude<RequiredScope<TSelection, TClauses>, AvailableScope<TClauses>>,
+  AvailableOuterScope<TClauses>
+>
 
 export type ScopeValidation<
   TSelection,

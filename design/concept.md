@@ -20,17 +20,21 @@ Fragment<Metadata>
 ```
 
 The metadata is a union of tagged facts such as `ResultMeta<Output>`,
-`RequiresSourceMeta<Source>`, `NullableSourceMeta<Source>`,
+`RequiresSourceMeta<Source>`, `RequiresOuterSourceMeta<Source>`,
+`ProvidesOuterSourceMeta<Source>`, `NullableSourceMeta<Source>`,
 `ProvidesSourceMeta<Source, Row>`,
 `ExpressionMeta<Dependencies>`, `AggregateMeta<Dependencies>`,
 `GroupingMeta<Keys, Dependencies>`, and `CardinalityMeta<QueryCardinality>`.
 Composition helpers distribute over that union and retain the source,
 nullability, and expression facts that later clauses need; aggregate
 dependencies are marked as consumed, while grouping facts are consumed by
-`select()` validation. Query cardinality is consumed at the scalar-subquery
-boundary rather than leaking into ordinary expression composition. Parameter
-values remain a runtime concern of the renderer rather than a fourth
-compile-time contract.
+`select()` validation. `correlate()` consumes a `ProvidesOuterSourceMeta` fact
+at the inner SELECT boundary and records only the actually used sources as
+`RequiresOuterSourceMeta`; scalar, predicate, and LATERAL consumers validate
+those requirements against the enclosing scope. Query cardinality is consumed
+at the scalar-subquery boundary rather than leaking into ordinary expression
+composition. Parameter values remain a runtime concern of the renderer rather
+than a fourth compile-time contract.
 
 The propagation rule is deliberately semantic rather than positional:
 transparent composition preserves inherited non-result facts, source-aware

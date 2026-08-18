@@ -5,6 +5,7 @@ import {
   type ColumnReference,
 } from '../expressions/column.ts'
 import type { AnyQuery, Query } from '../query/types.ts'
+import type { RequiresOuterMetadataOf } from '../core/fragment.ts'
 import {
   createSource,
   exposeColumns,
@@ -21,9 +22,13 @@ export type AliasIdentity<TBase, TAlias extends string> = {
 }
 
 export type AliasedSource<
-  TBase extends Source<any, any>,
+  TBase extends Source<any, any, any>,
   TAlias extends string,
-> = Source<AliasIdentity<SourceIdentity<TBase>, TAlias>, SourceRow<TBase>> & {
+> = Source<
+  AliasIdentity<SourceIdentity<TBase>, TAlias>,
+  SourceRow<TBase>,
+  RequiresOuterMetadataOf<TBase>
+> & {
   readonly alias: TAlias
   readonly base: TBase
   readonly columns: SourceColumns<
@@ -40,25 +45,30 @@ export type QueryAliasIdentity<TAlias extends string> = {
   readonly alias: TAlias
 }
 
-export type QuerySource<TRow extends object, TAlias extends string> = Source<
-  QueryAliasIdentity<TAlias>,
-  TRow
-> & {
+export type QuerySource<
+  TRow extends object,
+  TAlias extends string,
+  TMetadata = never,
+> = Source<QueryAliasIdentity<TAlias>, TRow, TMetadata> & {
   readonly alias: TAlias
-  readonly query: Query<TRow, any>
+  readonly query: Query<TRow, any, TMetadata>
   readonly columns: SourceColumns<TRow, QueryAliasIdentity<TAlias>>
 } & SourceColumns<TRow, QueryAliasIdentity<TAlias>>
 
 export function alias<
-  TBase extends Source<any, any>,
+  TBase extends Source<any, any, any>,
   const TAlias extends string,
 >(source: TBase, name: TAlias): AliasedSource<TBase, TAlias>
-export function alias<TRow extends object, const TAlias extends string>(
-  query: Query<TRow, any>,
+export function alias<TQuery extends AnyQuery, const TAlias extends string>(
+  query: TQuery,
   name: TAlias
-): QuerySource<TRow, TAlias>
+): QuerySource<
+  import('../query/types.ts').QueryRow<TQuery>,
+  TAlias,
+  RequiresOuterMetadataOf<TQuery>
+>
 export function alias(
-  sourceOrQuery: Source<any, any> | AnyQuery,
+  sourceOrQuery: Source<any, any, any> | AnyQuery,
   name: string
 ) {
   const reference = identifier(name)
@@ -102,3 +112,66 @@ export function alias(
 }
 
 export const as = alias
+
+export type LateralIdentity<TAlias extends string> = {
+  readonly sourceKind: 'lateral'
+  readonly alias: TAlias
+}
+
+export type LateralSource<
+  TQuery extends AnyQuery,
+  TAlias extends string,
+> = Source<
+  LateralIdentity<TAlias>,
+  import('../query/types.ts').QueryRow<TQuery>,
+  RequiresOuterMetadataOf<TQuery>
+> & {
+  readonly alias: TAlias
+  readonly query: TQuery
+  readonly columns: SourceColumns<
+    import('../query/types.ts').QueryRow<TQuery>,
+    LateralIdentity<TAlias>
+  >
+} & SourceColumns<
+    import('../query/types.ts').QueryRow<TQuery>,
+    LateralIdentity<TAlias>
+  >
+
+/** Render a query as a LATERAL source whose outer requirements stay visible. */
+export function lateral<TQuery extends AnyQuery, const TAlias extends string>(
+  query: TQuery,
+  name: TAlias
+): LateralSource<TQuery, TAlias> {
+  type TRow = import('../query/types.ts').QueryRow<TQuery>
+  type TIdentity = LateralIdentity<TAlias>
+  const reference = identifier(name)
+  const source = createSource<TIdentity, TRow, RequiresOuterMetadataOf<TQuery>>(
+    'lateral',
+    context => {
+      context.append('LATERAL ')
+      context.render(parenthesize(query))
+      context.append(' AS ')
+      context.render(reference)
+    },
+    reference
+  )
+
+  const columns = Object.fromEntries(
+    Object.keys(query.row).map(columnName => [
+      columnName,
+      createColumnReference(columnName, reference) as ColumnReference<
+        string,
+        any
+      >,
+    ])
+  ) as SourceColumns<TRow, TIdentity>
+
+  Object.assign(source, {
+    alias: name,
+    query,
+    columns,
+  })
+  exposeColumns(source, columns)
+
+  return source as LateralSource<TQuery, TAlias>
+}

@@ -18,15 +18,15 @@ database-specific dependency visible where that is useful.
 
 ## Capability map
 
-| Area               | Supported building blocks                                                                                                                                                                      |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Schema values      | `table`, `column`, `integer`, `numeric`, `text`, `boolean`, date/time, UUID, JSON, bigint, and binary helpers                                                                                  |
-| Read queries       | Projections, wildcards, aliases, joins, typed custom `FROM` sources, `WHERE`, grouping, `HAVING`, ordering, window expressions, distinctness, pagination, CTEs, subqueries, and set operations |
-| Expressions        | Comparison, boolean, arithmetic, null, range, membership, aggregate, window, string, cast, case, and custom expressions                                                                        |
-| Write queries      | `INSERT` values/defaults/select, `UPDATE`, `DELETE`, typed assignments, `RETURNING`, and explicit unrestricted-write opt-in                                                                    |
-| Rendering          | Standard, PostgreSQL, SQLite, MySQL, and user-created dialect policies                                                                                                                         |
-| Execution boundary | Generic `QueryAdapter` plus `execute()`; connection and driver behavior remain external                                                                                                        |
-| Build tooling      | Optional Vite directive transform with matching TypeScript ambient declarations                                                                                                                |
+| Area               | Supported building blocks                                                                                                                                                                                                         |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Schema values      | `table`, `column`, `integer`, `numeric`, `text`, `boolean`, date/time, UUID, JSON, bigint, and binary helpers                                                                                                                     |
+| Read queries       | Projections, wildcards, aliases, joins, typed custom and LATERAL `FROM` sources, correlated subqueries, `WHERE`, grouping, `HAVING`, ordering, window expressions, distinctness, pagination, CTEs, subqueries, and set operations |
+| Expressions        | Comparison, boolean, arithmetic, null, range, membership, aggregate, window, string, cast, case, and custom expressions                                                                                                           |
+| Write queries      | `INSERT` values/defaults/select, `UPDATE`, `DELETE`, typed assignments, `RETURNING`, and explicit unrestricted-write opt-in                                                                                                       |
+| Rendering          | Standard, PostgreSQL, SQLite, MySQL, and user-created dialect policies                                                                                                                                                            |
+| Execution boundary | Generic `QueryAdapter` plus `execute()`; connection and driver behavior remain external                                                                                                                                           |
+| Build tooling      | Optional Vite directive transform with matching TypeScript ambient declarations                                                                                                                                                   |
 
 ## Safety boundaries
 

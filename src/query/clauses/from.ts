@@ -1,3 +1,4 @@
+import { type RequiresOuterMetadataOf } from '../../core/fragment.ts'
 import { createClause, type SelectClause } from './types.ts'
 import type {
   AnySource,
@@ -8,14 +9,17 @@ import type {
 
 export interface FromClause<
   TSources extends readonly AnySource[] = readonly AnySource[],
-> extends SelectClause<never> {
+  TMetadata = RequiresOuterMetadataOf<TSources[number]>,
+> extends SelectClause<TMetadata> {
   readonly clauseKind: 'from'
   readonly sources: TSources
 }
 
 export function from<
   const TSources extends readonly [AnySource, ...AnySource[]],
->(...sources: TSources): FromClause<TSources> {
+>(
+  ...sources: TSources
+): FromClause<TSources, RequiresOuterMetadataOf<TSources[number]>> {
   return Object.assign(
     createClause('from', 'after-select', 30, context => {
       context.append('FROM ')
@@ -25,13 +29,13 @@ export function from<
       })
     }),
     { clauseKind: 'from' as const, sources }
-  ) as FromClause<TSources>
+  ) as FromClause<TSources, RequiresOuterMetadataOf<TSources[number]>>
 }
 
 export type FromSource<T> =
   T extends FromClause<infer TSources>
     ? TSources[number] extends infer TSource
-      ? TSource extends Source<any, any>
+      ? TSource extends Source<any, any, any>
         ? [SourceProvision<TSource>] extends [never]
           ? never
           : TSource

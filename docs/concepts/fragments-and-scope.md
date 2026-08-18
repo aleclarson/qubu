@@ -18,6 +18,10 @@ tagged facts that later composition needs:
   `null`.
 - `RequiresSourceMeta<Source>` identifies a table, alias, CTE, or derived query
   that must be available before the fragment is valid.
+- `RequiresOuterSourceMeta<Source>` identifies a source that must be supplied
+  by the query enclosing a correlated subquery or LATERAL source.
+- `ProvidesOuterSourceMeta<Source>` marks the explicit `correlate()` provision
+  that lets an inner query use one of those enclosing sources.
 - `NullableSourceMeta<Source>` records that a source was introduced by a
   nullable join.
 - `ProvidesSourceMeta<Source, Row>` identifies a fragment that introduces a
@@ -57,6 +61,8 @@ expression. The current laws are:
 | `groupBy()`                                                         | Record its grouping expressions and, for column keys, the column dependencies that derived expressions may use.                                                                                                                         |
 | `leftJoin()`                                                        | Inherit the join predicate's source requirements and add `NullableSourceMeta` for the joined source.                                                                                                                                    |
 | `customSource()` consumed by `from()` or a join                     | Provide one source identity and row shape to the normal source-scope boundary; the consuming clause makes that identity available downstream.                                                                                           |
+| `correlate()` in a correlated SELECT                                | Provision named sources from the enclosing query for inner expressions; `select()` records only the provisioned sources that the inner query actually reads as outer requirements.                                                      |
+| `lateral(query, alias)` consumed by `FROM` or a join                | Render `LATERAL (...) AS alias` and carry the inner query's outer requirements to the enclosing source-scope boundary without exporting the inner query's local sources.                                                                |
 | Nullability-changing operators                                      | Declare their result nullability explicitly. `count()`, `countDistinct()`, `coalesce()` with its current contract, `caseWhen()` branches, and `IS NULL`/`IS NOT NULL` predicates do not blindly copy an operand's nullable-source fact. |
 
 The corresponding type-level contract is intentionally narrow: `OutputOf<T>`
@@ -186,6 +192,53 @@ column as needed; the producer does not bypass that rule.
 The renderer is responsible for the complete relation syntax. Bind function
 arguments with `context.parameter()` so their values stay aligned with the
 placeholders collected from the rest of the query.
+
+## Correlate a subquery or LATERAL source
+
+Use `correlate()` when an inner query intentionally reads a source from its
+enclosing query. The provision is type-level and emits no SQL. The inner query
+retains a `RequiresOuterSourceMeta` fact, so a scalar, predicate, or LATERAL
+consumer must be placed where the named source is actually available:
+
+```ts
+import {
+  correlate,
+  crossJoin,
+  eq,
+  from,
+  integer,
+  lateral,
+  select,
+  table,
+  where,
+} from 'qubu'
+
+const users = table('users', { id: integer() })
+const posts = table('posts', {
+  id: integer(),
+  authorId: integer(),
+})
+
+const recentPost = select(
+  { id: posts.id },
+  from(posts),
+  correlate(users),
+  where(eq(posts.authorId, users.id))
+)
+
+const recent = lateral(recentPost, 'recent_post')
+const query = select(
+  { userId: users.id, postId: recent.id },
+  from(users),
+  crossJoin(recent)
+)
+```
+
+The local `posts` source is consumed by `recentPost`; it is not available in
+`query`. The enclosing `users` source satisfies the LATERAL requirement. If
+`query` used `from(posts)` instead, TypeScript reports the unmet outer source
+requirement. The same requirement flows through `scalar()`, `exists()`, and
+`inQuery()`.
 
 ## Output shape is part of composition
 

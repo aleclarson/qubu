@@ -1,10 +1,11 @@
 import {
+  type InheritedMetadata,
   parenthesize,
   type CardinalityOf,
   type ResultMeta,
 } from '../core/fragment.ts'
 import type { AnyQuery, QueryRow } from '../query/types.ts'
-import { makeExpression, type ResultExpression } from './types.ts'
+import { makeExpression, type Expression } from './types.ts'
 
 export type SingleColumn<Row extends object> = keyof Row extends infer TKey
   ? TKey extends keyof Row
@@ -20,15 +21,21 @@ type ScalarOutput<TQuery extends AnyQuery> =
 
 export function scalar<TQuery extends AnyQuery>(
   query: TQuery
-): ResultExpression<ScalarOutput<TQuery>, never, 'subquery'> {
+): Expression<
+  ResultMeta<ScalarOutput<TQuery>> | InheritedMetadata<TQuery>,
+  'subquery'
+> {
   if (Object.keys(query.row).length !== 1) {
     throw new Error(
       'scalar() requires a query with exactly one selected column'
     )
   }
 
-  return makeExpression<ResultMeta<ScalarOutput<TQuery>>, 'subquery'>(
-    'subquery',
-    context => context.render(parenthesize(query))
-  ) as ResultExpression<ScalarOutput<TQuery>, never, 'subquery'>
+  return makeExpression<
+    ResultMeta<ScalarOutput<TQuery>> | InheritedMetadata<TQuery>,
+    'subquery'
+  >('subquery', context => context.render(parenthesize(query))) as Expression<
+    ResultMeta<ScalarOutput<TQuery>> | InheritedMetadata<TQuery>,
+    'subquery'
+  >
 }

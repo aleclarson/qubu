@@ -13,6 +13,18 @@ export type RequiresSourceMeta<TSource> = {
   readonly source: TSource
 }
 
+/** A source that must be provided by the enclosing query scope. */
+export type RequiresOuterSourceMeta<TSource> = {
+  readonly kind: 'requires-outer-source'
+  readonly source: TSource
+}
+
+/** A correlated query clause that provisions sources from its enclosing scope. */
+export type ProvidesOuterSourceMeta<TSource> = {
+  readonly kind: 'provides-outer-source'
+  readonly source: TSource
+}
+
 export type NullableSourceMeta<TSource> = {
   readonly kind: 'nullable-source'
   readonly source: TSource
@@ -56,6 +68,8 @@ export type CardinalityMeta<
 export type FragmentMeta =
   | ResultMeta<unknown, unknown>
   | RequiresSourceMeta<unknown>
+  | RequiresOuterSourceMeta<unknown>
+  | ProvidesOuterSourceMeta<unknown>
   | NullableSourceMeta<unknown>
   | ProvidesSourceMeta<unknown, unknown>
   | ExpressionMeta
@@ -118,6 +132,20 @@ type RequiredSource<TMetadata> = TMetadata extends {
   ? TSource
   : never
 
+type RequiredOuterSource<TMetadata> = TMetadata extends {
+  readonly kind: 'requires-outer-source'
+  readonly source: infer TSource
+}
+  ? TSource
+  : never
+
+type ProvidedOuterSource<TMetadata> = TMetadata extends {
+  readonly kind: 'provides-outer-source'
+  readonly source: infer TSource
+}
+  ? TSource
+  : never
+
 type NullableSource<TMetadata> = TMetadata extends {
   readonly kind: 'nullable-source'
   readonly source: infer TSource
@@ -166,6 +194,15 @@ export type InheritedMetadata<T> = InheritedMetadataOf<MetadataOf<T>>
 export type OutputOf<T> = ResultOutput<ResultMetadata<MetadataOf<T>>>
 
 export type RequiresOf<T> = RequiredSource<MetadataOf<T>>
+
+export type RequiresOuterOf<T> = RequiredOuterSource<MetadataOf<T>>
+
+export type ProvidesOuterOf<T> = ProvidedOuterSource<MetadataOf<T>>
+
+export type RequiresOuterMetadataOf<T> = Extract<
+  MetadataOf<T>,
+  { readonly kind: 'requires-outer-source' }
+>
 
 export type NullabilityOf<T> = ResultNullableFrom<ResultMetadata<MetadataOf<T>>>
 

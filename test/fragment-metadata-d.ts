@@ -12,9 +12,11 @@ import type {
   NullableSourceMeta,
   NullableSourcesOf,
   OutputOf,
+  ProvidesOuterSourceMeta,
   ProvidesSourceMeta,
   QueryCardinality,
   RequiresOf,
+  RequiresOuterSourceMeta,
   RequiresSourceMeta,
   ResultMeta,
   SourceIdentity,
@@ -231,6 +233,8 @@ export type PublicMetadataUnionIsClosedForCurrentFacts = Assert<
     FragmentMeta,
     | ResultMeta<unknown, unknown>
     | RequiresSourceMeta<unknown>
+    | RequiresOuterSourceMeta<unknown>
+    | ProvidesOuterSourceMeta<unknown>
     | NullableSourceMeta<unknown>
     | ProvidesSourceMeta<unknown, unknown>
     | ExpressionMeta<unknown>

@@ -1,4 +1,5 @@
 export * from './custom.ts'
+export * from './correlate.ts'
 export * from './distinct.ts'
 export * from './from.ts'
 export * from './group-by.ts'

@@ -8,18 +8,28 @@ import {
 } from './clauses/pagination.ts'
 import type {
   NullableSources,
+  RequiredOuterScope,
   SelectCardinality,
   GroupingValidation,
   ScopeValidation,
   SelectQuery,
 } from './select/types.ts'
+import type { RequiresOuterSourceMeta } from '../core/fragment.ts'
 import { type Selection, type SelectionOutput } from './selection.ts'
+
+type SelectMetadata<TSelection, TClauses extends readonly AnySelectClause[]> = [
+  RequiredOuterScope<TSelection, TClauses>,
+] extends [never]
+  ? never
+  : RequiresOuterSourceMeta<RequiredOuterScope<TSelection, TClauses>>
 
 export type {
   AvailableScope,
+  AvailableOuterScope,
   ClauseScope,
   GroupingValidation,
   MissingScope,
+  RequiredOuterScope,
   RequiredScope,
   SelectCardinality,
   ScopeValidation,
@@ -36,7 +46,8 @@ export function select<
     GroupingValidation<TSelection, TClauses>
 ): SelectQuery<
   SelectionOutput<TSelection, NullableSources<TClauses>>,
-  SelectCardinality<TClauses>
+  SelectCardinality<TClauses>,
+  SelectMetadata<TSelection, TClauses>
 > {
   const normalizedClauses = clauses as readonly AnySelectClause[]
   validateClauses(normalizedClauses)
@@ -55,7 +66,8 @@ export function select<
   >
   const query = createQuery<
     SelectionOutput<TSelection, NullableSources<TClauses>>,
-    SelectCardinality<TClauses>
+    SelectCardinality<TClauses>,
+    SelectMetadata<TSelection, TClauses>
   >('select', row, context => {
     const beforeSelect = orderedClauses.filter(
       clause => clause.placement === 'before-select'
@@ -70,6 +82,7 @@ export function select<
     let renderedPagination = false
 
     for (const clause of beforeSelect) {
+      if (clause.clauseKind === 'correlate') continue
       context.render(clause)
       context.append(' ')
     }
@@ -85,6 +98,7 @@ export function select<
     renderSelection(selection, context)
 
     for (const clause of afterSelect) {
+      if (clause.clauseKind === 'correlate') continue
       if (clause === distinctClause) continue
       if (clause.clauseKind === 'offset' || clause.clauseKind === 'fetch') {
         if (renderedPagination) continue
@@ -100,6 +114,7 @@ export function select<
 
   return query as SelectQuery<
     SelectionOutput<TSelection, NullableSources<TClauses>>,
-    SelectCardinality<TClauses>
+    SelectCardinality<TClauses>,
+    SelectMetadata<TSelection, TClauses>
   >
 }
