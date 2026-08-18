@@ -27,21 +27,21 @@ export interface DriverValueEncoder<TDriverValue = unknown> {
 }
 
 export function execute<TRow extends object>(
-  query: Query<TRow>,
+  query: Query<TRow, any>,
   adapter: QueryAdapter,
   options?: RenderOptions
 ): Promise<readonly TRow[]>
 export function execute<TRow extends object>(
   adapter: QueryAdapter,
-  query: Query<TRow>,
+  query: Query<TRow, any>,
   options?: RenderOptions
 ): Promise<readonly TRow[]>
 export async function execute<TRow extends object>(
-  first: Query<TRow> | QueryAdapter,
-  second: Query<TRow> | QueryAdapter,
+  first: Query<TRow, any> | QueryAdapter,
+  second: Query<TRow, any> | QueryAdapter,
   options: RenderOptions = {}
 ): Promise<readonly TRow[]> {
-  const query = isQuery(first) ? first : (second as Query<TRow>)
+  const query = isQuery(first) ? first : (second as Query<TRow, any>)
   const adapter = isQuery(first) ? (second as QueryAdapter) : first
   const statement = render(query, {
     dialect: options.dialect ?? adapter.dialect,
@@ -54,6 +54,8 @@ export async function execute<TRow extends object>(
 
 export const executeQuery = execute
 
-function isQuery(value: Query<any> | QueryAdapter): value is Query<any> {
+function isQuery(
+  value: Query<any, any> | QueryAdapter
+): value is Query<any, any> {
   return 'render' in value && typeof value.render === 'function'
 }

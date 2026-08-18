@@ -54,16 +54,17 @@ export function offset(rows: number): OffsetClause {
   )
 }
 
-export interface FetchClause extends SelectClause<never> {
+export interface FetchClause<TRows extends number = number>
+  extends SelectClause<never> {
   readonly clauseKind: 'fetch'
   readonly direction: 'FIRST' | 'NEXT'
-  readonly rows: number
+  readonly rows: TRows
 }
 
-function fetchRows(
+function fetchRows<const TRows extends number>(
   direction: FetchClause['direction'],
-  rows: number
-): FetchClause {
+  rows: TRows
+): FetchClause<TRows> {
   if (!Number.isInteger(rows) || rows < 0) {
     throw new RangeError('fetch rows require a non-negative integer')
   }
@@ -71,18 +72,22 @@ function fetchRows(
   return Object.assign(
     createClause('fetch', 'after-select', 100, context =>
       renderPagination(context, [
-        { clauseKind: 'fetch', direction, rows } as FetchClause,
+        {
+          clauseKind: 'fetch',
+          direction,
+          rows,
+        } as unknown as FetchClause<TRows>,
       ])
     ),
     { clauseKind: 'fetch' as const, direction, rows }
-  )
+  ) as FetchClause<TRows>
 }
 
-export function fetchFirst(rows: number) {
+export function fetchFirst<const TRows extends number>(rows: TRows) {
   return fetchRows('FIRST', rows)
 }
 
-export function fetchNext(rows: number) {
+export function fetchNext<const TRows extends number>(rows: TRows) {
   return fetchRows('NEXT', rows)
 }
 

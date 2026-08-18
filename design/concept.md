@@ -9,6 +9,7 @@ Everything that can be composed is a fragment. A fragment has:
 - a small renderer that writes SQL and parameters;
 - a single metadata type containing whichever semantic facts apply;
 - a result type when it produces a value or row;
+- a query cardinality fact when its row count is soundly bounded; and
 - source requirements for its valid scope; and
 - nullability facts when an outer join can affect its result.
 
@@ -19,10 +20,12 @@ Fragment<Metadata>
 ```
 
 The metadata is a union of tagged facts such as `ResultMeta<Output>`,
-`RequiresSourceMeta<Source>`, and `NullableSourceMeta<Source>`. Composition
-helpers distribute over that union and retain the source and nullability facts
-that later clauses need. Parameter values remain a runtime concern of the
-renderer rather than a fourth compile-time contract.
+`RequiresSourceMeta<Source>`, `NullableSourceMeta<Source>`, and
+`CardinalityMeta<QueryCardinality>`. Composition helpers distribute over that
+union and retain the source and nullability facts that later clauses need;
+query cardinality is consumed at the scalar-subquery boundary rather than
+leaking into ordinary expression composition. Parameter values remain a
+runtime concern of the renderer rather than a fourth compile-time contract.
 
 The propagation rule is deliberately semantic rather than positional:
 transparent composition preserves inherited non-result facts, source-aware
@@ -84,6 +87,9 @@ const result = render(query)
 - Clauses can be created independently and supplied to `select` in any order; the query renderer emits standard SQL order.
 - Source requirements accumulate through expressions, predicates, projections, joins, and subqueries; `leftJoin` also marks its source as nullable for the selected output.
 - The select projection establishes the row shape that derived sources and scalar subqueries consume.
+- Query cardinality defaults to `many`; only sound limits or source-free
+  row-preserving selects refine it, and `scalar()` uses that fact to preserve
+  zero-row nullability.
 - Repeated conditions or ordering terms are composed explicitly with `and`, `or`, and one `orderBy` clause rather than hidden mutation.
 - `customClause` and custom fragments are public extension points; unusual syntax does not need a new global registry.
 

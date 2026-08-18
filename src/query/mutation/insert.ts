@@ -37,7 +37,7 @@ export function defaultValues(): DefaultValuesSource {
 }
 
 export interface InsertSelectSource<
-  TQuery extends Query<any> = Query<any>,
+  TQuery extends Query<any, any> = Query<any, any>,
   TColumns extends readonly string[] = readonly string[],
 > {
   readonly insertKind: 'select'
@@ -46,7 +46,7 @@ export interface InsertSelectSource<
 }
 
 export function insertSelect<
-  TQuery extends Query<any>,
+  TQuery extends Query<any, any>,
   const TColumns extends readonly [string, ...string[]],
 >(query: TQuery, columns: TColumns): InsertSelectSource<TQuery, TColumns> {
   return Object.freeze({

@@ -20,6 +20,13 @@ tagged facts that later composition needs:
   that must be available before the fragment is valid.
 - `NullableSourceMeta<Source>` records that a source was introduced by a
   nullable join.
+- `CardinalityMeta<QueryCardinality>` describes how many rows a query can
+  return: `many`, `zero-or-one`, or `exactly-one`.
+
+Cardinality is a query-result fact rather than an expression fact. Ordinary
+source-backed selects default to `many`; a literal `FETCH`/`LIMIT` bound of
+zero or one records `zero-or-one`, and a source-free select without a
+row-reducing clause is `exactly-one`.
 
 Not every fragment needs to contribute every fact. Composition helpers such as
 `sequence()` preserve the non-result metadata of their children, so a custom
@@ -34,7 +41,7 @@ expression. The current laws are:
 
 | Fragment shape                                                      | Metadata behavior                                                                                                                                                                                                                       |
 | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sequence()`, `commaSeparated()`, `keyword()`, and `parenthesize()` | Preserve inherited non-result facts such as source requirements and nullable-source facts. They do not invent an output type.                                                                                                           |
+| `sequence()`, `commaSeparated()`, `keyword()`, and `parenthesize()` | Preserve inherited non-result facts such as source requirements and nullable-source facts. They do not invent an output type or leak query cardinality into an expression.                                                              |
 | An expression wrapper such as `expressionFragment()`                | Preserve the wrapped expression's complete metadata, including its output type.                                                                                                                                                         |
 | A source-aware expression such as `upper(column)`                   | Produce a new result type while inheriting the source requirements and nullable-source provenance of its operands.                                                                                                                      |
 | `leftJoin()`                                                        | Inherit the join predicate's source requirements and add `NullableSourceMeta` for the joined source.                                                                                                                                    |
@@ -139,6 +146,34 @@ type Row = typeof query.row
 
 That row shape becomes the public column surface when the query is used as a
 derived table or CTE. The same selection can also be reused in `RETURNING`.
+
+## Cardinality reaches scalar subqueries
+
+`scalar()` includes `null` when its query may return no rows. This is true for
+ordinary selects and remains true for a query limited to one row, because a
+limit proves an upper bound but not the presence of a row:
+
+```ts
+import { fetchFirst, from, scalar, select, value } from 'qubu'
+
+const firstUser = select({ id: users.id }, from(users), fetchFirst(1))
+
+const firstId = scalar(firstUser)
+// OutputOf<typeof firstId> is number | null
+```
+
+A source-free select has one row unless a known row-reducing clause is present,
+so its scalar result can remain non-null:
+
+```ts
+const constant = select({ value: value(42) })
+const constantValue = scalar(constant)
+// OutputOf<typeof constantValue> is number
+```
+
+Qubu does not infer exactness from arbitrary predicates such as `WHERE id = 1`.
+Those predicates can match no rows, and conservative cardinality keeps scalar
+nullability honest without changing source-scope or rendering behavior.
 
 ## Nullable joins affect selected output
 

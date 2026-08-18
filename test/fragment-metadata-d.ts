@@ -1,4 +1,5 @@
 import type {
+  CardinalityMeta,
   FragmentMeta,
   InheritedMetadata,
   MetadataOf,
@@ -6,6 +7,7 @@ import type {
   NullableSourceMeta,
   NullableSourcesOf,
   OutputOf,
+  QueryCardinality,
   RequiresOf,
   RequiresSourceMeta,
   ResultMeta,
@@ -179,5 +181,6 @@ export type PublicMetadataUnionIsClosedForCurrentFacts = Assert<
     | ResultMeta<unknown, unknown>
     | RequiresSourceMeta<unknown>
     | NullableSourceMeta<unknown>
+    | CardinalityMeta<QueryCardinality>
   >
 >

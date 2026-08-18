@@ -167,6 +167,12 @@ declare global {
   > = import('qubu').Expression<TMetadata, TKind>
   type Fragment<TMetadata = any> = import('qubu').Fragment<TMetadata>
   type FragmentMeta = import('qubu').FragmentMeta
+  type QueryCardinality = import('qubu').QueryCardinality
+  type CardinalityMeta<
+    TCardinality extends
+      import('qubu').QueryCardinality = import('qubu').QueryCardinality,
+  > = import('qubu').CardinalityMeta<TCardinality>
+  type CardinalityOf<T> = import('qubu').CardinalityOf<T>
   type ResultMeta<TOutput, TNullableFrom = never> = import('qubu').ResultMeta<
     TOutput,
     TNullableFrom
@@ -179,10 +185,16 @@ declare global {
     TRow extends object = Record<string, unknown>,
     TKind extends import('qubu').MutationKind = import('qubu').MutationKind,
   > = import('qubu').MutationQuery<TRow, TKind>
-  type Query<TRow extends object = import('qubu').Row> =
-    import('qubu').Query<TRow>
-  type SelectQuery<TRow extends object = Record<string, unknown>> =
-    import('qubu').SelectQuery<TRow>
+  type Query<
+    TRow extends object = import('qubu').Row,
+    TCardinality extends
+      import('qubu').QueryCardinality = import('qubu').QueryCardinality,
+  > = import('qubu').Query<TRow, TCardinality>
+  type SelectQuery<
+    TRow extends object = Record<string, unknown>,
+    TCardinality extends
+      import('qubu').QueryCardinality = import('qubu').QueryCardinality,
+  > = import('qubu').SelectQuery<TRow, TCardinality>
   type Source<
     TIdentity = unknown,
     TRow extends object = Record<string, unknown>,

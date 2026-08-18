@@ -13,7 +13,7 @@ export type MutationKind = 'insert' | 'update' | 'delete'
 export interface MutationQuery<
   TRow extends object = Record<string, unknown>,
   TKind extends MutationKind = MutationKind,
-> extends Query<TRow> {
+> extends Query<TRow, 'many'> {
   readonly queryKind: TKind
 }
 

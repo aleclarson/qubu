@@ -65,7 +65,7 @@ scope checks from confusing `namesSource.name` with `users.name`.
 `scalar()` turns a query with exactly one selected field into an expression:
 
 ```ts
-import { aliasExpression, scalar } from 'qubu'
+import { aliasExpression, scalar, value } from 'qubu'
 
 const firstId = select({ id: users.id }, from(users))
 const query = select(
@@ -77,9 +77,14 @@ const query = select(
 )
 ```
 
-`scalar()` throws at runtime when the query selects more than one field, and its
-type becomes the selected field's value type. Use `exists()`, `notExists()`, or
-`inQuery()` for boolean subquery predicates.
+`scalar()` throws at runtime when the query selects more than one field. Its
+type is the selected field's value type, widened with `null` when the query may
+return no rows. An ordinary select and `fetchFirst(1)` are both nullable: the
+limit proves at most one row, not that a row exists. A source-free select such
+as `select({ value: value(42) })` is known to produce exactly one row.
+
+Qubu does not treat an arbitrary predicate as proof of exactness. Use
+`exists()`, `notExists()`, or `inQuery()` for boolean subquery predicates.
 
 ## Combine compatible queries
 

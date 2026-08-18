@@ -45,7 +45,7 @@ export type QuerySource<TRow extends object, TAlias extends string> = Source<
   TRow
 > & {
   readonly alias: TAlias
-  readonly query: Query<TRow>
+  readonly query: Query<TRow, any>
   readonly columns: SourceColumns<TRow, QueryAliasIdentity<TAlias>>
 } & SourceColumns<TRow, QueryAliasIdentity<TAlias>>
 
@@ -54,7 +54,7 @@ export function alias<
   const TAlias extends string,
 >(source: TBase, name: TAlias): AliasedSource<TBase, TAlias>
 export function alias<TRow extends object, const TAlias extends string>(
-  query: Query<TRow>,
+  query: Query<TRow, any>,
   name: TAlias
 ): QuerySource<TRow, TAlias>
 export function alias(

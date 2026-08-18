@@ -18,10 +18,20 @@ export type NullableSourceMeta<TSource> = {
   readonly source: TSource
 }
 
+export type QueryCardinality = 'many' | 'zero-or-one' | 'exactly-one'
+
+export type CardinalityMeta<
+  TCardinality extends QueryCardinality = QueryCardinality,
+> = {
+  readonly kind: 'cardinality'
+  readonly cardinality: TCardinality
+}
+
 export type FragmentMeta =
   | ResultMeta<unknown, unknown>
   | RequiresSourceMeta<unknown>
   | NullableSourceMeta<unknown>
+  | CardinalityMeta
 
 export interface RenderContext {
   readonly dialect: Dialect
@@ -48,7 +58,7 @@ export type MetadataOf<T> =
   T extends Fragment<infer TMetadata> ? TMetadata : never
 
 type WithoutResult<TMetadata> = TMetadata extends {
-  readonly kind: 'result'
+  readonly kind: 'result' | 'cardinality'
 }
   ? never
   : TMetadata
@@ -85,6 +95,13 @@ type NullableSource<TMetadata> = TMetadata extends {
   ? TSource
   : never
 
+type Cardinality<TMetadata> = TMetadata extends {
+  readonly kind: 'cardinality'
+  readonly cardinality: infer TCardinality
+}
+  ? TCardinality
+  : never
+
 export type InheritedMetadataOf<TMetadata> = WithoutResult<TMetadata>
 export type InheritedMetadata<T> = InheritedMetadataOf<MetadataOf<T>>
 
@@ -95,6 +112,8 @@ export type RequiresOf<T> = RequiredSource<MetadataOf<T>>
 export type NullabilityOf<T> = ResultNullableFrom<ResultMetadata<MetadataOf<T>>>
 
 export type NullableSourcesOf<T> = NullableSource<MetadataOf<T>>
+
+export type CardinalityOf<T> = Cardinality<MetadataOf<T>>
 
 export function fragment<TMetadata = never>(
   render: RenderFunction

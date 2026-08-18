@@ -8,7 +8,7 @@ import {
 
 export function inQuery<
   TExpression extends AnyExpression,
-  TQuery extends Query<any>,
+  TQuery extends Query<any, any>,
 >(
   expression: TExpression,
   query: TQuery
@@ -24,14 +24,14 @@ export function inQuery<
 
 export const inSelect = inQuery
 
-export function exists<TQuery extends Query<any>>(query: TQuery) {
+export function exists<TQuery extends Query<any, any>>(query: TQuery) {
   return makeExpression('subquery', context => {
     context.append('EXISTS ')
     context.render(parenthesize(query))
   }) as ResultExpression<boolean, never, 'subquery', never>
 }
 
-export function notExists<TQuery extends Query<any>>(query: TQuery) {
+export function notExists<TQuery extends Query<any, any>>(query: TQuery) {
   return makeExpression('subquery', context => {
     context.append('NOT EXISTS ')
     context.render(parenthesize(query))

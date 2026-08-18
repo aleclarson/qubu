@@ -8,6 +8,7 @@ import {
 } from './clauses/pagination.ts'
 import type {
   NullableSources,
+  SelectCardinality,
   ScopeValidation,
   SelectQuery,
 } from './select/types.ts'
@@ -18,6 +19,7 @@ export type {
   ClauseScope,
   MissingScope,
   RequiredScope,
+  SelectCardinality,
   ScopeValidation,
   SelectQuery,
 } from './select/types.ts'
@@ -28,7 +30,10 @@ export function select<
 >(
   selection: TSelection,
   ...clauses: TClauses & ScopeValidation<TSelection, TClauses>
-): SelectQuery<SelectionOutput<TSelection, NullableSources<TClauses>>> {
+): SelectQuery<
+  SelectionOutput<TSelection, NullableSources<TClauses>>,
+  SelectCardinality<TClauses>
+> {
   const normalizedClauses = clauses as readonly AnySelectClause[]
   validateClauses(normalizedClauses)
 
@@ -40,8 +45,14 @@ export function select<
     )
     .map(({ clause }) => clause)
 
-  const row = selectionRow(selection)
-  const query = createQuery('select', row, context => {
+  const row = selectionRow(selection) as SelectionOutput<
+    TSelection,
+    NullableSources<TClauses>
+  >
+  const query = createQuery<
+    SelectionOutput<TSelection, NullableSources<TClauses>>,
+    SelectCardinality<TClauses>
+  >('select', row, context => {
     const beforeSelect = orderedClauses.filter(
       clause => clause.placement === 'before-select'
     )
@@ -84,6 +95,7 @@ export function select<
   })
 
   return query as SelectQuery<
-    SelectionOutput<TSelection, NullableSources<TClauses>>
+    SelectionOutput<TSelection, NullableSources<TClauses>>,
+    SelectCardinality<TClauses>
   >
 }

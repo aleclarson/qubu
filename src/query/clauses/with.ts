@@ -23,17 +23,17 @@ export type CteSource<TName extends string, TRow extends object> = Source<
   TRow
 > & {
   readonly cteName: TName
-  readonly query: Query<TRow>
+  readonly query: Query<TRow, any>
   readonly columns: SourceColumns<TRow, CteIdentity<TName>>
 } & SourceColumns<TRow, CteIdentity<TName>>
 
 export type AnyCteSource = Source<any, any> & {
   readonly cteName: string
-  readonly query: Query<any>
+  readonly query: Query<any, any>
   readonly columns: Record<string, unknown>
 }
 
-export function cte<const TName extends string, TQuery extends Query<any>>(
+export function cte<const TName extends string, TQuery extends Query<any, any>>(
   name: TName,
   query: TQuery
 ): CteSource<TName, QueryRow<TQuery>> {
