@@ -4,6 +4,8 @@ import {
   type ResultExpression,
 } from './types.ts'
 import {
+  type DependenciesOf,
+  type ExpressionMeta,
   type InheritedMetadata,
   type NullabilityOf,
   type ResultMeta,
@@ -19,7 +21,9 @@ export function cast<
   typeName: TType
 ): ResultExpression<T, TExpression, 'operator'> {
   return makeExpression<
-    ResultMeta<T, NullabilityOf<TExpression>> | InheritedMetadata<TExpression>,
+    | ResultMeta<T, NullabilityOf<TExpression>>
+    | ExpressionMeta<DependenciesOf<TExpression>>
+    | InheritedMetadata<TExpression>,
     'operator'
   >('operator', context => {
     context.append('CAST(')

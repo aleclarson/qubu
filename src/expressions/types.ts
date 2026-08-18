@@ -1,4 +1,7 @@
 import {
+  type AggregateMeta,
+  type DependenciesOf,
+  type ExpressionMeta,
   fragment,
   type InheritedMetadata,
   type NullabilityOf,
@@ -39,7 +42,9 @@ export type ExpressionWithOutput<
 > = Expression<
   | ResultMeta<TOutput, unknown>
   | RequiresSourceMeta<unknown>
-  | NullableSourceMeta<unknown>,
+  | NullableSourceMeta<unknown>
+  | ExpressionMeta<unknown>
+  | AggregateMeta<unknown>,
   TKind
 >
 
@@ -50,7 +55,23 @@ export type ResultExpression<
   TKind extends ExpressionKind = ExpressionKind,
   TNullableFrom = NullabilityOf<TChildren>,
 > = Expression<
-  ResultMeta<TOutput, TNullableFrom> | InheritedMetadata<TChildren>,
+  | ResultMeta<TOutput, TNullableFrom>
+  | ExpressionMeta<DependenciesOf<TChildren>>
+  | InheritedMetadata<TChildren>,
+  TKind
+>
+
+/** Build an aggregate result while recording which dependencies it consumes. */
+export type AggregateResultExpression<
+  TOutput,
+  TChildren = never,
+  TKind extends ExpressionKind = ExpressionKind,
+  TNullableFrom = NullabilityOf<TChildren>,
+> = Expression<
+  | ResultMeta<TOutput, TNullableFrom>
+  | ExpressionMeta<DependenciesOf<TChildren>>
+  | AggregateMeta<DependenciesOf<TChildren>>
+  | InheritedMetadata<TChildren>,
   TKind
 >
 

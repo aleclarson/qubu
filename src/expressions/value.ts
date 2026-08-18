@@ -1,16 +1,17 @@
 import { parameter } from '../core/primitives/parameter.ts'
 import { makeExpression, type AnyExpression, type Expression } from './types.ts'
-import type { ResultMeta } from '../core/fragment.ts'
+import type { ExpressionMeta, ResultMeta } from '../core/fragment.ts'
 
 export interface ValueExpression<T = unknown>
-  extends Expression<ResultMeta<T>, 'value'> {
+  extends Expression<ResultMeta<T> | ExpressionMeta<never>, 'value'> {
   readonly value: T
 }
 
 export function value<T>(input: T): ValueExpression<T> {
-  const expression = makeExpression<ResultMeta<T>, 'value'>('value', context =>
-    context.render(parameter(input))
-  )
+  const expression = makeExpression<
+    ResultMeta<T> | ExpressionMeta<never>,
+    'value'
+  >('value', context => context.render(parameter(input)))
   return Object.freeze({ ...expression, value: input })
 }
 

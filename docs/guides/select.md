@@ -154,19 +154,41 @@ driver-specific `LIMIT` form.
 ## Group and aggregate
 
 Aggregates are expressions, so alias them when the result needs a stable field
-name and group the non-aggregate expressions:
+name and group every non-aggregate column dependency:
 
 ```ts
-import { aliasExpression, count, desc, groupBy, leftJoin, orderBy } from 'qubu'
+import {
+  aliasExpression,
+  count,
+  desc,
+  eq,
+  from,
+  groupBy,
+  gt,
+  having,
+  leftJoin,
+  orderBy,
+  select,
+} from 'qubu'
 
 const counts = select(
-  [users.name, aliasExpression(count(posts.id), 'postCount')],
+  {
+    name: users.name,
+    postCount: aliasExpression(count(posts.id), 'postCount'),
+  },
   from(users),
   leftJoin(posts, eq(users.id, posts.authorId)),
   groupBy(users.name),
+  having(gt(count(posts.id), 0)),
   orderBy(desc(count(posts.id)))
 )
 ```
+
+`users.name` is grouped, while `posts.id` is consumed by `COUNT()`. The same
+dependency rule applies to `HAVING` and grouped `ORDER BY` expressions. A
+projection such as `{ email: users.email, postCount: count(posts.id) }` is
+rejected unless `users.email` is also grouped; Qubu does not infer functional
+dependencies from database keys.
 
 ## Window functions
 

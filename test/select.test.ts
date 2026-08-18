@@ -164,7 +164,8 @@ test('marks left-joined results nullable without changing inner joins', () => {
       postCount: aliasExpression(count(posts.id), 'postCount'),
     },
     from(users),
-    leftJoin(posts, eq(users.id, posts.authorId))
+    leftJoin(posts, eq(users.id, posts.authorId)),
+    groupBy(users.name, posts.title)
   )
   const innerJoined = select(
     { title: posts.title },

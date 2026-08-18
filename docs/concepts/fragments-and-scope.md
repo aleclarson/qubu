@@ -20,6 +20,12 @@ tagged facts that later composition needs:
   that must be available before the fragment is valid.
 - `NullableSourceMeta<Source>` records that a source was introduced by a
   nullable join.
+- `ExpressionMeta<Dependencies>` records the columns an expression reads at
+  the current query level.
+- `AggregateMeta<Dependencies>` records dependencies consumed inside an
+  aggregate, so they do not become ungrouped projection dependencies.
+- `GroupingMeta<Keys, Dependencies>` records the grouping keys and the direct
+  column dependencies made available by `GROUP BY`.
 - `CardinalityMeta<QueryCardinality>` describes how many rows a query can
   return: `many`, `zero-or-one`, or `exactly-one`.
 
@@ -44,6 +50,9 @@ expression. The current laws are:
 | `sequence()`, `commaSeparated()`, `keyword()`, and `parenthesize()` | Preserve inherited non-result facts such as source requirements and nullable-source facts. They do not invent an output type or leak query cardinality into an expression.                                                              |
 | An expression wrapper such as `expressionFragment()`                | Preserve the wrapped expression's complete metadata, including its output type.                                                                                                                                                         |
 | A source-aware expression such as `upper(column)`                   | Produce a new result type while inheriting the source requirements and nullable-source provenance of its operands.                                                                                                                      |
+| An expression wrapper or operator                                   | Carry its current-level column dependencies forward; aggregate children also carry an aggregate-consumed dependency fact.                                                                                                               |
+| An aggregate such as `count(column)`                                | Mark its argument dependencies as aggregate-consumed, so the aggregate itself is valid without grouping those columns.                                                                                                                  |
+| `groupBy()`                                                         | Record its grouping expressions and, for column keys, the column dependencies that derived expressions may use.                                                                                                                         |
 | `leftJoin()`                                                        | Inherit the join predicate's source requirements and add `NullableSourceMeta` for the joined source.                                                                                                                                    |
 | Nullability-changing operators                                      | Declare their result nullability explicitly. `count()`, `countDistinct()`, `coalesce()` with its current contract, `caseWhen()` branches, and `IS NULL`/`IS NOT NULL` predicates do not blindly copy an operand's nullable-source fact. |
 
@@ -52,6 +61,13 @@ describes a concrete result, `RequiresOf<T>` describes sources that must be in
 scope, and `NullabilityOf<T>` describes sources that can turn that result into
 `null` after an outer join. Future metadata belongs in this union only when a
 producer, a consumer, and regression coverage exist for it.
+
+Grouped queries use the dependency facts when a `GROUP BY` or `HAVING` clause
+is present, or when a projection contains an aggregate. A visible column
+dependency must be one of the grouped column dependencies; aggregate arguments
+are consumed by the aggregate and do not need to be grouped. Non-column group
+expressions are accepted as exact grouping keys only. Qubu does not infer
+functional dependencies from keys or database constraints.
 
 This keeps the runtime core small. Qubu does not require extensions to build or
 register nodes in a central mutable AST.

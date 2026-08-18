@@ -1,10 +1,14 @@
 import {
+  type ExpressionMeta,
   type Fragment,
   type RequiresSourceMeta,
   type RenderFunction,
   type ResultMeta,
 } from '../core/fragment.ts'
-import type { ColumnReference } from '../expressions/column.ts'
+import type {
+  ColumnDependency,
+  ColumnReference,
+} from '../expressions/column.ts'
 
 export const sourceIdentity: unique symbol = Symbol('qubu.source.identity')
 
@@ -14,7 +18,9 @@ export type SourceColumns<TRow extends object, TIdentity> = {
   readonly [K in keyof TRow]-?: K extends string
     ? ColumnReference<
         K,
-        ResultMeta<TRow[K], TIdentity> | RequiresSourceMeta<TIdentity>
+        | ResultMeta<TRow[K], TIdentity>
+        | RequiresSourceMeta<TIdentity>
+        | ExpressionMeta<ColumnDependency<TIdentity, K>>
       >
     : never
 }

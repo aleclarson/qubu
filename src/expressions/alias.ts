@@ -1,6 +1,8 @@
 import { identifier } from '../core/primitives/identifier.ts'
 import { makeExpression, type AnyExpression, type Expression } from './types.ts'
 import {
+  type DependenciesOf,
+  type ExpressionMeta,
   type InheritedMetadata,
   type NullabilityOf,
   type ResultMeta,
@@ -27,12 +29,14 @@ export function aliasExpression<
       import('./types.ts').ExpressionOutput<TExpression>,
       NullabilityOf<TExpression>
     >
+  | ExpressionMeta<DependenciesOf<TExpression>>
   | InheritedMetadata<TExpression>,
   TExpression
 > {
   type TOutput = import('./types.ts').ExpressionOutput<TExpression>
   type TMetadata =
     | ResultMeta<TOutput, NullabilityOf<TExpression>>
+    | ExpressionMeta<DependenciesOf<TExpression>>
     | InheritedMetadata<TExpression>
   const aliased = makeExpression<TMetadata, 'alias'>('alias', context => {
     context.render(expression)

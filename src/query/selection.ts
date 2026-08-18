@@ -58,11 +58,12 @@ export type Selection =
   | readonly SelectableItem[]
   | SelectableItem
 
-type SelectionItems<TSelection> = TSelection extends readonly (infer TItem)[]
-  ? TItem
-  : TSelection extends SelectionObject
-    ? TSelection[keyof TSelection]
-    : TSelection
+export type SelectionItems<TSelection> =
+  TSelection extends readonly (infer TItem)[]
+    ? TItem
+    : TSelection extends SelectionObject
+      ? TSelection[keyof TSelection]
+      : TSelection
 
 type NullableRow<TRow extends object> = {
   [K in keyof TRow]: TRow[K] | null

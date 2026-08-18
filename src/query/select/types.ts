@@ -1,17 +1,27 @@
 import type {
+  GroupingDependenciesOf,
+  GroupingKeysOf,
+  HasAggregate,
   NullableSourcesOf,
   QueryCardinality,
   RequiresOf,
 } from '../../core/fragment.ts'
 import type { DistinctClause } from '../clauses/distinct.ts'
 import type { FetchClause } from '../clauses/pagination.ts'
+import type { GroupByClause } from '../clauses/group-by.ts'
+import type { HavingClause } from '../clauses/having.ts'
 import type { Source, SourceIdentity } from '../../schema/source.ts'
 import type { JoinClause } from '../clauses/joins.ts'
 import type { AnySelectClause } from '../clauses/types.ts'
 import type { FromClause } from '../clauses/from.ts'
 import type { OrderByClause } from '../clauses/order-by.ts'
 import type { WithClause } from '../clauses/with.ts'
-import type { SelectionRequires } from '../selection.ts'
+import type {
+  SelectionItems,
+  SelectionRequires,
+  Wildcard,
+} from '../selection.ts'
+import type { VisibleDependenciesOf } from '../../core/fragment.ts'
 import type { Query } from '../types.ts'
 
 export interface SelectQuery<
@@ -71,3 +81,91 @@ export type ScopeValidation<
   : {
       readonly __missing_sources__: MissingScope<TSelection, TClauses>
     }
+
+type GroupingRuleClause = HavingClause<any> | OrderByClause<any>
+
+type HasGroupByClause<TClauses extends readonly AnySelectClause[]> =
+  Extract<TClauses[number], GroupByClause<any>> extends never ? false : true
+
+type HasHavingClause<TClauses extends readonly AnySelectClause[]> =
+  Extract<TClauses[number], HavingClause<any>> extends never ? false : true
+
+type GroupingRuleClauses<TClauses extends readonly AnySelectClause[]> = Extract<
+  TClauses[number],
+  GroupingRuleClause
+>
+
+type RequiresGrouping<TSelection, TClauses extends readonly AnySelectClause[]> =
+  HasGroupByClause<TClauses> extends true
+    ? true
+    : HasHavingClause<TClauses> extends true
+      ? true
+      : HasAggregate<SelectionItems<TSelection> | GroupingRuleClauses<TClauses>>
+
+type GroupingFailure<
+  TExpression,
+  TClauses extends readonly AnySelectClause[],
+> = TExpression extends unknown
+  ? TExpression extends Wildcard<any, any>
+    ? TExpression
+    : [VisibleDependenciesOf<TExpression>] extends [never]
+      ? never
+      : [
+            Exclude<
+              VisibleDependenciesOf<TExpression>,
+              GroupingDependenciesOf<TClauses[number]>
+            >,
+          ] extends [never]
+        ? never
+        : [Extract<TExpression, GroupingKeysOf<TClauses[number]>>] extends [
+              never,
+            ]
+          ? VisibleDependenciesOf<TExpression>
+          : never
+  : never
+
+type SelectionGroupingFailures<
+  TSelection,
+  TClauses extends readonly AnySelectClause[],
+> = GroupingFailure<SelectionItems<TSelection>, TClauses>
+
+type ClauseGroupingFailures<TClauses extends readonly AnySelectClause[]> =
+  TClauses[number] extends infer TClause
+    ? TClause extends GroupingRuleClause
+      ? GroupingFailure<TClause, TClauses>
+      : never
+    : never
+
+type GroupByAggregateFailures<TClauses extends readonly AnySelectClause[]> =
+  TClauses[number] extends infer TClause
+    ? TClause extends GroupByClause<any>
+      ? HasAggregate<TClause> extends true
+        ? TClause
+        : never
+      : never
+    : never
+
+type GroupingFailures<
+  TSelection,
+  TClauses extends readonly AnySelectClause[],
+> =
+  | SelectionGroupingFailures<TSelection, TClauses>
+  | ClauseGroupingFailures<TClauses>
+  | GroupByAggregateFailures<TClauses>
+
+/**
+ * Enforce the conservative grouped-query rule: visible column dependencies
+ * must be grouped, while aggregate arguments are consumed by the aggregate.
+ * Non-column GROUP BY expressions are accepted as exact grouping keys only.
+ */
+export type GroupingValidation<
+  TSelection,
+  TClauses extends readonly AnySelectClause[],
+> =
+  RequiresGrouping<TSelection, TClauses> extends true
+    ? [GroupingFailures<TSelection, TClauses>] extends [never]
+      ? unknown
+      : {
+          readonly __invalid_grouping__: GroupingFailures<TSelection, TClauses>
+        }
+    : unknown

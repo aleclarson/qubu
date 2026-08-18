@@ -1,12 +1,15 @@
 import type {
-  InheritedMetadata,
+  AggregateDependenciesOf,
+  ColumnDependency,
+  DependenciesOf,
+  ExpressionMeta,
   MetadataOf,
   NullabilityOf,
   OutputOf,
   RequiresOf,
-  RequiresSourceMeta,
   ResultMeta,
   SourceIdentity,
+  VisibleDependenciesOf,
 } from '../src/index.ts'
 import type {
   aliasedRowNumber,
@@ -28,6 +31,9 @@ type Assert<TCondition extends true> = TCondition
 
 type UserIdentity = SourceIdentity<typeof users>
 type PostIdentity = SourceIdentity<typeof posts>
+type UserId = ColumnDependency<UserIdentity, 'id'>
+type PostId = ColumnDependency<PostIdentity, 'id'>
+type PostTitle = ColumnDependency<PostIdentity, 'title'>
 
 export type PartitionedRowNumberOutput = Assert<
   Equal<OutputOf<typeof partitionedRowNumber>, number>
@@ -45,13 +51,16 @@ export type MixedWindowRequirements = Assert<
   Equal<RequiresOf<typeof mixedWindowCount>, UserIdentity | PostIdentity>
 >
 
-export type MixedWindowMetadata = Assert<
-  Equal<
-    MetadataOf<typeof mixedWindowCount>,
-    | ResultMeta<number, never>
-    | RequiresSourceMeta<UserIdentity>
-    | RequiresSourceMeta<PostIdentity>
-  >
+export type MixedWindowDependencies = Assert<
+  Equal<DependenciesOf<typeof mixedWindowCount>, UserId | PostId | PostTitle>
+>
+
+export type MixedWindowAggregateDependencies = Assert<
+  Equal<AggregateDependenciesOf<typeof mixedWindowCount>, PostId>
+>
+
+export type MixedWindowVisibleDependencies = Assert<
+  Equal<VisibleDependenciesOf<typeof mixedWindowCount>, UserId | PostTitle>
 >
 
 export type NullableWindowOutput = Assert<
@@ -64,13 +73,16 @@ export type NullableWindowNullability = Assert<
 
 export type NullableWindowInheritedMetadata = Assert<
   Equal<
-    InheritedMetadata<typeof nullableWindow>,
-    RequiresSourceMeta<UserIdentity> | RequiresSourceMeta<PostIdentity>
+    [RequiresOf<typeof nullableWindow>, DependenciesOf<typeof nullableWindow>],
+    [UserIdentity | PostIdentity, UserId | PostTitle]
   >
 >
 
 export type UnconfiguredRankMetadata = Assert<
-  Equal<MetadataOf<typeof unconfiguredRank>, ResultMeta<number, never>>
+  Equal<
+    MetadataOf<typeof unconfiguredRank>,
+    ResultMeta<number, never> | ExpressionMeta<never>
+  >
 >
 
 export type AliasedWindowOutput = Assert<

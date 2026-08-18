@@ -1,7 +1,12 @@
 import type {
+  AggregateDependenciesOf,
+  AggregateMeta,
+  ColumnDependency,
   CardinalityMeta,
+  DependenciesOf,
+  ExpressionMeta,
   FragmentMeta,
-  InheritedMetadata,
+  GroupingMeta,
   MetadataOf,
   NullabilityOf,
   NullableSourceMeta,
@@ -12,6 +17,7 @@ import type {
   RequiresSourceMeta,
   ResultMeta,
   SourceIdentity,
+  VisibleDependenciesOf,
 } from '../src/index.ts'
 import type {
   commaSeparatedColumns,
@@ -48,8 +54,11 @@ type PostIdentity = SourceIdentity<typeof posts>
 
 export type SourceAwareSequenceMetadata = Assert<
   Equal<
-    MetadataOf<typeof sourceAwareSequence>,
-    RequiresSourceMeta<UserIdentity>
+    [
+      RequiresOf<typeof sourceAwareSequence>,
+      DependenciesOf<typeof sourceAwareSequence>,
+    ],
+    [UserIdentity, ColumnDependency<UserIdentity, 'name'>]
   >
 >
 
@@ -71,13 +80,16 @@ export type MetadataFreeNullability = Assert<
 
 export type ParenthesizedMetadata = Assert<
   Equal<
-    MetadataOf<typeof parenthesizedColumn>,
-    RequiresSourceMeta<PostIdentity>
+    DependenciesOf<typeof parenthesizedColumn>,
+    ColumnDependency<PostIdentity, 'title'>
   >
 >
 
 export type KeywordMetadata = Assert<
-  Equal<MetadataOf<typeof keywordColumn>, RequiresSourceMeta<PostIdentity>>
+  Equal<
+    DependenciesOf<typeof keywordColumn>,
+    ColumnDependency<PostIdentity, 'title'>
+  >
 >
 
 export type CommaSeparatedRequirements = Assert<
@@ -102,6 +114,21 @@ export type CountOutput = Assert<Equal<OutputOf<typeof countedPostIds>, number>>
 export type CountDistinctOutput = Assert<
   Equal<OutputOf<typeof distinctPostIds>, number>
 >
+export type CountDependencies = Assert<
+  Equal<
+    DependenciesOf<typeof countedPostIds>,
+    ColumnDependency<PostIdentity, 'id'>
+  >
+>
+export type CountAggregateDependencies = Assert<
+  Equal<
+    AggregateDependenciesOf<typeof countedPostIds>,
+    ColumnDependency<PostIdentity, 'id'>
+  >
+>
+export type CountVisibleDependencies = Assert<
+  Equal<VisibleDependenciesOf<typeof countedPostIds>, never>
+>
 export type NullPredicateOutput = Assert<
   Equal<OutputOf<typeof nullPredicate>, boolean>
 >
@@ -111,10 +138,19 @@ export type NotNullPredicateOutput = Assert<
 
 export type NullableJoinMetadata = Assert<
   Equal<
-    MetadataOf<typeof leftJoinClause>,
-    | RequiresSourceMeta<UserIdentity>
-    | RequiresSourceMeta<PostIdentity>
-    | NullableSourceMeta<PostIdentity>
+    [
+      RequiresOf<typeof leftJoinClause>,
+      DependenciesOf<typeof leftJoinClause>,
+      NullableSourcesOf<typeof leftJoinClause>,
+    ],
+    [
+      UserIdentity | PostIdentity,
+      (
+        | ColumnDependency<UserIdentity, 'id'>
+        | ColumnDependency<PostIdentity, 'authorId'>
+      ),
+      PostIdentity,
+    ]
   >
 >
 
@@ -142,19 +178,33 @@ export type SemanticNullabilityOverrides = Assert<
 
 export type JoinComposition = Assert<
   Equal<
-    InheritedMetadata<typeof leftJoinClause>,
-    | RequiresSourceMeta<UserIdentity>
-    | RequiresSourceMeta<PostIdentity>
-    | NullableSourceMeta<PostIdentity>
+    [RequiresOf<typeof leftJoinClause>, DependenciesOf<typeof leftJoinClause>],
+    [
+      UserIdentity | PostIdentity,
+      (
+        | ColumnDependency<UserIdentity, 'id'>
+        | ColumnDependency<PostIdentity, 'authorId'>
+      ),
+    ]
   >
 >
 
 export type SequenceJoinMetadata = Assert<
   Equal<
-    MetadataOf<typeof sequenceWithJoin>,
-    | RequiresSourceMeta<UserIdentity>
-    | RequiresSourceMeta<PostIdentity>
-    | NullableSourceMeta<PostIdentity>
+    [
+      RequiresOf<typeof sequenceWithJoin>,
+      DependenciesOf<typeof sequenceWithJoin>,
+      NullableSourcesOf<typeof sequenceWithJoin>,
+    ],
+    [
+      UserIdentity | PostIdentity,
+      (
+        | ColumnDependency<UserIdentity, 'id'>
+        | ColumnDependency<UserIdentity, 'name'>
+        | ColumnDependency<PostIdentity, 'authorId'>
+      ),
+      PostIdentity,
+    ]
   >
 >
 
@@ -181,6 +231,9 @@ export type PublicMetadataUnionIsClosedForCurrentFacts = Assert<
     | ResultMeta<unknown, unknown>
     | RequiresSourceMeta<unknown>
     | NullableSourceMeta<unknown>
+    | ExpressionMeta<unknown>
+    | AggregateMeta<unknown>
+    | GroupingMeta<unknown, unknown>
     | CardinalityMeta<QueryCardinality>
   >
 >

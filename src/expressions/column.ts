@@ -1,4 +1,6 @@
 import {
+  type DependenciesOf,
+  type ExpressionMeta,
   fragment,
   type MetadataOf,
   type Fragment,
@@ -15,15 +17,28 @@ export interface ColumnReference<
   readonly columnName: TName
 }
 
+export type ColumnDependency<TSource, TName extends string> = {
+  readonly kind: 'column'
+  readonly source: TSource
+  readonly name: TName
+}
+
+export type ColumnGroupingDependencies<T> =
+  T extends ColumnReference<any, any> ? DependenciesOf<T> : never
+
 export function createColumnReference<TOutput, TName extends string, TSource>(
   name: TName,
   sourceReference: Fragment<never>
 ): ColumnReference<
   TName,
-  ResultMeta<TOutput, TSource> | RequiresSourceMeta<TSource>
+  | ResultMeta<TOutput, TSource>
+  | RequiresSourceMeta<TSource>
+  | ExpressionMeta<ColumnDependency<TSource, TName>>
 > {
   const expression = makeExpression<
-    ResultMeta<TOutput, TSource> | RequiresSourceMeta<TSource>,
+    | ResultMeta<TOutput, TSource>
+    | RequiresSourceMeta<TSource>
+    | ExpressionMeta<ColumnDependency<TSource, TName>>,
     'column'
   >('column', context => {
     context.render(sourceReference)
@@ -36,7 +51,9 @@ export function createColumnReference<TOutput, TName extends string, TSource>(
     columnName: name,
   }) as ColumnReference<
     TName,
-    ResultMeta<TOutput, TSource> | RequiresSourceMeta<TSource>
+    | ResultMeta<TOutput, TSource>
+    | RequiresSourceMeta<TSource>
+    | ExpressionMeta<ColumnDependency<TSource, TName>>
   >
 }
 

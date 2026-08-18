@@ -20,12 +20,16 @@ Fragment<Metadata>
 ```
 
 The metadata is a union of tagged facts such as `ResultMeta<Output>`,
-`RequiresSourceMeta<Source>`, `NullableSourceMeta<Source>`, and
-`CardinalityMeta<QueryCardinality>`. Composition helpers distribute over that
-union and retain the source and nullability facts that later clauses need;
-query cardinality is consumed at the scalar-subquery boundary rather than
-leaking into ordinary expression composition. Parameter values remain a
-runtime concern of the renderer rather than a fourth compile-time contract.
+`RequiresSourceMeta<Source>`, `NullableSourceMeta<Source>`,
+`ExpressionMeta<Dependencies>`, `AggregateMeta<Dependencies>`,
+`GroupingMeta<Keys, Dependencies>`, and `CardinalityMeta<QueryCardinality>`.
+Composition helpers distribute over that union and retain the source,
+nullability, and expression facts that later clauses need; aggregate
+dependencies are marked as consumed, while grouping facts are consumed by
+`select()` validation. Query cardinality is consumed at the scalar-subquery
+boundary rather than leaking into ordinary expression composition. Parameter
+values remain a runtime concern of the renderer rather than a fourth
+compile-time contract.
 
 The propagation rule is deliberately semantic rather than positional:
 transparent composition preserves inherited non-result facts, source-aware
@@ -86,6 +90,7 @@ const result = render(query)
 - Functions return fragments rather than mutating a shared builder.
 - Clauses can be created independently and supplied to `select` in any order; the query renderer emits standard SQL order.
 - Source requirements accumulate through expressions, predicates, projections, joins, and subqueries; `leftJoin` also marks its source as nullable for the selected output.
+- Grouped projections, `HAVING`, and grouped `ORDER BY` expressions must expose only grouped dependencies or aggregate-consumed dependencies; functional dependencies are not inferred.
 - The select projection establishes the row shape that derived sources and scalar subqueries consume.
 - Query cardinality defaults to `many`; only sound limits or source-free
   row-preserving selects refine it, and `scalar()` uses that fact to preserve

@@ -7,6 +7,7 @@ import {
   eq,
   expressionFragment,
   from,
+  groupBy,
   isNotNull,
   isNull,
   keyword,
@@ -79,5 +80,6 @@ export const leftJoinedQuery = select(
     postIsPresent: notNullPredicate,
   },
   from(users),
-  leftJoin(posts, eq(users.id, posts.authorId))
+  leftJoin(posts, eq(users.id, posts.authorId)),
+  groupBy(users.name, posts.title)
 )

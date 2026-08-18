@@ -9,6 +9,7 @@ import {
 import type {
   NullableSources,
   SelectCardinality,
+  GroupingValidation,
   ScopeValidation,
   SelectQuery,
 } from './select/types.ts'
@@ -17,6 +18,7 @@ import { type Selection, type SelectionOutput } from './selection.ts'
 export type {
   AvailableScope,
   ClauseScope,
+  GroupingValidation,
   MissingScope,
   RequiredScope,
   SelectCardinality,
@@ -29,7 +31,9 @@ export function select<
   const TClauses extends readonly AnySelectClause[],
 >(
   selection: TSelection,
-  ...clauses: TClauses & ScopeValidation<TSelection, TClauses>
+  ...clauses: TClauses &
+    ScopeValidation<TSelection, TClauses> &
+    GroupingValidation<TSelection, TClauses>
 ): SelectQuery<
   SelectionOutput<TSelection, NullableSources<TClauses>>,
   SelectCardinality<TClauses>

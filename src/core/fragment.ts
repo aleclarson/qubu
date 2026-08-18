@@ -18,6 +18,25 @@ export type NullableSourceMeta<TSource> = {
   readonly source: TSource
 }
 
+/** Dependencies read by an expression at the current query level. */
+export type ExpressionMeta<TDependencies = unknown> = {
+  readonly kind: 'expression'
+  readonly dependencies: TDependencies
+}
+
+/** Dependencies consumed inside an aggregate expression. */
+export type AggregateMeta<TDependencies = unknown> = {
+  readonly kind: 'aggregate'
+  readonly dependencies: TDependencies
+}
+
+/** Grouping keys and column dependencies made available by a GROUP BY clause. */
+export type GroupingMeta<TKeys = unknown, TDependencies = unknown> = {
+  readonly kind: 'grouping'
+  readonly keys: TKeys
+  readonly dependencies: TDependencies
+}
+
 export type QueryCardinality = 'many' | 'zero-or-one' | 'exactly-one'
 
 export type CardinalityMeta<
@@ -31,6 +50,9 @@ export type FragmentMeta =
   | ResultMeta<unknown, unknown>
   | RequiresSourceMeta<unknown>
   | NullableSourceMeta<unknown>
+  | ExpressionMeta
+  | AggregateMeta
+  | GroupingMeta
   | CardinalityMeta
 
 export interface RenderContext {
@@ -95,6 +117,34 @@ type NullableSource<TMetadata> = TMetadata extends {
   ? TSource
   : never
 
+type ExpressionDependencies<TMetadata> = TMetadata extends {
+  readonly kind: 'expression'
+  readonly dependencies: infer TDependencies
+}
+  ? TDependencies
+  : never
+
+type AggregateDependencies<TMetadata> = TMetadata extends {
+  readonly kind: 'aggregate'
+  readonly dependencies: infer TDependencies
+}
+  ? TDependencies
+  : never
+
+type GroupingKeys<TMetadata> = TMetadata extends {
+  readonly kind: 'grouping'
+  readonly keys: infer TKeys
+}
+  ? TKeys
+  : never
+
+type GroupingDependencies<TMetadata> = TMetadata extends {
+  readonly kind: 'grouping'
+  readonly dependencies: infer TDependencies
+}
+  ? TDependencies
+  : never
+
 type Cardinality<TMetadata> = TMetadata extends {
   readonly kind: 'cardinality'
   readonly cardinality: infer TCardinality
@@ -112,6 +162,26 @@ export type RequiresOf<T> = RequiredSource<MetadataOf<T>>
 export type NullabilityOf<T> = ResultNullableFrom<ResultMetadata<MetadataOf<T>>>
 
 export type NullableSourcesOf<T> = NullableSource<MetadataOf<T>>
+
+export type DependenciesOf<T> = ExpressionDependencies<MetadataOf<T>>
+
+export type AggregateDependenciesOf<T> = AggregateDependencies<MetadataOf<T>>
+
+/** Dependencies still visible after aggregate arguments have been consumed. */
+export type VisibleDependenciesOf<T> = Exclude<
+  DependenciesOf<T>,
+  AggregateDependenciesOf<T>
+>
+
+export type GroupingKeysOf<T> = GroupingKeys<MetadataOf<T>>
+
+export type GroupingDependenciesOf<T> = GroupingDependencies<MetadataOf<T>>
+
+export type HasAggregate<T> = [
+  Extract<MetadataOf<T>, { readonly kind: 'aggregate' }>,
+] extends [never]
+  ? false
+  : true
 
 export type CardinalityOf<T> = Cardinality<MetadataOf<T>>
 

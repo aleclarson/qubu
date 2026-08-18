@@ -1,4 +1,6 @@
 import {
+  type DependenciesOf,
+  type ExpressionMeta,
   type InheritedMetadata,
   type NullabilityOf,
   type OutputOf,
@@ -34,6 +36,7 @@ export type WindowedExpression<
   TWindow extends WindowSpec | undefined,
 > = Expression<
   | ResultMeta<OutputOf<TExpression>, NullabilityOf<TExpression>>
+  | ExpressionMeta<DependenciesOf<TExpression | WindowSpecParts<TWindow>>>
   | InheritedMetadata<TExpression | WindowSpecParts<TWindow>>,
   'function'
 >

@@ -1,5 +1,7 @@
 import { routineName } from '../../core/primitives/routine.ts'
 import {
+  type DependenciesOf,
+  type ExpressionMeta,
   type InheritedMetadata,
   type NullabilityOf,
   type RequiresOf,
@@ -28,7 +30,9 @@ export function call<
     })
     context.append(')')
   }) as Expression<
-    ResultMeta<TOutput, TNullableFrom> | InheritedMetadata<TArguments[number]>,
+    | ResultMeta<TOutput, TNullableFrom>
+    | ExpressionMeta<DependenciesOf<TArguments[number]>>
+    | InheritedMetadata<TArguments[number]>,
     'function'
   >
 }
