@@ -22,7 +22,6 @@ import {
 export type ExpressionKind =
   | 'value'
   | 'column'
-  | 'alias'
   | 'function'
   | 'operator'
   | 'subquery'

@@ -1,7 +1,6 @@
 import { expect, expectTypeOf, test } from 'vitest'
 import {
   alias,
-  aliasExpression,
   all,
   asc,
   count,
@@ -120,13 +119,6 @@ test('expands all source columns into named object projections', () => {
     email: string | null
     normalizedName: string
   }>()
-})
-
-test('uses object projection keys as canonical output names', () => {
-  const query = select({ total: aliasExpression(count(), 'count') })
-
-  expect(render(query).text).toBe('SELECT COUNT(*) AS "total"')
-  expectTypeOf(query.row).toEqualTypeOf<{ total: number }>()
 })
 
 test('tracks source requirements in the select type', () => {

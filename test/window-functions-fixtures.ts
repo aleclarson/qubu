@@ -1,5 +1,4 @@
 import {
-  aliasExpression,
   count,
   desc,
   integer,
@@ -35,10 +34,5 @@ export const mixedWindowCount = over(count(posts.id), {
 export const nullableWindow = over(upper(posts.title), {
   partitionBy: [users.id],
 })
-
-export const aliasedRowNumber = aliasExpression(
-  partitionedRowNumber,
-  'rowNumber'
-)
 
 export const unconfiguredRank = over(rank())

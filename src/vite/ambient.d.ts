@@ -7,12 +7,10 @@
 declare global {
   const add: typeof import('qubu').add
   const alias: typeof import('qubu').alias
-  const aliasExpression: typeof import('qubu').aliasExpression
   const all: typeof import('qubu').all
   const allowAll: typeof import('qubu').allowAll
   const allowUnrestricted: typeof import('qubu').allowUnrestricted
   const and: typeof import('qubu').and
-  const asExpression: typeof import('qubu').asExpression
   const asc: typeof import('qubu').asc
   const asValue: typeof import('qubu').asValue
   const avg: typeof import('qubu').avg

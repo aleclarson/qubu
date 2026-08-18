@@ -6,12 +6,10 @@
 export const qubuGlobals = [
   'add',
   'alias',
-  'aliasExpression',
   'all',
   'allowAll',
   'allowUnrestricted',
   'and',
-  'asExpression',
   'asc',
   'asValue',
   'avg',

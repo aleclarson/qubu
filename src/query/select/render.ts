@@ -1,6 +1,6 @@
 import type { RenderContext } from '../../core/fragment.ts'
 import { identifier } from '../../core/primitives/identifier.ts'
-import { isExpression, type AnyExpression } from '../../expressions/types.ts'
+import { isExpression } from '../../expressions/types.ts'
 import type { Selection } from '../selection.ts'
 
 export function renderSelection(selection: Selection, context: RenderContext) {
@@ -14,21 +14,10 @@ export function renderSelection(selection: Selection, context: RenderContext) {
       throw new TypeError(`Selection field "${name}" must be an expression`)
     }
 
-    // The object key is the canonical output name. Strip any nested aliases
-    // so a legacy aliasExpression wrapper cannot produce a double AS clause.
-    context.render(unwrapAliases(expression))
+    context.render(expression)
     context.append(' AS ')
     context.render(identifier(name))
   })
-}
-
-function unwrapAliases(expression: AnyExpression): AnyExpression {
-  if (expression.expressionKind !== 'alias' || !('expression' in expression)) {
-    return expression
-  }
-
-  const inner = expression.expression
-  return isExpression(inner) ? unwrapAliases(inner) : expression
 }
 
 export function selectionRow(selection: Selection): Record<string, unknown> {

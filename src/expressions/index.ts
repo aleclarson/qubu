@@ -1,4 +1,3 @@
-export * from './alias.ts'
 export * from './cast.ts'
 export * from './case.ts'
 export * from './function.ts'

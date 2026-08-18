@@ -12,7 +12,6 @@ import type {
   VisibleDependenciesOf,
 } from '../src/index.ts'
 import type {
-  aliasedRowNumber,
   mixedWindowCount,
   nullableWindow,
   partitionedRowNumber,
@@ -83,8 +82,4 @@ export type UnconfiguredRankMetadata = Assert<
     MetadataOf<typeof unconfiguredRank>,
     ResultMeta<number, never> | ExpressionMeta<never>
   >
->
-
-export type AliasedWindowOutput = Assert<
-  Equal<OutputOf<typeof aliasedRowNumber>, number>
 >
