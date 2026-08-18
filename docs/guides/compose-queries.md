@@ -42,7 +42,9 @@ const report = select(
 ```
 
 `activeUsers.name` is a typed column derived from the first query's row shape.
-The rendered statement includes the `WITH` clause before `SELECT`.
+The rendered statement includes the `WITH` clause before `SELECT`. Selected
+camelCase keys use snake_case while they belong to the CTE relation; the outer
+result projection aliases them back to camelCase for the returned row.
 
 ## Use a derived table
 

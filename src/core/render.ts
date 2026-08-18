@@ -51,9 +51,13 @@ export function render(
     : (options.dialect ?? standardDialect())
   const parameters: unknown[] = []
   let text = ''
+  let projectionMode: RenderContext['projectionMode'] = 'result'
 
   const context: RenderContext = {
     dialect,
+    get projectionMode() {
+      return projectionMode
+    },
     append(value) {
       text += value
     },
@@ -63,6 +67,15 @@ export function render(
     },
     render(part) {
       part.render(context)
+    },
+    renderRelation(part) {
+      const previousMode = projectionMode
+      projectionMode = 'relation'
+      try {
+        part.render(context)
+      } finally {
+        projectionMode = previousMode
+      }
     },
   }
 

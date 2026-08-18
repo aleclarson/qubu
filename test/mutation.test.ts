@@ -51,7 +51,7 @@ test('renders DEFAULT VALUES when a table has only generated/default columns', (
   const query = insertInto(audit, defaultValues(), returning(all(audit)))
 
   expect(render(query).text).toBe(
-    'INSERT INTO "audit" DEFAULT VALUES RETURNING "audit"."id" AS "id", "audit"."createdAt" AS "createdAt"'
+    'INSERT INTO "audit" DEFAULT VALUES RETURNING "audit"."id" AS "id", "audit"."created_at" AS "createdAt"'
   )
 })
 

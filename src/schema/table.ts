@@ -1,4 +1,5 @@
 import { identifier } from '../core/primitives/identifier.ts'
+import { resolveSqlNames } from '../core/naming.ts'
 import {
   createColumnReference,
   type ColumnReference,
@@ -26,6 +27,8 @@ export type TableDefinitions = Record<
 export type AnyTable = Source<any, any> & {
   readonly tableName: string
   readonly definitions: TableDefinitions
+  /** Application field keys mapped to physical SQL column names. */
+  readonly sqlNames: Readonly<Record<string, string>>
 }
 
 export type TableRow<TDefinitions extends TableDefinitions> = {
@@ -79,6 +82,8 @@ export type Table<
 > = Source<TableIdentity<TName>, TableRow<TDefinitions>> & {
   readonly tableName: TName
   readonly definitions: TDefinitions
+  /** Application field keys mapped to physical SQL column names. */
+  readonly sqlNames: Readonly<Record<keyof TDefinitions & string, string>>
   readonly columns: TableColumns<TDefinitions, TableIdentity<TName>>
 } & TableColumns<TDefinitions, TableIdentity<TName>>
 
@@ -95,19 +100,30 @@ export function table<
     identifier(name)
   )
 
+  const sqlNames = resolveSqlNames(
+    Object.entries(definitions).map(([fieldName, definition]) => ({
+      fieldName,
+      sqlName: definition.sqlName,
+    }))
+  )
   const columns = Object.fromEntries(
-    Object.keys(definitions).map(columnName => [
-      columnName,
-      createColumnReference(columnName, source.reference) as ColumnReference<
-        string,
-        any
-      >,
-    ])
+    Object.keys(definitions).map(fieldName => {
+      const sqlName = sqlNames[fieldName]
+      return [
+        fieldName,
+        createColumnReference(
+          sqlName,
+          source.reference,
+          fieldName
+        ) as ColumnReference<string, any>,
+      ]
+    })
   ) as TableColumns<TDefinitions, TIdentity>
 
   Object.assign(source, {
     tableName: name,
     definitions,
+    sqlNames,
     columns,
   })
 

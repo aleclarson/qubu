@@ -5,6 +5,49 @@
 `table()` definitions are query-facing schema metadata. They are not database
 introspection and they do not create or migrate a database.
 
+## Field names cross an application boundary
+
+Write schema keys in camelCase. Qubu converts them to snake_case when it
+renders SQL identifiers, then restores the camelCase keys on the final query
+result:
+
+```ts
+const events = table('events', {
+  userId: uuid(),
+  createdAt: timestamp(),
+})
+
+const query = select(
+  { userId: events.userId, createdAt: events.createdAt },
+  from(events)
+)
+```
+
+The query selects `"events"."user_id"` and `"events"."created_at"`, then
+aliases those fields as `"userId"` and `"createdAt"` for the returned row.
+Inserts and updates accept the same camelCase keys and target the snake_case
+columns.
+
+Acronym boundaries are preserved: `userID` becomes `user_id`, `APIKey` becomes
+`api_key`, and `XMLHttpRequest` becomes `xml_http_request`. Prefer conventional
+lower camelCase spellings such as `userId` and `apiKey`; they avoid ambiguous
+names such as `OAuthID`. Use `sqlName` when the database name does not follow
+the convention:
+
+```ts
+const events = table('events', {
+  createdAt: timestamp({ sqlName: 'creation_timestamp' }),
+})
+```
+
+Qubu rejects fields that resolve to the same SQL name, such as `userId` and
+`userID` in one table.
+
+CTEs, derived tables, lateral queries, and subqueries remain SQL relations, so
+their projected names stay snake_case. Only the outer result projection uses
+camelCase aliases. Table and relation names remain explicit; pass
+`table('user_accounts', ...)` when the database table is named `user_accounts`.
+
 ## Column flags change different operations
 
 Every column has an output type and can optionally describe its write-time

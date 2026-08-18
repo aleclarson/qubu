@@ -30,7 +30,7 @@ test('renders grouped projections and HAVING in SQL clause order', () => {
   )
 
   expect(render(query)).toEqual({
-    text: 'SELECT "users"."name" AS "name", COUNT("posts"."id") AS "postCount" FROM "users" LEFT JOIN "posts" ON ("users"."id" = "posts"."authorId") GROUP BY "users"."name" HAVING (COUNT("posts"."id") > ?) ORDER BY "users"."name"',
+    text: 'SELECT "users"."name" AS "name", COUNT("posts"."id") AS "postCount" FROM "users" LEFT JOIN "posts" ON ("users"."id" = "posts"."author_id") GROUP BY "users"."name" HAVING (COUNT("posts"."id") > ?) ORDER BY "users"."name"',
     parameters: [0],
   })
 })
@@ -50,7 +50,7 @@ test('preserves parameter order through grouped clauses', () => {
   )
 
   expect(render(query)).toEqual({
-    text: 'SELECT "users"."name" AS "name", COUNT("posts"."id") AS "postCount" FROM "users" LEFT JOIN "posts" ON ("users"."id" = "posts"."authorId") GROUP BY "users"."name" HAVING (COUNT("posts"."id") > ?) ORDER BY ? DESC FETCH FIRST ? ROWS ONLY',
+    text: 'SELECT "users"."name" AS "name", COUNT("posts"."id") AS "postCount" FROM "users" LEFT JOIN "posts" ON ("users"."id" = "posts"."author_id") GROUP BY "users"."name" HAVING (COUNT("posts"."id") > ?) ORDER BY ? DESC FETCH FIRST ? ROWS ONLY',
     parameters: [1, 'name', 5],
   })
 })

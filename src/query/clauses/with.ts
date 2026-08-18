@@ -4,6 +4,7 @@ import {
   type RequiresOuterMetadataOf,
 } from '../../core/fragment.ts'
 import { identifier } from '../../core/primitives/identifier.ts'
+import { resolveSqlNames } from '../../core/naming.ts'
 import {
   createColumnReference,
   type ColumnReference,
@@ -60,13 +61,17 @@ export function cte<
     context => context.render(reference),
     reference
   )
+  const sqlNames = resolveSqlNames(
+    Object.keys(query.row).map(fieldName => ({ fieldName }))
+  )
   const columns = Object.fromEntries(
-    Object.keys(query.row).map(columnName => [
-      columnName,
-      createColumnReference(columnName, reference) as ColumnReference<
-        string,
-        any
-      >,
+    Object.keys(query.row).map(fieldName => [
+      fieldName,
+      createColumnReference(
+        sqlNames[fieldName],
+        reference,
+        fieldName
+      ) as ColumnReference<string, any>,
     ])
   ) as SourceColumns<TRow, TIdentity>
 
@@ -100,7 +105,7 @@ export function withCte<const TCtes extends readonly AnyCteSource[]>(
         if (index > 0) context.append(', ')
         context.render(identifier(entry.cteName))
         context.append(' AS ')
-        context.render(parenthesize(entry.query))
+        context.renderRelation(parenthesize(entry.query))
       })
     }),
     { clauseKind: 'with' as const, ctes }

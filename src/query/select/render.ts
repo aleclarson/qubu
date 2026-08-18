@@ -1,5 +1,6 @@
 import type { RenderContext } from '../../core/fragment.ts'
 import { identifier } from '../../core/primitives/identifier.ts'
+import { snakeCaseIdentifier } from '../../core/naming.ts'
 import { isExpression } from '../../expressions/types.ts'
 import type { Selection } from '../selection.ts'
 
@@ -14,9 +15,11 @@ export function renderSelection(selection: Selection, context: RenderContext) {
       throw new TypeError(`Selection field "${name}" must be an expression`)
     }
 
+    const outputName =
+      context.projectionMode === 'result' ? name : snakeCaseIdentifier(name)
     context.render(expression)
     context.append(' AS ')
-    context.render(identifier(name))
+    context.render(identifier(outputName))
   })
 }
 

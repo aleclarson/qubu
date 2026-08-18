@@ -13,6 +13,7 @@ import type {
   ColumnReference,
 } from '../expressions/column.ts'
 import { createColumnReference } from '../expressions/column.ts'
+import { resolveSqlNames } from '../core/naming.ts'
 
 export const sourceIdentity: unique symbol = Symbol('qubu.source.identity')
 
@@ -126,14 +127,23 @@ export function customSource<
     options.render,
     options.reference
   )
+  const sqlNames = resolveSqlNames(
+    Object.entries(options.columns).map(([fieldName, definition]) => ({
+      fieldName,
+      sqlName: definition.sqlName,
+    }))
+  )
   const columns = Object.fromEntries(
-    Object.keys(options.columns).map(columnName => [
-      columnName,
-      createColumnReference(columnName, source.reference) as ColumnReference<
-        string,
-        any
-      >,
-    ])
+    Object.keys(options.columns).map(fieldName => {
+      return [
+        fieldName,
+        createColumnReference(
+          sqlNames[fieldName],
+          source.reference,
+          fieldName
+        ) as ColumnReference<string, any>,
+      ]
+    })
   ) as SourceColumns<TRow, TIdentity>
 
   Object.assign(source, {
@@ -161,6 +171,7 @@ export function exposeColumns(
     'columns',
     'tableName',
     'definitions',
+    'sqlNames',
     'alias',
     'base',
     'query',

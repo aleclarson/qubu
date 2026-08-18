@@ -34,7 +34,9 @@ export function scalar<TQuery extends AnyQuery>(
   return makeExpression<
     ResultMeta<ScalarOutput<TQuery>> | InheritedMetadata<TQuery>,
     'subquery'
-  >('subquery', context => context.render(parenthesize(query))) as Expression<
+  >('subquery', context =>
+    context.renderRelation(parenthesize(query))
+  ) as Expression<
     ResultMeta<ScalarOutput<TQuery>> | InheritedMetadata<TQuery>,
     'subquery'
   >

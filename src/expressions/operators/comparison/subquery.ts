@@ -17,7 +17,7 @@ export function inQuery<
     context.append('(')
     context.render(expression)
     context.append(' IN ')
-    context.render(parenthesize(query))
+    context.renderRelation(parenthesize(query))
     context.append(')')
   }) as ResultExpression<boolean, TExpression | TQuery, 'subquery', never>
 }
@@ -27,13 +27,13 @@ export const inSelect = inQuery
 export function exists<TQuery extends Query<any, any, any>>(query: TQuery) {
   return makeExpression('subquery', context => {
     context.append('EXISTS ')
-    context.render(parenthesize(query))
+    context.renderRelation(parenthesize(query))
   }) as ResultExpression<boolean, TQuery, 'subquery', never>
 }
 
 export function notExists<TQuery extends Query<any, any, any>>(query: TQuery) {
   return makeExpression('subquery', context => {
     context.append('NOT EXISTS ')
-    context.render(parenthesize(query))
+    context.renderRelation(parenthesize(query))
   }) as ResultExpression<boolean, TQuery, 'subquery', never>
 }

@@ -1,4 +1,5 @@
 import { identifier } from '../core/primitives/identifier.ts'
+import { resolveSqlNames } from '../core/naming.ts'
 import { parenthesize } from '../core/fragment.ts'
 import {
   createColumnReference,
@@ -80,7 +81,7 @@ export function alias(
     isQuery ? 'query-alias' : 'table-alias',
     context => {
       if (isQuery) {
-        context.render(parenthesize(sourceOrQuery))
+        context.renderRelation(parenthesize(sourceOrQuery))
       } else {
         context.render(sourceOrQuery)
       }
@@ -90,17 +91,26 @@ export function alias(
     reference
   )
 
-  const columnNames = isQuery
+  const fieldNames = isQuery
     ? Object.keys(sourceOrQuery.row)
     : Object.keys(sourceOrQuery.columns)
+  const querySqlNames = isQuery
+    ? resolveSqlNames(fieldNames.map(fieldName => ({ fieldName })))
+    : undefined
   const columns = Object.fromEntries(
-    columnNames.map(columnName => [
-      columnName,
-      createColumnReference(columnName, reference) as ColumnReference<
-        string,
-        any
-      >,
-    ])
+    fieldNames.map(fieldName => {
+      const columnName = isQuery
+        ? querySqlNames![fieldName]
+        : sourceOrQuery.columns[fieldName].columnName
+      return [
+        fieldName,
+        createColumnReference(
+          columnName,
+          reference,
+          fieldName
+        ) as ColumnReference<string, any>,
+      ]
+    })
   )
 
   Object.assign(source, {
@@ -156,20 +166,24 @@ export function lateral<TQuery extends AnyQuery, const TAlias extends string>(
     'lateral',
     context => {
       context.append('LATERAL ')
-      context.render(parenthesize(query))
+      context.renderRelation(parenthesize(query))
       context.append(' AS ')
       context.render(reference)
     },
     reference
   )
 
+  const sqlNames = resolveSqlNames(
+    Object.keys(query.row).map(fieldName => ({ fieldName }))
+  )
   const columns = Object.fromEntries(
-    Object.keys(query.row).map(columnName => [
-      columnName,
-      createColumnReference(columnName, reference) as ColumnReference<
-        string,
-        any
-      >,
+    Object.keys(query.row).map(fieldName => [
+      fieldName,
+      createColumnReference(
+        sqlNames[fieldName],
+        reference,
+        fieldName
+      ) as ColumnReference<string, any>,
     ])
   ) as SourceColumns<TRow, TIdentity>
 

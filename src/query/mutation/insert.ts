@@ -161,7 +161,7 @@ export function insertInto<
       if (columns.length === 0) {
         context.append(' DEFAULT VALUES')
       } else {
-        renderTargetColumns(context, columns)
+        renderTargetColumns(context, table, columns)
         context.append(' VALUES ')
         rows.forEach((row, rowIndex) => {
           if (rowIndex > 0) context.append(', ')
@@ -176,9 +176,9 @@ export function insertInto<
     } else if (source.insertKind === 'default-values') {
       context.append(' DEFAULT VALUES')
     } else {
-      renderTargetColumns(context, source.columns)
+      renderTargetColumns(context, table, source.columns)
       context.append(' ')
-      context.render(source.query)
+      context.renderRelation(source.query)
     }
 
     for (const clause of returningClauses) {
@@ -197,12 +197,13 @@ export function insertInto<
 
 function renderTargetColumns(
   context: RenderContext,
+  table: AnyTable,
   columns: readonly string[]
 ) {
   context.append(' (')
   columns.forEach((columnName, index) => {
     if (index > 0) context.append(', ')
-    context.render(identifier(columnName))
+    context.render(identifier(table.sqlNames[columnName] ?? columnName))
   })
   context.append(')')
 }

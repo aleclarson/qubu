@@ -98,7 +98,7 @@ test('renders aliases, joins, grouping, and distinct', () => {
   )
 
   expect(render(query).text).toBe(
-    'SELECT DISTINCT "author"."name" AS "name", COUNT("posts"."id") AS "postCount" FROM "users" AS "author" INNER JOIN "posts" ON ("author"."id" = "posts"."authorId") WHERE ("author"."email" IS NOT NULL) GROUP BY "author"."name" ORDER BY "author"."name" ASC'
+    'SELECT DISTINCT "author"."name" AS "name", COUNT("posts"."id") AS "postCount" FROM "users" AS "author" INNER JOIN "posts" ON ("author"."id" = "posts"."author_id") WHERE ("author"."email" IS NOT NULL) GROUP BY "author"."name" ORDER BY "author"."name" ASC'
   )
 })
 

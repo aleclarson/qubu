@@ -2,6 +2,8 @@ export interface ColumnOptions {
   readonly nullable?: boolean
   readonly hasDefault?: boolean
   readonly generated?: boolean
+  /** Override the snake_case SQL identifier derived from the field name. */
+  readonly sqlName?: string
 }
 
 export interface ColumnDefinition<
@@ -16,6 +18,7 @@ export interface ColumnDefinition<
   readonly nullable: TNullable
   readonly hasDefault: THasDefault
   readonly generated: TGenerated
+  readonly sqlName?: string
   readonly __output?: TOutput
   readonly __insert?: TInsert
   readonly __update?: TUpdate
@@ -72,6 +75,7 @@ type FalseColumnOptions = {
   readonly nullable?: false
   readonly hasDefault?: false
   readonly generated?: false
+  readonly sqlName?: string
 }
 
 export function column<
@@ -82,6 +86,7 @@ export function column<
   readonly nullable: true
   readonly hasDefault: true
   readonly generated: true
+  readonly sqlName?: string
 }): ColumnDefinition<TOutput, true, TInsert, TUpdate, true, true>
 export function column<
   TOutput = unknown,
@@ -91,6 +96,7 @@ export function column<
   readonly nullable: true
   readonly hasDefault: true
   readonly generated?: false
+  readonly sqlName?: string
 }): ColumnDefinition<TOutput, true, TInsert, TUpdate, true, false>
 export function column<
   TOutput = unknown,
@@ -100,6 +106,7 @@ export function column<
   readonly nullable: true
   readonly hasDefault?: false
   readonly generated: true
+  readonly sqlName?: string
 }): ColumnDefinition<TOutput, true, TInsert, TUpdate, false, true>
 export function column<
   TOutput = unknown,
@@ -109,6 +116,7 @@ export function column<
   readonly nullable: true
   readonly hasDefault?: false
   readonly generated?: false
+  readonly sqlName?: string
 }): ColumnDefinition<TOutput, true, TInsert, TUpdate, false, false>
 export function column<
   TOutput = unknown,
@@ -118,6 +126,7 @@ export function column<
   readonly nullable?: false
   readonly hasDefault: true
   readonly generated: true
+  readonly sqlName?: string
 }): ColumnDefinition<TOutput, false, TInsert, TUpdate, true, true>
 export function column<
   TOutput = unknown,
@@ -127,6 +136,7 @@ export function column<
   readonly nullable?: false
   readonly hasDefault: true
   readonly generated?: false
+  readonly sqlName?: string
 }): ColumnDefinition<TOutput, false, TInsert, TUpdate, true, false>
 export function column<
   TOutput = unknown,
@@ -136,6 +146,7 @@ export function column<
   readonly nullable?: false
   readonly hasDefault?: false
   readonly generated: true
+  readonly sqlName?: string
 }): ColumnDefinition<TOutput, false, TInsert, TUpdate, false, true>
 export function column<TOutput = unknown, TInsert = TOutput, TUpdate = TInsert>(
   options?: FalseColumnOptions
@@ -157,6 +168,7 @@ export function column<
     nullable: options?.nullable === true,
     hasDefault: options?.hasDefault === true,
     generated: options?.generated === true,
+    sqlName: options?.sqlName,
   }) as ColumnFromOptions<TOutput, TInsert, TUpdate, TOptions>
 }
 

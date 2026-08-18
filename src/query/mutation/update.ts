@@ -95,7 +95,7 @@ export function update<
     const entries = Object.entries(assignments)
     entries.forEach(([columnName, value], index) => {
       if (index > 0) context.append(', ')
-      context.render(identifier(columnName))
+      context.render(identifier(table.sqlNames[columnName] ?? columnName))
       context.append(' = ')
       renderAssignmentValue(context, value)
     })

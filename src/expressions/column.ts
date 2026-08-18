@@ -11,10 +11,13 @@ import { identifier } from '../core/primitives/identifier.ts'
 import { makeExpression, type Expression } from './types.ts'
 
 export interface ColumnReference<
-  TName extends string = string,
+  TFieldName extends string = string,
   TMetadata = never,
 > extends Expression<TMetadata, 'column'> {
-  readonly columnName: TName
+  /** Application-facing key used by typed rows and dependency metadata. */
+  readonly fieldName: TFieldName
+  /** Physical SQL identifier rendered for this column. */
+  readonly columnName: string
 }
 
 export type ColumnDependency<TSource, TName extends string> = {
@@ -26,34 +29,40 @@ export type ColumnDependency<TSource, TName extends string> = {
 export type ColumnGroupingDependencies<T> =
   T extends ColumnReference<any, any> ? DependenciesOf<T> : never
 
-export function createColumnReference<TOutput, TName extends string, TSource>(
-  name: TName,
-  sourceReference: Fragment<never>
+export function createColumnReference<
+  TOutput,
+  TFieldName extends string,
+  TSource,
+>(
+  columnName: string,
+  sourceReference: Fragment<never>,
+  fieldName: TFieldName
 ): ColumnReference<
-  TName,
+  TFieldName,
   | ResultMeta<TOutput, TSource>
   | RequiresSourceMeta<TSource>
-  | ExpressionMeta<ColumnDependency<TSource, TName>>
+  | ExpressionMeta<ColumnDependency<TSource, TFieldName>>
 > {
   const expression = makeExpression<
     | ResultMeta<TOutput, TSource>
     | RequiresSourceMeta<TSource>
-    | ExpressionMeta<ColumnDependency<TSource, TName>>,
+    | ExpressionMeta<ColumnDependency<TSource, TFieldName>>,
     'column'
   >('column', context => {
     context.render(sourceReference)
     context.append('.')
-    context.render(identifier(name))
+    context.render(identifier(columnName))
   })
 
   return Object.freeze({
     ...expression,
-    columnName: name,
+    fieldName,
+    columnName,
   }) as ColumnReference<
-    TName,
+    TFieldName,
     | ResultMeta<TOutput, TSource>
     | RequiresSourceMeta<TSource>
-    | ExpressionMeta<ColumnDependency<TSource, TName>>
+    | ExpressionMeta<ColumnDependency<TSource, TFieldName>>
   >
 }
 

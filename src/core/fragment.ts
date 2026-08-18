@@ -88,9 +88,13 @@ export type FragmentMeta =
 
 export interface RenderContext {
   readonly dialect: Dialect
+  /** Whether selected fields name an application result or a SQL relation. */
+  readonly projectionMode: 'result' | 'relation'
   append(text: string): void
   parameter(value: unknown): void
   render(part: Fragment<any>): void
+  /** Render an embedded query with SQL-facing projection names. */
+  renderRelation(part: Fragment<any>): void
 }
 
 export type RenderFunction = (context: RenderContext) => void
