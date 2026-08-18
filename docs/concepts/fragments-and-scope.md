@@ -26,6 +26,26 @@ Not every fragment needs to contribute every fact. Composition helpers such as
 fragment can remain source-aware without inventing a separate generic for each
 kind of information.
 
+### Metadata propagation laws
+
+The metadata union is additive, but result metadata is special: a fragment can
+replace its children's result contract when it changes the SQL meaning of the
+expression. The current laws are:
+
+| Fragment shape                                                      | Metadata behavior                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sequence()`, `commaSeparated()`, `keyword()`, and `parenthesize()` | Preserve inherited non-result facts such as source requirements and nullable-source facts. They do not invent an output type.                                                                                                           |
+| An expression wrapper such as `expressionFragment()`                | Preserve the wrapped expression's complete metadata, including its output type.                                                                                                                                                         |
+| A source-aware expression such as `upper(column)`                   | Produce a new result type while inheriting the source requirements and nullable-source provenance of its operands.                                                                                                                      |
+| `leftJoin()`                                                        | Inherit the join predicate's source requirements and add `NullableSourceMeta` for the joined source.                                                                                                                                    |
+| Nullability-changing operators                                      | Declare their result nullability explicitly. `count()`, `countDistinct()`, `coalesce()` with its current contract, `caseWhen()` branches, and `IS NULL`/`IS NOT NULL` predicates do not blindly copy an operand's nullable-source fact. |
+
+The corresponding type-level contract is intentionally narrow: `OutputOf<T>`
+describes a concrete result, `RequiresOf<T>` describes sources that must be in
+scope, and `NullabilityOf<T>` describes sources that can turn that result into
+`null` after an outer join. Future metadata belongs in this union only when a
+producer, a consumer, and regression coverage exist for it.
+
 This keeps the runtime core small. Qubu does not require extensions to build or
 register nodes in a central mutable AST.
 
@@ -142,6 +162,12 @@ const query = select(
 type Row = typeof query.row
 // { userName: string; postTitle: string | null; postCount: number }
 ```
+
+The same rule applies to expression semantics: `upper(posts.title)` remains
+nullable because it depends on the joined row, while a count or a predicate
+has a result contract that is independent of whether that row exists. A
+fallback expression such as `coalesce(posts.title, value('untitled'))` and a
+`CASE` expression with non-null branches likewise expose a non-null result.
 
 ## Parameters remain a runtime concern
 

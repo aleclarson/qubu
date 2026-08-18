@@ -24,6 +24,17 @@ helpers distribute over that union and retain the source and nullability facts
 that later clauses need. Parameter values remain a runtime concern of the
 renderer rather than a fourth compile-time contract.
 
+The propagation rule is deliberately semantic rather than positional:
+transparent composition preserves inherited non-result facts, source-aware
+operators replace the result contract while carrying operand requirements, and
+operators whose SQL guarantees a result shape or nullability state declare that
+override explicitly. `leftJoin()` contributes nullable-source provenance;
+selection consumes that provenance to widen only affected output fields.
+Type-level regression tests protect these laws, including the distinction
+between a nullable column, a nullable joined expression, and a result such as
+`count()` or a null predicate that is not nullable merely because one operand
+came from an outer join.
+
 The runtime representation is intentionally not a large mutable AST. Small primitives compose renderer functions, while the metadata union carries the semantic consequences that TypeScript needs.
 
 ```mermaid
