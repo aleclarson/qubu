@@ -10,10 +10,10 @@ import type { DistinctClause } from '../clauses/distinct.ts'
 import type { FetchClause } from '../clauses/pagination.ts'
 import type { GroupByClause } from '../clauses/group-by.ts'
 import type { HavingClause } from '../clauses/having.ts'
-import type { Source, SourceIdentity } from '../../schema/source.ts'
+import type { ProvidedSourceIdentity } from '../../schema/source.ts'
 import type { JoinClause } from '../clauses/joins.ts'
 import type { AnySelectClause } from '../clauses/types.ts'
-import type { FromClause } from '../clauses/from.ts'
+import type { FromClause, FromScope } from '../clauses/from.ts'
 import type { OrderByClause } from '../clauses/order-by.ts'
 import type { WithClause } from '../clauses/with.ts'
 import type {
@@ -48,14 +48,11 @@ export type SelectCardinality<TClauses extends readonly AnySelectClause[]> =
       : 'many'
     : 'zero-or-one'
 
-export type ClauseScope<TClause> =
-  TClause extends FromClause<infer TSources>
-    ? TSources[number] extends Source<any, any>
-      ? SourceIdentity<TSources[number]>
-      : never
-    : TClause extends JoinClause<infer TSource, any>
-      ? SourceIdentity<TSource>
-      : never
+export type ClauseScope<TClause> = TClause extends FromClause
+  ? FromScope<TClause>
+  : TClause extends JoinClause<infer TSource, any>
+    ? ProvidedSourceIdentity<TSource>
+    : never
 
 export type AvailableScope<TClauses extends readonly AnySelectClause[]> =
   ClauseScope<TClauses[number]>

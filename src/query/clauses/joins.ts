@@ -1,5 +1,5 @@
 import type { AnySource } from '../../schema/source.ts'
-import type { SourceIdentity } from '../../schema/source.ts'
+import type { ProvidedSourceIdentity } from '../../schema/source.ts'
 import type { BooleanExpression } from '../../expressions/operators/comparison.ts'
 import {
   type InheritedMetadata,
@@ -31,7 +31,7 @@ function join<
   TSource,
   | InheritedMetadata<TCondition>
   | (TJoinType extends 'LEFT'
-      ? NullableSourceMeta<SourceIdentity<TSource>>
+      ? NullableSourceMeta<ProvidedSourceIdentity<TSource>>
       : never)
 > {
   return Object.assign(
@@ -53,7 +53,7 @@ function join<
     TSource,
     | InheritedMetadata<TCondition>
     | (TJoinType extends 'LEFT'
-        ? NullableSourceMeta<SourceIdentity<TSource>>
+        ? NullableSourceMeta<ProvidedSourceIdentity<TSource>>
         : never)
   >
 }

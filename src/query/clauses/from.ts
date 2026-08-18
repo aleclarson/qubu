@@ -1,5 +1,10 @@
 import { createClause, type SelectClause } from './types.ts'
-import type { AnySource, Source } from '../../schema/source.ts'
+import type {
+  AnySource,
+  ProvidedSourceIdentity,
+  Source,
+  SourceProvision,
+} from '../../schema/source.ts'
 
 export interface FromClause<
   TSources extends readonly AnySource[] = readonly AnySource[],
@@ -25,7 +30,16 @@ export function from<
 
 export type FromSource<T> =
   T extends FromClause<infer TSources>
-    ? TSources[number] extends Source<any, any>
-      ? TSources[number]
+    ? TSources[number] extends infer TSource
+      ? TSource extends Source<any, any>
+        ? [SourceProvision<TSource>] extends [never]
+          ? never
+          : TSource
+        : never
       : never
+    : never
+
+export type FromScope<T> =
+  T extends FromClause<infer TSources>
+    ? ProvidedSourceIdentity<TSources[number]>
     : never

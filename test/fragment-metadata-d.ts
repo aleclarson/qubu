@@ -12,6 +12,7 @@ import type {
   NullableSourceMeta,
   NullableSourcesOf,
   OutputOf,
+  ProvidesSourceMeta,
   QueryCardinality,
   RequiresOf,
   RequiresSourceMeta,
@@ -231,6 +232,7 @@ export type PublicMetadataUnionIsClosedForCurrentFacts = Assert<
     | ResultMeta<unknown, unknown>
     | RequiresSourceMeta<unknown>
     | NullableSourceMeta<unknown>
+    | ProvidesSourceMeta<unknown, unknown>
     | ExpressionMeta<unknown>
     | AggregateMeta<unknown>
     | GroupingMeta<unknown, unknown>

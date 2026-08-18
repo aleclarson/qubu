@@ -32,6 +32,51 @@ render(query)
 parameter is still ordered with every other parameter in the query. Parameter
 value types are intentionally not part of fragment metadata.
 
+## Add a typed custom FROM source
+
+Use `customSource()` for a table-valued function or another relation whose row
+shape is known to the application but cannot be declared with `table()`. Its
+`columns` definitions create the same direct and `.columns` references as a
+table, while `from()` or a join supplies the source to the query scope:
+
+```ts
+import {
+  customSource,
+  from,
+  identifier,
+  integer,
+  render,
+  select,
+  text,
+} from 'qubu'
+
+const rows = customSource({
+  identity: { sourceKind: 'table-function', name: 'json_each', alias: 'row' },
+  sourceKind: 'table-function',
+  reference: identifier('row'),
+  columns: {
+    key: integer(),
+    value: text({ nullable: true }),
+  },
+  render(context) {
+    context.append('json_each(')
+    context.parameter('{"a":1}')
+    context.append(') AS ')
+    context.render(identifier('row'))
+  },
+})
+
+const query = select({ value: rows.value }, from(rows))
+render(query)
+// ... FROM json_each(?) AS "row"
+```
+
+`identity` is the source-scope key; `reference` is the SQL qualifier used by
+the generated columns. A nullable column remains nullable intrinsically, and a
+`leftJoin(rows, ...)` adds outer-join nullability to every selected row column.
+Render the complete relation in the producer and bind values with
+`context.parameter()`; the normal renderer preserves parameter order.
+
 ## Add a policy with `createDialect()`
 
 Use a dialect when the query is portable but the driver changes identifiers,
@@ -55,8 +100,9 @@ through the optional `pagination` renderer.
 
 ## Build expressions from public primitives
 
-`fragment()`, `makeExpression()`, `parameter()`, `identifier()`, `syntax()`, and
-`customClause()` are the public building blocks for extensions. Preserve the
+`fragment()`, `makeExpression()`, `parameter()`, `identifier()`, `syntax()`,
+`customClause()`, and `customSource()` are the public building blocks for
+extensions. Preserve the
 same metadata model that built-ins use:
 
 - use `RequiresSourceMeta<Source>` for every source that the expression reads;

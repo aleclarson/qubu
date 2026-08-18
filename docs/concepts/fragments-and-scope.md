@@ -20,6 +20,8 @@ tagged facts that later composition needs:
   that must be available before the fragment is valid.
 - `NullableSourceMeta<Source>` records that a source was introduced by a
   nullable join.
+- `ProvidesSourceMeta<Source, Row>` identifies a fragment that introduces a
+  typed source through `FROM` or `JOIN`.
 - `ExpressionMeta<Dependencies>` records the columns an expression reads at
   the current query level.
 - `AggregateMeta<Dependencies>` records dependencies consumed inside an
@@ -54,6 +56,7 @@ expression. The current laws are:
 | An aggregate such as `count(column)`                                | Mark its argument dependencies as aggregate-consumed, so the aggregate itself is valid without grouping those columns.                                                                                                                  |
 | `groupBy()`                                                         | Record its grouping expressions and, for column keys, the column dependencies that derived expressions may use.                                                                                                                         |
 | `leftJoin()`                                                        | Inherit the join predicate's source requirements and add `NullableSourceMeta` for the joined source.                                                                                                                                    |
+| `customSource()` consumed by `from()` or a join                     | Provide one source identity and row shape to the normal source-scope boundary; the consuming clause makes that identity available downstream.                                                                                           |
 | Nullability-changing operators                                      | Declare their result nullability explicitly. `count()`, `countDistinct()`, `coalesce()` with its current contract, `caseWhen()` branches, and `IS NULL`/`IS NOT NULL` predicates do not blindly copy an operand's nullable-source fact. |
 
 The corresponding type-level contract is intentionally narrow: `OutputOf<T>`
@@ -126,6 +129,63 @@ const query = select(
 Aliases, CTEs, and derived queries expose new source identities. Use the
 exposed columns from the new source rather than continuing to use columns from
 the source that was wrapped.
+
+## Produce a custom FROM source
+
+Use `customSource()` when a table-valued function or another relation cannot be
+described by `table()`. The producer supplies the type-level identity, output
+column definitions, and renderer for the relation. `from()` and joins are the
+consumer boundary that makes the produced identity available to projections
+and later clauses:
+
+```ts
+import {
+  customSource,
+  eq,
+  from,
+  identifier,
+  integer,
+  select,
+  text,
+  where,
+} from 'qubu'
+
+const entries = customSource({
+  identity: {
+    sourceKind: 'table-function',
+    name: 'json_each',
+    alias: 'entry',
+  },
+  sourceKind: 'table-function',
+  reference: identifier('entry'),
+  columns: {
+    key: integer(),
+    value: text({ nullable: true }),
+  },
+  render(context) {
+    context.append('json_each(')
+    context.parameter('{"a":1}')
+    context.append(') AS ')
+    context.render(identifier('entry'))
+  },
+})
+
+const query = select(
+  { value: entries.value },
+  from(entries),
+  where(eq(entries.key, 7))
+)
+```
+
+The source's `value` column is `string | null` because its definition is
+nullable. The source identity is still required in `FROM` or a join, so
+`select({ value: entries.value })` is rejected. If `entries` is introduced by
+`leftJoin()`, the existing nullable-source rule widens every selected entry
+column as needed; the producer does not bypass that rule.
+
+The renderer is responsible for the complete relation syntax. Bind function
+arguments with `context.parameter()` so their values stay aligned with the
+placeholders collected from the rest of the query.
 
 ## Output shape is part of composition
 

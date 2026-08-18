@@ -18,6 +18,13 @@ export type NullableSourceMeta<TSource> = {
   readonly source: TSource
 }
 
+/** A fragment that introduces a typed relational source to FROM/JOIN. */
+export type ProvidesSourceMeta<TSource, TRow = unknown> = {
+  readonly kind: 'provides-source'
+  readonly source: TSource
+  readonly row: TRow
+}
+
 /** Dependencies read by an expression at the current query level. */
 export type ExpressionMeta<TDependencies = unknown> = {
   readonly kind: 'expression'
@@ -50,6 +57,7 @@ export type FragmentMeta =
   | ResultMeta<unknown, unknown>
   | RequiresSourceMeta<unknown>
   | NullableSourceMeta<unknown>
+  | ProvidesSourceMeta<unknown, unknown>
   | ExpressionMeta
   | AggregateMeta
   | GroupingMeta

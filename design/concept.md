@@ -21,6 +21,7 @@ Fragment<Metadata>
 
 The metadata is a union of tagged facts such as `ResultMeta<Output>`,
 `RequiresSourceMeta<Source>`, `NullableSourceMeta<Source>`,
+`ProvidesSourceMeta<Source, Row>`,
 `ExpressionMeta<Dependencies>`, `AggregateMeta<Dependencies>`,
 `GroupingMeta<Keys, Dependencies>`, and `CardinalityMeta<QueryCardinality>`.
 Composition helpers distribute over that union and retain the source,
@@ -37,6 +38,8 @@ operators replace the result contract while carrying operand requirements, and
 operators whose SQL guarantees a result shape or nullability state declare that
 override explicitly. `leftJoin()` contributes nullable-source provenance;
 selection consumes that provenance to widen only affected output fields.
+`customSource()` contributes a source-provision fact, which `from()` and joins
+consume before making the produced source available to later fragments.
 Type-level regression tests protect these laws, including the distinction
 between a nullable column, a nullable joined expression, and a result such as
 `count()` or a null predicate that is not nullable merely because one operand
