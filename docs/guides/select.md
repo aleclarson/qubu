@@ -168,5 +168,35 @@ const counts = select(
 )
 ```
 
+## Window functions
+
+Use `over()` to attach an inline window specification to a typed expression.
+The initial window scope supports `PARTITION BY` and `ORDER BY`; the same
+`asc()` and `desc()` terms used by a query-level `orderBy()` can be reused:
+
+```ts
+import { aliasExpression, desc, from, over, rowNumber, select } from 'qubu'
+
+const rankedUsers = select(
+  {
+    id: users.id,
+    rowNumber: aliasExpression(
+      over(rowNumber(), {
+        partitionBy: [users.name],
+        orderBy: [desc(users.id)],
+      }),
+      'rowNumber'
+    ),
+  },
+  from(users)
+)
+```
+
+Window expressions remain ordinary expressions: they can be projected,
+aliased, and passed to `orderBy()`. Their source requirements and result types
+are retained through `over()`, and values rendered inside the window
+specification remain parameters. Named windows and frame clauses are outside
+the initial inline scope.
+
 For CTEs, derived tables, scalar subqueries, and set operations, continue with
 [Compose queries](compose-queries.md).
