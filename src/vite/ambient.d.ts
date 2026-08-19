@@ -37,6 +37,8 @@ declare global {
   const customClause: typeof import('qubu').customClause
   const date: typeof import('qubu').date
   const dateTime: typeof import('qubu').dateTime
+  const defaultExpression: typeof import('qubu').defaultExpression
+  const defaultLiteral: typeof import('qubu').defaultLiteral
   const dialectColumn: typeof import('qubu').dialectColumn
   const defaultValues: typeof import('qubu').defaultValues
   const deleteFrom: typeof import('qubu').deleteFrom
@@ -48,6 +50,8 @@ declare global {
   const except: typeof import('qubu').except
   const execute: typeof import('qubu').execute
   const executeQuery: typeof import('qubu').executeQuery
+  const externalDefault: typeof import('qubu').externalDefault
+  const externalGeneratedColumn: typeof import('qubu').externalGeneratedColumn
   const exists: typeof import('qubu').exists
   const fetchFirst: typeof import('qubu').fetchFirst
   const fetchNext: typeof import('qubu').fetchNext
@@ -57,6 +61,7 @@ declare global {
   const fromSelect: typeof import('qubu').fromSelect
   const fullJoin: typeof import('qubu').fullJoin
   const groupBy: typeof import('qubu').groupBy
+  const generatedColumn: typeof import('qubu').generatedColumn
   const greaterThan: typeof import('qubu').greaterThan
   const greaterThanOrEqual: typeof import('qubu').greaterThanOrEqual
   const gt: typeof import('qubu').gt
@@ -64,6 +69,7 @@ declare global {
   const having: typeof import('qubu').having
   const identifier: typeof import('qubu').identifier
   const ilike: typeof import('qubu').ilike
+  const identityColumn: typeof import('qubu').identityColumn
   const inList: typeof import('qubu').inList
   const inQuery: typeof import('qubu').inQuery
   const inSelect: typeof import('qubu').inSelect
@@ -166,6 +172,15 @@ declare global {
     TGenerated extends boolean = false,
     TSqlType extends import('qubu').AnySqlType = import('qubu').SqlUnknown,
     TStorage extends import('qubu').ColumnStorage | undefined = undefined,
+    TDefault extends import('qubu').ColumnDefault | undefined =
+      | import('qubu').ColumnDefault
+      | undefined,
+    TGeneratedColumn extends
+      | import('qubu').GeneratedColumnDescriptor
+      | undefined = import('qubu').GeneratedColumnDescriptor | undefined,
+    TIdentity extends import('qubu').IdentityDescriptor | undefined =
+      | import('qubu').IdentityDescriptor
+      | undefined,
   > = import('qubu').ColumnDefinition<
     TOutput,
     TNullable,
@@ -174,9 +189,18 @@ declare global {
     THasDefault,
     TGenerated,
     TSqlType,
-    TStorage
+    TStorage,
+    TDefault,
+    TGeneratedColumn,
+    TIdentity
   >
   type ColumnSqlType<T> = import('qubu').ColumnSqlType<T>
+  type ColumnDefault = import('qubu').ColumnDefault
+  type ColumnDefaultOf<T> = import('qubu').ColumnDefaultOf<T>
+  type ColumnGeneratedOf<T> = import('qubu').ColumnGeneratedOf<T>
+  type ColumnIdentityOf<T> = import('qubu').ColumnIdentityOf<T>
+  type GeneratedColumnDescriptor = import('qubu').GeneratedColumnDescriptor
+  type IdentityDescriptor = import('qubu').IdentityDescriptor
   type ColumnStorage = import('qubu').ColumnStorage
   type PortableStorageType = import('qubu').PortableStorageType
   type PortableColumnStorage<

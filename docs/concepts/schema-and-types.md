@@ -110,6 +110,57 @@ const accounts = table('accounts', {
 The selected `externalScore` is `number | null`; inserts accept
 `string | null`; updates accept `number | null`.
 
+## Describe database defaults and generated columns
+
+The legacy `hasDefault` and `generated` options remain useful write-contract
+flags. When schema tooling needs the database fact itself, use the complete
+metadata options. A complete default makes its insert key optional; a complete
+generated or identity descriptor omits the key from inserts and updates:
+
+```ts
+import {
+  defaultExpression,
+  defaultLiteral,
+  defineSchemaExpression,
+  generatedColumn,
+  identityColumn,
+  integer,
+  table,
+  text,
+  value,
+} from 'qubu'
+
+const currentTimestamp = defineSchemaExpression('function', context => {
+  context.append('CURRENT_TIMESTAMP')
+})
+
+const accounts = table('accounts', {
+  id: integer({ identity: identityColumn('always') }),
+  status: text({ default: defaultLiteral('pending') }),
+  score: integer({
+    generatedColumn: generatedColumn(value(1), 'stored'),
+  }),
+  createdAt: text({
+    default: defaultExpression(currentTimestamp),
+  }),
+})
+```
+
+`defaultLiteral()` stores a canonical, dialect-neutral literal node. Use
+`defaultExpression()` for a branded deterministic schema expression; Qubu
+does not render it while declaring the column, so a future dialect adapter can
+apply its own literal and expression rules. Generated expressions record
+`stored` or `virtual` mode. `identityColumn('always' | 'by-default')` is kept
+separate because identity behavior is not an ordinary generated expression.
+
+Legacy flags without a complete descriptor are retained as explicit external
+metadata. This records that the database or another schema authority owns the
+detail; `externalDefault()` and `externalGeneratedColumn()` make that marker
+explicit when constructing metadata directly. Qubu does not invent reproducible
+DDL. Complete defaults cannot be
+combined with generated or identity metadata, and contradictory flags fail
+with a structured `ColumnBehaviorError` before the column is returned.
+
 ## Narrow a column's application type
 
 Use `$type<T>()` to narrow a helper's TypeScript type without changing its

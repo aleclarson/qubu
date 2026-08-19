@@ -18,6 +18,14 @@ import type {
   PortableCastTarget,
   PortableCastType,
 } from '../core/dialect.ts'
+import {
+  resolveColumnBehavior,
+  type ColumnDefault,
+  type GeneratedColumnDescriptor,
+  type IdentityDescriptor,
+  type ExternalDefaultDescriptor,
+  type ExternalGeneratedColumnDescriptor,
+} from './column-behavior.ts'
 
 /** Portable physical storage spellings understood by every schema dialect. */
 export type PortableStorageType =
@@ -195,6 +203,12 @@ export interface ColumnOptions {
   readonly nullable?: boolean
   readonly hasDefault?: boolean
   readonly generated?: boolean
+  /** Complete database default metadata, independent of the write flag. */
+  readonly default?: ColumnDefault
+  /** Complete generated-column metadata, independent of identity behavior. */
+  readonly generatedColumn?: GeneratedColumnDescriptor
+  /** Database identity metadata; identity is not an ordinary expression. */
+  readonly identity?: IdentityDescriptor
   /** Override the snake_case SQL identifier derived from the field name. */
   readonly sqlName?: string
   /** Physical storage metadata for a custom column definition. */
@@ -220,11 +234,24 @@ export interface ColumnDefinition<
   TGenerated extends boolean = false,
   TSqlType extends AnySqlType = SqlUnknown,
   TStorage extends ColumnStorage | undefined = undefined,
+  TDefault extends ColumnDefault | undefined = ColumnDefault | undefined,
+  TGeneratedColumn extends GeneratedColumnDescriptor | undefined =
+    | GeneratedColumnDescriptor
+    | undefined,
+  TIdentity extends IdentityDescriptor | undefined =
+    | IdentityDescriptor
+    | undefined,
 > {
   readonly definitionKind: 'column'
   readonly nullable: TNullable
   readonly hasDefault: THasDefault
   readonly generated: TGenerated
+  /** Complete database default metadata, when known. */
+  readonly default?: TDefault
+  /** Complete generated-column metadata, when known. */
+  readonly generatedColumn?: TGeneratedColumn
+  /** Identity behavior is modeled separately from generated expressions. */
+  readonly identity?: TIdentity
   readonly sqlName?: string
   /** Physical storage metadata, separate from the application and SQL types. */
   readonly storage?: TStorage
@@ -248,7 +275,10 @@ export interface ColumnDefinition<
     THasDefault,
     TGenerated,
     TSqlType,
-    TStorage
+    TStorage,
+    TDefault,
+    TGeneratedColumn,
+    TIdentity
   > &
     (this extends { readonly castTarget: infer TCastTarget extends CastTarget }
       ? { readonly castTarget: TCastTarget }
@@ -257,6 +287,43 @@ export interface ColumnDefinition<
 }
 
 type Flag<T extends boolean | undefined> = T extends true ? true : false
+
+type ColumnHasDefaultOption<TOptions extends ColumnOptions> = TOptions extends {
+  readonly default: ColumnDefault
+}
+  ? true
+  : Flag<TOptions['hasDefault']>
+
+type ColumnIsGeneratedOption<TOptions extends ColumnOptions> =
+  TOptions extends {
+    readonly generatedColumn: GeneratedColumnDescriptor
+  }
+    ? true
+    : TOptions extends { readonly identity: IdentityDescriptor }
+      ? true
+      : Flag<TOptions['generated']>
+
+type ColumnDefaultOption<TOptions extends ColumnOptions> = TOptions extends {
+  readonly default: infer TDefault extends ColumnDefault
+}
+  ? TDefault
+  : TOptions['hasDefault'] extends true
+    ? ExternalDefaultDescriptor
+    : undefined
+
+type ColumnGeneratedOption<TOptions extends ColumnOptions> = TOptions extends {
+  readonly generatedColumn: infer TGenerated extends GeneratedColumnDescriptor
+}
+  ? TGenerated
+  : TOptions['generated'] extends true
+    ? ExternalGeneratedColumnDescriptor
+    : undefined
+
+type ColumnIdentityOption<TOptions extends ColumnOptions> = TOptions extends {
+  readonly identity: infer TIdentity extends IdentityDescriptor
+}
+  ? TIdentity
+  : undefined
 
 type IsAny<T> = 0 extends 1 & T ? true : false
 
@@ -286,14 +353,17 @@ export type ColumnFromOptions<
   Flag<TOptions['nullable']>,
   TInsert,
   TUpdate,
-  Flag<TOptions['hasDefault']>,
-  Flag<TOptions['generated']>,
+  ColumnHasDefaultOption<TOptions>,
+  ColumnIsGeneratedOption<TOptions>,
   TSqlType,
   TOptions extends { readonly storage: infer TStorage }
     ? TStorage extends ColumnStorage
       ? TStorage
       : undefined
-    : undefined
+    : undefined,
+  ColumnDefaultOption<TOptions>,
+  ColumnGeneratedOption<TOptions>,
+  ColumnIdentityOption<TOptions>
 > &
   (TOptions extends { readonly castType: string }
     ? { readonly castTarget: NamedCastTarget }
@@ -303,6 +373,8 @@ export type ColumnOutput<T> =
   T extends ColumnDefinition<
     infer TOutput,
     infer TNullable,
+    any,
+    any,
     any,
     any,
     any,
@@ -324,6 +396,9 @@ export type ColumnInsertInput<T> =
     any,
     any,
     any,
+    any,
+    any,
+    any,
     any
   >
     ? TNullable extends true
@@ -337,6 +412,9 @@ export type ColumnUpdateInput<T> =
     infer TNullable,
     any,
     infer TUpdate,
+    any,
+    any,
+    any,
     any,
     any,
     any,
@@ -356,6 +434,9 @@ export type ColumnHasDefault<T> =
     infer THasDefault,
     any,
     any,
+    any,
+    any,
+    any,
     any
   >
     ? THasDefault
@@ -370,20 +451,101 @@ export type ColumnIsGenerated<T> =
     any,
     infer TGenerated,
     any,
+    any,
+    any,
+    any,
     any
   >
     ? TGenerated
     : false
 
+/** Extract complete default metadata from a column definition. */
+export type ColumnDefaultOf<T> =
+  T extends ColumnDefinition<
+    any,
+    any,
+    any,
+    any,
+    any,
+    any,
+    any,
+    any,
+    infer TDefault,
+    any,
+    any
+  >
+    ? TDefault
+    : undefined
+
+/** Extract complete generated-column metadata from a column definition. */
+export type ColumnGeneratedOf<T> =
+  T extends ColumnDefinition<
+    any,
+    any,
+    any,
+    any,
+    any,
+    any,
+    any,
+    any,
+    any,
+    infer TGenerated,
+    any
+  >
+    ? TGenerated
+    : undefined
+
+/** Extract identity metadata from a column definition. */
+export type ColumnIdentityOf<T> =
+  T extends ColumnDefinition<
+    any,
+    any,
+    any,
+    any,
+    any,
+    any,
+    any,
+    any,
+    any,
+    any,
+    infer TIdentity
+  >
+    ? TIdentity
+    : undefined
+
 /** Extract the SQL semantic domain declared by a column definition. */
 export type ColumnSqlType<T> =
-  T extends ColumnDefinition<any, any, any, any, any, any, infer TSqlType, any>
+  T extends ColumnDefinition<
+    any,
+    any,
+    any,
+    any,
+    any,
+    any,
+    infer TSqlType,
+    any,
+    any,
+    any,
+    any
+  >
     ? TSqlType
     : SqlUnknown
 
 /** Whether a column definition explicitly permits SQL NULL values. */
 export type ColumnIsNullable<T> =
-  T extends ColumnDefinition<any, infer TNullable, any, any, any, any, any, any>
+  T extends ColumnDefinition<
+    any,
+    infer TNullable,
+    any,
+    any,
+    any,
+    any,
+    any,
+    any,
+    any,
+    any,
+    any
+  >
     ? TNullable
     : false
 
@@ -402,6 +564,9 @@ type AnyColumnDefinition = ColumnDefinition<
   any,
   any,
   AnySqlType,
+  any,
+  any,
+  any,
   any
 >
 
@@ -428,7 +593,10 @@ type StoredColumnDefinition<
     infer THasDefault,
     infer TGenerated,
     infer TSqlType,
-    any
+    any,
+    infer TDefault,
+    infer TGeneratedColumn,
+    infer TIdentity
   >
     ? ColumnDefinition<
         TOutput,
@@ -438,7 +606,10 @@ type StoredColumnDefinition<
         THasDefault,
         TGenerated,
         TSqlType,
-        TStorage
+        TStorage,
+        TDefault,
+        TGeneratedColumn,
+        TIdentity
       > &
         (TDefinition extends {
           readonly castTarget: infer TCastTarget extends CastTarget
@@ -513,7 +684,18 @@ export function column<
   readonly hasDefault: true
   readonly generated: true
   readonly sqlName?: string
-}): ColumnDefinition<TOutput, true, TInsert, TUpdate, true, true, TSqlType>
+}): ColumnDefinition<
+  TOutput,
+  true,
+  TInsert,
+  TUpdate,
+  true,
+  true,
+  TSqlType,
+  undefined,
+  ExternalDefaultDescriptor,
+  ExternalGeneratedColumnDescriptor
+>
 export function column<
   TOutput = unknown,
   TInsert = TOutput,
@@ -524,7 +706,17 @@ export function column<
   readonly hasDefault: true
   readonly generated?: false
   readonly sqlName?: string
-}): ColumnDefinition<TOutput, true, TInsert, TUpdate, true, false, TSqlType>
+}): ColumnDefinition<
+  TOutput,
+  true,
+  TInsert,
+  TUpdate,
+  true,
+  false,
+  TSqlType,
+  undefined,
+  ExternalDefaultDescriptor
+>
 export function column<
   TOutput = unknown,
   TInsert = TOutput,
@@ -535,7 +727,18 @@ export function column<
   readonly hasDefault?: false
   readonly generated: true
   readonly sqlName?: string
-}): ColumnDefinition<TOutput, true, TInsert, TUpdate, false, true, TSqlType>
+}): ColumnDefinition<
+  TOutput,
+  true,
+  TInsert,
+  TUpdate,
+  false,
+  true,
+  TSqlType,
+  undefined,
+  undefined,
+  ExternalGeneratedColumnDescriptor
+>
 export function column<
   TOutput = unknown,
   TInsert = TOutput,
@@ -557,7 +760,18 @@ export function column<
   readonly hasDefault: true
   readonly generated: true
   readonly sqlName?: string
-}): ColumnDefinition<TOutput, false, TInsert, TUpdate, true, true, TSqlType>
+}): ColumnDefinition<
+  TOutput,
+  false,
+  TInsert,
+  TUpdate,
+  true,
+  true,
+  TSqlType,
+  undefined,
+  ExternalDefaultDescriptor,
+  ExternalGeneratedColumnDescriptor
+>
 export function column<
   TOutput = unknown,
   TInsert = TOutput,
@@ -568,7 +782,17 @@ export function column<
   readonly hasDefault: true
   readonly generated?: false
   readonly sqlName?: string
-}): ColumnDefinition<TOutput, false, TInsert, TUpdate, true, false, TSqlType>
+}): ColumnDefinition<
+  TOutput,
+  false,
+  TInsert,
+  TUpdate,
+  true,
+  false,
+  TSqlType,
+  undefined,
+  ExternalDefaultDescriptor
+>
 export function column<
   TOutput = unknown,
   TInsert = TOutput,
@@ -579,7 +803,18 @@ export function column<
   readonly hasDefault?: false
   readonly generated: true
   readonly sqlName?: string
-}): ColumnDefinition<TOutput, false, TInsert, TUpdate, false, true, TSqlType>
+}): ColumnDefinition<
+  TOutput,
+  false,
+  TInsert,
+  TUpdate,
+  false,
+  true,
+  TSqlType,
+  undefined,
+  undefined,
+  ExternalGeneratedColumnDescriptor
+>
 export function column<
   TOutput = unknown,
   TInsert = TOutput,
@@ -616,8 +851,7 @@ export function column<
   return Object.freeze({
     definitionKind: 'column' as const,
     nullable: options?.nullable === true,
-    hasDefault: options?.hasDefault === true,
-    generated: options?.generated === true,
+    ...resolveColumnBehavior(options ?? {}),
     sqlName: options?.sqlName,
     storage: options?.storage
       ? Object.freeze({ ...options.storage })
@@ -642,6 +876,31 @@ type NativeColumnOptions = Omit<ColumnOptions, 'storage'> & {
   readonly storage?: never
 }
 
+type NativeColumnFromOptions<
+  TOutput,
+  TInsert,
+  TUpdate,
+  TOptions extends NativeColumnOptions,
+  TSqlType extends AnySqlType,
+  TDialect extends string,
+  TDeclaration extends string,
+> = ColumnDefinition<
+  TOutput,
+  Flag<TOptions['nullable']>,
+  TInsert,
+  TUpdate,
+  ColumnHasDefaultOption<TOptions>,
+  ColumnIsGeneratedOption<TOptions>,
+  TSqlType,
+  NativeColumnStorage<TDialect, TDeclaration>,
+  ColumnDefaultOption<TOptions>,
+  ColumnGeneratedOption<TOptions>,
+  ColumnIdentityOption<TOptions>
+> &
+  (TOptions extends { readonly castType: string }
+    ? { readonly castTarget: NamedCastTarget }
+    : unknown)
+
 /** Create a column whose physical declaration belongs to one SQL dialect. */
 export function nativeColumn<
   TOutput = unknown,
@@ -654,15 +913,14 @@ export function nativeColumn<
 >(
   storage: NativeColumnStorage<TDialect, TDeclaration>,
   options?: TOptions
-): ColumnDefinition<
+): NativeColumnFromOptions<
   TOutput,
-  Flag<TOptions['nullable']>,
   TInsert,
   TUpdate,
-  Flag<TOptions['hasDefault']>,
-  Flag<TOptions['generated']>,
+  TOptions,
   TSqlType,
-  NativeColumnStorage<TDialect, TDeclaration>
+  TDialect,
+  TDeclaration
 >
 /** Create a dialect-native column from an adapter name and exact declaration. */
 export function nativeColumn<
@@ -677,15 +935,14 @@ export function nativeColumn<
   dialect: TDialect,
   type: TDeclaration,
   options?: TOptions
-): ColumnDefinition<
+): NativeColumnFromOptions<
   TOutput,
-  Flag<TOptions['nullable']>,
   TInsert,
   TUpdate,
-  Flag<TOptions['hasDefault']>,
-  Flag<TOptions['generated']>,
+  TOptions,
   TSqlType,
-  NativeColumnStorage<TDialect, TDeclaration>
+  TDialect,
+  TDeclaration
 >
 export function nativeColumn(
   storageOrDialect: NativeColumnStorage | string,
@@ -717,6 +974,9 @@ export function nullable<
   TGenerated extends boolean,
   TSqlType extends AnySqlType,
   TStorage extends ColumnStorage | undefined,
+  TDefault extends ColumnDefault | undefined,
+  TGeneratedColumn extends GeneratedColumnDescriptor | undefined,
+  TIdentity extends IdentityDescriptor | undefined,
 >(
   definition: ColumnDefinition<
     TOutput,
@@ -726,7 +986,10 @@ export function nullable<
     THasDefault,
     TGenerated,
     TSqlType,
-    TStorage
+    TStorage,
+    TDefault,
+    TGeneratedColumn,
+    TIdentity
   >
 ) {
   return Object.freeze({
@@ -740,7 +1003,10 @@ export function nullable<
     THasDefault,
     TGenerated,
     TSqlType,
-    TStorage
+    TStorage,
+    TDefault,
+    TGeneratedColumn,
+    TIdentity
   >
 }
 
