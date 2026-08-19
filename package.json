@@ -36,9 +36,11 @@
   },
   "scripts": {
     "build": "tsdown",
+    "playground": "bun run ./playground/playground.ts",
     "test": "vitest",
     "test:bun": "bun test ./src/bun/test",
     "typecheck": "vitest --typecheck --run",
+    "typecheck:playground": "tsc --project ./playground/tsconfig.json",
     "lint": "prettier --check . && npm run typecheck"
   },
   "publishConfig": {

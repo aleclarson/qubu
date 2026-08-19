@@ -1,0 +1,18 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": "..",
+    "declaration": false,
+    "emitDeclarationOnly": false,
+    "noEmit": true,
+    "paths": {
+      "qubu": ["./src/index.ts"],
+      "qubu/mysql": ["./src/dialects/mysql.ts"],
+      "qubu/postgres": ["./src/dialects/postgres.ts"],
+      "qubu/sqlite": ["./src/dialects/sqlite.ts"],
+      "qubu/vite": ["./src/vite/index.ts"]
+    },
+    "types": ["bun"]
+  },
+  "include": ["./playground.ts"]
+}
