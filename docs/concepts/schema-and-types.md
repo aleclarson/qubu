@@ -74,6 +74,26 @@ const accounts = table('accounts', {
 The selected `externalScore` is `number | null`; inserts accept
 `string | null`; updates accept `number | null`.
 
+## Narrow a column's application type
+
+Use `$type<T>()` to narrow a helper's TypeScript type without changing its
+runtime column definition:
+
+```ts
+const users = table('users', {
+  status: text().$type<'active' | 'disabled'>(),
+})
+```
+
+The narrowed type applies to selected values and to insert and update inputs.
+For a custom column whose insert or update type differs from its output type,
+the distinct type is preserved. For example,
+`column<number, string, number>().$type<1 | 2>()` continues to accept `string`
+inserts while narrowing selected and updated values to `1 | 2`.
+
+`$type<T>()` is a compile-time assertion. It does not validate values at
+runtime or add a database constraint.
+
 ## Common value helpers
 
 The first-party helpers provide application types without dictating how a

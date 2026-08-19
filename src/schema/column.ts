@@ -22,9 +22,41 @@ export interface ColumnDefinition<
   readonly __output?: TOutput
   readonly __insert?: TInsert
   readonly __update?: TUpdate
+  /**
+   * Narrow the column's application type without changing its runtime
+   * definition.
+   *
+   * @remarks Distinct insert or update types are preserved. This method does
+   * not validate values or add a database constraint.
+   */
+  readonly $type: <const TType extends TOutput>() => ColumnDefinition<
+    TType,
+    TNullable,
+    SameType<TInsert, TOutput> extends true ? TType : TInsert,
+    SameType<TUpdate, TOutput> extends true ? TType : TUpdate,
+    THasDefault,
+    TGenerated
+  >
 }
 
 type Flag<T extends boolean | undefined> = T extends true ? true : false
+
+type IsAny<T> = 0 extends 1 & T ? true : false
+
+type SameType<TLeft, TRight> =
+  IsAny<TLeft> extends true
+    ? IsAny<TRight>
+    : IsAny<TRight> extends true
+      ? false
+      : [TLeft] extends [TRight]
+        ? [TRight] extends [TLeft]
+          ? true
+          : false
+        : false
+
+function narrowColumnType(this: ColumnDefinition) {
+  return this
+}
 
 export type ColumnFromOptions<
   TOutput,
@@ -169,6 +201,7 @@ export function column<
     hasDefault: options?.hasDefault === true,
     generated: options?.generated === true,
     sqlName: options?.sqlName,
+    $type: narrowColumnType,
   }) as ColumnFromOptions<TOutput, TInsert, TUpdate, TOptions>
 }
 

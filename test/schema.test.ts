@@ -72,3 +72,31 @@ test('derives insert and update inputs from write-time column metadata', () => {
   void missingRequired
   void generatedUpdate
 })
+
+test('narrows column types without changing their runtime definitions', () => {
+  const statusDefinition = text()
+  const narrowedStatus = statusDefinition.$type<'active' | 'disabled'>()
+  const records = table('records', {
+    status: narrowedStatus,
+    score: column<number, string, number>().$type<1 | 2>(),
+  })
+  const query = select(
+    { status: records.status, score: records.score },
+    from(records)
+  )
+
+  type Insert = TableInsertInput<typeof records.definitions>
+  type Update = TableUpdateInput<typeof records.definitions>
+
+  expect(narrowedStatus).toBe(statusDefinition)
+  expectTypeOf(query.row.status).toEqualTypeOf<'active' | 'disabled'>()
+  expectTypeOf(query.row.score).toEqualTypeOf<1 | 2>()
+  expectTypeOf<Insert['status']>().toEqualTypeOf<'active' | 'disabled'>()
+  expectTypeOf<Insert['score']>().toEqualTypeOf<string>()
+  expectTypeOf<Update['score']>().toEqualTypeOf<1 | 2 | undefined>()
+  // @ts-expect-error The narrowed type excludes other strings.
+  const invalidStatus: Insert['status'] = 'pending'
+  // @ts-expect-error A text column cannot be narrowed to a number type.
+  statusDefinition.$type<number>()
+  void invalidStatus
+})
