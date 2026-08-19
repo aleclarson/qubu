@@ -20,6 +20,7 @@ import {
   lt,
   ne,
   notIn,
+  omit,
   orderBy,
   offset,
   postgresDialect,
@@ -79,6 +80,23 @@ test('normalizes clause order and follows rendered parameter order', () => {
   expect(render(query)).toEqual({
     text: 'SELECT "users"."id" AS "id" FROM "users" WHERE ("users"."id" = ?) ORDER BY "users"."name" DESC OFFSET ? ROWS FETCH FIRST ? ROWS ONLY',
     parameters: [7, 5, 10],
+  })
+})
+
+test('omits conditional select clauses before validation and rendering', () => {
+  const includeFilter = false as boolean
+  const includeOrder = true as boolean
+  const query = select(
+    { id: users.id },
+    from(users),
+    includeFilter ? where(eq(users.id, 7)) : omit,
+    includeOrder ? orderBy(desc(users.id)) : omit,
+    where(eq(users.id, 3))
+  )
+
+  expect(render(query)).toEqual({
+    text: 'SELECT "users"."id" AS "id" FROM "users" WHERE ("users"."id" = ?) ORDER BY "users"."id" DESC',
+    parameters: [3],
   })
 })
 

@@ -108,6 +108,31 @@ const filtered = select(
 Values such as `7`, `'Ada'`, and list members become parameters. They are not
 interpolated into SQL.
 
+## Omit a clause conditionally
+
+Use `omit` as the other branch of a JavaScript conditional when a `WHERE`,
+`HAVING`, `ORDER BY`, or `DISTINCT` clause is optional:
+
+```ts
+import { eq, from, omit, select, where } from 'qubu'
+
+declare const userId: number | undefined
+
+const query = select(
+  { id: users.id, name: users.name },
+  from(users),
+  userId === undefined ? omit : where(eq(users.id, userId))
+)
+```
+
+The ordinary ternary narrows `userId`, and the unused clause is never built.
+Qubu removes `omit` before validating and ordering the remaining clauses.
+
+Clauses that provide sources or change structural guarantees cannot be
+conditional. Qubu rejects `omit` branches paired with `from()`, joins,
+`groupBy()`, pagination, correlation, CTEs, or custom clauses. Build separate
+queries when those parts differ at runtime.
+
 ## Handle `NULL` and empty lists deliberately
 
 Equality with `null` is translated to the SQL null predicate:

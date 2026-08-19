@@ -103,6 +103,7 @@ declare global {
   const numeric: typeof import('qubu').numeric
   const nullable: typeof import('qubu').nullable
   const offset: typeof import('qubu').offset
+  const omit: typeof import('qubu').omit
   const or: typeof import('qubu').or
   const order: typeof import('qubu').order
   const orderBy: typeof import('qubu').orderBy

@@ -20,6 +20,12 @@ import type {
 } from '../core/fragment.ts'
 import { type Selection, type SelectionOutput } from './selection.ts'
 import type { SelectionItems } from './selection.ts'
+import {
+  omit,
+  type OmissionValidation,
+  type PresentClauses,
+  type SelectPart,
+} from './omit.ts'
 
 type SelectMetadata<TSelection, TClauses extends readonly AnySelectClause[]> =
   | ([RequiredOuterScope<TSelection, TClauses>] extends [never]
@@ -42,10 +48,12 @@ export type {
 
 export function select<
   const TSelection extends Selection,
-  const TClauses extends readonly AnySelectClause[],
+  const TParts extends readonly SelectPart[],
+  TClauses extends readonly AnySelectClause[] = PresentClauses<TParts>,
 >(
   selection: TSelection,
-  ...clauses: TClauses &
+  ...parts: TParts &
+    OmissionValidation<TParts> &
     ScopeValidation<TSelection, TClauses> &
     GroupingValidation<TSelection, TClauses>
 ): SelectQuery<
@@ -53,7 +61,9 @@ export function select<
   SelectCardinality<TClauses>,
   SelectMetadata<TSelection, TClauses>
 > {
-  const normalizedClauses = clauses as readonly AnySelectClause[]
+  const normalizedClauses = parts.filter(
+    (part): part is AnySelectClause => part !== omit
+  )
   validateClauses(normalizedClauses)
 
   const orderedClauses = normalizedClauses

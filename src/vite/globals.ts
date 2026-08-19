@@ -102,6 +102,7 @@ export const qubuGlobals = [
   'numeric',
   'nullable',
   'offset',
+  'omit',
   'or',
   'order',
   'orderBy',

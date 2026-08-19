@@ -1,4 +1,5 @@
 export * from './clauses/index.ts'
+export * from './omit.ts'
 export * from './selection.ts'
 export * from './select.ts'
 export * from './set.ts'
