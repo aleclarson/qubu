@@ -148,6 +148,7 @@ export const qubuGlobals = [
   'union',
   'unionAll',
   'unique',
+  'uniqueConstraint',
   'unsafe',
   'unsafeExpression',
   'unsafeMutation',

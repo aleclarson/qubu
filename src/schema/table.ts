@@ -33,9 +33,11 @@ import type {
   ForeignKeyConstraint,
   ForeignKeyTarget,
   KeyConstraint,
+  UniqueConstraint,
   SourceConstraintsRecord,
 } from './constraints.ts'
 import type { IndexTerm, SourceIndexesRecord } from './indexes.ts'
+import { materializeSchemaObjectRecord } from './metadata.ts'
 import type { AnyExpression } from '../expressions/types.ts'
 import type { SqlBoolean } from '../core/sql-types.ts'
 import type { OrderTerm } from '../query/clauses/order-by.ts'
@@ -138,6 +140,7 @@ export interface TableOptions<
 
 type ConstraintColumns<TConstraint> = TConstraint extends
   | KeyConstraint<any, infer TColumns>
+  | UniqueConstraint<infer TColumns>
   | ForeignKeyConstraint<infer TColumns, any>
   ? TColumns[number]
   : never
@@ -189,6 +192,23 @@ type IndexTermExpression<T> = T extends OrderTerm<any> ? T['expression'] : T
 type IndexColumns<TTerms extends readonly IndexTerm[]> = {
   [K in keyof TTerms]: IndexTermExpression<TTerms[K]>
 }
+type IndexIncludedColumns<TIndex> = TIndex extends {
+  readonly includedColumns?: infer TIncluded
+}
+  ? Exclude<TIncluded, undefined> extends readonly unknown[]
+    ? Exclude<TIncluded, undefined>
+    : never
+  : never
+
+type InvalidIncludedColumns<
+  TIncluded,
+  TName extends string,
+> = TIncluded extends readonly unknown[]
+  ? Exclude<
+      DependenciesOf<TIncluded[number]>,
+      ColumnDependency<TableIdentity<TName>, string>
+    >
+  : never
 
 type ConstraintsOf<T> = T extends {
   readonly constraints: infer TConstraints extends SourceConstraintsRecord
@@ -310,6 +330,7 @@ type InvalidIndex<TIndex, TName extends string> = TIndex extends {
             ? InvalidExpression<TPredicate, TName>
             : TPredicate
           : never)
+      | InvalidIncludedColumns<IndexIncludedColumns<TIndex>, TName>
   : TIndex
 
 type InvalidIndexes<
@@ -422,6 +443,10 @@ export function table<
   const resolvedMetadata = metadata
     ? metadata(source as Table<TName, TDefinitions>)
     : ({ constraints: {}, indexes: {} } as TableOptions<TConstraints, TIndexes>)
+  const constraints = materializeSchemaObjectRecord(
+    resolvedMetadata.constraints,
+    'constraint'
+  ) as TConstraints
   const indexes = Object.fromEntries(
     Object.entries(resolvedMetadata.indexes).map(([indexName, tableIndex]) => {
       const candidateKey =
@@ -438,7 +463,15 @@ export function table<
       return [indexName, Object.freeze({ ...tableIndex, candidateKey })]
     })
   ) as TIndexes
-  Object.assign(source, { ...resolvedMetadata, indexes })
+  const namedIndexes = materializeSchemaObjectRecord(
+    indexes,
+    'index'
+  ) as TIndexes
+  Object.assign(source, {
+    ...resolvedMetadata,
+    constraints,
+    indexes: namedIndexes,
+  })
 
   return source as Table<TName, TDefinitions, TConstraints, TIndexes>
 }

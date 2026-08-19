@@ -245,6 +245,7 @@ import {
   table,
   text,
   unique,
+  uniqueConstraint,
   value,
 } from 'qubu'
 
@@ -288,8 +289,15 @@ const memberships = table(
 The metadata callback receives the preliminary table, including its typed
 columns. Give every item a stable application name in the `constraints` or
 `indexes` record. Keys and indexes preserve their exact column or expression
-tuples. Index terms may use `asc()` or `desc()`. Set `unique: true` for a unique
-index and `where` for a partial index.
+tuples. Index terms may use `asc()` or `desc()`. Set `unique: true` for a
+unique index, `where` for a partial index, and `include` for columns stored in
+the index payload but not used as ordered key terms.
+
+The record key is the logical object ID. `table()` materializes that ID as
+`constraint.id` or `index.id` and resolves `physicalName` from the explicit
+option or the version-one snake-case naming policy. These identity properties
+are read-only metadata; legacy enumerable constraint and index shapes remain
+unchanged. Physical names must be unique within their metadata kind.
 
 All columns in one key must come from the callback table, and they must be
 non-nullable in the Qubu definition. This matters for
@@ -298,12 +306,61 @@ key contains `NULL`; such a key cannot prove that one group determines the
 remaining columns. Qubu rejects nullable key declarations instead of making a
 dialect-specific assumption.
 
-`foreignKey(localColumns, target)` accepts single or composite tuples. Build a
-target with `references(table, ...columns)`. The local tuple must belong to the
-callback table, both tuples must have the same length, and each position must
-have the same known `SqlSemanticType` identity. `SqlUnknown` cannot prove a
-foreign-key match. The target tuple must exactly match a primary key, unique
-constraint, or eligible unique index.
+Use `uniqueConstraint()` when the database enforces uniqueness but the rule is
+not a Qubu candidate-key proof. It accepts nullable columns and records the
+database's NULL behavior explicitly:
+
+```ts
+const accounts = table(
+  'accounts',
+  {
+    email: text({ nullable: true }),
+  },
+  accounts => ({
+    constraints: {
+      emailUnique: uniqueConstraint(accounts.email, {
+        nulls: 'distinct',
+        physicalName: 'accounts_email_key',
+      }),
+    },
+    indexes: {},
+  })
+)
+```
+
+`nulls: 'distinct'` describes the common rule where multiple NULLs do not
+conflict; `'not-distinct'` describes a rule where NULL participates in the
+uniqueness comparison. Neither form proves that a grouped column determines
+the rest of a row. Keep using `unique()` for the stricter, non-null candidate
+key declaration used by grouping and foreign-key type proofs.
+
+`foreignKey(localColumns, target, options)` accepts single or composite
+tuples. Build a target with `references(table, ...columns)`. The local tuple
+must belong to the callback table, both tuples must have the same length, and
+each position must have the same known `SqlSemanticType` identity. `SqlUnknown`
+cannot prove a foreign-key match. The target tuple must exactly match a
+primary key, `unique()` constraint, or eligible unique index. Standard
+`onUpdate`, `onDelete`, `match`, `deferrable`, and `initially` options are
+retained as metadata:
+
+```ts
+const memberships = table(
+  'memberships',
+  {
+    accountId: integer(),
+  },
+  memberships => ({
+    constraints: {
+      accountForeign: foreignKey(
+        [memberships.accountId],
+        references(accounts, accounts.id),
+        { onDelete: 'cascade', onUpdate: 'cascade' }
+      ),
+    },
+    indexes: {},
+  })
+)
+```
 
 Direct self-references use the preliminary callback table. Wrap the target in
 a function when two modules import each other's tables:
@@ -342,10 +399,17 @@ const summary = select(
 )
 ```
 
-A primary key, unique constraint, or eligible unique index supplies the proof.
-An eligible unique index is non-partial and contains only non-null table
-columns. Nullable, partial, and expression indexes do not prove an
-unconditional dependency.
+A primary key, `unique()` constraint, or eligible unique index supplies the
+proof. An eligible unique index is non-partial and contains only non-null
+table columns. Nullable, partial, expression, and included-column metadata do
+not silently become candidate-key evidence. Database uniqueness and Qubu's
+functional-dependency proof are deliberately separate concepts.
+
+Index methods, operator classes, concurrency, storage parameters, and MySQL
+algorithm/locking settings belong in the typed `dialect` extension on an
+index. Constraint extensions follow the same pattern. Portable metadata stays
+available to every adapter, while a dialect validator reports a structured
+diagnostic for an extension or option that the selected engine cannot support.
 
 The proof follows a table alias and remains source-local through a join,
 including a source made nullable by `leftJoin()`. It does not cross a derived

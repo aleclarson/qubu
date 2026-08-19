@@ -343,6 +343,42 @@ declare global {
   type SourceConstraintsRecord = import('qubu').SourceConstraintsRecord
   type SourceIndexesRecord = import('qubu').SourceIndexesRecord
   type SourceIndex = import('qubu').SourceIndex
+  type SchemaDialect = import('qubu').SchemaDialect
+  type SchemaDialectExtension<TDialect extends string = string> =
+    import('qubu').SchemaDialectExtension<TDialect>
+  type SchemaObjectIdentity = import('qubu').SchemaObjectIdentity
+  type SchemaObjectNameOptions = import('qubu').SchemaObjectNameOptions
+  type SchemaMetadataDiagnostic = import('qubu').SchemaMetadataDiagnostic
+  type SchemaMetadataValidationError =
+    import('qubu').SchemaMetadataValidationError
+  type ConstraintDialectExtension = import('qubu').ConstraintDialectExtension
+  type PostgresConstraintExtension = import('qubu').PostgresConstraintExtension
+  type SqliteConstraintExtension = import('qubu').SqliteConstraintExtension
+  type MysqlConstraintExtension = import('qubu').MysqlConstraintExtension
+  type ConstraintOptions<
+    TExtension extends import('qubu').ConstraintDialectExtension | undefined =
+      | import('qubu').ConstraintDialectExtension
+      | undefined,
+  > = import('qubu').ConstraintOptions<TExtension>
+  type KeyConstraintOptions<
+    TExtension extends import('qubu').ConstraintDialectExtension | undefined =
+      | import('qubu').ConstraintDialectExtension
+      | undefined,
+  > = import('qubu').KeyConstraintOptions<TExtension>
+  type UniqueConstraintOptions<
+    TExtension extends import('qubu').ConstraintDialectExtension | undefined =
+      | import('qubu').ConstraintDialectExtension
+      | undefined,
+  > = import('qubu').UniqueConstraintOptions<TExtension>
+  type ForeignKeyOptions<
+    TExtension extends import('qubu').ConstraintDialectExtension | undefined =
+      | import('qubu').ConstraintDialectExtension
+      | undefined,
+  > = import('qubu').ForeignKeyOptions<TExtension>
+  type UniqueNullSemantics = import('qubu').UniqueNullSemantics
+  type ReferentialAction = import('qubu').ReferentialAction
+  type ForeignKeyMatch = import('qubu').ForeignKeyMatch
+  type ConstraintTiming = import('qubu').ConstraintTiming
   type AnyKeyColumn = import('qubu').AnyKeyColumn
   type KeyConstraint<
     TKind extends 'primary-key' | 'unique' = 'primary-key' | 'unique',
@@ -351,6 +387,12 @@ declare global {
       any
     >[] = readonly import('qubu').ColumnReference<string, any>[],
   > = import('qubu').KeyConstraint<TKind, TColumns>
+  type UniqueConstraint<
+    TColumns extends
+      readonly import('qubu').AnyKeyColumn[] = readonly import('qubu').AnyKeyColumn[],
+    TNulls extends
+      import('qubu').UniqueNullSemantics = import('qubu').UniqueNullSemantics,
+  > = import('qubu').UniqueConstraint<TColumns, TNulls>
   type ForeignKeyTarget<
     TTable extends
       import('qubu').TableLike<any> = import('qubu').TableLike<any>,
@@ -371,12 +413,24 @@ declare global {
     TExpression extends
       import('qubu').AnyExpression = import('qubu').AnyExpression,
   > = import('qubu').CheckConstraint<TExpression>
+  type CheckConstraintOptions<
+    TExtension extends import('qubu').ConstraintDialectExtension | undefined =
+      | import('qubu').ConstraintDialectExtension
+      | undefined,
+  > = import('qubu').CheckConstraintOptions<TExtension>
+  type IndexDialectExtension = import('qubu').IndexDialectExtension
+  type PostgresIndexExtension = import('qubu').PostgresIndexExtension
+  type SqliteIndexExtension = import('qubu').SqliteIndexExtension
+  type MysqlIndexExtension = import('qubu').MysqlIndexExtension
   type IndexTerm = import('qubu').IndexTerm
   type IndexOptions<
     TPredicate extends import('qubu').AnyExpression | undefined =
       | import('qubu').AnyExpression
       | undefined,
-  > = import('qubu').IndexOptions<TPredicate>
+    TExtension extends import('qubu').IndexDialectExtension | undefined =
+      | import('qubu').IndexDialectExtension
+      | undefined,
+  > = import('qubu').IndexOptions<TPredicate, TExtension>
   type TableIndex<
     TTerms extends readonly import('qubu').IndexTerm[] = any,
     TOptions extends import('qubu').IndexOptions<any> = any,
