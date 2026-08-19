@@ -29,6 +29,7 @@ export interface Query<
 export type AnyQuery = Query<any, any, any, any>
 export type QueryRow<T> =
   T extends Query<infer TRow, any, any, any> ? TRow : never
+/** Extract the field-to-SQL-domain map retained by a named query projection. */
 export type QuerySqlTypeMap<T> =
   T extends Query<infer TRow, any, any, infer TSqlTypes>
     ? TSqlTypes & SourceSqlTypes<TRow>

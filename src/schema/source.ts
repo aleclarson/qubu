@@ -27,10 +27,12 @@ export type SourceKind =
   | 'custom'
   | 'table-function'
 
+/** SQL semantic domains keyed by the application fields of a source row. */
 export type SourceSqlTypes<TRow extends object> = {
   readonly [K in keyof TRow]: AnySqlType
 }
 
+/** A source SQL-domain map used when no stronger metadata was declared. */
 export type UnknownSourceSqlTypes<TRow extends object> = {
   readonly [K in keyof TRow]: SqlUnknown
 }
@@ -86,6 +88,7 @@ export type SourceIdentity<T> =
   T extends Source<infer TIdentity, any, any, any> ? TIdentity : never
 export type SourceRow<T> =
   T extends Source<any, infer TRow, any, any> ? TRow : never
+/** Extract the field-to-SQL-domain map retained by a source. */
 export type SourceSqlTypeMap<T> =
   T extends Source<any, infer TRow, any, infer TSqlTypes>
     ? TSqlTypes & SourceSqlTypes<TRow>

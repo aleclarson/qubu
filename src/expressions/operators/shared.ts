@@ -21,16 +21,19 @@ export type Operand<T> = T | ExpressionWithOutput<T>
 export type OperandSqlType<T, TContext extends AnySqlType> =
   T extends Fragment<any> ? SqlTypeOf<T> : TContext
 
+/** Type-level validation that a known SQL domain provides a capability. */
 export type SqlCapabilityValidation<TActual, TCapability> =
   SqlTypeSatisfies<TActual, TCapability> extends true
     ? unknown
     : { readonly __invalid_sql_domain__: TActual }
 
+/** Type-level validation that two known SQL domains can test equality. */
 export type SqlEqualityValidation<TLeft, TRight> =
   SqlEqualityCompatible<TLeft, TRight> extends true
     ? unknown
     : { readonly __incompatible_sql_equality__: readonly [TLeft, TRight] }
 
+/** Type-level validation that two known SQL domains share an ordering group. */
 export type SqlOrderValidation<TLeft, TRight> =
   SqlOrderCompatible<TLeft, TRight> extends true
     ? unknown

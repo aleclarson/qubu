@@ -13,13 +13,18 @@ import { sourceIdentity, type SourceKind } from './source.ts'
 
 declare const fieldConstraint: unique symbol
 
+/** Application and SQL facts that a reusable source field may require. */
 export interface FieldLikeOptions {
   readonly output?: unknown
   readonly sqlType?: object
   readonly nullable?: boolean
 }
 
-/** A reusable source-field requirement combining JS and SQL-level facts. */
+/**
+ * A reusable source-field requirement combining application and SQL facts.
+ * Omitted facts impose no constraint; `nullable: false` requires a non-null
+ * selected value.
+ */
 export interface FieldLike<
   TOptions extends FieldLikeOptions = FieldLikeOptions,
 > {
@@ -67,7 +72,11 @@ type RequiredColumns<TShape extends object, TIdentity> = {
     : never
 }
 
-/** A source containing at least the requested application and SQL fields. */
+/**
+ * A source containing at least the requested application and SQL fields.
+ * Additional fields and the concrete source identity are preserved by generic
+ * functions that accept this lower-bound constraint.
+ */
 export interface SourceLike<TShape extends object> extends Fragment<any> {
   readonly sourceKind: SourceKind
   readonly [sourceIdentity]: unknown
@@ -75,7 +84,7 @@ export interface SourceLike<TShape extends object> extends Fragment<any> {
   readonly columns: RequiredColumns<TShape, this[typeof sourceIdentity]>
 }
 
-/** A physical table containing at least the requested fields. */
+/** The physical-table form of the lower-bound {@link SourceLike} constraint. */
 export interface TableLike<TShape extends object> extends SourceLike<TShape> {
   readonly tableName: string
   readonly definitions: object

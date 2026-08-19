@@ -8,7 +8,7 @@ export type SqlUnknown = SqlSemanticType<'unknown'> & {
   readonly sqlUnknown: true
 }
 
-/** SQL domains accepted by text operations. */
+/** SQL domains accepted by text operations and the text equality group. */
 export interface SqlTextLike extends SqlEqualityComparable<'text'> {
   readonly sqlTextLike: true
 }
@@ -31,43 +31,53 @@ export interface SqlEqualityComparable<TGroup = unknown> {
   readonly sqlEqualityGroup: TGroup
 }
 
+/** Portable text domain with text, ordering, and equality capabilities. */
 export type SqlText = SqlSemanticType<'text'> &
   SqlTextLike &
   SqlOrderable<'text'> &
   SqlEqualityComparable<'text'>
 
+/** Portable UUID domain; equality-capable but deliberately not text-like. */
 export type SqlUuid = SqlSemanticType<'uuid'> & SqlEqualityComparable<'uuid'>
 
+/** Portable integer domain in the shared numeric compatibility groups. */
 export type SqlInteger = SqlSemanticType<'integer'> &
   SqlNumericLike &
   SqlOrderable<'numeric'> &
   SqlEqualityComparable<'numeric'>
 
+/** Portable decimal domain in the shared numeric compatibility groups. */
 export type SqlDecimal = SqlSemanticType<'decimal'> &
   SqlNumericLike &
   SqlOrderable<'numeric'> &
   SqlEqualityComparable<'numeric'>
 
+/** Portable boolean domain with equality comparison. */
 export type SqlBoolean = SqlSemanticType<'boolean'> &
   SqlEqualityComparable<'boolean'>
 
+/** Portable date domain with date-specific equality and ordering groups. */
 export type SqlDate = SqlSemanticType<'date'> &
   SqlOrderable<'date'> &
   SqlEqualityComparable<'date'>
 
+/** Portable timestamp domain with timestamp-specific comparison groups. */
 export type SqlTimestamp = SqlSemanticType<'timestamp'> &
   SqlOrderable<'timestamp'> &
   SqlEqualityComparable<'timestamp'>
 
+/** Portable JSON domain retaining its decoded application value type. */
 export type SqlJson<TValue = unknown> = SqlSemanticType<'json'> & {
   readonly sqlJsonValue?: TValue
 }
 
+/** Portable bigint domain in the shared numeric compatibility groups. */
 export type SqlBigInt = SqlSemanticType<'bigint'> &
   SqlNumericLike &
   SqlOrderable<'numeric'> &
   SqlEqualityComparable<'numeric'>
 
+/** Portable binary domain with equality comparison. */
 export type SqlBinary = SqlSemanticType<'binary'> &
   SqlEqualityComparable<'binary'>
 

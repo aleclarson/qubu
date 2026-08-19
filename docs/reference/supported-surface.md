@@ -23,6 +23,7 @@ database-specific dependency visible where that is useful.
 | Schema values      | `table`, `column`, `integer`, `numeric`, `text`, `boolean`, date/time, UUID, JSON, bigint, and binary helpers                                                                                                                                           |
 | Read queries       | Named projections, spreadable source columns, aliases, joins, typed custom and LATERAL `FROM` sources, correlated subqueries, `WHERE`, grouping, `HAVING`, ordering, window expressions, distinctness, pagination, CTEs, subqueries, and set operations |
 | Expressions        | Comparison, boolean, arithmetic, null, range, membership, aggregate, window, string, JSON scalar reads, cast, case, and custom expressions                                                                                                              |
+| SQL type metadata  | Portable domains and capabilities, `SqlTypeOf`, projected SQL type maps, `SourceLike`/`TableLike` field constraints, contextual literals, typed extension values/calls/casts, and permissive `SqlUnknown` fallback                                      |
 | Write queries      | `INSERT` values/defaults/select, `UPDATE`, `DELETE`, typed assignments, `RETURNING`, and explicit unrestricted-write opt-in                                                                                                                             |
 | Rendering          | Standard, PostgreSQL, SQLite, MySQL, and user-created dialect policies                                                                                                                                                                                  |
 | Execution boundary | Generic `QueryAdapter` plus `execute()`; connection and driver behavior remain external                                                                                                                                                                 |
@@ -38,6 +39,12 @@ Raw syntax is available through explicit unsafe primitives. Those primitives
 are not a sanitizer and do not make interpolated values safe. Use
 `context.parameter()` in custom renderers and keep driver encoding in the
 adapter.
+
+SQL semantic types provide compile-time portable capability and compatibility
+checks. They do not introspect a database, validate migrations, verify runtime
+schema state, or model every dialect's implicit coercions. Custom and untyped
+extensions default to permissive `SqlUnknown`; use declared domains when an
+extension should participate in stricter checks.
 
 ## Boundary
 

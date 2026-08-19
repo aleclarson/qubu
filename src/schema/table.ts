@@ -36,6 +36,7 @@ export type TableRow<TDefinitions extends TableDefinitions> = {
   -readonly [K in keyof TDefinitions]: ColumnOutput<TDefinitions[K]>
 }
 
+/** SQL semantic domains derived from a table's column definitions. */
 export type TableSqlTypes<TDefinitions extends TableDefinitions> = {
   readonly [K in keyof TDefinitions]: ColumnSqlType<TDefinitions[K]>
 }

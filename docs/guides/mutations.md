@@ -124,7 +124,10 @@ unrestricted operation is intended.
 `returning()` uses the same named object projection as `SELECT`. Use
 `{ ...all(table) }` when every table column should be returned. When present,
 the mutation's `row` type is inferred from that projection, so an adapter can
-return the affected rows with the same shape as a read query.
+return the affected rows with the same shape as a read query. The projection's
+SQL semantic domains are retained too, so a returned query used by typed
+composition does not collapse UUID, text, numeric, or other known fields to
+their JavaScript types alone.
 
 See [Schema and type metadata](../concepts/schema-and-types.md) for custom
 output, insert, and update types, then [Dialects and execution](../concepts/dialects-and-execution.md)

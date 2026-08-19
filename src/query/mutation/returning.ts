@@ -18,6 +18,7 @@ export type ReturningRow<T> = [T] extends [ReturningClause<infer TSelection>]
   ? SelectionOutput<TSelection>
   : Record<string, never>
 
+/** SQL semantic domains retained by a mutation RETURNING projection. */
 export type ReturningSqlTypes<T> = [T] extends [
   ReturningClause<infer TSelection>,
 ]

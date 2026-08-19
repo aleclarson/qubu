@@ -3,6 +3,7 @@ import type { AnySqlType, SqlUnknown } from './sql-types.ts'
 
 declare const fragmentMetadata: unique symbol
 
+/** Result value metadata, including nullability provenance and its SQL domain. */
 export type ResultMeta<
   TOutput,
   TNullableFrom = never,

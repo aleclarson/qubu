@@ -34,6 +34,7 @@ type ComparisonResult<TLeft, R, TOperator extends string> = ResultExpression<
   SqlBoolean
 >
 
+/** SQL-domain validation selected by a comparison operator family. */
 export type ComparisonValidation<
   TLeft,
   TRight,

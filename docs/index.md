@@ -81,6 +81,7 @@ the SQL text and appears in the `parameters` array in placeholder order.
 | Why a column can be rejected outside `FROM` or `JOIN` scope    | [Fragments and source scope](concepts/fragments-and-scope.md) |
 | How a query changes across PostgreSQL, SQLite, or MySQL        | [Dialects and execution](concepts/dialects-and-execution.md)  |
 | How nullability, defaults, and generated columns affect writes | [Schema and type metadata](concepts/schema-and-types.md)      |
+| Why equal JavaScript types can allow different SQL operations  | [SQL semantic types](concepts/sql-semantic-types.md)          |
 | Which package entrypoint or feature to use                     | [Supported surface](reference/supported-surface.md)           |
 | What a failure means and what to verify                        | [Troubleshooting](troubleshooting.md)                         |
 

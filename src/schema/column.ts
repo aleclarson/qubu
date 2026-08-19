@@ -147,6 +147,7 @@ export type ColumnIsGenerated<T> =
     ? TGenerated
     : false
 
+/** Extract the SQL semantic domain declared by a column definition. */
 export type ColumnSqlType<T> =
   T extends ColumnDefinition<any, any, any, any, any, any, infer TSqlType>
     ? TSqlType

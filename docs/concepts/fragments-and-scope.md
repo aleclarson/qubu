@@ -13,9 +13,10 @@ Fragment<Metadata>
 The renderer appends SQL and parameters to a context. `Metadata` is a union of
 tagged facts that later composition needs:
 
-- `ResultMeta<Output, NullableFrom>` describes the value or row produced by
-  an expression or query, and which outer-joined sources can make that result
-  `null`.
+- `ResultMeta<Output, NullableFrom, SqlType>` describes the value or row
+  produced by an expression or query, which outer-joined sources can make that
+  result `null`, and its SQL semantic domain. The domain defaults to permissive
+  `SqlUnknown` for extensions that have not declared one.
 - `RequiresSourceMeta<Source>` identifies a table, alias, CTE, or derived query
   that must be available before the fragment is valid.
 - `RequiresOuterSourceMeta<Source>` identifies a source that must be supplied
@@ -55,7 +56,7 @@ expression. The current laws are:
 | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `sequence()`, `commaSeparated()`, `keyword()`, and `parenthesize()` | Preserve inherited non-result facts such as source requirements and nullable-source facts. They do not invent an output type or leak query cardinality into an expression.                                                              |
 | An expression wrapper such as `expressionFragment()`                | Preserve the wrapped expression's complete metadata, including its output type.                                                                                                                                                         |
-| A source-aware expression such as `upper(column)`                   | Produce a new result type while inheriting the source requirements and nullable-source provenance of its operands.                                                                                                                      |
+| A source-aware expression such as `upper(column)`                   | Produce a new result and SQL domain while inheriting the source requirements and nullable-source provenance of its operands.                                                                                                            |
 | An expression wrapper or operator                                   | Carry its current-level column dependencies forward; aggregate children also carry an aggregate-consumed dependency fact.                                                                                                               |
 | An aggregate such as `count(column)`                                | Mark its argument dependencies as aggregate-consumed, so the aggregate itself is valid without grouping those columns.                                                                                                                  |
 | `groupBy()`                                                         | Record its grouping expressions and, for column keys, the column dependencies that derived expressions may use.                                                                                                                         |
@@ -66,9 +67,10 @@ expression. The current laws are:
 | Nullability-changing operators                                      | Declare their result nullability explicitly. `count()`, `countDistinct()`, `coalesce()` with its current contract, `caseWhen()` branches, and `IS NULL`/`IS NOT NULL` predicates do not blindly copy an operand's nullable-source fact. |
 
 The corresponding type-level contract is intentionally narrow: `OutputOf<T>`
-describes a concrete result, `RequiresOf<T>` describes sources that must be in
-scope, and `NullabilityOf<T>` describes sources that can turn that result into
-`null` after an outer join. Future metadata belongs in this union only when a
+describes a concrete result, `SqlTypeOf<T>` describes its SQL domain,
+`RequiresOf<T>` describes sources that must be in scope, and
+`NullabilityOf<T>` describes sources that can turn that result into `null`
+after an outer join. Future metadata belongs in this union only when a
 producer, a consumer, and regression coverage exist for it.
 
 Grouped queries use the dependency facts when a `GROUP BY` or `HAVING` clause
@@ -372,6 +374,7 @@ nullability metadata; no call-site `as const` assertion is needed.
 ## Keep the boundary explicit
 
 The type system focuses on high-value relational facts: source scope, selected
-fields, and nullability. It does not attempt to encode every vendor-specific
-grammar rule. Use the standard fragments for portable SQL and move intentional
-divergence to [dialects or custom extensions](dialects-and-execution.md).
+fields, nullability, and portable SQL capabilities. It does not attempt to
+encode every vendor-specific grammar or implicit-coercion rule. Use the
+standard fragments for portable SQL and move intentional divergence to
+[dialects or custom extensions](dialects-and-execution.md).

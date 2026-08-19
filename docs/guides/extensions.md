@@ -106,13 +106,73 @@ extensions. Preserve the
 same metadata model that built-ins use:
 
 - use `RequiresSourceMeta<Source>` for every source that the expression reads;
-- use `ResultMeta<Output>` when the fragment exposes a typed result;
+- use `ResultMeta<Output, NullableFrom, SqlType>` when the fragment exposes a
+  typed result, or accept its default `SqlUnknown` domain intentionally;
 - inherit child source and nullability facts when composing fragments; and
 - use `context.parameter()` for values instead of concatenating them into SQL.
 
 `sequence()` is useful for a reusable fragment assembled from arbitrary child
 fragments: its `const` type parameter preserves the children's metadata, so
 source-scope checking continues to work without `as const` at the call site.
+
+## Declare a custom SQL domain
+
+Extend `SqlSemanticType` and only the portable capabilities the database type
+actually supports. Compatibility groups allow a dialect-specific domain to
+interoperate with a built-in family:
+
+```ts
+import { column } from 'qubu'
+import type {
+  SqlEqualityComparable,
+  SqlOrderable,
+  SqlSemanticType,
+  SqlTextLike,
+} from 'qubu'
+
+interface SqlCitext
+  extends SqlSemanticType<'postgres.citext'>,
+    SqlTextLike,
+    SqlOrderable<'text'>,
+    SqlEqualityComparable<'text'> {}
+
+const citext = column<string, string, string, SqlCitext>()
+```
+
+The first three `column` type arguments are output, insert, and update values;
+the fourth is the SQL domain. The `text` equality and ordering groups make the
+custom domain compatible with `SqlText`. Use a distinct group when cross-type
+comparison is not portable.
+
+Declare result domains at other extension boundaries too:
+
+```ts
+import { typedCall, typedCast, typedValue, unsafeExpression } from 'qubu'
+import type { SqlText, SqlUuid } from 'qubu'
+
+const id = typedValue<SqlUuid, string>('108cb836-20d2-41b2-8c23-f0c94700aa7e')
+const normalized = typedCall<SqlText, string>()('custom_text', users.name)
+const nameAsText = typedCast<string, SqlText>()(users.name, 'TEXT')
+const generated = unsafeExpression<string, SqlText>('custom_text()')
+```
+
+`typedCall()` preserves source requirements from its arguments. `typedCast()`
+preserves its operand's nullability and source metadata, while the supplied
+type name remains caller- or adapter-owned SQL. `typedValue()` binds a
+parameter. `unsafeExpression()` emits its string unchanged and should remain a
+last resort.
+
+Use the typed wrappers for the common declaration-first workflow. The
+lower-level forms also expose the SQL domain in their generic lists:
+`call<Output, Name, Arguments, NullableFrom, SqlType>()` and
+`cast<Output, SqlType>()`. They are useful when an extension already computes
+argument or nullability types in its own generic signature.
+
+Untyped `column()`, `value()`, `call()`, and custom expressions use
+`SqlUnknown`, which stays permissive for backward compatibility. Declaring a
+known domain opts the extension into incompatible-operation errors. See [SQL
+semantic types](../concepts/sql-semantic-types.md) for the capability model and
+its non-goals.
 
 ## Use unsafe primitives only for intentional raw syntax
 

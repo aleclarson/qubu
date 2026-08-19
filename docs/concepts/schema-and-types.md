@@ -1,6 +1,6 @@
 # Schema and type metadata
 
-> Describe the application-facing values of a table once, then let Qubu derive selected row, insert, and update types from that description.
+> Describe application values, write contracts, nullability, and SQL semantics once, then let Qubu preserve each fact through query composition.
 
 `table()` definitions are query-facing schema metadata. They are not database
 introspection and they do not create or migrate a database.
@@ -94,24 +94,33 @@ inserts while narrowing selected and updated values to `1 | 2`.
 `$type<T>()` is a compile-time assertion. It does not validate values at
 runtime or add a database constraint.
 
-## Common value helpers
+## JavaScript and SQL types are separate
 
-The first-party helpers provide application types without dictating how a
-driver encodes them:
+The first-party helpers declare both the application value and a portable SQL
+semantic domain without dictating how a driver encodes either one:
 
-| Helper                                | Application type    |
-| ------------------------------------- | ------------------- |
-| `integer()`, `numeric()`              | `number`            |
-| `text()`, `uuid()`                    | `string`            |
-| `boolean()`                           | `boolean`           |
-| `date()`, `timestamp()`, `dateTime()` | `Date`              |
-| `json<T>()`                           | caller-supplied `T` |
-| `bigint()`                            | `bigint`            |
-| `binary()`, `blob()`                  | `Uint8Array`        |
+| Helper                      | Application type    | SQL domain     |
+| --------------------------- | ------------------- | -------------- |
+| `integer()`                 | `number`            | `SqlInteger`   |
+| `numeric()`                 | `number`            | `SqlDecimal`   |
+| `text()`                    | `string`            | `SqlText`      |
+| `uuid()`                    | `string`            | `SqlUuid`      |
+| `boolean()`                 | `boolean`           | `SqlBoolean`   |
+| `date()`                    | `Date`              | `SqlDate`      |
+| `timestamp()`, `dateTime()` | `Date`              | `SqlTimestamp` |
+| `json<T>()`                 | caller-supplied `T` | `SqlJson<T>`   |
+| `bigint()`                  | `bigint`            | `SqlBigInt`    |
+| `binary()`, `blob()`        | `Uint8Array`        | `SqlBinary`    |
 
 The driver adapter remains responsible for database-specific encoding and row
-decoding. A `timestamp()` column describes the TypeScript value; it does not
-choose a wire format for a particular database client.
+decoding. A `timestamp()` column describes the TypeScript value and portable
+SQL domain; it does not choose a wire format for a particular database client.
+
+This distinction matters even when JavaScript types match. `text()` and
+`uuid()` both decode to `string`, but UUID supports portable equality rather
+than text functions or ordering. Read [SQL semantic types](sql-semantic-types.md)
+for capability checks, propagation, contextual literals, and compatibility
+boundaries.
 
 ## Read JSON scalars
 

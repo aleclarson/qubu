@@ -40,6 +40,7 @@ export type AnyExpression = Expression<any, any>
 export type ExpressionOutput<T> = OutputOf<T>
 export type ExpressionRequires<T> = RequiresOf<T>
 export type ExpressionNullability<T> = NullabilityOf<T>
+/** Extract the SQL semantic domain produced by an expression. */
 export type ExpressionSqlType<T> = import('../core/fragment.ts').SqlTypeOf<T>
 
 /** Add a concrete dialect requirement without dropping expression metadata. */

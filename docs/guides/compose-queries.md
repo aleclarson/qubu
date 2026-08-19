@@ -51,16 +51,23 @@ result projection aliases them back to camelCase for the returned row.
 Alias a query when it should be used as an inline source:
 
 ```ts
-import { alias, from, select } from 'qubu'
+import { alias, from, lower, select } from 'qubu'
+import type { SqlTypeOf } from 'qubu'
 
-const names = select({ name: users.name }, from(users))
+const names = select({ name: lower(users.name) }, from(users))
 const namesSource = alias(names, 'names')
 
 const query = select({ name: namesSource.name }, from(namesSource))
+type NameSqlDomain = SqlTypeOf<typeof namesSource.name>
+// SqlText
 ```
 
 The alias gets the selected query's fields, while the new source identity keeps
 scope checks from confusing `namesSource.name` with `users.name`.
+
+Its SQL domain is retained too. The projected `lower(users.name)` remains
+`SqlText` through this query alias, and the same preservation applies to a CTE,
+so downstream text operations remain checked without redeclaring the field.
 
 ## Nest a scalar subquery
 
@@ -127,3 +134,52 @@ const query = select(
 This makes it possible to share a predicate or projection without mutating a
 query object. The final `select()` call remains the place where source scope
 and result shape are checked.
+
+## Constrain a reusable fragment by required fields
+
+Use `TableLike` when a fragment requires a physical table and `SourceLike`
+when aliases, CTEs, derived tables, or custom sources are also valid. Both are
+lower-bound constraints: the source may contain additional fields, and the
+generic function retains its exact source identity.
+
+For an application-level requirement, describe the required JavaScript row:
+
+```ts
+import { eq, where } from 'qubu'
+import type { TableLike } from 'qubu'
+
+function byStringId<TTable extends TableLike<{ id: string }>>(
+  table: TTable,
+  id: string
+) {
+  return where(eq(table.columns.id, id))
+}
+```
+
+`{ id: string }` means a non-null selected string. It accepts a table with
+extra fields and rejects `string | null`, but it does not distinguish
+`SqlText` from `SqlUuid` because both have a JavaScript output of `string`.
+
+Use `FieldLike` when the fragment depends on SQL semantics:
+
+```ts
+import { eq, where } from 'qubu'
+import type { FieldLike, SourceLike, SqlTextLike } from 'qubu'
+
+type NonNullTextId = FieldLike<{
+  sqlType: SqlTextLike
+  nullable: false
+}>
+
+function byTextId<TSource extends SourceLike<{ id: NonNullTextId }>>(
+  source: TSource,
+  id: string
+) {
+  return where(eq(source.columns.id, id))
+}
+```
+
+This version accepts known text-like and permissive `SqlUnknown` fields. It
+rejects nullable text and known non-text domains such as `SqlUuid`. Add an
+`output` property to the `FieldLike` descriptor when the fragment also needs a
+specific JavaScript result type.
