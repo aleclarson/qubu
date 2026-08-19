@@ -1,6 +1,7 @@
 import {
   alias,
   and,
+  type CardinalityOf,
   type NullabilityOf,
   distinct,
   eq,
@@ -128,12 +129,15 @@ select(
   enabled ? innerJoin(posts, eq(users.id, posts.authorId)) : omit
 )
 
-select(
+const conditionalPagination = select(
   { id: users.id },
-  // @ts-expect-error Conditional pagination cannot prove query cardinality.
   from(users),
   enabled ? fetchFirst(1) : omit
 )
+
+export type ConditionalPaginationCannotProveCardinality = Assert<
+  Equal<CardinalityOf<typeof conditionalPagination>, 'many'>
+>
 
 select(
   { id: users.id },

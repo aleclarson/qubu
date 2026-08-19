@@ -9,7 +9,7 @@ import type {
   RequiresOf,
 } from '../../core/fragment.ts'
 import type { DistinctClause } from '../clauses/distinct.ts'
-import type { FetchClause } from '../clauses/pagination.ts'
+import type { AnyPaginationClause, FetchClause } from '../clauses/pagination.ts'
 import type { GroupByClause } from '../clauses/group-by.ts'
 import type { HavingClause } from '../clauses/having.ts'
 import type { ProvidedSourceIdentity } from '../../schema/source.ts'
@@ -21,6 +21,7 @@ import type { WithClause } from '../clauses/with.ts'
 import type { SelectionItems, SelectionRequires } from '../selection.ts'
 import type { VisibleDependenciesOf } from '../../core/fragment.ts'
 import type { Query } from '../types.ts'
+import type { Omit, SelectPart } from '../omit.ts'
 
 export interface SelectQuery<
   TRow extends object = Record<string, unknown>,
@@ -34,16 +35,31 @@ type ExactlyOneSafeClause = DistinctClause | OrderByClause<any> | WithClause
 
 type AtMostOneClause = FetchClause<0 | 1>
 
+type UnconditionalAtMostOneClause<TParts extends readonly SelectPart[]> = {
+  [TIndex in keyof TParts]: Omit extends TParts[TIndex]
+    ? never
+    : Extract<TParts[TIndex], AtMostOneClause>
+}[number]
+
+type ConditionalPaginationClause<TParts extends readonly SelectPart[]> = {
+  [TIndex in keyof TParts]: Omit extends TParts[TIndex]
+    ? Extract<TParts[TIndex], AnyPaginationClause>
+    : never
+}[number]
+
 /**
  * SELECT cardinality is intentionally conservative. A literal FETCH/LIMIT
- * bound of zero or one proves an upper bound; an otherwise source-free query
- * has one row unless a known row-reducing clause is present. Predicates and
- * arbitrary clauses do not prove exactness.
+ * bound of zero or one proves an upper bound only when it is unconditional;
+ * an otherwise source-free query has one row unless a known row-reducing
+ * clause is present. Conditional pagination, predicates, and arbitrary clauses
+ * do not prove exactness.
  */
-export type SelectCardinality<TClauses extends readonly AnySelectClause[]> =
-  Extract<TClauses[number], AtMostOneClause> extends never
-    ? Exclude<TClauses[number], ExactlyOneSafeClause> extends never
-      ? 'exactly-one'
+export type SelectCardinality<TParts extends readonly SelectPart[]> =
+  UnconditionalAtMostOneClause<TParts> extends never
+    ? ConditionalPaginationClause<TParts> extends never
+      ? Exclude<TParts[number], ExactlyOneSafeClause | Omit> extends never
+        ? 'exactly-one'
+        : 'many'
       : 'many'
     : 'zero-or-one'
 

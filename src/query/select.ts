@@ -58,7 +58,7 @@ export function select<
     GroupingValidation<TSelection, TClauses>
 ): SelectQuery<
   SelectionOutput<TSelection, NullableSources<TClauses>>,
-  SelectCardinality<TClauses>,
+  SelectCardinality<TParts>,
   SelectMetadata<TSelection, TClauses>
 > {
   const normalizedClauses = parts.filter(
@@ -80,7 +80,7 @@ export function select<
   >
   const query = createQuery<
     SelectionOutput<TSelection, NullableSources<TClauses>>,
-    SelectCardinality<TClauses>,
+    SelectCardinality<TParts>,
     SelectMetadata<TSelection, TClauses>
   >('select', row, context => {
     const beforeSelect = orderedClauses.filter(
@@ -128,7 +128,7 @@ export function select<
 
   return query as SelectQuery<
     SelectionOutput<TSelection, NullableSources<TClauses>>,
-    SelectCardinality<TClauses>,
+    SelectCardinality<TParts>,
     SelectMetadata<TSelection, TClauses>
   >
 }

@@ -10,6 +10,9 @@ import type {
   ResultMeta,
 } from '../src/index.ts'
 import type {
+  conditionalLimitedQuery,
+  conditionalNextLimitedQuery,
+  conditionalOffsetQuery,
   exactQuery,
   exactScalar,
   filteredConstantQuery,
@@ -63,6 +66,18 @@ export type NextLimitedCardinality = Assert<
 
 export type WideLimitRemainsConservative = Assert<
   Equal<CardinalityOf<typeof wideLimitQuery>, 'many'>
+>
+
+export type ConditionalLimitRemainsConservative = Assert<
+  Equal<CardinalityOf<typeof conditionalLimitedQuery>, 'many'>
+>
+
+export type ConditionalNextLimitRemainsConservative = Assert<
+  Equal<CardinalityOf<typeof conditionalNextLimitedQuery>, 'many'>
+>
+
+export type ConditionalOffsetRemainsConservative = Assert<
+  Equal<CardinalityOf<typeof conditionalOffsetQuery>, 'many'>
 >
 
 export type ExactCardinality = Assert<

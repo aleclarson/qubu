@@ -173,10 +173,12 @@ make the expression nullable: a non-nullable expression would produce
 This support is specific to boolean operand lists, query-level ordering terms,
 and the complete clauses named above. Generic `sequence()` and
 `commaSeparated()` collections do not discard `omit`. Clauses that provide
-sources or change structural guarantees cannot be conditional. Qubu rejects
-`omit` branches paired with `from()`, joins, `groupBy()`, pagination,
-correlation, CTEs, or custom clauses. Build separate queries when those parts
-differ at runtime.
+sources or change structural guarantees cannot be conditional. Pagination is
+the exception: `offset()`, `fetchFirst()`, and `fetchNext()` can be paired with
+`omit`, but a conditional row bound keeps the query's inferred cardinality at
+`many`. Qubu still rejects `omit` branches paired with `from()`, joins,
+`groupBy()`, correlation, CTEs, or custom clauses. Build separate queries when
+those structural parts differ at runtime.
 
 ## Handle `NULL` and empty lists deliberately
 
@@ -222,6 +224,25 @@ const page = select(
 The rendered clause order is still `FROM`, `WHERE`, `ORDER BY`, and pagination.
 The active dialect decides whether pagination uses standard `FETCH` syntax or a
 driver-specific `LIMIT` form.
+
+Pair a pagination clause with `omit` when the row bound is optional at runtime:
+
+```ts
+import { fetchFirst, omit } from 'qubu'
+
+declare const pageSize: number | undefined
+
+const page = select(
+  { id: users.id, name: users.name },
+  from(users),
+  pageSize === undefined ? omit : fetchFirst(pageSize)
+)
+```
+
+When `pageSize` is undefined, the query emits no pagination. Because the row
+bound may be absent, conditional pagination does not narrow the query's
+cardinality; an unconditional `fetchFirst(1)` retains its existing
+`zero-or-one` inference.
 
 ## Group and aggregate
 

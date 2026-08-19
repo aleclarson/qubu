@@ -4,6 +4,8 @@ import {
   fetchNext,
   from,
   integer,
+  omit,
+  offset,
   scalar,
   select,
   table,
@@ -34,6 +36,25 @@ export const wideLimitQuery = select(
   { id: users.id },
   from(users),
   fetchFirst(2)
+)
+
+const conditionalPagination = false as boolean
+
+export const conditionalLimitedQuery = select(
+  { id: users.id },
+  from(users),
+  conditionalPagination ? fetchFirst(1) : omit
+)
+
+export const conditionalNextLimitedQuery = select(
+  { id: users.id },
+  from(users),
+  conditionalPagination ? fetchNext(1) : omit
+)
+
+export const conditionalOffsetQuery = select(
+  { value: value(42) },
+  conditionalPagination ? offset(1) : omit
 )
 
 export const exactQuery = select({ value: value(42) })

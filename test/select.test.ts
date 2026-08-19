@@ -9,6 +9,7 @@ import {
   distinct,
   eq,
   fetchFirst,
+  fetchNext,
   from,
   groupBy,
   having,
@@ -99,6 +100,40 @@ test('omits conditional select clauses before validation and rendering', () => {
   expect(render(query)).toEqual({
     text: 'SELECT "users"."id" AS "id" FROM "users" WHERE ("users"."id" = ?) ORDER BY "users"."id" DESC',
     parameters: [3],
+  })
+})
+
+test('omits conditional pagination before validation and rendering', () => {
+  const includeOffset = false as boolean
+  const includeFirst = true as boolean
+  const includeNext = false as boolean
+  const query = select(
+    { id: users.id },
+    from(users),
+    includeOffset ? offset(5) : omit,
+    includeFirst ? fetchFirst(10) : omit,
+    includeNext ? fetchNext(20) : omit
+  )
+
+  expect(render(query)).toEqual({
+    text: 'SELECT "users"."id" AS "id" FROM "users" FETCH FIRST ? ROWS ONLY',
+    parameters: [10],
+  })
+})
+
+test('emits no pagination when all conditional row bounds are omitted', () => {
+  const includePagination = false as boolean
+  const query = select(
+    { id: users.id },
+    from(users),
+    includePagination ? offset(5) : omit,
+    includePagination ? fetchFirst(10) : omit,
+    includePagination ? fetchNext(20) : omit
+  )
+
+  expect(render(query)).toEqual({
+    text: 'SELECT "users"."id" AS "id" FROM "users"',
+    parameters: [],
   })
 })
 

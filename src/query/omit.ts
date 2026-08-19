@@ -1,6 +1,7 @@
 import type { DistinctClause } from './clauses/distinct.ts'
 import type { HavingClause } from './clauses/having.ts'
 import type { OrderByClause } from './clauses/order-by.ts'
+import type { FetchClause, OffsetClause } from './clauses/pagination.ts'
 import type { WhereClause } from './clauses/where.ts'
 import type { AnySelectClause } from './clauses/types.ts'
 
@@ -13,6 +14,8 @@ export type OmittableSelectClause =
   | DistinctClause
   | HavingClause<any>
   | OrderByClause<any>
+  | OffsetClause
+  | FetchClause
   | WhereClause<any>
 
 export type SelectPart = AnySelectClause | Omit
