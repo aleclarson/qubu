@@ -111,18 +111,23 @@ const memberships = table(
     slug: text(),
     displayName: text(),
   },
-  {
-    constraints: [primaryKey('id'), unique('tenantId', 'slug')],
-  }
+  memberships => ({
+    constraints: {
+      membershipsPrimary: primaryKey(memberships.id),
+      membershipsSlugUnique: unique(memberships.tenantId, memberships.slug),
+    },
+  })
 )
 ```
 
-Each constraint is structured metadata with a `kind` and a non-empty
-`columns` tuple. Pass multiple field names to `primaryKey()` or `unique()` for
-a composite key. Constraint names use application field keys such as
-`tenantId`, not rendered SQL names such as `tenant_id`.
+The metadata callback receives the preliminary table, including its typed
+columns. Give each constraint a stable application name in the `constraints`
+record. Each value has a `kind` and a non-empty `columns` tuple containing the
+exact column references passed to `primaryKey()` or `unique()`. Pass multiple
+columns for a composite key.
 
-Key columns must be non-nullable in the Qubu definition. This matters for
+All columns in one key must come from the callback table, and they must be
+non-nullable in the Qubu definition. This matters for
 `unique()` because SQL unique constraints commonly allow multiple rows whose
 key contains `NULL`; such a key cannot prove that one group determines the
 remaining columns. Qubu rejects nullable key declarations instead of making a

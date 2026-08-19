@@ -281,21 +281,28 @@ declare global {
     TMetadata = never,
     TSqlTypes extends
       import('qubu').SourceSqlTypes<TRow> = import('qubu').UnknownSourceSqlTypes<TRow>,
-    TConstraints extends
-      readonly import('qubu').SourceConstraint[] = readonly [],
+    TConstraints extends import('qubu').SourceConstraintsRecord = {},
   > = import('qubu').Source<TIdentity, TRow, TMetadata, TSqlTypes, TConstraints>
   type SourceConstraint = import('qubu').SourceConstraint
+  type SourceConstraintsRecord = import('qubu').SourceConstraintsRecord
   type KeyConstraint<
     TKind extends 'primary-key' | 'unique' = 'primary-key' | 'unique',
-    TColumns extends readonly string[] = readonly string[],
+    TColumns extends readonly import('qubu').ColumnReference<
+      string,
+      any
+    >[] = readonly import('qubu').ColumnReference<string, any>[],
   > = import('qubu').KeyConstraint<TKind, TColumns>
   type Table<
     TName extends string = string,
     TDefinitions extends
       import('qubu').TableDefinitions = import('qubu').TableDefinitions,
-    TConstraints extends
-      readonly import('qubu').SourceConstraint[] = readonly [],
+    TConstraints extends import('qubu').SourceConstraintsRecord = {},
   > = import('qubu').Table<TName, TDefinitions, TConstraints>
+  type TableMetadataCallback<
+    TName extends string,
+    TDefinitions extends import('qubu').TableDefinitions,
+    TConstraints extends import('qubu').SourceConstraintsRecord,
+  > = import('qubu').TableMetadataCallback<TName, TDefinitions, TConstraints>
 }
 
 export {}

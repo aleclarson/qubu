@@ -26,9 +26,12 @@ const users = table(
     email: text(),
     name: text(),
   },
-  {
-    constraints: [primaryKey('id'), unique('email')],
-  }
+  users => ({
+    constraints: {
+      usersPrimary: primaryKey(users.id),
+      usersEmailUnique: unique(users.email),
+    },
+  })
 )
 
 const memberships = table(
@@ -38,9 +41,11 @@ const memberships = table(
     slug: text(),
     displayName: text(),
   },
-  {
-    constraints: [unique('tenantId', 'slug')],
-  }
+  memberships => ({
+    constraints: {
+      membershipsSlugUnique: unique(memberships.tenantId, memberships.slug),
+    },
+  })
 )
 
 const unconstrained = table('unconstrained_users', {
@@ -133,13 +138,21 @@ select(
 table(
   'nullable_unique',
   { email: text({ nullable: true }) },
-  // @ts-expect-error Nullable SQL unique columns do not prove a functional dependency.
-  { constraints: [unique('email')] }
+  nullableUnique => ({
+    constraints: {
+      // @ts-expect-error Nullable SQL unique columns do not prove a functional dependency.
+      nullableEmailUnique: unique(nullableUnique.email),
+    },
+  })
 )
 
+const other = table('other', { id: integer() })
+// @ts-expect-error Every key column must come from the same source.
+primaryKey(users.id, other.id)
+
 table(
-  'invalid_key',
+  'invalid_external_key',
   { id: integer() },
-  // @ts-expect-error Constraints can only reference declared application field keys.
-  { constraints: [primaryKey('missing')] }
+  // @ts-expect-error A table constraint cannot use a column from another table.
+  () => ({ constraints: { externalPrimary: primaryKey(other.id) } })
 )

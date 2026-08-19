@@ -15,7 +15,7 @@ import type {
 } from '../expressions/column.ts'
 import { createColumnReference } from '../expressions/column.ts'
 import { resolveSqlNames } from '../core/naming.ts'
-import type { SourceConstraint } from './constraints.ts'
+import type { SourceConstraintsRecord } from './constraints.ts'
 
 export const sourceIdentity: unique symbol = Symbol('qubu.source.identity')
 
@@ -58,7 +58,7 @@ export interface Source<
   TRow extends object = Record<string, unknown>,
   TMetadata = never,
   TSqlTypes extends SourceSqlTypes<TRow> = UnknownSourceSqlTypes<TRow>,
-  TConstraints extends readonly SourceConstraint[] = readonly [],
+  TConstraints extends SourceConstraintsRecord = {},
 > extends Fragment<
     | ResultMeta<readonly TRow[]>
     | ProvidesSourceMeta<TIdentity, TRow>
@@ -98,7 +98,7 @@ export type SourceSqlTypeMap<T> =
     : never
 /** Structured schema constraints declared for a source. */
 export type SourceConstraints<T> = T extends {
-  readonly constraints: infer TConstraints extends readonly SourceConstraint[]
+  readonly constraints: infer TConstraints extends SourceConstraintsRecord
 }
   ? TConstraints
   : never
@@ -145,12 +145,12 @@ export function createSource<
   TRow extends object,
   TMetadata = never,
   TSqlTypes extends SourceSqlTypes<TRow> = UnknownSourceSqlTypes<TRow>,
-  TConstraints extends readonly SourceConstraint[] = readonly [],
+  TConstraints extends SourceConstraintsRecord = {},
 >(
   sourceKind: SourceKind,
   render: RenderFunction,
   reference: Fragment<never>,
-  constraints: TConstraints = [] as unknown as TConstraints
+  constraints: TConstraints = {} as TConstraints
 ): Source<TIdentity, TRow, TMetadata, TSqlTypes, TConstraints> {
   return {
     sourceKind,

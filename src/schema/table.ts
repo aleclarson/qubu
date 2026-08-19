@@ -1,7 +1,9 @@
 import { identifier } from '../core/primitives/identifier.ts'
 import { resolveSqlNames } from '../core/naming.ts'
+import type { DependenciesOf } from '../core/fragment.ts'
 import {
   createColumnReference,
+  type ColumnDependency,
   type ColumnReference,
 } from '../expressions/column.ts'
 import {
@@ -15,12 +17,11 @@ import {
   type ColumnHasDefault,
   type ColumnInsertInput,
   type ColumnIsGenerated,
-  type ColumnIsNullable,
   type ColumnOutput,
   type ColumnSqlType,
   type ColumnUpdateInput,
 } from './column.ts'
-import type { SourceConstraint } from './constraints.ts'
+import type { SourceConstraintsRecord } from './constraints.ts'
 
 export type TableDefinitions = Record<
   string,
@@ -91,7 +92,7 @@ export type TableColumns<
 export type Table<
   TName extends string = string,
   TDefinitions extends TableDefinitions = TableDefinitions,
-  TConstraints extends readonly SourceConstraint[] = readonly [],
+  TConstraints extends SourceConstraintsRecord = {},
 > = Source<
   TableIdentity<TName>,
   TableRow<TDefinitions>,
@@ -109,46 +110,41 @@ export type Table<
 
 /** Schema metadata that applies to a table as a relation. */
 export interface TableOptions<
-  TConstraints extends
-    readonly SourceConstraint[] = readonly SourceConstraint[],
+  TConstraints extends SourceConstraintsRecord = SourceConstraintsRecord,
 > {
   readonly constraints: TConstraints
 }
 
-type ConstraintColumns<TConstraint> = TConstraint extends SourceConstraint
-  ? TConstraint['columns'][number]
-  : never
+type ConstraintColumns<TConstraints extends SourceConstraintsRecord> =
+  TConstraints[keyof TConstraints]['columns'][number]
 
-type NullableConstraintColumns<
-  TDefinitions extends TableDefinitions,
-  TConstraint,
-> =
-  Extract<ConstraintColumns<TConstraint>, keyof TDefinitions> extends infer TKey
-    ? TKey extends keyof TDefinitions
-      ? ColumnIsNullable<TDefinitions[TKey]> extends false
-        ? never
-        : TKey
-      : never
-    : never
-
-type InvalidConstraintColumns<
-  TDefinitions extends TableDefinitions,
-  TConstraints extends readonly SourceConstraint[],
-> =
-  | Exclude<ConstraintColumns<TConstraints[number]>, keyof TDefinitions>
-  | NullableConstraintColumns<TDefinitions, TConstraints[number]>
+type InvalidConstraintDependencies<
+  TName extends string,
+  TConstraints extends SourceConstraintsRecord,
+> = Exclude<
+  DependenciesOf<ConstraintColumns<TConstraints>>,
+  ColumnDependency<TableIdentity<TName>, string>
+>
 
 type ConstraintValidation<
-  TDefinitions extends TableDefinitions,
-  TConstraints extends readonly SourceConstraint[],
-> = [InvalidConstraintColumns<TDefinitions, TConstraints>] extends [never]
+  TName extends string,
+  TConstraints extends SourceConstraintsRecord,
+> = [InvalidConstraintDependencies<TName, TConstraints>] extends [never]
   ? unknown
   : {
-      readonly __invalid_constraint_columns__: InvalidConstraintColumns<
-        TDefinitions,
+      readonly __invalid_constraint_columns__: InvalidConstraintDependencies<
+        TName,
         TConstraints
       >
     }
+
+export type TableMetadataCallback<
+  TName extends string,
+  TDefinitions extends TableDefinitions,
+  TConstraints extends SourceConstraintsRecord,
+> = (
+  table: Table<TName, TDefinitions>
+) => TableOptions<TConstraints> & ConstraintValidation<TName, TConstraints>
 
 export function table<
   const TName extends string,
@@ -157,32 +153,29 @@ export function table<
 export function table<
   const TName extends string,
   const TDefinitions extends TableDefinitions,
-  const TConstraints extends readonly SourceConstraint[],
+  const TConstraints extends SourceConstraintsRecord,
 >(
   name: TName,
   definitions: TDefinitions,
-  options: TableOptions<TConstraints> &
-    ConstraintValidation<TDefinitions, TConstraints>
+  metadata: TableMetadataCallback<TName, TDefinitions, TConstraints>
 ): Table<TName, TDefinitions, TConstraints>
 export function table<
   const TName extends string,
   const TDefinitions extends TableDefinitions,
-  const TConstraints extends readonly SourceConstraint[] = readonly [],
+  const TConstraints extends SourceConstraintsRecord = {},
 >(
   name: TName,
   definitions: TDefinitions,
-  options?: TableOptions<TConstraints> &
-    ConstraintValidation<TDefinitions, TConstraints>
+  metadata?: TableMetadataCallback<TName, TDefinitions, TConstraints>
 ): Table<TName, TDefinitions, TConstraints> {
   type TIdentity = TableIdentity<TName>
   type TRow = TableRow<TDefinitions>
   type TSqlTypes = TableSqlTypes<TDefinitions>
 
-  const source = createSource<TIdentity, TRow, never, TSqlTypes, TConstraints>(
+  const source = createSource<TIdentity, TRow, never, TSqlTypes>(
     'table',
     context => context.render(identifier(name)),
-    identifier(name),
-    (options?.constraints ?? []) as TConstraints
+    identifier(name)
   )
 
   const sqlNames = resolveSqlNames(
@@ -210,12 +203,17 @@ export function table<
     definitions,
     sqlNames,
     columns,
-    constraints: options?.constraints ?? [],
+    constraints: {},
   })
 
   // Direct column access is convenient; `.columns` remains the escape hatch
   // for a schema containing a reserved property name.
   exposeColumns(source, columns)
+
+  const constraints = metadata
+    ? metadata(source as Table<TName, TDefinitions>).constraints
+    : ({} as TConstraints)
+  Object.assign(source, { constraints })
 
   return source as Table<TName, TDefinitions, TConstraints>
 }

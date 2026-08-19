@@ -125,7 +125,7 @@ export function alias(sourceOrQuery: unknown, name: string): unknown {
     alias: name,
     base: isQuery ? undefined : input,
     query: isQuery ? input : undefined,
-    constraints: isQuery ? [] : input.constraints,
+    constraints: isQuery ? {} : input.constraints,
     columns,
   })
   exposeColumns(source, columns)

@@ -1,6 +1,8 @@
 import type {
+  DependenciesOf,
   ExpressionMeta,
   Fragment,
+  OutputOf,
   RequiresSourceMeta,
   ResultMeta,
 } from '../core/fragment.ts'
@@ -94,7 +96,10 @@ export interface TableLike<TShape extends object> extends SourceLike<TShape> {
 /** A schema constraint whose columns form a relational key. */
 export interface KeyConstraint<
   TKind extends 'primary-key' | 'unique' = 'primary-key' | 'unique',
-  TColumns extends readonly string[] = readonly string[],
+  TColumns extends readonly ColumnReference<
+    string,
+    any
+  >[] = readonly ColumnReference<string, any>[],
 > {
   readonly kind: TKind
   readonly columns: TColumns
@@ -103,16 +108,49 @@ export interface KeyConstraint<
 /** Structured schema metadata carried by sources that declare constraints. */
 export type SourceConstraint = KeyConstraint
 
+/** Named schema constraints attached to a source. */
+export type SourceConstraintsRecord = Readonly<Record<string, SourceConstraint>>
+
+type AnyKeyColumn = ColumnReference<string, any>
+
+type ColumnSource<TColumn> =
+  DependenciesOf<TColumn> extends ColumnDependency<infer TSource, string>
+    ? TSource
+    : never
+
+type InvalidKeyColumn<TColumn, TSource> = TColumn extends AnyKeyColumn
+  ? null extends OutputOf<TColumn>
+    ? TColumn
+    : DependenciesOf<TColumn> extends ColumnDependency<TSource, string>
+      ? never
+      : TColumn
+  : TColumn
+
+type KeyColumnsValidation<TColumns extends readonly AnyKeyColumn[]> = [
+  {
+    [K in keyof TColumns]: InvalidKeyColumn<
+      TColumns[K],
+      ColumnSource<TColumns[0]>
+    >
+  }[number],
+] extends [never]
+  ? unknown
+  : never
+
 /** Declare a primary key, including a composite primary key. */
 export function primaryKey<
-  const TColumns extends readonly [string, ...string[]],
->(...columns: TColumns): KeyConstraint<'primary-key', TColumns> {
+  const TColumns extends readonly [AnyKeyColumn, ...AnyKeyColumn[]],
+>(
+  ...columns: TColumns & KeyColumnsValidation<NoInfer<TColumns>>
+): KeyConstraint<'primary-key', TColumns> {
   return Object.freeze({ kind: 'primary-key', columns })
 }
 
 /** Declare a non-null unique key, including a composite unique key. */
-export function unique<const TColumns extends readonly [string, ...string[]]>(
-  ...columns: TColumns
+export function unique<
+  const TColumns extends readonly [AnyKeyColumn, ...AnyKeyColumn[]],
+>(
+  ...columns: TColumns & KeyColumnsValidation<NoInfer<TColumns>>
 ): KeyConstraint<'unique', TColumns> {
   return Object.freeze({ kind: 'unique', columns })
 }

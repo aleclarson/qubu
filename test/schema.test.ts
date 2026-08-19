@@ -1,5 +1,6 @@
 import { expect, expectTypeOf, test } from 'vitest'
 import {
+  alias,
   bigint,
   binary,
   column,
@@ -49,15 +50,28 @@ test('retains structured key constraints without changing table SQL', () => {
   const accounts = table(
     'accounts',
     { tenantId: integer(), email: text(), name: text() },
-    {
-      constraints: [primaryKey('tenantId', 'email'), unique('email')],
-    }
+    accounts => ({
+      constraints: {
+        accountsPrimary: primaryKey(accounts.tenantId, accounts.email),
+        accountsEmailUnique: unique(accounts.email),
+      },
+    })
   )
 
-  expect(accounts.constraints).toEqual([
-    { kind: 'primary-key', columns: ['tenantId', 'email'] },
-    { kind: 'unique', columns: ['email'] },
-  ])
+  expect(accounts.constraints).toEqual({
+    accountsPrimary: {
+      kind: 'primary-key',
+      columns: [accounts.tenantId, accounts.email],
+    },
+    accountsEmailUnique: {
+      kind: 'unique',
+      columns: [accounts.email],
+    },
+  })
+  expectTypeOf(accounts.constraints.accountsPrimary.columns).toEqualTypeOf<
+    readonly [typeof accounts.tenantId, typeof accounts.email]
+  >()
+  expect(alias(accounts, 'account').constraints).toBe(accounts.constraints)
   expect(render(select({ name: accounts.name }, from(accounts))).text).toBe(
     'SELECT "accounts"."name" AS "name" FROM "accounts"'
   )

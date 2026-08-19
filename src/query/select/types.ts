@@ -154,11 +154,25 @@ type ConstraintDeterminesSource<
   readonly kind: 'primary-key' | 'unique'
   readonly columns: infer TColumns
 }
-  ? TColumns extends readonly string[]
-    ? [ColumnDependency<SourceIdentity<TSource>, TColumns[number]>] extends [
-        TGroupedDependencies,
-      ]
-      ? true
+  ? TColumns extends readonly import('../../expressions/column.ts').ColumnReference<
+      string,
+      any
+    >[]
+    ? [
+        import('../../core/fragment.ts').DependenciesOf<TColumns[number]>,
+      ] extends [ColumnDependency<any, any>]
+      ? [
+          ColumnDependency<
+            SourceIdentity<TSource>,
+            import('../../core/fragment.ts').DependenciesOf<
+              TColumns[number]
+            > extends ColumnDependency<any, infer TName extends string>
+              ? TName
+              : never
+          >,
+        ] extends [TGroupedDependencies]
+        ? true
+        : false
       : false
     : false
   : false
@@ -166,7 +180,7 @@ type ConstraintDeterminesSource<
 type DeterminedSourceIdentity<TSource, TGroupedDependencies> =
   TSource extends AnySource
     ? true extends ConstraintDeterminesSource<
-        SourceConstraints<TSource>[number],
+        SourceConstraints<TSource>[keyof SourceConstraints<TSource>],
         TSource,
         TGroupedDependencies
       >
