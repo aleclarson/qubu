@@ -1,5 +1,6 @@
 import { type Fragment, type InheritedMetadata } from '../../core/fragment.ts'
 import { makeExpression, type AnyExpression } from '../../expressions/types.ts'
+import { omit, type Omit } from '../omit.ts'
 import { createClause, type SelectClause } from './types.ts'
 
 export type OrderDirection = 'ASC' | 'DESC'
@@ -74,10 +75,28 @@ export interface OrderByClause<TMetadata = never>
   readonly terms: readonly OrderTerm<any>[]
 }
 
-export function orderBy<
-  const TParts extends readonly (AnyExpression | OrderTerm<any>)[],
->(...parts: TParts): OrderByClause<InheritedMetadata<TParts[number]>> {
-  const terms = parts.map(part =>
+type OrderByPart = AnyExpression | OrderTerm<any> | Omit
+type PresentOrderParts<TParts extends readonly OrderByPart[]> = Exclude<
+  TParts[number],
+  Omit
+>
+type OrderByComposition<TParts extends readonly OrderByPart[]> = [
+  PresentOrderParts<TParts>,
+] extends [never]
+  ? Omit
+  :
+      | OrderByClause<InheritedMetadata<PresentOrderParts<TParts>>>
+      | (Omit extends TParts[number] ? Omit : never)
+
+export function orderBy<const TParts extends readonly OrderByPart[]>(
+  ...parts: TParts
+): OrderByComposition<TParts> {
+  const presentParts = parts.filter(
+    (part): part is PresentOrderParts<TParts> => part !== omit
+  )
+  if (presentParts.length === 0) return omit as OrderByComposition<TParts>
+
+  const terms = presentParts.map(part =>
     'orderKind' in part ? part : orderTerm(part)
   )
   return Object.assign(
@@ -89,5 +108,5 @@ export function orderBy<
       })
     }),
     { clauseKind: 'order-by' as const, terms }
-  ) as OrderByClause<InheritedMetadata<TParts[number]>>
+  ) as unknown as OrderByComposition<TParts>
 }

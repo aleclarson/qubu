@@ -1,5 +1,7 @@
 import {
   alias,
+  and,
+  type NullabilityOf,
   distinct,
   eq,
   fetchFirst,
@@ -10,7 +12,9 @@ import {
   omit,
   orderBy,
   type OutputOf,
+  type RequiresOf,
   select,
+  type SourceIdentity,
   table,
   where,
 } from '../src/index.ts'
@@ -19,6 +23,51 @@ const users = table('users', { id: integer() })
 const posts = table('posts', { id: integer(), authorId: integer() })
 declare const enabled: boolean
 declare const userId: number | undefined
+
+const conditionalPredicate = and(
+  enabled ? eq(users.id, 1) : omit,
+  enabled ? eq(posts.id, 2) : omit
+)
+const conditionalOrdering = orderBy(
+  enabled ? users.id : omit,
+  enabled ? posts.id : omit
+)
+
+type PresentPredicate = Exclude<typeof conditionalPredicate, typeof omit>
+type PresentOrdering = Exclude<typeof conditionalOrdering, typeof omit>
+type PossibleSource =
+  | SourceIdentity<typeof users>
+  | SourceIdentity<typeof posts>
+
+export type ConditionalPredicateOutputStaysBoolean = Assert<
+  Equal<OutputOf<PresentPredicate>, boolean>
+>
+
+export type ConditionalPredicateNullabilityIsUnchanged = Assert<
+  Equal<NullabilityOf<PresentPredicate>, PossibleSource>
+>
+
+export type ConditionalPredicateRetainsPossibleSources = Assert<
+  Equal<RequiresOf<PresentPredicate>, PossibleSource>
+>
+
+export type ConditionalOrderingRetainsPossibleSources = Assert<
+  Equal<RequiresOf<PresentOrdering>, PossibleSource>
+>
+
+select(
+  { id: users.id },
+  // @ts-expect-error Possible omitted predicate members still require their sources.
+  from(users),
+  where(conditionalPredicate)
+)
+
+select(
+  { id: users.id },
+  // @ts-expect-error Possible omitted ordering members still require their sources.
+  from(users),
+  conditionalOrdering
+)
 
 select(
   { id: users.id },

@@ -2,6 +2,7 @@ import { expect, expectTypeOf, test } from 'vitest'
 import {
   alias,
   all,
+  and,
   asc,
   count,
   desc,
@@ -23,6 +24,7 @@ import {
   omit,
   orderBy,
   offset,
+  or,
   postgresDialect,
   render,
   select,
@@ -97,6 +99,46 @@ test('omits conditional select clauses before validation and rendering', () => {
   expect(render(query)).toEqual({
     text: 'SELECT "users"."id" AS "id" FROM "users" WHERE ("users"."id" = ?) ORDER BY "users"."id" DESC',
     parameters: [3],
+  })
+})
+
+test('composes omitted predicates and ordering terms', () => {
+  const includeId = false as boolean
+  const includeName = true as boolean
+  const includeEmailOrder = false as boolean
+  const query = select(
+    { id: users.id },
+    from(users),
+    where(
+      and(
+        includeId ? eq(users.id, 7) : omit,
+        or(omit, includeName ? eq(users.name, 'Ada') : omit)
+      )
+    ),
+    orderBy(
+      includeEmailOrder ? users.email : omit,
+      includeName ? desc(users.name) : omit
+    )
+  )
+
+  expect(render(query)).toEqual({
+    text: 'SELECT "users"."id" AS "id" FROM "users" WHERE ((("users"."name" = ?))) ORDER BY "users"."name" DESC',
+    parameters: ['Ada'],
+  })
+})
+
+test('propagates fully omitted predicate and ordering compositions', () => {
+  const query = select(
+    { id: users.id },
+    from(users),
+    where(and(omit, or(omit))),
+    having(or(omit)),
+    orderBy(omit)
+  )
+
+  expect(render(query)).toEqual({
+    text: 'SELECT "users"."id" AS "id" FROM "users"',
+    parameters: [],
   })
 })
 

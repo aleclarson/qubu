@@ -128,6 +128,27 @@ const query = select(
 The ordinary ternary narrows `userId`, and the unused clause is never built.
 Qubu removes `omit` before validating and ordering the remaining clauses.
 
+Use the same token inside `and()`, `or()`, and `orderBy()` when individual
+predicates or ordering terms are conditional:
+
+```ts
+import { and, desc, eq, omit, orderBy, where } from 'qubu'
+
+declare const includeName: boolean
+declare const newestFirst: boolean
+
+const filter = where(
+  and(eq(users.id, 7), includeName ? eq(users.name, 'Ada') : omit)
+)
+const ordering = orderBy(newestFirst ? desc(users.name) : omit)
+```
+
+Each helper removes omitted members while retaining the source and grouping
+requirements of every member that may be present. If no predicate remains,
+`and()` or `or()` propagates `omit` through `where()` or `having()`; if no
+ordering term remains, `orderBy()` propagates `omit` directly. The resulting
+query emits no empty clause.
+
 The same token can conditionally include a projection field:
 
 ```ts
@@ -149,10 +170,13 @@ Here `omit` affects only whether `email` belongs to the projection. It does not
 make the expression nullable: a non-nullable expression would produce
 `email?: string`, while this nullable column produces `email?: string | null`.
 
-Clauses that provide sources or change structural guarantees cannot be
-conditional. Qubu rejects `omit` branches paired with `from()`, joins,
-`groupBy()`, pagination, correlation, CTEs, or custom clauses. Build separate
-queries when those parts differ at runtime.
+This support is specific to boolean operand lists, query-level ordering terms,
+and the complete clauses named above. Generic `sequence()` and
+`commaSeparated()` collections do not discard `omit`. Clauses that provide
+sources or change structural guarantees cannot be conditional. Qubu rejects
+`omit` branches paired with `from()`, joins, `groupBy()`, pagination,
+correlation, CTEs, or custom clauses. Build separate queries when those parts
+differ at runtime.
 
 ## Handle `NULL` and empty lists deliberately
 
