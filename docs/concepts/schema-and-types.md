@@ -5,6 +5,42 @@
 `table()` definitions are query-facing schema metadata. They are not database
 introspection and they do not create or migrate a database.
 
+## Register tables under stable IDs
+
+Use `schema()` when several table declarations belong to one database model.
+The record keys become logical table IDs. They stay stable when a table's
+physical SQL name changes:
+
+```ts
+import { integer, schema, table, text } from 'qubu'
+
+const accounts = table('account_records', {
+  id: integer(),
+  email: text(),
+})
+const memberships = table('membership_records', {
+  accountId: integer(),
+})
+
+const appSchema = schema({ accounts, memberships }, { namespace: 'public' })
+```
+
+`appSchema.registry.accounts.id` is `"accounts"`, while its physical name is
+`"account_records"`. The original table remains the query source, so
+registering it does not change SQL rendering or row and mutation types. The
+namespace belongs to schema metadata and is not added to ordinary queries.
+
+The registry is immutable and its IDs do not depend on record insertion order.
+Qubu validates duplicate IDs, duplicate physical names, invalid namespaces,
+and collisions in generated names before returning the model. A failed
+registry construction throws `SchemaValidationError`; inspect its
+`diagnostics` array to report every invalid path to the caller.
+
+The built-in generated-name policy is versioned. `generatedTableName('userId')`
+returns `user_id` under policy version 1. Explicit names passed to `table()`
+remain unchanged. The policy version and materialized table names give future
+snapshot encoders stable input without changing TypeScript source identity.
+
 ## Field names cross an application boundary
 
 Write schema keys in camelCase. Qubu converts them to snake_case when it

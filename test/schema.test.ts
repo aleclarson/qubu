@@ -9,12 +9,16 @@ import {
   eq,
   foreignKey,
   from,
+  generatedTableName,
   integer,
   index,
   json,
   lower,
   primaryKey,
   render,
+  schema,
+  schemaNamingPolicyVersion,
+  SchemaValidationError,
   references,
   select,
   table,
@@ -25,6 +29,89 @@ import {
   value,
 } from '../src/index.ts'
 import type { TableInsertInput, TableUpdateInput } from '../src/index.ts'
+
+test('registers tables by stable logical IDs without changing query identity', () => {
+  const accounts = table('account_records', { id: integer() })
+  const memberships = table('membership_records', {
+    accountId: integer(),
+  })
+
+  const forward = schema({ accounts, memberships }, { namespace: 'public' })
+  const reverse = schema({ memberships, accounts }, { namespace: 'public' })
+
+  expect(forward.schemaKind).toBe('schema')
+  expect(forward.namespace).toBe('public')
+  expect(forward.tables.accounts).toBe(accounts)
+  expect(forward.registry.accounts).toMatchObject({
+    id: 'accounts',
+    table: accounts,
+    physicalName: 'account_records',
+  })
+  expect(forward.tableNames).toEqual({
+    accounts: 'account_records',
+    memberships: 'membership_records',
+  })
+  expect(schemaNamingPolicyVersion).toBe(1)
+  expect(generatedTableName('userID')).toBe('user_id')
+  expect(reverse.registry.accounts.id).toBe(forward.registry.accounts.id)
+  expect(reverse.registry.accounts.physicalName).toBe(
+    forward.registry.accounts.physicalName
+  )
+  expect(Object.isFrozen(forward)).toBe(true)
+  expect(Object.isFrozen(forward.tables)).toBe(true)
+  expect(Object.isFrozen(forward.registry)).toBe(true)
+  expect(Object.isFrozen(forward.registry.accounts)).toBe(true)
+
+  expect(render(select({ id: accounts.id }, from(accounts))).text).toBe(
+    'SELECT "account_records"."id" AS "id" FROM "account_records"'
+  )
+})
+
+test('reports structured schema identity and naming diagnostics', () => {
+  const accounts = table('accounts', { id: integer() })
+  const memberships = table('accounts', { id: integer() })
+
+  expect(() => schema({ accounts, memberships })).toThrow(SchemaValidationError)
+  try {
+    schema({ accounts, memberships })
+  } catch (error) {
+    expect(error).toBeInstanceOf(SchemaValidationError)
+    expect((error as SchemaValidationError).diagnostics).toEqual([
+      expect.objectContaining({
+        code: 'duplicate-physical-name',
+        path: ['tables', 'memberships', 'physicalName'],
+      }),
+    ])
+    expect((error as SchemaValidationError).issues).toBe(
+      (error as SchemaValidationError).diagnostics
+    )
+  }
+
+  expect(() =>
+    schema([
+      ['accounts', accounts],
+      ['accounts', table('memberships', { id: integer() })],
+    ] as const)
+  ).toThrowError(/declared more than once/)
+
+  expect(() => schema({ accounts }, { namespace: 'public.accounts' })).toThrow(
+    /must be a non-empty identifier/
+  )
+
+  expect(() =>
+    schema(
+      { accounts, memberships: table('memberships', { id: integer() }) },
+      { namingPolicy: { version: 1, tableName: () => 'same_name' } }
+    )
+  ).toThrowError(/generate the same physical name/)
+})
+
+test('keeps unregistered tables valid query sources', () => {
+  const accounts = table('accounts', { id: integer() })
+  expect(render(select({ id: accounts.id }, from(accounts))).text).toBe(
+    'SELECT "accounts"."id" AS "id" FROM "accounts"'
+  )
+})
 
 test('provides common driver-neutral schema value helpers', () => {
   const events = table('events', {
