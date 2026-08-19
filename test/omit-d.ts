@@ -1,4 +1,5 @@
 import {
+  alias,
   distinct,
   eq,
   fetchFirst,
@@ -8,6 +9,7 @@ import {
   integer,
   omit,
   orderBy,
+  type OutputOf,
   select,
   table,
   where,
@@ -33,6 +35,42 @@ select(
   from(users),
   userId === undefined ? omit : where(eq(users.id, userId))
 )
+
+const conditionalProjection = select(
+  {
+    id: users.id,
+    conditionalId: enabled ? users.id : omit,
+    absent: omit,
+  },
+  from(users)
+)
+
+type Equal<TLeft, TRight> = [TLeft] extends [TRight]
+  ? [TRight] extends [TLeft]
+    ? true
+    : false
+  : false
+type Assert<TCondition extends true> = TCondition
+
+export type ConditionalProjectionUsesOptionalMembership = Assert<
+  Equal<
+    typeof conditionalProjection.row,
+    { id: number; conditionalId?: number }
+  >
+>
+
+const conditionalSource = alias(conditionalProjection, 'conditional_source')
+
+export type DerivedColumnMembershipRemainsOptional = Assert<
+  Equal<
+    undefined extends typeof conditionalSource.conditionalId ? true : false,
+    true
+  >
+>
+
+export type DerivedColumnValueDoesNotGainUndefined = Assert<
+  Equal<OutputOf<NonNullable<typeof conditionalSource.conditionalId>>, number>
+>
 
 select(
   { id: users.id },

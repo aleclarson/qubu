@@ -108,7 +108,7 @@ const filtered = select(
 Values such as `7`, `'Ada'`, and list members become parameters. They are not
 interpolated into SQL.
 
-## Omit a clause conditionally
+## Omit query parts conditionally
 
 Use `omit` as the other branch of a JavaScript conditional when a `WHERE`,
 `HAVING`, `ORDER BY`, or `DISTINCT` clause is optional:
@@ -127,6 +127,27 @@ const query = select(
 
 The ordinary ternary narrows `userId`, and the unused clause is never built.
 Qubu removes `omit` before validating and ordering the remaining clauses.
+
+The same token can conditionally include a projection field:
+
+```ts
+declare const includeEmail: boolean
+
+const query = select(
+  {
+    id: users.id,
+    email: includeEmail ? users.email : omit,
+  },
+  from(users)
+)
+
+// typeof query.row:
+// { id: number; email?: string | null }
+```
+
+Here `omit` affects only whether `email` belongs to the projection. It does not
+make the expression nullable: a non-nullable expression would produce
+`email?: string`, while this nullable column produces `email?: string | null`.
 
 Clauses that provide sources or change structural guarantees cannot be
 conditional. Qubu rejects `omit` branches paired with `from()`, joins,

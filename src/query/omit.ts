@@ -4,7 +4,7 @@ import type { OrderByClause } from './clauses/order-by.ts'
 import type { WhereClause } from './clauses/where.ts'
 import type { AnySelectClause } from './clauses/types.ts'
 
-/** An explicit placeholder for a safely omitted SELECT clause. */
+/** An explicit placeholder for a safely omitted SELECT clause or projection field. */
 export const omit: unique symbol = Symbol('qubu.omit')
 
 export type Omit = typeof omit

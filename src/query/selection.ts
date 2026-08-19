@@ -10,6 +10,7 @@ import type {
   SourceRow,
 } from '../schema/source.ts'
 import type { AnyExpression } from '../expressions/types.ts'
+import type { Omit } from './omit.ts'
 
 /**
  * Return every known source column as a named projection object.
@@ -29,11 +30,11 @@ export function all<TSource extends AnySource>(
   >
 }
 
-export type SelectionObject = Record<string, AnyExpression>
+export type SelectionObject = Record<string, AnyExpression | Omit>
 export type Selection = SelectionObject
 
 export type SelectionItems<TSelection> = TSelection extends SelectionObject
-  ? TSelection[keyof TSelection]
+  ? Extract<TSelection[keyof TSelection], AnyExpression>
   : never
 
 type NullableOutput<TOutput, TExpression, TNullableSources> = [
@@ -44,19 +45,54 @@ type NullableOutput<TOutput, TExpression, TNullableSources> = [
 
 type Simplify<T> = { [K in keyof T]: T[K] } & {}
 
+type SelectionExpression<TField> = Extract<TField, AnyExpression>
+
+type RequiredSelectionKeys<TSelection extends SelectionObject> = {
+  [K in keyof TSelection]-?: [SelectionExpression<TSelection[K]>] extends [
+    never,
+  ]
+    ? never
+    : Omit extends TSelection[K]
+      ? never
+      : K
+}[keyof TSelection]
+
+type OptionalSelectionKeys<TSelection extends SelectionObject> = {
+  [K in keyof TSelection]-?: [SelectionExpression<TSelection[K]>] extends [
+    never,
+  ]
+    ? never
+    : Omit extends TSelection[K]
+      ? K
+      : never
+}[keyof TSelection]
+
+type SelectionFieldOutput<TField, TNullableSources> =
+  SelectionExpression<TField> extends infer TExpression extends AnyExpression
+    ? NullableOutput<
+        import('../expressions/types.ts').ExpressionOutput<TExpression>,
+        TExpression,
+        TNullableSources
+      >
+    : never
+
 export type SelectionOutput<
   TSelection,
   TNullableSources = never,
 > = TSelection extends SelectionObject
-  ? Simplify<{
-      -readonly [K in keyof TSelection]: TSelection[K] extends AnyExpression
-        ? NullableOutput<
-            import('../expressions/types.ts').ExpressionOutput<TSelection[K]>,
-            TSelection[K],
-            TNullableSources
-          >
-        : never
-    }>
+  ? Simplify<
+      {
+        -readonly [K in RequiredSelectionKeys<TSelection>]: SelectionFieldOutput<
+          TSelection[K],
+          TNullableSources
+        >
+      } & {
+        -readonly [K in OptionalSelectionKeys<TSelection>]?: SelectionFieldOutput<
+          TSelection[K],
+          TNullableSources
+        >
+      }
+    >
   : never
 
 export type SelectionRequires<TSelection> = RequiresOf<

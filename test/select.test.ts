@@ -100,6 +100,34 @@ test('omits conditional select clauses before validation and rendering', () => {
   })
 })
 
+test('models omitted projection fields as optional without changing nullability', () => {
+  const includeName = false as boolean
+  const includeEmail = true as boolean
+  const query = select(
+    {
+      id: users.id,
+      name: includeName ? users.name : omit,
+      email: includeEmail ? users.email : omit,
+    },
+    from(users)
+  )
+
+  expect(render(query)).toEqual({
+    text: 'SELECT "users"."id" AS "id", "users"."email" AS "email" FROM "users"',
+    parameters: [],
+  })
+  expect(Object.keys(query.row)).toEqual(['id', 'email'])
+  expectTypeOf(query.row).toEqualTypeOf<{
+    id: number
+    name?: string
+    email?: string | null
+  }>()
+
+  expect(() => render(select({ name: omit }))).toThrowError(
+    'select() requires at least one field'
+  )
+})
+
 test('renders aliases, joins, grouping, and distinct', () => {
   const author = alias(users, 'author')
   const query = select(

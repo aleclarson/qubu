@@ -27,10 +27,10 @@ export type SourceKind =
   | 'table-function'
 
 export type SourceColumns<TRow extends object, TIdentity> = {
-  readonly [K in keyof TRow]-?: K extends string
+  readonly [K in keyof TRow]: K extends string
     ? ColumnReference<
         K,
-        | ResultMeta<TRow[K], TIdentity>
+        | ResultMeta<Required<TRow>[K], TIdentity>
         | RequiresSourceMeta<TIdentity>
         | ExpressionMeta<ColumnDependency<TIdentity, K>>
       >
