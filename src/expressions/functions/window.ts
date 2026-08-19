@@ -6,6 +6,7 @@ import {
   type OutputOf,
   type ResultMeta,
   type SqlTypeOf,
+  type WindowMeta,
 } from '../../core/fragment.ts'
 import type { OrderTerm } from '../../query/clauses/order-by.ts'
 import {
@@ -42,7 +43,8 @@ export type WindowedExpression<
       SqlTypeOf<TExpression>
     >
   | ExpressionMeta<DependenciesOf<TExpression | WindowSpecParts<TWindow>>>
-  | InheritedMetadata<TExpression | WindowSpecParts<TWindow>>,
+  | InheritedMetadata<TExpression | WindowSpecParts<TWindow>>
+  | WindowMeta,
   'function'
 >
 

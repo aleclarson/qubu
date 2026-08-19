@@ -11,6 +11,7 @@ import type {
   SqlInteger,
   SourceIdentity,
   VisibleDependenciesOf,
+  WindowMeta,
 } from '../src/index.ts'
 import type {
   mixedWindowCount,
@@ -81,6 +82,6 @@ export type NullableWindowInheritedMetadata = Assert<
 export type UnconfiguredRankMetadata = Assert<
   Equal<
     MetadataOf<typeof unconfiguredRank>,
-    ResultMeta<number, never, SqlInteger> | ExpressionMeta<never>
+    ResultMeta<number, never, SqlInteger> | ExpressionMeta<never> | WindowMeta
   >
 >

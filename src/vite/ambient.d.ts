@@ -23,6 +23,7 @@ declare global {
   const call: typeof import('qubu').call
   const caseWhen: typeof import('qubu').caseWhen
   const cast: typeof import('qubu').cast
+  const check: typeof import('qubu').check
   const coalesce: typeof import('qubu').coalesce
   const column: typeof import('qubu').column
   const commaSeparated: typeof import('qubu').commaSeparated
@@ -50,6 +51,7 @@ declare global {
   const fetchFirst: typeof import('qubu').fetchFirst
   const fetchNext: typeof import('qubu').fetchNext
   const fragment: typeof import('qubu').fragment
+  const foreignKey: typeof import('qubu').foreignKey
   const from: typeof import('qubu').from
   const fromSelect: typeof import('qubu').fromSelect
   const fullJoin: typeof import('qubu').fullJoin
@@ -64,6 +66,7 @@ declare global {
   const inList: typeof import('qubu').inList
   const inQuery: typeof import('qubu').inQuery
   const inSelect: typeof import('qubu').inSelect
+  const index: typeof import('qubu').index
   const innerJoin: typeof import('qubu').innerJoin
   const integer: typeof import('qubu').integer
   const insertFrom: typeof import('qubu').insertFrom
@@ -117,6 +120,7 @@ declare global {
   const postgresDialect: typeof import('qubu').postgresDialect
   const primaryKey: typeof import('qubu').primaryKey
   const qualifiedIdentifier: typeof import('qubu').qualifiedIdentifier
+  const references: typeof import('qubu').references
   const render: typeof import('qubu').render
   const rightJoin: typeof import('qubu').rightJoin
   const returning: typeof import('qubu').returning
@@ -205,6 +209,10 @@ declare global {
   > = import('qubu').CardinalityMeta<TCardinality>
   type CardinalityOf<T> = import('qubu').CardinalityOf<T>
   type CapabilitiesOf<T> = import('qubu').CapabilitiesOf<T>
+  type HasSubquery<T> = import('qubu').HasSubquery<T>
+  type HasWindow<T> = import('qubu').HasWindow<T>
+  type SubqueryMeta = import('qubu').SubqueryMeta
+  type WindowMeta = import('qubu').WindowMeta
   type ResultMeta<
     TOutput,
     TNullableFrom = never,
@@ -285,6 +293,9 @@ declare global {
   > = import('qubu').Source<TIdentity, TRow, TMetadata, TSqlTypes, TConstraints>
   type SourceConstraint = import('qubu').SourceConstraint
   type SourceConstraintsRecord = import('qubu').SourceConstraintsRecord
+  type SourceIndexesRecord = import('qubu').SourceIndexesRecord
+  type SourceIndex = import('qubu').SourceIndex
+  type AnyKeyColumn = import('qubu').AnyKeyColumn
   type KeyConstraint<
     TKind extends 'primary-key' | 'unique' = 'primary-key' | 'unique',
     TColumns extends readonly import('qubu').ColumnReference<
@@ -292,17 +303,54 @@ declare global {
       any
     >[] = readonly import('qubu').ColumnReference<string, any>[],
   > = import('qubu').KeyConstraint<TKind, TColumns>
+  type ForeignKeyTarget<
+    TTable extends
+      import('qubu').TableLike<any> = import('qubu').TableLike<any>,
+    TColumns extends
+      readonly import('qubu').AnyKeyColumn[] = readonly import('qubu').AnyKeyColumn[],
+  > = import('qubu').ForeignKeyTarget<TTable, TColumns>
+  type ForeignKeyTargetInput<
+    TTarget extends
+      import('qubu').ForeignKeyTarget = import('qubu').ForeignKeyTarget,
+  > = import('qubu').ForeignKeyTargetInput<TTarget>
+  type ForeignKeyConstraint<
+    TColumns extends
+      readonly import('qubu').AnyKeyColumn[] = readonly import('qubu').AnyKeyColumn[],
+    TTarget extends
+      import('qubu').ForeignKeyTargetInput = import('qubu').ForeignKeyTargetInput,
+  > = import('qubu').ForeignKeyConstraint<TColumns, TTarget>
+  type CheckConstraint<
+    TExpression extends
+      import('qubu').AnyExpression = import('qubu').AnyExpression,
+  > = import('qubu').CheckConstraint<TExpression>
+  type IndexTerm = import('qubu').IndexTerm
+  type IndexOptions<
+    TPredicate extends import('qubu').AnyExpression | undefined =
+      | import('qubu').AnyExpression
+      | undefined,
+  > = import('qubu').IndexOptions<TPredicate>
+  type TableIndex<
+    TTerms extends readonly import('qubu').IndexTerm[] = any,
+    TOptions extends import('qubu').IndexOptions<any> = any,
+  > = import('qubu').TableIndex<TTerms, TOptions>
   type Table<
     TName extends string = string,
     TDefinitions extends
       import('qubu').TableDefinitions = import('qubu').TableDefinitions,
     TConstraints extends import('qubu').SourceConstraintsRecord = {},
-  > = import('qubu').Table<TName, TDefinitions, TConstraints>
+    TIndexes extends import('qubu').SourceIndexesRecord = {},
+  > = import('qubu').Table<TName, TDefinitions, TConstraints, TIndexes>
   type TableMetadataCallback<
     TName extends string,
     TDefinitions extends import('qubu').TableDefinitions,
     TConstraints extends import('qubu').SourceConstraintsRecord,
-  > = import('qubu').TableMetadataCallback<TName, TDefinitions, TConstraints>
+    TIndexes extends import('qubu').SourceIndexesRecord,
+  > = import('qubu').TableMetadataCallback<
+    TName,
+    TDefinitions,
+    TConstraints,
+    TIndexes
+  >
 }
 
 export {}

@@ -3,6 +3,7 @@ import {
   parenthesize,
   type CardinalityOf,
   type ResultMeta,
+  type SubqueryMeta,
 } from '../core/fragment.ts'
 import type { AnyQuery, QueryRow, QuerySqlTypeMap } from '../query/types.ts'
 import { makeExpression, type Expression } from './types.ts'
@@ -27,7 +28,8 @@ export function scalar<TQuery extends AnyQuery>(
   query: TQuery
 ): Expression<
   | ResultMeta<ScalarOutput<TQuery>, never, SingleColumnSqlType<TQuery>>
-  | InheritedMetadata<TQuery>,
+  | InheritedMetadata<TQuery>
+  | SubqueryMeta,
   'subquery'
 > {
   if (Object.keys(query.row).length !== 1) {
@@ -38,13 +40,15 @@ export function scalar<TQuery extends AnyQuery>(
 
   return makeExpression<
     | ResultMeta<ScalarOutput<TQuery>, never, SingleColumnSqlType<TQuery>>
-    | InheritedMetadata<TQuery>,
+    | InheritedMetadata<TQuery>
+    | SubqueryMeta,
     'subquery'
   >('subquery', context =>
     context.renderRelation(parenthesize(query))
   ) as Expression<
     | ResultMeta<ScalarOutput<TQuery>, never, SingleColumnSqlType<TQuery>>
-    | InheritedMetadata<TQuery>,
+    | InheritedMetadata<TQuery>
+    | SubqueryMeta,
     'subquery'
   >
 }

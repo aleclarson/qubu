@@ -56,6 +56,12 @@ export type AggregateMeta<TDependencies = unknown> = {
   readonly dependencies: TDependencies
 }
 
+/** Marks an expression that contains a window function. */
+export type WindowMeta = { readonly kind: 'window' }
+
+/** Marks an expression that contains a scalar or predicate subquery. */
+export type SubqueryMeta = { readonly kind: 'subquery' }
+
 /** Grouping keys and column dependencies made available by a GROUP BY clause. */
 export type GroupingMeta<TKeys = unknown, TDependencies = unknown> = {
   readonly kind: 'grouping'
@@ -89,6 +95,8 @@ export type FragmentMeta =
   | ProvidesSourceMeta<unknown, unknown>
   | ExpressionMeta
   | AggregateMeta
+  | WindowMeta
+  | SubqueryMeta
   | GroupingMeta
   | CardinalityMeta
   | RequiresCapabilityMeta
@@ -260,6 +268,18 @@ export type GroupingDependenciesOf<T> = GroupingDependencies<MetadataOf<T>>
 
 export type HasAggregate<T> = [
   Extract<MetadataOf<T>, { readonly kind: 'aggregate' }>,
+] extends [never]
+  ? false
+  : true
+
+export type HasWindow<T> = [
+  Extract<MetadataOf<T>, { readonly kind: 'window' }>,
+] extends [never]
+  ? false
+  : true
+
+export type HasSubquery<T> = [
+  Extract<MetadataOf<T>, { readonly kind: 'subquery' }>,
 ] extends [never]
   ? false
   : true

@@ -9,9 +9,12 @@ import type { SqlCapabilityValidation } from '../../expressions/operators/shared
 export type OrderDirection = 'ASC' | 'DESC'
 export type NullsOrder = 'FIRST' | 'LAST'
 
-export interface OrderTerm<TMetadata = never> extends Fragment<TMetadata> {
+export interface OrderTerm<
+  TMetadata = never,
+  TExpression extends AnyExpression = AnyExpression,
+> extends Fragment<TMetadata> {
   readonly orderKind: 'term'
-  readonly expression: AnyExpression
+  readonly expression: TExpression
   readonly direction?: OrderDirection
   readonly nulls?: NullsOrder
 }
@@ -21,7 +24,7 @@ function orderTerm<TExpression extends AnyExpression>(
     SqlCapabilityValidation<ExpressionSqlType<TExpression>, SqlOrderable>,
   direction?: OrderDirection,
   nulls?: NullsOrder
-): OrderTerm<InheritedMetadata<TExpression>> {
+): OrderTerm<InheritedMetadata<TExpression>, TExpression> {
   const base = makeExpression<InheritedMetadata<TExpression>, 'operator'>(
     'operator',
     context => {
@@ -36,7 +39,7 @@ function orderTerm<TExpression extends AnyExpression>(
     expression,
     direction,
     nulls,
-  }) as OrderTerm<InheritedMetadata<TExpression>>
+  }) as OrderTerm<InheritedMetadata<TExpression>, TExpression>
 }
 
 export function order<TExpression extends AnyExpression>(

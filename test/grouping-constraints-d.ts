@@ -9,13 +9,16 @@ import {
   having,
   identifier,
   integer,
+  index,
   leftJoin,
+  lower,
   orderBy,
   primaryKey,
   select,
   table,
   text,
   unique,
+  value,
   withCte,
 } from '../src/index.ts'
 
@@ -31,6 +34,7 @@ const users = table(
       usersPrimary: primaryKey(users.id),
       usersEmailUnique: unique(users.email),
     },
+    indexes: {},
   })
 )
 
@@ -45,6 +49,7 @@ const memberships = table(
     constraints: {
       membershipsSlugUnique: unique(memberships.tenantId, memberships.slug),
     },
+    indexes: {},
   })
 )
 
@@ -52,6 +57,73 @@ const unconstrained = table('unconstrained_users', {
   id: integer(),
   name: text(),
 })
+
+const indexedUsers = table(
+  'indexed_users',
+  {
+    id: integer(),
+    runtimeId: integer(),
+    email: text(),
+    nickname: text({ nullable: true }),
+    name: text(),
+  },
+  indexedUsers => {
+    const predicate = eq(indexedUsers.email, value('active@example.com'))
+    const runtimeOptions: {
+      readonly unique: true
+      readonly where?: typeof predicate
+    } = { unique: true }
+    return {
+      constraints: {},
+      indexes: {
+        indexedUsersIdentity: index([indexedUsers.id], { unique: true }),
+        runtimeIdentity: index([indexedUsers.runtimeId], runtimeOptions),
+        partialEmail: index([indexedUsers.email], {
+          unique: true,
+          where: predicate,
+        }),
+        expressionEmail: index([lower(indexedUsers.email)], { unique: true }),
+        nullableNickname: index([indexedUsers.nickname], { unique: true }),
+      },
+    }
+  }
+)
+
+select(
+  { name: indexedUsers.name, total: count() },
+  from(indexedUsers),
+  groupBy(indexedUsers.id)
+)
+select(
+  { name: indexedUsers.name, total: count() },
+  // @ts-expect-error Runtime-dependent candidate keys do not prove a dependency.
+  from(indexedUsers),
+  groupBy(indexedUsers.runtimeId)
+)
+const indexedUserAlias = alias(indexedUsers, 'indexed_user')
+select(
+  { name: indexedUserAlias.name, total: count() },
+  from(indexedUserAlias),
+  groupBy(indexedUserAlias.id)
+)
+select(
+  { name: indexedUsers.name, total: count() },
+  // @ts-expect-error Partial indexes do not prove an unconditional dependency.
+  from(indexedUsers),
+  groupBy(indexedUsers.email)
+)
+select(
+  { name: indexedUsers.name, total: count() },
+  // @ts-expect-error Expression indexes do not prove a column dependency.
+  from(indexedUsers),
+  groupBy(lower(indexedUsers.email))
+)
+select(
+  { name: indexedUsers.name, total: count() },
+  // @ts-expect-error Nullable unique index columns do not prove a dependency.
+  from(indexedUsers),
+  groupBy(indexedUsers.nickname)
+)
 
 select(
   { name: users.name, total: count() },
@@ -143,6 +215,7 @@ table(
       // @ts-expect-error Nullable SQL unique columns do not prove a functional dependency.
       nullableEmailUnique: unique(nullableUnique.email),
     },
+    indexes: {},
   })
 )
 
@@ -154,5 +227,8 @@ table(
   'invalid_external_key',
   { id: integer() },
   // @ts-expect-error A table constraint cannot use a column from another table.
-  () => ({ constraints: { externalPrimary: primaryKey(other.id) } })
+  () => ({
+    constraints: { externalPrimary: primaryKey(other.id) },
+    indexes: {},
+  })
 )

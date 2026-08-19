@@ -22,7 +22,9 @@ import type {
   RequiresSourceMeta,
   ResultMeta,
   SourceIdentity,
+  SubqueryMeta,
   VisibleDependenciesOf,
+  WindowMeta,
 } from '../src/index.ts'
 import type {
   commaSeparatedColumns,
@@ -241,6 +243,8 @@ export type PublicMetadataUnionIsClosedForCurrentFacts = Assert<
     | ProvidesSourceMeta<unknown, unknown>
     | ExpressionMeta<unknown>
     | AggregateMeta<unknown>
+    | WindowMeta
+    | SubqueryMeta
     | GroupingMeta<unknown, unknown>
     | CardinalityMeta<QueryCardinality>
     | RequiresCapabilityMeta

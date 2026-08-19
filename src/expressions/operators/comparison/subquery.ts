@@ -3,7 +3,7 @@ import type { Query, QueryRow, QuerySqlTypeMap } from '../../../query/types.ts'
 import {
   makeExpression,
   type AnyExpression,
-  type ResultExpression,
+  type SubqueryResultExpression,
   type ExpressionOutput,
   type ExpressionSqlType,
 } from '../../types.ts'
@@ -40,23 +40,16 @@ export function inQuery<
 >(
   expression: TExpression & InQueryValidation<TExpression, TQuery>,
   query: TQuery
-): ResultExpression<
-  boolean,
-  TExpression | TQuery,
-  'subquery',
-  never,
-  SqlBoolean
-> {
+): SubqueryResultExpression<boolean, TExpression | TQuery, never, SqlBoolean> {
   return makeExpression('subquery', context => {
     context.append('(')
     context.render(expression)
     context.append(' IN ')
     context.renderRelation(parenthesize(query))
     context.append(')')
-  }) as ResultExpression<
+  }) as SubqueryResultExpression<
     boolean,
     TExpression | TQuery,
-    'subquery',
     never,
     SqlBoolean
   >
@@ -68,12 +61,12 @@ export function exists<TQuery extends Query<any, any, any>>(query: TQuery) {
   return makeExpression('subquery', context => {
     context.append('EXISTS ')
     context.renderRelation(parenthesize(query))
-  }) as ResultExpression<boolean, TQuery, 'subquery', never, SqlBoolean>
+  }) as SubqueryResultExpression<boolean, TQuery, never, SqlBoolean>
 }
 
 export function notExists<TQuery extends Query<any, any, any>>(query: TQuery) {
   return makeExpression('subquery', context => {
     context.append('NOT EXISTS ')
     context.renderRelation(parenthesize(query))
-  }) as ResultExpression<boolean, TQuery, 'subquery', never, SqlBoolean>
+  }) as SubqueryResultExpression<boolean, TQuery, never, SqlBoolean>
 }

@@ -177,6 +177,46 @@ type ConstraintDeterminesSource<
     : false
   : false
 
+type IndexTermExpression<T> =
+  T extends import('../clauses/order-by.ts').OrderTerm<any>
+    ? T['expression']
+    : T
+
+type IndexDeterminesSource<
+  TIndex,
+  TSource extends AnySource,
+  TGroupedDependencies,
+> = TIndex extends {
+  readonly candidateKey: true
+  readonly terms: infer TTerms extends readonly unknown[]
+}
+  ? [
+      import('../../core/fragment.ts').DependenciesOf<
+        IndexTermExpression<TTerms[number]>
+      >,
+    ] extends [ColumnDependency<any, any>]
+    ? [
+        ColumnDependency<
+          SourceIdentity<TSource>,
+          import('../../core/fragment.ts').DependenciesOf<
+            IndexTermExpression<TTerms[number]>
+          > extends ColumnDependency<any, infer TName extends string>
+            ? TName
+            : never
+        >,
+      ] extends [TGroupedDependencies]
+      ? true
+      : false
+    : false
+  : false
+
+type SourceIndexes<T> = T extends {
+  readonly indexes: infer TIndexes extends
+    import('../../schema/indexes.ts').SourceIndexesRecord
+}
+  ? TIndexes
+  : {}
+
 type DeterminedSourceIdentity<TSource, TGroupedDependencies> =
   TSource extends AnySource
     ? true extends ConstraintDeterminesSource<
@@ -185,7 +225,13 @@ type DeterminedSourceIdentity<TSource, TGroupedDependencies> =
         TGroupedDependencies
       >
       ? SourceIdentity<TSource>
-      : never
+      : true extends IndexDeterminesSource<
+            SourceIndexes<TSource>[keyof SourceIndexes<TSource>],
+            TSource,
+            TGroupedDependencies
+          >
+        ? SourceIdentity<TSource>
+        : never
     : never
 
 type FunctionallyDeterminedDependencies<

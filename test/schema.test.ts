@@ -1,20 +1,28 @@
 import { expect, expectTypeOf, test } from 'vitest'
 import {
   alias,
+  asc,
   bigint,
   binary,
   column,
+  check,
+  eq,
+  foreignKey,
   from,
   integer,
+  index,
   json,
+  lower,
   primaryKey,
   render,
+  references,
   select,
   table,
   text,
   timestamp,
   uuid,
   unique,
+  value,
 } from '../src/index.ts'
 import type { TableInsertInput, TableUpdateInput } from '../src/index.ts'
 
@@ -55,6 +63,7 @@ test('retains structured key constraints without changing table SQL', () => {
         accountsPrimary: primaryKey(accounts.tenantId, accounts.email),
         accountsEmailUnique: unique(accounts.email),
       },
+      indexes: {},
     })
   )
 
@@ -74,6 +83,169 @@ test('retains structured key constraints without changing table SQL', () => {
   expect(alias(accounts, 'account').constraints).toBe(accounts.constraints)
   expect(render(select({ name: accounts.name }, from(accounts))).text).toBe(
     'SELECT "accounts"."name" AS "name" FROM "accounts"'
+  )
+})
+
+test('retains foreign keys, checks, and portable indexes as named metadata', () => {
+  const accounts = table(
+    'indexed_accounts',
+    {
+      tenantId: integer(),
+      id: integer(),
+      email: text(),
+      nickname: text({ nullable: true }),
+    },
+    accounts => ({
+      constraints: {
+        accountsPrimary: primaryKey(accounts.tenantId, accounts.id),
+        reservedEmail: check(eq(accounts.email, value('root@example.com'))),
+      },
+      indexes: {
+        accountsIdentity: index([accounts.tenantId, asc(accounts.id)], {
+          unique: true,
+        }),
+        lowerEmail: index([lower(accounts.email)]),
+        activeEmail: index([accounts.email], {
+          unique: true,
+          where: eq(accounts.email, value('active@example.com')),
+        }),
+        nullableNickname: index([accounts.nickname], { unique: true }),
+      },
+    })
+  )
+
+  const memberships = table(
+    'indexed_memberships',
+    { tenantId: integer(), accountId: integer() },
+    memberships => ({
+      constraints: {
+        accountForeign: foreignKey(
+          [memberships.tenantId, memberships.accountId],
+          () => references(accounts, accounts.tenantId, accounts.id)
+        ),
+      },
+      indexes: {},
+    })
+  )
+  const widenedIndexes = table(
+    'widened_indexes',
+    { id: integer(), active: text() },
+    indexed => {
+      const predicate = eq(indexed.active, value('yes'))
+      const present: {
+        readonly unique: true
+        readonly where?: typeof predicate
+      } = { unique: true, where: predicate }
+      const absent: {
+        readonly unique: true
+        readonly where?: typeof predicate
+      } = { unique: true }
+      const requiredUnion: {
+        readonly unique: true
+        readonly where: typeof predicate | undefined
+      } = { unique: true, where: undefined }
+      const optionalUnique: { readonly unique?: true } = { unique: true }
+      return {
+        constraints: {},
+        indexes: {
+          present: index([indexed.id], present),
+          absent: index([indexed.id], absent),
+          requiredUnion: index([indexed.id], requiredUnion),
+          optionalUnique: index([indexed.id], optionalUnique),
+        },
+      }
+    }
+  )
+
+  const handles = table('handles', { slug: text() }, handles => ({
+    constraints: {},
+    indexes: { handlesSlug: index([handles.slug], { unique: true }) },
+  }))
+  const profiles = table('profiles', { handle: text() }, profiles => ({
+    constraints: {
+      handleForeign: foreignKey(
+        [profiles.handle],
+        references(handles, handles.slug)
+      ),
+    },
+    indexes: {},
+  }))
+
+  const employees = table(
+    'employees',
+    { id: integer(), managerId: integer({ nullable: true }) },
+    employees => ({
+      constraints: {
+        employeesPrimary: primaryKey(employees.id),
+        managerForeign: foreignKey(
+          [employees.managerId],
+          references(employees, employees.id)
+        ),
+      },
+      indexes: {},
+    })
+  )
+
+  expect(accounts.indexes.accountsIdentity).toMatchObject({
+    kind: 'index',
+    unique: true,
+    candidateKey: true,
+    predicate: undefined,
+  })
+  expect(accounts.indexes.lowerEmail.candidateKey).toBe(false)
+  expect(accounts.indexes.activeEmail.candidateKey).toBe(false)
+  expect(accounts.indexes.nullableNickname.candidateKey).toBe(false)
+  expect(widenedIndexes.indexes.present).toMatchObject({
+    unique: true,
+    candidateKey: false,
+  })
+  expect(widenedIndexes.indexes.present.predicate).toBeDefined()
+  expect(widenedIndexes.indexes.absent).toMatchObject({
+    unique: true,
+    predicate: undefined,
+    candidateKey: true,
+  })
+  expect(widenedIndexes.indexes.requiredUnion).toMatchObject({
+    unique: true,
+    predicate: undefined,
+    candidateKey: true,
+  })
+  expect(widenedIndexes.indexes.optionalUnique).toMatchObject({
+    unique: true,
+    predicate: undefined,
+    candidateKey: true,
+  })
+  expectTypeOf(
+    widenedIndexes.indexes.present.candidateKey
+  ).toEqualTypeOf<boolean>()
+  expectTypeOf(
+    widenedIndexes.indexes.absent.candidateKey
+  ).toEqualTypeOf<boolean>()
+  expectTypeOf(
+    widenedIndexes.indexes.requiredUnion.candidateKey
+  ).toEqualTypeOf<boolean>()
+  expectTypeOf(
+    widenedIndexes.indexes.optionalUnique.unique
+  ).toEqualTypeOf<boolean>()
+  expect(accounts.constraints.reservedEmail).toMatchObject({ kind: 'check' })
+
+  const lazyTarget = memberships.constraints.accountForeign.target
+  expect(typeof lazyTarget).toBe('function')
+  expect((lazyTarget as () => unknown)()).toEqual(
+    references(accounts, accounts.tenantId, accounts.id)
+  )
+  expect(employees.constraints.managerForeign.target).toEqual(
+    references(employees, employees.id)
+  )
+  expect(profiles.constraints.handleForeign.target).toEqual(
+    references(handles, handles.slug)
+  )
+
+  const accountAlias = alias(accounts, 'indexed_account')
+  expect(accountAlias.constraints).toBe(accounts.constraints)
+  expect(accountAlias.indexes).toBe(accounts.indexes)
+  expect(render(select({ email: accounts.email }, from(accounts))).text).toBe(
+    'SELECT "indexed_accounts"."email" AS "email" FROM "indexed_accounts"'
   )
 })
 

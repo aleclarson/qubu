@@ -20,7 +20,7 @@ database-specific dependency visible where that is useful.
 
 | Area               | Supported building blocks                                                                                                                                                                                                                                                        |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Schema values      | `table`, `primaryKey`, `unique`, `column`, `integer`, `numeric`, `text`, `boolean`, date/time, UUID, JSON, bigint, and binary helpers                                                                                                                                            |
+| Schema values      | `table`, named primary, unique, foreign-key, and check constraints, portable column/expression/partial/unique indexes, and typed column helpers                                                                                                                                  |
 | Read queries       | Named projections, spreadable source columns, aliases, joins, typed custom and LATERAL `FROM` sources, correlated subqueries, `WHERE`, grouping with declared-key proofs, `HAVING`, ordering, window expressions, distinctness, pagination, CTEs, subqueries, and set operations |
 | Expressions        | Comparison, boolean, arithmetic, null, range, membership, aggregate, window, string, JSON scalar reads, definition-backed and raw cast, case, and custom expressions                                                                                                             |
 | SQL type metadata  | Portable domains and capabilities, `SqlTypeOf`, projected SQL type maps, `SourceLike`/`TableLike` field constraints, contextual literals, typed extension values/calls/casts, and permissive `SqlUnknown` fallback                                                               |
@@ -54,6 +54,7 @@ own:
 - database connections, pooling, retries, or transactions;
 - driver-specific parameter encoding or row decoding;
 - schema introspection, migrations, or database lifecycle;
+- DDL generation and dialect-specific index storage options;
 - ORM identity maps, relationship loading, or change tracking; or
 - hidden execution triggered by building a query value.
 

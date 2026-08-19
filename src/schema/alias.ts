@@ -20,6 +20,13 @@ import {
   type SourceRow,
   type SourceSqlTypeMap,
 } from './source.ts'
+import type { SourceIndexesRecord } from './indexes.ts'
+
+type SourceIndexes<T> = T extends {
+  readonly indexes: infer TIndexes extends SourceIndexesRecord
+}
+  ? TIndexes
+  : {}
 
 export type AliasIdentity<TBase, TAlias extends string> = {
   readonly sourceKind: 'alias'
@@ -45,6 +52,7 @@ export type AliasedSource<
     SourceSqlTypeMap<TBase>
   >
   readonly constraints: SourceConstraints<TBase>
+  readonly indexes: SourceIndexes<TBase>
 } & SourceColumns<
     SourceRow<TBase>,
     AliasIdentity<SourceIdentity<TBase>, TAlias>,
@@ -126,6 +134,7 @@ export function alias(sourceOrQuery: unknown, name: string): unknown {
     base: isQuery ? undefined : input,
     query: isQuery ? input : undefined,
     constraints: isQuery ? {} : input.constraints,
+    indexes: isQuery ? {} : 'indexes' in input ? input.indexes : {},
     columns,
   })
   exposeColumns(source, columns)

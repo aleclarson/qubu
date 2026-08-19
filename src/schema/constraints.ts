@@ -3,10 +3,12 @@ import type {
   ExpressionMeta,
   Fragment,
   OutputOf,
+  SqlTypeOf,
   RequiresSourceMeta,
   ResultMeta,
 } from '../core/fragment.ts'
-import type { AnySqlType, SqlUnknown } from '../core/sql-types.ts'
+import type { AnySqlType, SqlBoolean, SqlUnknown } from '../core/sql-types.ts'
+import type { AnyExpression, Expression } from '../expressions/types.ts'
 import type {
   ColumnDependency,
   ColumnReference,
@@ -105,13 +107,47 @@ export interface KeyConstraint<
   readonly columns: TColumns
 }
 
+/** A referenced table and exact candidate-key column tuple. */
+export interface ForeignKeyTarget<
+  TTable extends TableLike<any> = TableLike<any>,
+  TColumns extends readonly AnyKeyColumn[] = readonly AnyKeyColumn[],
+> {
+  readonly table: TTable
+  readonly columns: TColumns
+}
+
+export type ForeignKeyTargetInput<
+  TTarget extends ForeignKeyTarget = ForeignKeyTarget,
+> = TTarget | (() => TTarget)
+
+/** A foreign key from local columns to a direct or lazily resolved target. */
+export interface ForeignKeyConstraint<
+  TColumns extends readonly AnyKeyColumn[] = readonly AnyKeyColumn[],
+  TTarget extends ForeignKeyTargetInput = ForeignKeyTargetInput,
+> {
+  readonly kind: 'foreign-key'
+  readonly columns: TColumns
+  readonly target: TTarget
+}
+
+/** A table-scoped boolean invariant. */
+export interface CheckConstraint<
+  TExpression extends AnyExpression = AnyExpression,
+> {
+  readonly kind: 'check'
+  readonly expression: TExpression
+}
+
 /** Structured schema metadata carried by sources that declare constraints. */
-export type SourceConstraint = KeyConstraint
+export type SourceConstraint =
+  | KeyConstraint
+  | ForeignKeyConstraint
+  | CheckConstraint
 
 /** Named schema constraints attached to a source. */
 export type SourceConstraintsRecord = Readonly<Record<string, SourceConstraint>>
 
-type AnyKeyColumn = ColumnReference<string, any>
+export type AnyKeyColumn = ColumnReference<string, any>
 
 type ColumnSource<TColumn> =
   DependenciesOf<TColumn> extends ColumnDependency<infer TSource, string>
@@ -137,6 +173,64 @@ type KeyColumnsValidation<TColumns extends readonly AnyKeyColumn[]> = [
   ? unknown
   : never
 
+type SameSourceColumnsValidation<TColumns extends readonly AnyKeyColumn[]> = [
+  {
+    [K in keyof TColumns]: TColumns[K] extends AnyKeyColumn
+      ? DependenciesOf<TColumns[K]> extends ColumnDependency<
+          ColumnSource<TColumns[0]>,
+          string
+        >
+        ? never
+        : TColumns[K]
+      : TColumns[K]
+  }[number],
+] extends [never]
+  ? unknown
+  : never
+
+type SameSqlDomain<TLeft, TRight> =
+  SqlTypeOf<TLeft> extends infer TLeftSql
+    ? SqlTypeOf<TRight> extends infer TRightSql
+      ? TLeftSql extends SqlUnknown
+        ? false
+        : TRightSql extends SqlUnknown
+          ? false
+          : TLeftSql extends AnySqlType
+            ? TRightSql extends AnySqlType
+              ? string extends TLeftSql['sqlType']
+                ? false
+                : string extends TRightSql['sqlType']
+                  ? false
+                  : [TLeftSql['sqlType']] extends [TRightSql['sqlType']]
+                    ? [TRightSql['sqlType']] extends [TLeftSql['sqlType']]
+                      ? true
+                      : false
+                    : false
+              : false
+            : false
+      : false
+    : false
+
+type ForeignKeyColumnsValidation<
+  TLocal extends readonly AnyKeyColumn[],
+  TTarget extends readonly AnyKeyColumn[],
+> = TLocal extends readonly [infer TLocalHead, ...infer TLocalTail]
+  ? TTarget extends readonly [infer TTargetHead, ...infer TTargetTail]
+    ? TLocalHead extends AnyKeyColumn
+      ? TTargetHead extends AnyKeyColumn
+        ? SameSqlDomain<TLocalHead, TTargetHead> extends true
+          ? ForeignKeyColumnsValidation<
+              Extract<TLocalTail, readonly AnyKeyColumn[]>,
+              Extract<TTargetTail, readonly AnyKeyColumn[]>
+            >
+          : never
+        : never
+      : never
+    : never
+  : TTarget extends readonly []
+    ? unknown
+    : never
+
 /** Declare a primary key, including a composite primary key. */
 export function primaryKey<
   const TColumns extends readonly [AnyKeyColumn, ...AnyKeyColumn[]],
@@ -153,4 +247,36 @@ export function unique<
   ...columns: TColumns & KeyColumnsValidation<NoInfer<TColumns>>
 ): KeyConstraint<'unique', TColumns> {
   return Object.freeze({ kind: 'unique', columns })
+}
+
+/** Pair a table with the exact columns targeted by a foreign key. */
+export function references<
+  TTable extends TableLike<any>,
+  const TColumns extends readonly [AnyKeyColumn, ...AnyKeyColumn[]],
+>(table: TTable, ...columns: TColumns): ForeignKeyTarget<TTable, TColumns> {
+  return Object.freeze({ table, columns })
+}
+
+type ResolvedTarget<T> = T extends () => infer TResolved ? TResolved : T
+
+/** Declare a single-column or composite foreign key. */
+export function foreignKey<
+  const TColumns extends readonly [AnyKeyColumn, ...AnyKeyColumn[]],
+  const TTarget extends ForeignKeyTargetInput,
+>(
+  columns: TColumns & SameSourceColumnsValidation<NoInfer<TColumns>>,
+  target: TTarget &
+    (ResolvedTarget<TTarget> extends ForeignKeyTarget<any, infer TTargetColumns>
+      ? ForeignKeyColumnsValidation<TColumns, TTargetColumns>
+      : never)
+): ForeignKeyConstraint<TColumns, TTarget> {
+  return Object.freeze({ kind: 'foreign-key', columns, target })
+}
+
+/** Declare a boolean table invariant. */
+export function check<const TExpression extends Expression<any, any>>(
+  expression: TExpression &
+    (SqlTypeOf<TExpression> extends SqlBoolean ? unknown : never)
+): CheckConstraint<TExpression> {
+  return Object.freeze({ kind: 'check', expression })
 }

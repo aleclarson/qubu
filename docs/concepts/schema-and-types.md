@@ -94,14 +94,33 @@ inserts while narrowing selected and updated values to `1 | 2`.
 `$type<T>()` is a compile-time assertion. It does not validate values at
 runtime or add a database constraint.
 
-## Declare keys for grouped-query proofs
+## Declare logical constraints and indexes
 
-Add primary and unique keys when the application schema knows the database
-enforces them. Qubu uses this metadata to validate functional dependencies in
-grouped queries; it does not emit a constraint or migrate the database:
+Use the metadata callback when the application schema knows which constraints
+and indexes the database enforces. Qubu retains this metadata for type checks
+and inspection. It does not emit DDL or migrate the database:
 
 ```ts
-import { integer, primaryKey, table, text, unique } from 'qubu'
+import {
+  check,
+  eq,
+  foreignKey,
+  index,
+  integer,
+  primaryKey,
+  references,
+  table,
+  text,
+  unique,
+  value,
+} from 'qubu'
+
+const tenants = table('tenants', { id: integer(), slug: text() }, tenants => ({
+  constraints: { tenantsPrimary: primaryKey(tenants.id) },
+  indexes: {
+    tenantsSlugIndex: index([tenants.slug], { unique: true }),
+  },
+}))
 
 const memberships = table(
   'memberships',
@@ -115,16 +134,29 @@ const memberships = table(
     constraints: {
       membershipsPrimary: primaryKey(memberships.id),
       membershipsSlugUnique: unique(memberships.tenantId, memberships.slug),
+      membershipsTenantForeign: foreignKey(
+        [memberships.tenantId],
+        references(tenants, tenants.id)
+      ),
+      membershipsSlugCheck: check(eq(memberships.slug, value('public'))),
+    },
+    indexes: {
+      membershipsTenantSlug: index([memberships.tenantId, memberships.slug], {
+        unique: true,
+      }),
+      publicMemberships: index([memberships.slug], {
+        where: eq(memberships.slug, value('public')),
+      }),
     },
   })
 )
 ```
 
 The metadata callback receives the preliminary table, including its typed
-columns. Give each constraint a stable application name in the `constraints`
-record. Each value has a `kind` and a non-empty `columns` tuple containing the
-exact column references passed to `primaryKey()` or `unique()`. Pass multiple
-columns for a composite key.
+columns. Give every item a stable application name in the `constraints` or
+`indexes` record. Keys and indexes preserve their exact column or expression
+tuples. Index terms may use `asc()` or `desc()`. Set `unique: true` for a unique
+index and `where` for a partial index.
 
 All columns in one key must come from the callback table, and they must be
 non-nullable in the Qubu definition. This matters for
@@ -132,6 +164,39 @@ non-nullable in the Qubu definition. This matters for
 key contains `NULL`; such a key cannot prove that one group determines the
 remaining columns. Qubu rejects nullable key declarations instead of making a
 dialect-specific assumption.
+
+`foreignKey(localColumns, target)` accepts single or composite tuples. Build a
+target with `references(table, ...columns)`. The local tuple must belong to the
+callback table, both tuples must have the same length, and each position must
+have the same known `SqlSemanticType` identity. `SqlUnknown` cannot prove a
+foreign-key match. The target tuple must exactly match a primary key, unique
+constraint, or eligible unique index.
+
+Direct self-references use the preliminary callback table. Wrap the target in
+a function when two modules import each other's tables:
+
+```ts
+const nodes = table(
+  'nodes',
+  { id: integer(), parentId: integer({ nullable: true }) },
+  nodes => ({
+    constraints: {
+      nodesPrimary: primaryKey(nodes.id),
+      parentForeign: foreignKey([nodes.parentId], references(nodes, nodes.id)),
+    },
+    indexes: {},
+  })
+)
+
+const tenantForeign = foreignKey([memberships.tenantId], () =>
+  references(tenants, tenants.id)
+)
+```
+
+Checks, index expressions, and partial-index predicates may read only columns
+from their callback table. They cannot contain aggregates, window functions,
+or subqueries. Check expressions and partial predicates must have the boolean
+SQL domain.
 
 Grouping every column in a declared key allows other columns from that same
 source to be selected:
@@ -144,11 +209,16 @@ const summary = select(
 )
 ```
 
+A primary key, unique constraint, or eligible unique index supplies the proof.
+An eligible unique index is non-partial and contains only non-null table
+columns. Nullable, partial, and expression indexes do not prove an
+unconditional dependency.
+
 The proof follows a table alias and remains source-local through a join,
-including a source made nullable by `leftJoin()`. It does not automatically
-cross a derived-query, CTE, lateral-query, or custom-source boundary: those
-relations can change cardinality or projection semantics, so grouping their
-apparent key still requires an explicit proof on that source model.
+including a source made nullable by `leftJoin()`. It does not cross a derived
+query, CTE, lateral query, or custom-source boundary. Those relations can
+change cardinality or projection semantics, so grouping their apparent key
+still requires an explicit proof on that source model.
 
 ## JavaScript and SQL types are separate
 

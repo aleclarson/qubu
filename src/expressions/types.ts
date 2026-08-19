@@ -12,6 +12,8 @@ import {
   type RequiresSourceMeta,
   type ResultMeta,
   type SqlTypeOf,
+  type SubqueryMeta,
+  type WindowMeta,
   type Fragment,
   type RenderContext,
 } from '../core/fragment.ts'
@@ -78,7 +80,9 @@ export type ExpressionWithOutput<
   | NullableSourceMeta<unknown>
   | ExpressionMeta<unknown>
   | AggregateMeta<unknown>
-  | RequiresCapabilityMeta,
+  | RequiresCapabilityMeta
+  | WindowMeta
+  | SubqueryMeta,
   TKind
 >
 
@@ -109,6 +113,20 @@ export type AggregateResultExpression<
   | AggregateMeta<DependenciesOf<TChildren>>
   | InheritedMetadata<TChildren>,
   TKind
+>
+
+/** A result expression that contains a query boundary. */
+export type SubqueryResultExpression<
+  TOutput,
+  TChildren = never,
+  TNullableFrom = NullabilityOf<TChildren>,
+  TSqlType extends AnySqlType = import('../core/sql-types.ts').SqlUnknown,
+> = Expression<
+  | import('../core/fragment.ts').MetadataOf<
+      ResultExpression<TOutput, TChildren, 'subquery', TNullableFrom, TSqlType>
+    >
+  | SubqueryMeta,
+  'subquery'
 >
 
 /** Preserve the SQL domain of a result-producing child expression. */

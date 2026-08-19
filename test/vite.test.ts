@@ -89,10 +89,18 @@ test('exposes ambient Qubu value types', () => {
   const typedTable: typeof table = undefined as never
   const typedSelect: typeof select = undefined as never
   const typedJsonPath: typeof jsonPath = undefined as never
+  const typedCheck: typeof check = undefined as never
+  const typedForeignKey: typeof foreignKey = undefined as never
+  const typedIndex: typeof index = undefined as never
+  const typedReferences: typeof references = undefined as never
 
   expectTypeOf(typedTable).toBeFunction()
   expectTypeOf(typedSelect).toBeFunction()
   expectTypeOf(typedJsonPath).toBeFunction()
+  expectTypeOf(typedCheck).toBeFunction()
+  expectTypeOf(typedForeignKey).toBeFunction()
+  expectTypeOf(typedIndex).toBeFunction()
+  expectTypeOf(typedReferences).toBeFunction()
 })
 
 test('supports filters and ignores non-script modules', () => {
