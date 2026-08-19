@@ -130,6 +130,52 @@ inserts while narrowing selected and updated values to `1 | 2`.
 `$type<T>()` is a compile-time assertion. It does not validate values at
 runtime or add a database constraint.
 
+## Use deterministic schema expressions
+
+Schema SQL is a different rendering boundary from a query. Built-in scalar
+expressions such as column references, comparisons, boolean composition,
+arithmetic, string helpers, and JSON scalar reads carry a deterministic brand
+and can be rendered in a declaration context:
+
+```ts
+import { eq, renderSchemaSql, table, text } from 'qubu'
+
+const accounts = table('accounts', { status: text() })
+
+renderSchemaSql(eq(accounts.status, 'active'), { mode: 'check' })
+// ("status" = 'active')
+```
+
+The schema context turns Qubu value expressions into SQL literals, never
+placeholders. Strings use SQL quote escaping; finite numbers, booleans,
+`bigint`, and `NULL` are supported by the portable fallback. A dialect can
+provide `renderSchemaLiteral` to own a different literal spelling. Unsupported
+JavaScript values and direct calls to `parameter()` fail instead of being
+silently rewritten after rendering.
+
+Column references are emitted as bare physical identifiers for generated,
+check, and index expressions. Default expressions reject column references,
+because a column default cannot depend on another row value. Aggregates,
+windows, and subqueries are rejected in every schema mode.
+
+An extension must explicitly implement the schema contract:
+
+```ts
+import { defineSchemaExpression, renderSchemaSql } from 'qubu'
+
+const currentDate = defineSchemaExpression('function', context => {
+  context.append('CURRENT_DATE')
+})
+
+renderSchemaSql(currentDate, { mode: 'default' })
+```
+
+Use `unsafeSchemaSql(dialect, sql)` only for trusted, parameter-free syntax
+that Qubu does not model. Its dialect tag is checked at render time, and its
+text is preserved apart from converting CRLF/CR line endings to LF. Ordinary
+`makeExpression()` extensions are not accepted until wrapped with the
+explicit `schemaExpression()` audit boundary.
+
 ## Declare logical constraints and indexes
 
 Use the metadata callback when the application schema knows which constraints

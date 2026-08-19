@@ -9,12 +9,12 @@ import {
 } from '../core/fragment.ts'
 import type { AnySqlType, SqlUnknown } from '../core/sql-types.ts'
 import { identifier } from '../core/primitives/identifier.ts'
-import { makeExpression, type Expression } from './types.ts'
+import { makeSchemaExpression, type SchemaExpression } from './types.ts'
 
 export interface ColumnReference<
   TFieldName extends string = string,
   TMetadata = never,
-> extends Expression<TMetadata, 'column'> {
+> extends SchemaExpression<TMetadata, 'column'> {
   /** Application-facing key used by typed rows and dependency metadata. */
   readonly fieldName: TFieldName
   /** Physical SQL identifier rendered for this column. */
@@ -45,12 +45,16 @@ export function createColumnReference<
   | RequiresSourceMeta<TSource>
   | ExpressionMeta<ColumnDependency<TSource, TFieldName>>
 > {
-  const expression = makeExpression<
+  const expression = makeSchemaExpression<
     | ResultMeta<TOutput, TSource, TSqlType>
     | RequiresSourceMeta<TSource>
     | ExpressionMeta<ColumnDependency<TSource, TFieldName>>,
     'column'
   >('column', context => {
+    if (context.renderColumnReference) {
+      context.renderColumnReference(columnName)
+      return
+    }
     context.render(sourceReference)
     context.append('.')
     context.render(identifier(columnName))

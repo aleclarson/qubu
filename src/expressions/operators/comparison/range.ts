@@ -1,5 +1,5 @@
 import {
-  makeExpression,
+  makeSchemaExpression,
   type ExpressionWithOutput,
   type ResultExpression,
 } from '../../types.ts'
@@ -50,7 +50,7 @@ export function between<
   }
   const lowerExpression = expressionOperand(lower)
   const upperExpression = expressionOperand(upper)
-  return makeExpression('operator', context => {
+  return makeSchemaExpression('operator', context => {
     context.append('(')
     context.render(expression)
     context.append(' BETWEEN ')
@@ -76,7 +76,7 @@ export function inList<
   values: TValues
 ) {
   const valueExpressions = values.map(expressionOperand)
-  return makeExpression('operator', context => {
+  return makeSchemaExpression('operator', context => {
     if (values.length === 0) {
       context.append('(1 = 0)')
       return
@@ -107,7 +107,7 @@ export function notIn<
   values: TValues
 ) {
   const valueExpressions = values.map(expressionOperand)
-  return makeExpression('operator', context => {
+  return makeSchemaExpression('operator', context => {
     if (values.length === 0) {
       context.append('(1 = 1)')
       return

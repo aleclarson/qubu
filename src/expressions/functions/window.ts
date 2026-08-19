@@ -11,6 +11,7 @@ import {
 import type { OrderTerm } from '../../query/clauses/order-by.ts'
 import {
   makeExpression,
+  markExpressionCategory,
   type AnyExpression,
   type Expression,
 } from '../types.ts'
@@ -55,59 +56,72 @@ export function over<
   expression: TExpression,
   window?: TWindow
 ): WindowedExpression<TExpression, TWindow> {
-  return makeExpression('function', context => {
-    context.render(expression)
-    context.append(' OVER (')
+  return makeExpression(
+    'function',
+    context => {
+      context.render(expression)
+      context.append(' OVER (')
 
-    let hasPart = false
-    if (window?.partitionBy && window.partitionBy.length > 0) {
-      context.append('PARTITION BY ')
-      window.partitionBy.forEach((part, index) => {
-        if (index > 0) context.append(', ')
-        context.render(part)
-      })
-      hasPart = true
-    }
+      let hasPart = false
+      if (window?.partitionBy && window.partitionBy.length > 0) {
+        context.append('PARTITION BY ')
+        window.partitionBy.forEach((part, index) => {
+          if (index > 0) context.append(', ')
+          context.render(part)
+        })
+        hasPart = true
+      }
 
-    if (window?.orderBy && window.orderBy.length > 0) {
-      if (hasPart) context.append(' ')
-      context.append('ORDER BY ')
-      window.orderBy.forEach((part, index) => {
-        if (index > 0) context.append(', ')
-        context.render(part)
-      })
-    }
+      if (window?.orderBy && window.orderBy.length > 0) {
+        if (hasPart) context.append(' ')
+        context.append('ORDER BY ')
+        window.orderBy.forEach((part, index) => {
+          if (index > 0) context.append(', ')
+          context.render(part)
+        })
+      }
 
-    context.append(')')
-  }) as WindowedExpression<TExpression, TWindow>
+      context.append(')')
+    },
+    'window'
+  ) as WindowedExpression<TExpression, TWindow>
 }
 
 export function rowNumber() {
-  return call<
-    number,
-    'ROW_NUMBER',
-    [],
-    never,
-    import('../../core/sql-types.ts').SqlInteger
-  >('ROW_NUMBER')
+  return markExpressionCategory(
+    call<
+      number,
+      'ROW_NUMBER',
+      [],
+      never,
+      import('../../core/sql-types.ts').SqlInteger
+    >('ROW_NUMBER'),
+    'window'
+  )
 }
 
 export function rank() {
-  return call<
-    number,
-    'RANK',
-    [],
-    never,
-    import('../../core/sql-types.ts').SqlInteger
-  >('RANK')
+  return markExpressionCategory(
+    call<
+      number,
+      'RANK',
+      [],
+      never,
+      import('../../core/sql-types.ts').SqlInteger
+    >('RANK'),
+    'window'
+  )
 }
 
 export function denseRank() {
-  return call<
-    number,
-    'DENSE_RANK',
-    [],
-    never,
-    import('../../core/sql-types.ts').SqlInteger
-  >('DENSE_RANK')
+  return markExpressionCategory(
+    call<
+      number,
+      'DENSE_RANK',
+      [],
+      never,
+      import('../../core/sql-types.ts').SqlInteger
+    >('DENSE_RANK'),
+    'window'
+  )
 }

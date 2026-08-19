@@ -1,4 +1,4 @@
-import { call } from './call.ts'
+import { schemaCall } from './call.ts'
 import type { Operand } from '../operators/shared.ts'
 import type { ExpressionWithOutput } from '../types.ts'
 import type { ExpressionSqlType } from '../types.ts'
@@ -27,7 +27,7 @@ export function lower<TExpression extends ExpressionWithOutput<string>>(
   expression: TExpression &
     SqlCapabilityValidation<ExpressionSqlType<TExpression>, SqlTextLike>
 ) {
-  return call<
+  return schemaCall<
     string,
     'LOWER',
     [TExpression],
@@ -40,7 +40,7 @@ export function upper<TExpression extends ExpressionWithOutput<string>>(
   expression: TExpression &
     SqlCapabilityValidation<ExpressionSqlType<TExpression>, SqlTextLike>
 ) {
-  return call<
+  return schemaCall<
     string,
     'UPPER',
     [TExpression],
@@ -62,7 +62,7 @@ export function coalesce<
       TExpressions extends readonly [any, ...infer TRest] ? TRest : never
     >
 ) {
-  return call<
+  return schemaCall<
     T,
     'COALESCE',
     TExpressions,
@@ -74,7 +74,7 @@ export function coalesce<
 export function concat<const TArguments extends readonly Operand<string>[]>(
   ...argumentsToConcat: TArguments & TextArgumentsValidation<TArguments>
 ) {
-  return call<
+  return schemaCall<
     string,
     'CONCAT',
     TArguments,

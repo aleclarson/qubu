@@ -1,6 +1,5 @@
-import { syntax } from '../../../core/primitives/syntax.ts'
 import {
-  makeExpression,
+  makeSchemaExpression,
   type AnyExpression,
   type ExpressionWithOutput,
   type ResultExpression,
@@ -12,7 +11,7 @@ import type { SqlCapabilityValidation } from '../shared.ts'
 export function isNull<TExpression extends AnyExpression>(
   expression: TExpression
 ): ResultExpression<boolean, TExpression, 'operator', never, SqlBoolean> {
-  return makeExpression('operator', context => {
+  return makeSchemaExpression('operator', context => {
     context.append('(')
     context.render(expression)
     context.append(' IS NULL)')
@@ -22,7 +21,7 @@ export function isNull<TExpression extends AnyExpression>(
 export function isNotNull<TExpression extends AnyExpression>(
   expression: TExpression
 ): ResultExpression<boolean, TExpression, 'operator', never, SqlBoolean> {
-  return makeExpression('operator', context => {
+  return makeSchemaExpression('operator', context => {
     context.append('(')
     context.render(expression)
     context.append(' IS NOT NULL)')
@@ -33,8 +32,8 @@ export function isTrue<TExpression extends ExpressionWithOutput<boolean>>(
   expression: TExpression &
     SqlCapabilityValidation<ExpressionSqlType<TExpression>, SqlBoolean>
 ) {
-  return makeExpression('operator', context => {
+  return makeSchemaExpression('operator', context => {
     context.render(expression)
-    context.render(syntax(' IS TRUE'))
+    context.append(' IS TRUE')
   }) as ResultExpression<boolean, TExpression, 'operator', never, SqlBoolean>
 }

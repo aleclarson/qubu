@@ -1,4 +1,4 @@
-import { makeExpression, type ResultExpression } from '../types.ts'
+import { makeSchemaExpression, type ResultExpression } from '../types.ts'
 import type { BooleanExpression } from './comparison.ts'
 import { renderOperands, type SqlCapabilityValidation } from './shared.ts'
 import { omit, type Omit } from '../../query/omit.ts'
@@ -49,7 +49,7 @@ function composeConditions<const TConditions extends readonly BooleanOperand[]>(
   if (presentConditions.length === 0)
     return omit as BooleanComposition<TConditions>
 
-  return makeExpression('operator', context => {
+  return makeSchemaExpression('operator', context => {
     context.append('(')
     renderOperands(context, presentConditions, separator)
     context.append(')')
@@ -72,7 +72,7 @@ export function not<TCondition extends BooleanExpression<any>>(
   condition: TCondition &
     SqlCapabilityValidation<ExpressionSqlType<TCondition>, SqlBoolean>
 ) {
-  return makeExpression('operator', context => {
+  return makeSchemaExpression('operator', context => {
     context.append('(NOT ')
     context.render(condition)
     context.append(')')

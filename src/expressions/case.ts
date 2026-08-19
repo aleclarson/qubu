@@ -1,7 +1,7 @@
 import { asValue } from './value.ts'
 import type { BooleanExpression } from './operators/comparison.ts'
 import { type Operand, type OperandNullability } from './operators/shared.ts'
-import { makeExpression, type ResultExpression } from './types.ts'
+import { makeSchemaExpression, type ResultExpression } from './types.ts'
 import type {
   OperandSqlType,
   SqlEqualityValidation,
@@ -36,7 +36,7 @@ export function caseWhen<
 ) {
   const thenExpression = asValue(thenValue)
   const elseExpression = asValue(elseValue)
-  return makeExpression('operator', context => {
+  return makeSchemaExpression('operator', context => {
     context.append('CASE WHEN ')
     context.render(condition)
     context.append(' THEN ')

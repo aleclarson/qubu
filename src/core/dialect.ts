@@ -3,6 +3,15 @@ import type { AnyFragment, RenderContext } from './fragment.ts'
 /** Capabilities whose syntax must be explicitly supported by a dialect. */
 export type DialectCapability = 'ilike' | 'json'
 
+/**
+ * Optional dialect hook used by schema expressions when a JavaScript value
+ * must become SQL text instead of a query parameter.
+ *
+ * The hook is deliberately separate from {@link Dialect.placeholder}: schema
+ * metadata is parameter-free and must never render a query placeholder.
+ */
+export type SchemaLiteralRenderer = (value: unknown) => string
+
 /** Scalar application types supported by the portable JSON renderer. */
 export type JsonScalarKind = 'text' | 'number' | 'boolean'
 
@@ -83,6 +92,8 @@ export interface Dialect<
   readonly json?: DialectJson
   /** Overrides for the standard spelling of logical CAST targets. */
   readonly castTypes?: DialectCastTypes
+  /** Optional SQL literal policy used by deterministic schema expressions. */
+  readonly renderSchemaLiteral?: SchemaLiteralRenderer
   /** Capabilities advertised by this dialect at the rendering boundary. */
   readonly capabilities?: readonly TCapabilities[]
 }
@@ -98,6 +109,8 @@ export interface DialectOptions<
   readonly json?: TJson
   /** Overrides for the standard spelling of logical CAST targets. */
   readonly castTypes?: DialectCastTypes
+  /** Optional SQL literal policy used by deterministic schema expressions. */
+  readonly renderSchemaLiteral?: SchemaLiteralRenderer
   readonly capabilities?: readonly TCapabilities[]
 }
 
@@ -152,6 +165,7 @@ export function createDialect(
     castTypes: options.castTypes
       ? Object.freeze({ ...options.castTypes })
       : undefined,
+    renderSchemaLiteral: options.renderSchemaLiteral,
     capabilities: Object.freeze([
       ...(options.capabilities ?? []),
       ...(options.json ? (['json'] as const) : []),

@@ -1,5 +1,5 @@
 import {
-  makeExpression,
+  makeSchemaExpression,
   type AnyExpression,
   type ExpressionWithOutput,
   type ExpressionOutput,
@@ -68,7 +68,7 @@ export function comparison<
   if (isNullOperand(right)) {
     if (operator === '=' || operator === '<>') {
       const nullOperator = operator === '=' ? 'IS NULL' : 'IS NOT NULL'
-      return makeExpression('operator', context => {
+      return makeSchemaExpression('operator', context => {
         context.append('(')
         context.render(left)
         context.append(` ${nullOperator})`)
@@ -85,7 +85,7 @@ export function comparison<
   }
 
   const rightExpression = expressionOperand(right)
-  return makeExpression('operator', context => {
+  return makeSchemaExpression('operator', context => {
     context.append('(')
     context.render(left)
     context.append(` ${operator} `)

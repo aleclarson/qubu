@@ -6,7 +6,11 @@ import type {
   RequiresCapabilityMeta,
   ResultMeta,
 } from '../core/fragment.ts'
-import { makeExpression, type AnyExpression, type Expression } from './types.ts'
+import {
+  makeSchemaExpression,
+  type AnyExpression,
+  type SchemaExpression,
+} from './types.ts'
 
 /** One safely encoded object key or zero-based array index in a JSON path. */
 export type JsonPathSegment = string | number
@@ -59,7 +63,7 @@ function jsonScalar<
   TDocument extends AnyExpression,
   TPath extends JsonPath,
 >(document: TDocument, path: TPath, kind: 'text' | 'number' | 'boolean') {
-  return makeExpression<
+  return makeSchemaExpression<
     JsonExpressionMetadata<TOutput | null, TDocument>,
     'function'
   >('function', context => {
@@ -70,7 +74,7 @@ function jsonScalar<
       )
     }
     context.dialect.json.renderScalar(context, document, path.segments, kind)
-  }) as Expression<
+  }) as SchemaExpression<
     JsonExpressionMetadata<TOutput | null, TDocument>,
     'function'
   >
@@ -105,16 +109,16 @@ export function jsonExists<
   TDocument extends AnyExpression,
   TPath extends JsonPath,
 >(document: TDocument, path: TPath) {
-  return makeExpression<JsonExpressionMetadata<boolean, TDocument>, 'function'>(
-    'function',
-    context => {
-      assertDialectCapability(context.dialect, 'json')
-      if (!context.dialect.json) {
-        throw new Error(
-          `Dialect "${context.dialect.name}" advertises JSON support without a JSON renderer`
-        )
-      }
-      context.dialect.json.renderExists(context, document, path.segments)
+  return makeSchemaExpression<
+    JsonExpressionMetadata<boolean, TDocument>,
+    'function'
+  >('function', context => {
+    assertDialectCapability(context.dialect, 'json')
+    if (!context.dialect.json) {
+      throw new Error(
+        `Dialect "${context.dialect.name}" advertises JSON support without a JSON renderer`
+      )
     }
-  ) as Expression<JsonExpressionMetadata<boolean, TDocument>, 'function'>
+    context.dialect.json.renderExists(context, document, path.segments)
+  }) as SchemaExpression<JsonExpressionMetadata<boolean, TDocument>, 'function'>
 }

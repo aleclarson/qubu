@@ -1,5 +1,5 @@
 import {
-  makeExpression,
+  makeSchemaExpression,
   type ExpressionWithOutput,
   type ResultExpression,
 } from '../types.ts'
@@ -19,7 +19,7 @@ function arithmetic<
   R extends Operand<NoInfer<T>>,
 >(operator: string, left: TLeft, right: R) {
   const rightExpression = expressionOperand(right)
-  return makeExpression('operator', context => {
+  return makeSchemaExpression('operator', context => {
     context.append('(')
     context.render(left)
     context.append(` ${operator} `)

@@ -1,6 +1,7 @@
 export * from './alias.ts'
 export * from './column.ts'
 export * from './constraints.ts'
+export * from './expressions.ts'
 export * from './indexes.ts'
 export * from './registry.ts'
 export * from './source.ts'

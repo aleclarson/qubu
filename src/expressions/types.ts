@@ -31,14 +31,36 @@ export type ExpressionKind =
   | 'subquery'
   | 'unsafe'
 
+/** Runtime/type-level proof that an expression is safe to use in schema SQL. */
+export const schemaExpressionBrand: unique symbol = Symbol(
+  'qubu.schema-expression'
+)
+
+export interface SchemaExpressionBrand {
+  readonly [schemaExpressionBrand]: true
+}
+
 export interface Expression<
   TMetadata = any,
   TKind extends ExpressionKind = ExpressionKind,
 > extends Fragment<TMetadata> {
   readonly expressionKind: TKind
+  /** Internal runtime marker for query constructs rejected by schema SQL. */
+  readonly expressionCategory?: 'aggregate' | 'window' | 'subquery'
 }
 
+/**
+ * An expression whose renderer is deterministic and may be used by schema
+ * metadata. Query extensions remain ordinary {@link Expression} values until
+ * they explicitly opt into this contract.
+ */
+export type SchemaExpression<
+  TMetadata = any,
+  TKind extends ExpressionKind = ExpressionKind,
+> = Expression<TMetadata, TKind> & SchemaExpressionBrand
+
 export type AnyExpression = Expression<any, any>
+export type AnySchemaExpression = SchemaExpression<any, any>
 export type ExpressionOutput<T> = OutputOf<T>
 export type ExpressionRequires<T> = RequiresOf<T>
 export type ExpressionNullability<T> = NullabilityOf<T>
@@ -52,22 +74,33 @@ export function withDialectCapability<
 >(
   expression: TExpression,
   capability: TCapability
-): Expression<
-  | import('../core/fragment.ts').MetadataOf<TExpression>
-  | import('../core/fragment.ts').RequiresCapabilityMeta<TCapability>,
-  TExpression['expressionKind']
-> {
+): TExpression extends SchemaExpression<any, any>
+  ? SchemaExpression<
+      | import('../core/fragment.ts').MetadataOf<TExpression>
+      | import('../core/fragment.ts').RequiresCapabilityMeta<TCapability>,
+      TExpression['expressionKind']
+    >
+  : Expression<
+      | import('../core/fragment.ts').MetadataOf<TExpression>
+      | import('../core/fragment.ts').RequiresCapabilityMeta<TCapability>,
+      TExpression['expressionKind']
+    > {
   type TMetadata =
     | import('../core/fragment.ts').MetadataOf<TExpression>
     | import('../core/fragment.ts').RequiresCapabilityMeta<TCapability>
 
-  return makeExpression<TMetadata, TExpression['expressionKind']>(
+  const wrapped = makeExpression<TMetadata, TExpression['expressionKind']>(
     expression.expressionKind,
     context => {
       assertDialectCapability(context.dialect, capability)
       context.render(expression)
     }
   )
+  return (isSchemaExpression(expression)
+    ? markSchemaExpression(wrapped)
+    : wrapped) as unknown as TExpression extends SchemaExpression<any, any>
+    ? SchemaExpression<TMetadata, TExpression['expressionKind']>
+    : Expression<TMetadata, TExpression['expressionKind']>
 }
 
 /** An expression whose result is known to be assignable to `TOutput`. */
@@ -93,7 +126,7 @@ export type ResultExpression<
   TKind extends ExpressionKind = ExpressionKind,
   TNullableFrom = NullabilityOf<TChildren>,
   TSqlType extends AnySqlType = import('../core/sql-types.ts').SqlUnknown,
-> = Expression<
+> = SchemaExpression<
   | ResultMeta<TOutput, TNullableFrom, TSqlType>
   | ExpressionMeta<DependenciesOf<TChildren>>
   | InheritedMetadata<TChildren>,
@@ -122,9 +155,9 @@ export type SubqueryResultExpression<
   TNullableFrom = NullabilityOf<TChildren>,
   TSqlType extends AnySqlType = import('../core/sql-types.ts').SqlUnknown,
 > = Expression<
-  | import('../core/fragment.ts').MetadataOf<
-      ResultExpression<TOutput, TChildren, 'subquery', TNullableFrom, TSqlType>
-    >
+  | ResultMeta<TOutput, TNullableFrom, TSqlType>
+  | ExpressionMeta<DependenciesOf<TChildren>>
+  | InheritedMetadata<TChildren>
   | SubqueryMeta,
   'subquery'
 >
@@ -148,12 +181,64 @@ export function makeExpression<
   TKind extends ExpressionKind = ExpressionKind,
 >(
   expressionKind: TKind,
-  render: (context: RenderContext) => void
+  render: (context: RenderContext) => void,
+  expressionCategory?: 'aggregate' | 'window' | 'subquery'
 ): Expression<TMetadata, TKind> {
   return Object.freeze({
     expressionKind,
+    ...(expressionCategory ? { expressionCategory } : {}),
     ...fragment<TMetadata>(render),
   }) as Expression<TMetadata, TKind>
+}
+
+/** Mark a query-only expression category without changing its SQL renderer. */
+export function markExpressionCategory<TMetadata, TKind extends ExpressionKind>(
+  expression: Expression<TMetadata, TKind>,
+  category: 'aggregate' | 'window' | 'subquery'
+): Expression<TMetadata, TKind> {
+  return Object.freeze({ ...expression, expressionCategory: category })
+}
+
+/**
+ * Mark a built-in or explicitly audited renderer as schema-deterministic.
+ * Prefer {@link defineSchemaExpression} for application extensions because it
+ * supplies a restricted schema rendering context.
+ */
+export function makeSchemaExpression<
+  TMetadata = never,
+  TKind extends ExpressionKind = ExpressionKind,
+>(
+  expressionKind: TKind,
+  render: (context: RenderContext) => void
+): SchemaExpression<TMetadata, TKind> {
+  const expression = makeExpression<TMetadata, TKind>(expressionKind, render)
+  return Object.freeze({
+    ...expression,
+    [schemaExpressionBrand]: true as const,
+  }) as SchemaExpression<TMetadata, TKind>
+}
+
+/** Add the schema-determinism brand to an explicitly audited expression. */
+export function markSchemaExpression<TMetadata, TKind extends ExpressionKind>(
+  expression: Expression<TMetadata, TKind>
+): SchemaExpression<TMetadata, TKind> {
+  if (isSchemaExpression(expression)) return expression
+  return Object.freeze({
+    ...expression,
+    [schemaExpressionBrand]: true as const,
+  }) as SchemaExpression<TMetadata, TKind>
+}
+
+/** Test the runtime brand used by schema rendering and validation. */
+export function isSchemaExpression(
+  value: unknown
+): value is AnySchemaExpression {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    schemaExpressionBrand in value &&
+    (value as Record<PropertyKey, unknown>)[schemaExpressionBrand] === true
+  )
 }
 
 export function isExpression(value: unknown): value is AnyExpression {

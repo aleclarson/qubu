@@ -110,6 +110,11 @@ export interface RenderContext {
   render(part: Fragment<any>): void
   /** Render an embedded query with SQL-facing projection names. */
   renderRelation(part: Fragment<any>): void
+  /**
+   * Optional schema-rendering hook used to emit a bare physical column name.
+   * Ordinary query rendering leaves this undefined and retains qualification.
+   */
+  readonly renderColumnReference?: (columnName: string) => void
 }
 
 export type RenderFunction = (context: RenderContext) => void

@@ -1,5 +1,5 @@
 import {
-  makeExpression,
+  makeSchemaExpression,
   type AnyExpression,
   type ResultExpression,
 } from './types.ts'
@@ -69,7 +69,7 @@ export function cast(
   expression: AnyExpression,
   target: string | CastDefinition
 ): ResultExpression<any, AnyExpression, 'operator', any, AnySqlType> {
-  return makeExpression<
+  return makeSchemaExpression<
     | ResultMeta<any, NullabilityOf<AnyExpression>, AnySqlType>
     | ExpressionMeta<DependenciesOf<AnyExpression>>
     | InheritedMetadata<AnyExpression>,

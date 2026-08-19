@@ -1,12 +1,16 @@
 import { parameter } from '../core/primitives/parameter.ts'
-import { makeExpression, type AnyExpression, type Expression } from './types.ts'
+import {
+  makeSchemaExpression,
+  type AnyExpression,
+  type SchemaExpression,
+} from './types.ts'
 import type { ExpressionMeta, ResultMeta } from '../core/fragment.ts'
 import type { AnySqlType, SqlUnknown } from '../core/sql-types.ts'
 
 export interface ValueExpression<
   T = unknown,
   TSqlType extends AnySqlType = SqlUnknown,
-> extends Expression<
+> extends SchemaExpression<
     ResultMeta<T, never, TSqlType> | ExpressionMeta<never>,
     'value'
   > {
@@ -14,7 +18,7 @@ export interface ValueExpression<
 }
 
 export function value<T>(input: T): ValueExpression<T> {
-  const expression = makeExpression<
+  const expression = makeSchemaExpression<
     ResultMeta<T> | ExpressionMeta<never>,
     'value'
   >('value', context => context.render(parameter(input)))
