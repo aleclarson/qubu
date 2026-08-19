@@ -5,6 +5,7 @@ import {
   type NullabilityOf,
   type OutputOf,
   type ResultMeta,
+  type SqlTypeOf,
 } from '../../core/fragment.ts'
 import type { OrderTerm } from '../../query/clauses/order-by.ts'
 import {
@@ -35,7 +36,11 @@ export type WindowedExpression<
   TExpression extends AnyExpression,
   TWindow extends WindowSpec | undefined,
 > = Expression<
-  | ResultMeta<OutputOf<TExpression>, NullabilityOf<TExpression>>
+  | ResultMeta<
+      OutputOf<TExpression>,
+      NullabilityOf<TExpression>,
+      SqlTypeOf<TExpression>
+    >
   | ExpressionMeta<DependenciesOf<TExpression | WindowSpecParts<TWindow>>>
   | InheritedMetadata<TExpression | WindowSpecParts<TWindow>>,
   'function'
@@ -76,13 +81,31 @@ export function over<
 }
 
 export function rowNumber() {
-  return call<number, 'ROW_NUMBER', []>('ROW_NUMBER')
+  return call<
+    number,
+    'ROW_NUMBER',
+    [],
+    never,
+    import('../../core/sql-types.ts').SqlInteger
+  >('ROW_NUMBER')
 }
 
 export function rank() {
-  return call<number, 'RANK', []>('RANK')
+  return call<
+    number,
+    'RANK',
+    [],
+    never,
+    import('../../core/sql-types.ts').SqlInteger
+  >('RANK')
 }
 
 export function denseRank() {
-  return call<number, 'DENSE_RANK', []>('DENSE_RANK')
+  return call<
+    number,
+    'DENSE_RANK',
+    [],
+    never,
+    import('../../core/sql-types.ts').SqlInteger
+  >('DENSE_RANK')
 }

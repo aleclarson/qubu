@@ -22,12 +22,14 @@ import type { SelectionItems, SelectionRequires } from '../selection.ts'
 import type { VisibleDependenciesOf } from '../../core/fragment.ts'
 import type { Query } from '../types.ts'
 import type { Omit, SelectPart } from '../omit.ts'
+import type { UnknownSourceSqlTypes } from '../../schema/source.ts'
 
 export interface SelectQuery<
   TRow extends object = Record<string, unknown>,
   TCardinality extends QueryCardinality = QueryCardinality,
   TMetadata = never,
-> extends Query<TRow, TCardinality, TMetadata> {
+  TSqlTypes = UnknownSourceSqlTypes<TRow>,
+> extends Query<TRow, TCardinality, TMetadata, TSqlTypes> {
   readonly queryKind: 'select'
 }
 

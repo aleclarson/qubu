@@ -4,7 +4,7 @@ import {
   type CardinalityOf,
   type ResultMeta,
 } from '../core/fragment.ts'
-import type { AnyQuery, QueryRow } from '../query/types.ts'
+import type { AnyQuery, QueryRow, QuerySqlTypeMap } from '../query/types.ts'
 import { makeExpression, type Expression } from './types.ts'
 
 export type SingleColumn<Row extends object> = keyof Row extends infer TKey
@@ -19,10 +19,15 @@ type ScalarOutput<TQuery extends AnyQuery> =
   | SingleColumn<QueryRow<TQuery>>
   | ([CardinalityOf<TQuery>] extends ['exactly-one'] ? never : null)
 
+type SingleColumnSqlType<TQuery extends AnyQuery> = SingleColumn<
+  QuerySqlTypeMap<TQuery>
+>
+
 export function scalar<TQuery extends AnyQuery>(
   query: TQuery
 ): Expression<
-  ResultMeta<ScalarOutput<TQuery>> | InheritedMetadata<TQuery>,
+  | ResultMeta<ScalarOutput<TQuery>, never, SingleColumnSqlType<TQuery>>
+  | InheritedMetadata<TQuery>,
   'subquery'
 > {
   if (Object.keys(query.row).length !== 1) {
@@ -32,12 +37,14 @@ export function scalar<TQuery extends AnyQuery>(
   }
 
   return makeExpression<
-    ResultMeta<ScalarOutput<TQuery>> | InheritedMetadata<TQuery>,
+    | ResultMeta<ScalarOutput<TQuery>, never, SingleColumnSqlType<TQuery>>
+    | InheritedMetadata<TQuery>,
     'subquery'
   >('subquery', context =>
     context.renderRelation(parenthesize(query))
   ) as Expression<
-    ResultMeta<ScalarOutput<TQuery>> | InheritedMetadata<TQuery>,
+    | ResultMeta<ScalarOutput<TQuery>, never, SingleColumnSqlType<TQuery>>
+    | InheritedMetadata<TQuery>,
     'subquery'
   >
 }

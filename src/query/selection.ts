@@ -8,6 +8,7 @@ import type {
   SourceColumns,
   SourceIdentity,
   SourceRow,
+  SourceSqlTypeMap,
 } from '../schema/source.ts'
 import type { AnyExpression } from '../expressions/types.ts'
 import type { Omit } from './omit.ts'
@@ -20,13 +21,18 @@ import type { Omit } from './omit.ts'
  */
 export function all<TSource extends AnySource>(
   source: TSource
-): SourceColumns<SourceRow<TSource>, SourceIdentity<TSource>> {
+): SourceColumns<
+  SourceRow<TSource>,
+  SourceIdentity<TSource>,
+  SourceSqlTypeMap<TSource>
+> {
   // `all(source)` is a projection object rather than a SQL wildcard. This
   // makes it usable directly or inside an object spread while keeping every
   // output field named at the selection boundary.
   return Object.freeze({ ...source.columns }) as SourceColumns<
     SourceRow<TSource>,
-    SourceIdentity<TSource>
+    SourceIdentity<TSource>,
+    SourceSqlTypeMap<TSource>
   >
 }
 
@@ -101,3 +107,13 @@ export type SelectionRequires<TSelection> = RequiresOf<
 export type SelectionMetadata<TSelection> = InheritedMetadata<
   SelectionItems<TSelection>
 >
+
+/** SQL result domains retained for each named projection field. */
+export type SelectionSqlTypes<
+  TSelection,
+  TRow extends object = SelectionOutput<TSelection>,
+> = {
+  readonly [K in keyof TRow]: K extends keyof TSelection
+    ? import('../core/fragment.ts').SqlTypeOf<TSelection[K]>
+    : import('../core/sql-types.ts').SqlUnknown
+}

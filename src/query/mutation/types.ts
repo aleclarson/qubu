@@ -7,7 +7,12 @@ import type {
 import type { Query } from '../types.ts'
 import type { SourceIdentity } from '../../schema/source.ts'
 import type { WhereClause } from '../clauses/where.ts'
-import type { ReturningClause, ReturningRow } from './returning.ts'
+import type {
+  ReturningClause,
+  ReturningRow,
+  ReturningSqlTypes,
+} from './returning.ts'
+import type { UnknownSourceSqlTypes } from '../../schema/source.ts'
 
 export type MutationKind = 'insert' | 'update' | 'delete'
 
@@ -15,7 +20,8 @@ export interface MutationQuery<
   TRow extends object = Record<string, unknown>,
   TKind extends MutationKind = MutationKind,
   TMetadata = never,
-> extends Query<TRow, 'many', TMetadata> {
+  TSqlTypes = UnknownSourceSqlTypes<TRow>,
+> extends Query<TRow, 'many', TMetadata, TSqlTypes> {
   readonly queryKind: TKind
 }
 
@@ -25,16 +31,17 @@ export function createMutation<
   TKind extends MutationKind,
   TRow extends object,
   TMetadata = never,
+  TSqlTypes = UnknownSourceSqlTypes<TRow>,
 >(
   queryKind: TKind,
   row: TRow,
   render: RenderFunction
-): MutationQuery<TRow, TKind, TMetadata> {
+): MutationQuery<TRow, TKind, TMetadata, TSqlTypes> {
   return {
     queryKind,
     row,
     render,
-  } as MutationQuery<TRow, TKind, TMetadata>
+  } as MutationQuery<TRow, TKind, TMetadata, TSqlTypes>
 }
 
 export type MutationCapabilityMetadata<T> = CapabilityMetadataOf<T>
@@ -111,6 +118,9 @@ export type MutationReturning<TClauses extends readonly unknown[]> = Extract<
 export type MutationRow<TClauses extends readonly unknown[]> = ReturningRow<
   MutationReturning<TClauses>
 >
+
+export type MutationSqlTypes<TClauses extends readonly unknown[]> =
+  ReturningSqlTypes<MutationReturning<TClauses>>
 
 export type MutationScopeValidation<
   TSource,

@@ -8,6 +8,7 @@ import type {
   OutputOf,
   RequiresOf,
   ResultMeta,
+  SqlInteger,
   SourceIdentity,
   VisibleDependenciesOf,
 } from '../src/index.ts'
@@ -80,6 +81,6 @@ export type NullableWindowInheritedMetadata = Assert<
 export type UnconfiguredRankMetadata = Assert<
   Equal<
     MetadataOf<typeof unconfiguredRank>,
-    ResultMeta<number, never> | ExpressionMeta<never>
+    ResultMeta<number, never, SqlInteger> | ExpressionMeta<never>
   >
 >

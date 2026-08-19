@@ -18,7 +18,11 @@ import type {
   CapabilityMetadataOf,
   RequiresOuterSourceMeta,
 } from '../core/fragment.ts'
-import { type Selection, type SelectionOutput } from './selection.ts'
+import {
+  type Selection,
+  type SelectionOutput,
+  type SelectionSqlTypes,
+} from './selection.ts'
 import type { SelectionItems } from './selection.ts'
 import {
   omit,
@@ -59,7 +63,11 @@ export function select<
 ): SelectQuery<
   SelectionOutput<TSelection, NullableSources<TClauses>>,
   SelectCardinality<TParts>,
-  SelectMetadata<TSelection, TClauses>
+  SelectMetadata<TSelection, TClauses>,
+  SelectionSqlTypes<
+    TSelection,
+    SelectionOutput<TSelection, NullableSources<TClauses>>
+  >
 > {
   const normalizedClauses = parts.filter(
     (part): part is AnySelectClause => part !== omit
@@ -81,7 +89,11 @@ export function select<
   const query = createQuery<
     SelectionOutput<TSelection, NullableSources<TClauses>>,
     SelectCardinality<TParts>,
-    SelectMetadata<TSelection, TClauses>
+    SelectMetadata<TSelection, TClauses>,
+    SelectionSqlTypes<
+      TSelection,
+      SelectionOutput<TSelection, NullableSources<TClauses>>
+    >
   >('select', row, context => {
     const beforeSelect = orderedClauses.filter(
       clause => clause.placement === 'before-select'
@@ -129,6 +141,10 @@ export function select<
   return query as SelectQuery<
     SelectionOutput<TSelection, NullableSources<TClauses>>,
     SelectCardinality<TParts>,
-    SelectMetadata<TSelection, TClauses>
+    SelectMetadata<TSelection, TClauses>,
+    SelectionSqlTypes<
+      TSelection,
+      SelectionOutput<TSelection, NullableSources<TClauses>>
+    >
   >
 }

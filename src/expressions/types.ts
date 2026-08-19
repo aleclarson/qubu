@@ -11,6 +11,7 @@ import {
   type RequiresCapabilityMeta,
   type RequiresSourceMeta,
   type ResultMeta,
+  type SqlTypeOf,
   type Fragment,
   type RenderContext,
 } from '../core/fragment.ts'
@@ -86,8 +87,9 @@ export type ResultExpression<
   TChildren = never,
   TKind extends ExpressionKind = ExpressionKind,
   TNullableFrom = NullabilityOf<TChildren>,
+  TSqlType extends AnySqlType = import('../core/sql-types.ts').SqlUnknown,
 > = Expression<
-  | ResultMeta<TOutput, TNullableFrom>
+  | ResultMeta<TOutput, TNullableFrom, TSqlType>
   | ExpressionMeta<DependenciesOf<TChildren>>
   | InheritedMetadata<TChildren>,
   TKind
@@ -99,12 +101,27 @@ export type AggregateResultExpression<
   TChildren = never,
   TKind extends ExpressionKind = ExpressionKind,
   TNullableFrom = NullabilityOf<TChildren>,
+  TSqlType extends AnySqlType = import('../core/sql-types.ts').SqlUnknown,
 > = Expression<
-  | ResultMeta<TOutput, TNullableFrom>
+  | ResultMeta<TOutput, TNullableFrom, TSqlType>
   | ExpressionMeta<DependenciesOf<TChildren>>
   | AggregateMeta<DependenciesOf<TChildren>>
   | InheritedMetadata<TChildren>,
   TKind
+>
+
+/** Preserve the SQL domain of a result-producing child expression. */
+export type ResultExpressionLike<
+  TExpression extends AnyExpression,
+  TOutput = OutputOf<TExpression>,
+  TKind extends ExpressionKind = ExpressionKind,
+  TNullableFrom = NullabilityOf<TExpression>,
+> = ResultExpression<
+  TOutput,
+  TExpression,
+  TKind,
+  TNullableFrom,
+  SqlTypeOf<TExpression>
 >
 
 export function makeExpression<

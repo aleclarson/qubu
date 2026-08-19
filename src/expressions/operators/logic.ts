@@ -1,7 +1,10 @@
 import { makeExpression, type ResultExpression } from '../types.ts'
 import type { BooleanExpression } from './comparison.ts'
-import { renderOperands } from './shared.ts'
+import { renderOperands, type SqlCapabilityValidation } from './shared.ts'
 import { omit, type Omit } from '../../query/omit.ts'
+import type { SqlBoolean } from '../../core/sql-types.ts'
+import type { NullabilityOf } from '../../core/fragment.ts'
+import type { ExpressionSqlType } from '../types.ts'
 
 type BooleanOperand = BooleanExpression<any> | Omit
 type PresentConditions<TConditions extends readonly BooleanOperand[]> = Exclude<
@@ -13,8 +16,22 @@ type BooleanComposition<TConditions extends readonly BooleanOperand[]> = [
 ] extends [never]
   ? Omit
   :
-      | ResultExpression<boolean, PresentConditions<TConditions>, 'operator'>
+      | ResultExpression<
+          boolean,
+          PresentConditions<TConditions>,
+          'operator',
+          NullabilityOf<PresentConditions<TConditions>>,
+          SqlBoolean
+        >
       | (Omit extends TConditions[number] ? Omit : never)
+
+type BooleanConditionsValidation<TConditions extends readonly unknown[]> =
+  TConditions extends readonly [infer THead, ...infer TTail]
+    ? (THead extends Omit
+        ? unknown
+        : SqlCapabilityValidation<ExpressionSqlType<THead>, SqlBoolean>) &
+        BooleanConditionsValidation<TTail>
+    : unknown
 
 function composeConditions<const TConditions extends readonly BooleanOperand[]>(
   conditions: TConditions,
@@ -40,23 +57,30 @@ function composeConditions<const TConditions extends readonly BooleanOperand[]>(
 }
 
 export function and<const TConditions extends readonly BooleanOperand[]>(
-  ...conditions: TConditions
+  ...conditions: TConditions & BooleanConditionsValidation<TConditions>
 ): BooleanComposition<TConditions> {
-  return composeConditions(conditions, ' AND ', 'and')
+  return composeConditions<TConditions>(conditions, ' AND ', 'and')
 }
 
 export function or<const TConditions extends readonly BooleanOperand[]>(
-  ...conditions: TConditions
+  ...conditions: TConditions & BooleanConditionsValidation<TConditions>
 ): BooleanComposition<TConditions> {
-  return composeConditions(conditions, ' OR ', 'or')
+  return composeConditions<TConditions>(conditions, ' OR ', 'or')
 }
 
 export function not<TCondition extends BooleanExpression<any>>(
-  condition: TCondition
+  condition: TCondition &
+    SqlCapabilityValidation<ExpressionSqlType<TCondition>, SqlBoolean>
 ) {
   return makeExpression('operator', context => {
     context.append('(NOT ')
     context.render(condition)
     context.append(')')
-  }) as ResultExpression<boolean, TCondition, 'operator'>
+  }) as ResultExpression<
+    boolean,
+    TCondition,
+    'operator',
+    NullabilityOf<TCondition>,
+    SqlBoolean
+  >
 }

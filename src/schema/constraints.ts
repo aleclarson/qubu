@@ -1,7 +1,15 @@
-import type { FragmentMeta, ResultMeta } from '../core/fragment.ts'
+import type {
+  ExpressionMeta,
+  Fragment,
+  RequiresSourceMeta,
+  ResultMeta,
+} from '../core/fragment.ts'
 import type { AnySqlType, SqlUnknown } from '../core/sql-types.ts'
-import type { ColumnReference } from '../expressions/column.ts'
-import type { AnySource } from './source.ts'
+import type {
+  ColumnDependency,
+  ColumnReference,
+} from '../expressions/column.ts'
+import { sourceIdentity, type SourceKind } from './source.ts'
 
 declare const fieldConstraint: unique symbol
 
@@ -34,37 +42,41 @@ type RequiredOutput<T> =
 type RequiredSqlType<T> =
   T extends FieldLike<any>
     ? FieldOptions<T> extends { readonly sqlType: infer TSqlType }
-      ? TSqlType | SqlUnknown
+      ? (AnySqlType & TSqlType) | SqlUnknown
       : AnySqlType
     : AnySqlType
 
-type NonResultMetadata = Exclude<
-  FragmentMeta,
-  ResultMeta<unknown, unknown, AnySqlType>
+type RequiredColumn<
+  TField extends string,
+  TRequirement,
+  TIdentity,
+> = ColumnReference<
+  TField,
+  | ResultMeta<
+      RequiredOutput<TRequirement>,
+      TIdentity,
+      RequiredSqlType<TRequirement>
+    >
+  | RequiresSourceMeta<TIdentity>
+  | ExpressionMeta<ColumnDependency<TIdentity, TField>>
 >
 
-type RequiredColumn<T> = ColumnReference<
-  string,
-  | {
-      readonly kind: 'result'
-      readonly output: RequiredOutput<T>
-      readonly nullableFrom: unknown
-      readonly sqlType: RequiredSqlType<T>
-    }
-  | NonResultMetadata
->
-
-type RequiredColumns<TShape extends object> = {
-  readonly [K in keyof TShape]-?: RequiredColumn<TShape[K]>
+type RequiredColumns<TShape extends object, TIdentity> = {
+  readonly [K in keyof TShape]-?: K extends string
+    ? RequiredColumn<K, TShape[K], TIdentity>
+    : never
 }
 
 /** A source containing at least the requested application and SQL fields. */
-export type SourceLike<TShape extends object> = AnySource & {
-  readonly columns: RequiredColumns<TShape>
+export interface SourceLike<TShape extends object> extends Fragment<any> {
+  readonly sourceKind: SourceKind
+  readonly [sourceIdentity]: unknown
+  readonly reference: Fragment<never>
+  readonly columns: RequiredColumns<TShape, this[typeof sourceIdentity]>
 }
 
 /** A physical table containing at least the requested fields. */
-export type TableLike<TShape extends object> = SourceLike<TShape> & {
+export interface TableLike<TShape extends object> extends SourceLike<TShape> {
   readonly tableName: string
   readonly definitions: object
   readonly sqlNames: Readonly<Record<string, string>>

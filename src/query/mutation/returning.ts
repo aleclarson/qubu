@@ -4,6 +4,7 @@ import type {
   Selection,
   SelectionMetadata,
   SelectionOutput,
+  SelectionSqlTypes,
 } from '../selection.ts'
 
 export interface ReturningClause<TSelection extends Selection = Selection>
@@ -15,6 +16,12 @@ export interface ReturningClause<TSelection extends Selection = Selection>
 
 export type ReturningRow<T> = [T] extends [ReturningClause<infer TSelection>]
   ? SelectionOutput<TSelection>
+  : Record<string, never>
+
+export type ReturningSqlTypes<T> = [T] extends [
+  ReturningClause<infer TSelection>,
+]
+  ? SelectionSqlTypes<TSelection>
   : Record<string, never>
 
 export function returning<const TSelection extends Selection>(

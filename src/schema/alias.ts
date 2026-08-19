@@ -5,7 +5,7 @@ import {
   createColumnReference,
   type ColumnReference,
 } from '../expressions/column.ts'
-import type { AnyQuery, Query } from '../query/types.ts'
+import type { AnyQuery, Query, QuerySqlTypeMap } from '../query/types.ts'
 import type {
   CapabilityMetadataOf,
   RequiresOuterMetadataOf,
@@ -57,11 +57,13 @@ export type QuerySource<
   TRow extends object,
   TAlias extends string,
   TMetadata = never,
-> = Source<QueryAliasIdentity<TAlias>, TRow, TMetadata> & {
+  TSqlTypes extends
+    import('./source.ts').SourceSqlTypes<TRow> = import('./source.ts').UnknownSourceSqlTypes<TRow>,
+> = Source<QueryAliasIdentity<TAlias>, TRow, TMetadata, TSqlTypes> & {
   readonly alias: TAlias
-  readonly query: Query<TRow, any, TMetadata>
-  readonly columns: SourceColumns<TRow, QueryAliasIdentity<TAlias>>
-} & SourceColumns<TRow, QueryAliasIdentity<TAlias>>
+  readonly query: Query<TRow, any, TMetadata, TSqlTypes>
+  readonly columns: SourceColumns<TRow, QueryAliasIdentity<TAlias>, TSqlTypes>
+} & SourceColumns<TRow, QueryAliasIdentity<TAlias>, TSqlTypes>
 
 export function alias<
   TBase extends Source<any, any, any, any>,
@@ -73,7 +75,8 @@ export function alias<TQuery extends AnyQuery, const TAlias extends string>(
 ): QuerySource<
   import('../query/types.ts').QueryRow<TQuery>,
   TAlias,
-  RequiresOuterMetadataOf<TQuery> | CapabilityMetadataOf<TQuery>
+  RequiresOuterMetadataOf<TQuery> | CapabilityMetadataOf<TQuery>,
+  QuerySqlTypeMap<TQuery>
 >
 export function alias(
   sourceOrQuery: Source<any, any, any, any> | AnyQuery,
@@ -141,17 +144,20 @@ export type LateralSource<
 > = Source<
   LateralIdentity<TAlias>,
   import('../query/types.ts').QueryRow<TQuery>,
-  RequiresOuterMetadataOf<TQuery> | CapabilityMetadataOf<TQuery>
+  RequiresOuterMetadataOf<TQuery> | CapabilityMetadataOf<TQuery>,
+  QuerySqlTypeMap<TQuery>
 > & {
   readonly alias: TAlias
   readonly query: TQuery
   readonly columns: SourceColumns<
     import('../query/types.ts').QueryRow<TQuery>,
-    LateralIdentity<TAlias>
+    LateralIdentity<TAlias>,
+    QuerySqlTypeMap<TQuery>
   >
 } & SourceColumns<
     import('../query/types.ts').QueryRow<TQuery>,
-    LateralIdentity<TAlias>
+    LateralIdentity<TAlias>,
+    QuerySqlTypeMap<TQuery>
   >
 
 /** Render a query as a LATERAL source whose outer requirements stay visible. */
@@ -161,11 +167,13 @@ export function lateral<TQuery extends AnyQuery, const TAlias extends string>(
 ): LateralSource<TQuery, TAlias> {
   type TRow = import('../query/types.ts').QueryRow<TQuery>
   type TIdentity = LateralIdentity<TAlias>
+  type TSqlTypes = QuerySqlTypeMap<TQuery>
   const reference = identifier(name)
   const source = createSource<
     TIdentity,
     TRow,
-    RequiresOuterMetadataOf<TQuery> | CapabilityMetadataOf<TQuery>
+    RequiresOuterMetadataOf<TQuery> | CapabilityMetadataOf<TQuery>,
+    TSqlTypes
   >(
     'lateral',
     context => {
@@ -189,7 +197,7 @@ export function lateral<TQuery extends AnyQuery, const TAlias extends string>(
         fieldName
       ) as ColumnReference<string, any>,
     ])
-  ) as SourceColumns<TRow, TIdentity>
+  ) as SourceColumns<TRow, TIdentity, TSqlTypes>
 
   Object.assign(source, {
     alias: name,

@@ -9,7 +9,7 @@ export type SqlUnknown = SqlSemanticType<'unknown'> & {
 }
 
 /** SQL domains accepted by text operations. */
-export interface SqlTextLike {
+export interface SqlTextLike extends SqlEqualityComparable<'text'> {
   readonly sqlTextLike: true
 }
 
@@ -74,44 +74,55 @@ export type SqlBinary = SqlSemanticType<'binary'> &
 /** Any declared SQL semantic type, including user and dialect extensions. */
 export type AnySqlType = SqlSemanticType<string>
 
-/** Whether a declared SQL domain satisfies a semantic capability constraint. */
-export type SqlTypeSatisfies<TActual, TConstraint> = TActual extends SqlUnknown
+type IsUnresolvedSqlType<T> = T extends SqlUnknown
   ? true
-  : TActual extends TConstraint
-    ? true
+  : T extends AnySqlType
+    ? string extends T['sqlType']
+      ? true
+      : false
     : false
+
+/** Whether a declared SQL domain satisfies a semantic capability constraint. */
+export type SqlTypeSatisfies<TActual, TConstraint> =
+  true extends IsUnresolvedSqlType<TActual>
+    ? true
+    : TActual extends TConstraint
+      ? true
+      : false
 
 type EqualityGroup<T> =
   T extends SqlEqualityComparable<infer TGroup> ? TGroup : never
 
 /** Portable equality compatibility, with unknown extension types left open. */
-export type SqlEqualityCompatible<TLeft, TRight> = TLeft extends SqlUnknown
-  ? true
-  : TRight extends SqlUnknown
+export type SqlEqualityCompatible<TLeft, TRight> =
+  true extends IsUnresolvedSqlType<TLeft>
     ? true
-    : [EqualityGroup<TLeft>] extends [never]
-      ? false
-      : [EqualityGroup<TRight>] extends [never]
+    : true extends IsUnresolvedSqlType<TRight>
+      ? true
+      : [EqualityGroup<TLeft>] extends [never]
         ? false
-        : [EqualityGroup<TLeft>] extends [EqualityGroup<TRight>]
-          ? [EqualityGroup<TRight>] extends [EqualityGroup<TLeft>]
-            ? true
+        : [EqualityGroup<TRight>] extends [never]
+          ? false
+          : [EqualityGroup<TLeft>] extends [EqualityGroup<TRight>]
+            ? [EqualityGroup<TRight>] extends [EqualityGroup<TLeft>]
+              ? true
+              : false
             : false
-          : false
 
 type OrderGroup<T> = T extends SqlOrderable<infer TGroup> ? TGroup : never
 
 /** Portable ordering compatibility, with unknown extension types left open. */
-export type SqlOrderCompatible<TLeft, TRight> = TLeft extends SqlUnknown
-  ? true
-  : TRight extends SqlUnknown
+export type SqlOrderCompatible<TLeft, TRight> =
+  true extends IsUnresolvedSqlType<TLeft>
     ? true
-    : [OrderGroup<TLeft>] extends [never]
-      ? false
-      : [OrderGroup<TRight>] extends [never]
+    : true extends IsUnresolvedSqlType<TRight>
+      ? true
+      : [OrderGroup<TLeft>] extends [never]
         ? false
-        : [OrderGroup<TLeft>] extends [OrderGroup<TRight>]
-          ? [OrderGroup<TRight>] extends [OrderGroup<TLeft>]
-            ? true
+        : [OrderGroup<TRight>] extends [never]
+          ? false
+          : [OrderGroup<TLeft>] extends [OrderGroup<TRight>]
+            ? [OrderGroup<TRight>] extends [OrderGroup<TLeft>]
+              ? true
+              : false
             : false
-          : false

@@ -8,6 +8,7 @@ import {
   type MutationSafetyValidation,
   type MutationScopeValidation,
   type MutationCapabilityMetadata,
+  type MutationSqlTypes,
   validateMutationClauses,
 } from './types.ts'
 
@@ -22,7 +23,8 @@ export function deleteFrom<
 ): MutationQuery<
   MutationRow<TClauses>,
   'delete',
-  MutationCapabilityMetadata<TClauses[number]>
+  MutationCapabilityMetadata<TClauses[number]>,
+  MutationSqlTypes<TClauses>
 > {
   const normalizedClauses = clauses as readonly MutationClause[]
   validateMutationClauses('DELETE', normalizedClauses)
@@ -50,7 +52,8 @@ export function deleteFrom<
   return query as unknown as MutationQuery<
     MutationRow<TClauses>,
     'delete',
-    MutationCapabilityMetadata<TClauses[number]>
+    MutationCapabilityMetadata<TClauses[number]>,
+    MutationSqlTypes<TClauses>
   >
 }
 

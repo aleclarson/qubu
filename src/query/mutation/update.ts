@@ -15,6 +15,7 @@ import {
   type MutationRow,
   type MutationSafetyValidation,
   type MutationScopeValidation,
+  type MutationSqlTypes,
   type MutationCapabilityMetadata,
   validateMutationClauses,
 } from './types.ts'
@@ -77,7 +78,8 @@ export function update<
   MutationCapabilityMetadata<
     | TClauses[number]
     | (TAssignments extends object ? TAssignments[keyof TAssignments] : never)
-  >
+  >,
+  MutationSqlTypes<TClauses>
 > {
   const normalizedClauses = clauses as readonly MutationClause[]
   validateMutationClauses('UPDATE', normalizedClauses)
@@ -118,7 +120,8 @@ export function update<
     MutationCapabilityMetadata<
       | TClauses[number]
       | (TAssignments extends object ? TAssignments[keyof TAssignments] : never)
-    >
+    >,
+    MutationSqlTypes<TClauses>
   >
 }
 

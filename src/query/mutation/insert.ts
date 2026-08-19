@@ -15,6 +15,7 @@ import {
   type MutationReturningClause,
   type MutationRow,
   type MutationScopeValidation,
+  type MutationSqlTypes,
 } from './types.ts'
 
 export interface ValuesSource<
@@ -143,7 +144,8 @@ export function insertInto<
   MutationRow<TClauses>,
   'insert',
   | MutationCapabilityMetadata<TClauses[number]>
-  | InsertSourceCapabilityMetadata<TSource>
+  | InsertSourceCapabilityMetadata<TSource>,
+  MutationSqlTypes<TClauses>
 > {
   validateInsert(table, source)
 
@@ -191,7 +193,8 @@ export function insertInto<
     MutationRow<TClauses>,
     'insert',
     | MutationCapabilityMetadata<TClauses[number]>
-    | InsertSourceCapabilityMetadata<TSource>
+    | InsertSourceCapabilityMetadata<TSource>,
+    MutationSqlTypes<TClauses>
   >
 }
 

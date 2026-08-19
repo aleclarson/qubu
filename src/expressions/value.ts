@@ -1,9 +1,15 @@
 import { parameter } from '../core/primitives/parameter.ts'
 import { makeExpression, type AnyExpression, type Expression } from './types.ts'
 import type { ExpressionMeta, ResultMeta } from '../core/fragment.ts'
+import type { AnySqlType, SqlUnknown } from '../core/sql-types.ts'
 
-export interface ValueExpression<T = unknown>
-  extends Expression<ResultMeta<T> | ExpressionMeta<never>, 'value'> {
+export interface ValueExpression<
+  T = unknown,
+  TSqlType extends AnySqlType = SqlUnknown,
+> extends Expression<
+    ResultMeta<T, never, TSqlType> | ExpressionMeta<never>,
+    'value'
+  > {
   readonly value: T
 }
 
@@ -13,6 +19,13 @@ export function value<T>(input: T): ValueExpression<T> {
     'value'
   >('value', context => context.render(parameter(input)))
   return Object.freeze({ ...expression, value: input })
+}
+
+/** Bind a value while declaring its SQL semantic domain. */
+export function typedValue<TSqlType extends AnySqlType, T>(
+  input: T
+): ValueExpression<T, TSqlType> {
+  return value(input) as unknown as ValueExpression<T, TSqlType>
 }
 
 export function isExpressionValue(

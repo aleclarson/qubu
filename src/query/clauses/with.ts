@@ -9,7 +9,7 @@ import {
   createColumnReference,
   type ColumnReference,
 } from '../../expressions/column.ts'
-import type { Query, QueryRow } from '../types.ts'
+import type { Query, QueryRow, QuerySqlTypeMap } from '../types.ts'
 import {
   createSource,
   exposeColumns,
@@ -27,11 +27,13 @@ export type CteSource<
   TName extends string,
   TRow extends object,
   TMetadata = never,
-> = Source<CteIdentity<TName>, TRow, TMetadata> & {
+  TSqlTypes extends
+    import('../../schema/source.ts').SourceSqlTypes<TRow> = import('../../schema/source.ts').UnknownSourceSqlTypes<TRow>,
+> = Source<CteIdentity<TName>, TRow, TMetadata, TSqlTypes> & {
   readonly cteName: TName
-  readonly query: Query<TRow, any, TMetadata>
-  readonly columns: SourceColumns<TRow, CteIdentity<TName>>
-} & SourceColumns<TRow, CteIdentity<TName>>
+  readonly query: Query<TRow, any, TMetadata, TSqlTypes>
+  readonly columns: SourceColumns<TRow, CteIdentity<TName>, TSqlTypes>
+} & SourceColumns<TRow, CteIdentity<TName>, TSqlTypes>
 
 export type AnyCteSource = Source<any, any, any, any> & {
   readonly cteName: string
@@ -48,15 +50,17 @@ export function cte<
 ): CteSource<
   TName,
   QueryRow<TQuery>,
-  RequiresOuterMetadataOf<TQuery> | CapabilityMetadataOf<TQuery>
+  RequiresOuterMetadataOf<TQuery> | CapabilityMetadataOf<TQuery>,
+  QuerySqlTypeMap<TQuery>
 > {
   type TRow = QueryRow<TQuery>
   type TIdentity = CteIdentity<TName>
   type TMetadata =
     | RequiresOuterMetadataOf<TQuery>
     | CapabilityMetadataOf<TQuery>
+  type TSqlTypes = QuerySqlTypeMap<TQuery>
   const reference = identifier(name)
-  const source = createSource<TIdentity, TRow, TMetadata>(
+  const source = createSource<TIdentity, TRow, TMetadata, TSqlTypes>(
     'cte',
     context => context.render(reference),
     reference
@@ -73,7 +77,7 @@ export function cte<
         fieldName
       ) as ColumnReference<string, any>,
     ])
-  ) as SourceColumns<TRow, TIdentity>
+  ) as SourceColumns<TRow, TIdentity, TSqlTypes>
 
   Object.assign(source, {
     cteName: name,
@@ -82,7 +86,7 @@ export function cte<
   })
   exposeColumns(source, columns)
 
-  return source as CteSource<TName, TRow, TMetadata>
+  return source as CteSource<TName, TRow, TMetadata, TSqlTypes>
 }
 
 export interface WithClause<TMetadata = never> extends SelectClause<TMetadata> {

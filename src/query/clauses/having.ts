@@ -2,6 +2,9 @@ import type { BooleanExpression } from '../../expressions/operators/comparison.t
 import type { InheritedMetadata } from '../../core/fragment.ts'
 import { omit, type Omit } from '../omit.ts'
 import { createClause, type SelectClause } from './types.ts'
+import type { ExpressionSqlType } from '../../expressions/types.ts'
+import type { SqlBoolean } from '../../core/sql-types.ts'
+import type { SqlCapabilityValidation } from '../../expressions/operators/shared.ts'
 
 export interface HavingClause<TMetadata = never>
   extends SelectClause<TMetadata> {
@@ -16,11 +19,14 @@ type HavingComposition<TCondition extends BooleanExpression<any> | Omit> =
       ? HavingClause<InheritedMetadata<TCondition>>
       : never
 
+type HavingValidation<TCondition> = TCondition extends Omit
+  ? unknown
+  : SqlCapabilityValidation<ExpressionSqlType<TCondition>, SqlBoolean>
+
 export function having<TCondition extends BooleanExpression<any> | Omit>(
-  condition: TCondition
+  condition: TCondition & HavingValidation<TCondition>
 ): HavingComposition<TCondition> {
   if (condition === omit) return omit as HavingComposition<TCondition>
-
   return Object.assign(
     createClause('having', 'after-select', 70, context => {
       context.append('HAVING ')

@@ -6,13 +6,19 @@ import {
   type ResultExpression,
 } from '../../types.ts'
 import type { NullabilityOf } from '../../../core/fragment.ts'
+import type { SqlBoolean, SqlTextLike } from '../../../core/sql-types.ts'
 import {
   expressionOperand,
   isNullOperand,
   type IsNullOperand,
   type Operand,
   type OperandNullability,
+  type OperandSqlType,
+  type SqlCapabilityValidation,
+  type SqlEqualityValidation,
+  type SqlOrderValidation,
 } from '../shared.ts'
+import type { ExpressionSqlType } from '../../types.ts'
 
 type ComparisonResult<TLeft, R, TOperator extends string> = ResultExpression<
   boolean,
@@ -24,8 +30,29 @@ type ComparisonResult<TLeft, R, TOperator extends string> = ResultExpression<
       ? IsNullOperand<R> extends true
         ? never
         : NullabilityOf<TLeft> | OperandNullability<R>
-      : NullabilityOf<TLeft> | OperandNullability<R>
+      : NullabilityOf<TLeft> | OperandNullability<R>,
+  SqlBoolean
 >
+
+export type ComparisonValidation<
+  TLeft,
+  TRight,
+  TOperator extends string,
+> = TOperator extends 'LIKE' | 'NOT LIKE' | 'ILIKE'
+  ? SqlCapabilityValidation<ExpressionSqlType<TLeft>, SqlTextLike> &
+      SqlCapabilityValidation<
+        OperandSqlType<TRight, ExpressionSqlType<TLeft>>,
+        SqlTextLike
+      >
+  : TOperator extends '<' | '<=' | '>' | '>='
+    ? SqlOrderValidation<
+        ExpressionSqlType<TLeft>,
+        OperandSqlType<TRight, ExpressionSqlType<TLeft>>
+      >
+    : SqlEqualityValidation<
+        ExpressionSqlType<TLeft>,
+        OperandSqlType<TRight, ExpressionSqlType<TLeft>>
+      >
 
 export function comparison<
   T,
@@ -34,7 +61,7 @@ export function comparison<
   R extends Operand<NoInfer<T>>,
 >(
   operator: TOperator,
-  left: TLeft,
+  left: TLeft & ComparisonValidation<TLeft, R, TOperator>,
   right: R
 ): ComparisonResult<TLeft, R, TOperator> {
   if (isNullOperand(right)) {
@@ -70,7 +97,7 @@ export function equal<
   T,
   TLeft extends ExpressionWithOutput<T>,
   R extends Operand<NoInfer<T>>,
->(left: TLeft, right: R) {
+>(left: TLeft & ComparisonValidation<TLeft, R, '='>, right: R) {
   return comparison('=', left, right)
 }
 
@@ -80,7 +107,7 @@ export function notEqual<
   T,
   TLeft extends ExpressionWithOutput<T>,
   R extends Operand<NoInfer<T>>,
->(left: TLeft, right: R) {
+>(left: TLeft & ComparisonValidation<TLeft, R, '<>'>, right: R) {
   return comparison('<>', left, right)
 }
 
@@ -89,7 +116,7 @@ export const ne = notEqual
 export function lessThan<
   TLeft extends AnyExpression,
   R extends Operand<Exclude<ExpressionOutput<TLeft>, null>>,
->(left: TLeft, right: R) {
+>(left: TLeft & ComparisonValidation<TLeft, R, '<'>, right: R) {
   return comparison('<', left, right)
 }
 
@@ -98,7 +125,7 @@ export const lt = lessThan
 export function lessThanOrEqual<
   TLeft extends AnyExpression,
   R extends Operand<Exclude<ExpressionOutput<TLeft>, null>>,
->(left: TLeft, right: R) {
+>(left: TLeft & ComparisonValidation<TLeft, R, '<='>, right: R) {
   return comparison('<=', left, right)
 }
 
@@ -107,7 +134,7 @@ export const lte = lessThanOrEqual
 export function greaterThan<
   TLeft extends AnyExpression,
   R extends Operand<Exclude<ExpressionOutput<TLeft>, null>>,
->(left: TLeft, right: R) {
+>(left: TLeft & ComparisonValidation<TLeft, R, '>'>, right: R) {
   return comparison('>', left, right)
 }
 
@@ -116,7 +143,7 @@ export const gt = greaterThan
 export function greaterThanOrEqual<
   TLeft extends AnyExpression,
   R extends Operand<Exclude<ExpressionOutput<TLeft>, null>>,
->(left: TLeft, right: R) {
+>(left: TLeft & ComparisonValidation<TLeft, R, '>='>, right: R) {
   return comparison('>=', left, right)
 }
 
@@ -125,14 +152,14 @@ export const gte = greaterThanOrEqual
 export function like<
   TLeft extends ExpressionWithOutput<string>,
   R extends Operand<string>,
->(left: TLeft, pattern: R) {
+>(left: TLeft & ComparisonValidation<TLeft, R, 'LIKE'>, pattern: R) {
   return comparison('LIKE', left, pattern)
 }
 
 export function notLike<
   TLeft extends ExpressionWithOutput<string>,
   R extends Operand<string>,
->(left: TLeft, pattern: R) {
+>(left: TLeft & ComparisonValidation<TLeft, R, 'NOT LIKE'>, pattern: R) {
   return comparison('NOT LIKE', left, pattern)
 }
 
@@ -140,7 +167,7 @@ export function isDistinctFrom<
   T,
   TLeft extends ExpressionWithOutput<T>,
   R extends Operand<NoInfer<T>>,
->(left: TLeft, right: R) {
+>(left: TLeft & ComparisonValidation<TLeft, R, 'IS DISTINCT FROM'>, right: R) {
   return comparison('IS DISTINCT FROM', left, right)
 }
 
@@ -148,6 +175,9 @@ export function isNotDistinctFrom<
   T,
   TLeft extends ExpressionWithOutput<T>,
   R extends Operand<NoInfer<T>>,
->(left: TLeft, right: R) {
+>(
+  left: TLeft & ComparisonValidation<TLeft, R, 'IS NOT DISTINCT FROM'>,
+  right: R
+) {
   return comparison('IS NOT DISTINCT FROM', left, right)
 }

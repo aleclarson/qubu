@@ -4,11 +4,37 @@ import type {
   NullabilityOf,
   RequiresOf,
   RenderContext,
+  SqlTypeOf,
 } from '../../core/fragment.ts'
+import type {
+  AnySqlType,
+  SqlEqualityCompatible,
+  SqlOrderCompatible,
+  SqlTypeSatisfies,
+} from '../../core/sql-types.ts'
 import { asValue, isValueExpression, type ValueExpression } from '../value.ts'
 import type { AnyExpression, ExpressionWithOutput } from '../types.ts'
 
 export type Operand<T> = T | ExpressionWithOutput<T>
+
+/** Plain values are contextually typed by the expression beside them. */
+export type OperandSqlType<T, TContext extends AnySqlType> =
+  T extends Fragment<any> ? SqlTypeOf<T> : TContext
+
+export type SqlCapabilityValidation<TActual, TCapability> =
+  SqlTypeSatisfies<TActual, TCapability> extends true
+    ? unknown
+    : { readonly __invalid_sql_domain__: TActual }
+
+export type SqlEqualityValidation<TLeft, TRight> =
+  SqlEqualityCompatible<TLeft, TRight> extends true
+    ? unknown
+    : { readonly __incompatible_sql_equality__: readonly [TLeft, TRight] }
+
+export type SqlOrderValidation<TLeft, TRight> =
+  SqlOrderCompatible<TLeft, TRight> extends true
+    ? unknown
+    : { readonly __incompatible_sql_order__: readonly [TLeft, TRight] }
 
 export type OperandRequires<T> = T extends Fragment<any> ? RequiresOf<T> : never
 
