@@ -16,15 +16,16 @@ import {
   type ColumnInsertInput,
   type ColumnIsGenerated,
   type ColumnOutput,
+  type ColumnSqlType,
   type ColumnUpdateInput,
 } from './column.ts'
 
 export type TableDefinitions = Record<
   string,
-  ColumnDefinition<any, any, any, any, any, any>
+  ColumnDefinition<any, any, any, any, any, any, any>
 >
 
-export type AnyTable = Source<any, any> & {
+export type AnyTable = Source<any, any, any, any> & {
   readonly tableName: string
   readonly definitions: TableDefinitions
   /** Application field keys mapped to physical SQL column names. */
@@ -33,6 +34,10 @@ export type AnyTable = Source<any, any> & {
 
 export type TableRow<TDefinitions extends TableDefinitions> = {
   -readonly [K in keyof TDefinitions]: ColumnOutput<TDefinitions[K]>
+}
+
+export type TableSqlTypes<TDefinitions extends TableDefinitions> = {
+  readonly [K in keyof TDefinitions]: ColumnSqlType<TDefinitions[K]>
 }
 
 type RequiredInsertKeys<TDefinitions extends TableDefinitions> = {
@@ -74,12 +79,21 @@ export type TableIdentity<TName extends string> = {
 export type TableColumns<
   TDefinitions extends TableDefinitions,
   TIdentity,
-> = SourceColumns<TableRow<TDefinitions>, TIdentity>
+> = SourceColumns<
+  TableRow<TDefinitions>,
+  TIdentity,
+  TableSqlTypes<TDefinitions>
+>
 
 export type Table<
   TName extends string = string,
   TDefinitions extends TableDefinitions = TableDefinitions,
-> = Source<TableIdentity<TName>, TableRow<TDefinitions>> & {
+> = Source<
+  TableIdentity<TName>,
+  TableRow<TDefinitions>,
+  never,
+  TableSqlTypes<TDefinitions>
+> & {
   readonly tableName: TName
   readonly definitions: TDefinitions
   /** Application field keys mapped to physical SQL column names. */
@@ -93,8 +107,9 @@ export function table<
 >(name: TName, definitions: TDefinitions): Table<TName, TDefinitions> {
   type TIdentity = TableIdentity<TName>
   type TRow = TableRow<TDefinitions>
+  type TSqlTypes = TableSqlTypes<TDefinitions>
 
-  const source = createSource<TIdentity, TRow>(
+  const source = createSource<TIdentity, TRow, never, TSqlTypes>(
     'table',
     context => context.render(identifier(name)),
     identifier(name)

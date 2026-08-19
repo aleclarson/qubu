@@ -1,6 +1,7 @@
 import type {
   AggregateDependenciesOf,
   AggregateMeta,
+  AnySqlType,
   ColumnDependency,
   CardinalityMeta,
   DependenciesOf,
@@ -232,7 +233,7 @@ export type ConcreteQueryOutput = Assert<
 export type PublicMetadataUnionIsClosedForCurrentFacts = Assert<
   Equal<
     FragmentMeta,
-    | ResultMeta<unknown, unknown>
+    | ResultMeta<unknown, unknown, AnySqlType>
     | RequiresSourceMeta<unknown>
     | RequiresOuterSourceMeta<unknown>
     | ProvidesOuterSourceMeta<unknown>

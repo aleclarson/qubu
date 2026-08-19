@@ -7,6 +7,7 @@ import {
   type RenderFunction,
   type ResultMeta,
 } from '../core/fragment.ts'
+import type { AnySqlType, SqlUnknown } from '../core/sql-types.ts'
 import type { TableDefinitions, TableRow } from './table.ts'
 import type {
   ColumnDependency,
@@ -26,11 +27,23 @@ export type SourceKind =
   | 'custom'
   | 'table-function'
 
-export type SourceColumns<TRow extends object, TIdentity> = {
+export type SourceSqlTypes<TRow extends object> = {
+  readonly [K in keyof TRow]: AnySqlType
+}
+
+export type UnknownSourceSqlTypes<TRow extends object> = {
+  readonly [K in keyof TRow]: SqlUnknown
+}
+
+export type SourceColumns<
+  TRow extends object,
+  TIdentity,
+  TSqlTypes extends SourceSqlTypes<TRow> = UnknownSourceSqlTypes<TRow>,
+> = {
   readonly [K in keyof TRow]: K extends string
     ? ColumnReference<
         K,
-        | ResultMeta<Required<TRow>[K], TIdentity>
+        | ResultMeta<Required<TRow>[K], TIdentity, TSqlTypes[K]>
         | RequiresSourceMeta<TIdentity>
         | ExpressionMeta<ColumnDependency<TIdentity, K>>
       >
@@ -41,6 +54,7 @@ export interface Source<
   TIdentity = unknown,
   TRow extends object = Record<string, unknown>,
   TMetadata = never,
+  TSqlTypes extends SourceSqlTypes<TRow> = UnknownSourceSqlTypes<TRow>,
 > extends Fragment<
     | ResultMeta<readonly TRow[]>
     | ProvidesSourceMeta<TIdentity, TRow>
@@ -49,10 +63,10 @@ export interface Source<
   readonly sourceKind: SourceKind
   readonly [sourceIdentity]: TIdentity
   readonly reference: Fragment<never>
-  readonly columns: SourceColumns<TRow, TIdentity>
+  readonly columns: SourceColumns<TRow, TIdentity, TSqlTypes>
 }
 
-export type AnySource = Source<any, any, any>
+export type AnySource = Source<any, any, any, any>
 
 /** The source-provision fact carried by a source-producing fragment. */
 export type SourceProvision<T> = Extract<
@@ -69,8 +83,13 @@ export type ProvidedSourceRow<T> =
   SourceProvision<T> extends ProvidesSourceMeta<any, infer TRow> ? TRow : never
 
 export type SourceIdentity<T> =
-  T extends Source<infer TIdentity, any, any> ? TIdentity : never
-export type SourceRow<T> = T extends Source<any, infer TRow, any> ? TRow : never
+  T extends Source<infer TIdentity, any, any, any> ? TIdentity : never
+export type SourceRow<T> =
+  T extends Source<any, infer TRow, any, any> ? TRow : never
+export type SourceSqlTypeMap<T> =
+  T extends Source<any, infer TRow, any, infer TSqlTypes>
+    ? TSqlTypes & SourceSqlTypes<TRow>
+    : never
 
 export interface CustomSourceOptions<
   TIdentity,
@@ -90,23 +109,41 @@ export interface CustomSourceOptions<
 export type CustomSource<
   TIdentity,
   TDefinitions extends TableDefinitions,
-> = Source<TIdentity, TableRow<TDefinitions>, never> & {
+> = Source<
+  TIdentity,
+  TableRow<TDefinitions>,
+  never,
+  import('./table.ts').TableSqlTypes<TDefinitions>
+> & {
   readonly identity: TIdentity
   readonly definitions: TDefinitions
-  readonly columns: SourceColumns<TableRow<TDefinitions>, TIdentity>
-} & SourceColumns<TableRow<TDefinitions>, TIdentity>
+  readonly columns: SourceColumns<
+    TableRow<TDefinitions>,
+    TIdentity,
+    import('./table.ts').TableSqlTypes<TDefinitions>
+  >
+} & SourceColumns<
+    TableRow<TDefinitions>,
+    TIdentity,
+    import('./table.ts').TableSqlTypes<TDefinitions>
+  >
 
-export function createSource<TIdentity, TRow extends object, TMetadata = never>(
+export function createSource<
+  TIdentity,
+  TRow extends object,
+  TMetadata = never,
+  TSqlTypes extends SourceSqlTypes<TRow> = UnknownSourceSqlTypes<TRow>,
+>(
   sourceKind: SourceKind,
   render: RenderFunction,
   reference: Fragment<never>
-): Source<TIdentity, TRow, TMetadata> {
+): Source<TIdentity, TRow, TMetadata, TSqlTypes> {
   return {
     sourceKind,
     render,
     reference,
-    columns: {} as SourceColumns<TRow, TIdentity>,
-  } as Source<TIdentity, TRow, TMetadata>
+    columns: {} as SourceColumns<TRow, TIdentity, TSqlTypes>,
+  } as Source<TIdentity, TRow, TMetadata, TSqlTypes>
 }
 
 /**
@@ -122,7 +159,8 @@ export function customSource<
   options: CustomSourceOptions<TIdentity, TDefinitions>
 ): CustomSource<TIdentity, TDefinitions> {
   type TRow = TableRow<TDefinitions>
-  const source = createSource<TIdentity, TRow>(
+  type TSqlTypes = import('./table.ts').TableSqlTypes<TDefinitions>
+  const source = createSource<TIdentity, TRow, never, TSqlTypes>(
     options.sourceKind ?? 'custom',
     options.render,
     options.reference
@@ -144,7 +182,7 @@ export function customSource<
         ) as ColumnReference<string, any>,
       ]
     })
-  ) as SourceColumns<TRow, TIdentity>
+  ) as SourceColumns<TRow, TIdentity, TSqlTypes>
 
   Object.assign(source, {
     identity: options.identity,

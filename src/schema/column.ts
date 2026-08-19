@@ -1,3 +1,18 @@
+import type {
+  AnySqlType,
+  SqlBigInt,
+  SqlBinary,
+  SqlBoolean,
+  SqlDate,
+  SqlDecimal,
+  SqlInteger,
+  SqlJson,
+  SqlText,
+  SqlTimestamp,
+  SqlUnknown,
+  SqlUuid,
+} from '../core/sql-types.ts'
+
 export interface ColumnOptions {
   readonly nullable?: boolean
   readonly hasDefault?: boolean
@@ -13,6 +28,7 @@ export interface ColumnDefinition<
   TUpdate = TInsert,
   THasDefault extends boolean = false,
   TGenerated extends boolean = false,
+  TSqlType extends AnySqlType = SqlUnknown,
 > {
   readonly definitionKind: 'column'
   readonly nullable: TNullable
@@ -35,8 +51,10 @@ export interface ColumnDefinition<
     SameType<TInsert, TOutput> extends true ? TType : TInsert,
     SameType<TUpdate, TOutput> extends true ? TType : TUpdate,
     THasDefault,
-    TGenerated
+    TGenerated,
+    TSqlType
   >
+  readonly __sqlType?: TSqlType
 }
 
 type Flag<T extends boolean | undefined> = T extends true ? true : false
@@ -63,45 +81,76 @@ export type ColumnFromOptions<
   TInsert,
   TUpdate,
   TOptions extends ColumnOptions,
+  TSqlType extends AnySqlType = SqlUnknown,
 > = ColumnDefinition<
   TOutput,
   Flag<TOptions['nullable']>,
   TInsert,
   TUpdate,
   Flag<TOptions['hasDefault']>,
-  Flag<TOptions['generated']>
+  Flag<TOptions['generated']>,
+  TSqlType
 >
 
 export type ColumnOutput<T> =
-  T extends ColumnDefinition<infer TOutput, infer TNullable, any, any, any, any>
+  T extends ColumnDefinition<
+    infer TOutput,
+    infer TNullable,
+    any,
+    any,
+    any,
+    any,
+    any
+  >
     ? TNullable extends true
       ? TOutput | null
       : TOutput
     : never
 
 export type ColumnInsertInput<T> =
-  T extends ColumnDefinition<any, infer TNullable, infer TInsert, any, any, any>
+  T extends ColumnDefinition<
+    any,
+    infer TNullable,
+    infer TInsert,
+    any,
+    any,
+    any,
+    any
+  >
     ? TNullable extends true
       ? TInsert | null
       : TInsert
     : never
 
 export type ColumnUpdateInput<T> =
-  T extends ColumnDefinition<any, infer TNullable, any, infer TUpdate, any, any>
+  T extends ColumnDefinition<
+    any,
+    infer TNullable,
+    any,
+    infer TUpdate,
+    any,
+    any,
+    any
+  >
     ? TNullable extends true
       ? TUpdate | null
       : TUpdate
     : never
 
 export type ColumnHasDefault<T> =
-  T extends ColumnDefinition<any, any, any, any, infer THasDefault, any>
+  T extends ColumnDefinition<any, any, any, any, infer THasDefault, any, any>
     ? THasDefault
     : false
 
 export type ColumnIsGenerated<T> =
-  T extends ColumnDefinition<any, any, any, any, any, infer TGenerated>
+  T extends ColumnDefinition<any, any, any, any, any, infer TGenerated, any>
     ? TGenerated
     : false
+
+export type ColumnSqlType<T> =
+  T extends ColumnDefinition<any, any, any, any, any, any, infer TSqlType>
+    ? TSqlType
+    : SqlUnknown
 
 type FalseColumnOptions = {
   readonly nullable?: false
@@ -114,86 +163,102 @@ export function column<
   TOutput = unknown,
   TInsert = TOutput,
   TUpdate = TInsert,
+  TSqlType extends AnySqlType = SqlUnknown,
 >(options: {
   readonly nullable: true
   readonly hasDefault: true
   readonly generated: true
   readonly sqlName?: string
-}): ColumnDefinition<TOutput, true, TInsert, TUpdate, true, true>
+}): ColumnDefinition<TOutput, true, TInsert, TUpdate, true, true, TSqlType>
 export function column<
   TOutput = unknown,
   TInsert = TOutput,
   TUpdate = TInsert,
+  TSqlType extends AnySqlType = SqlUnknown,
 >(options: {
   readonly nullable: true
   readonly hasDefault: true
   readonly generated?: false
   readonly sqlName?: string
-}): ColumnDefinition<TOutput, true, TInsert, TUpdate, true, false>
+}): ColumnDefinition<TOutput, true, TInsert, TUpdate, true, false, TSqlType>
 export function column<
   TOutput = unknown,
   TInsert = TOutput,
   TUpdate = TInsert,
+  TSqlType extends AnySqlType = SqlUnknown,
 >(options: {
   readonly nullable: true
   readonly hasDefault?: false
   readonly generated: true
   readonly sqlName?: string
-}): ColumnDefinition<TOutput, true, TInsert, TUpdate, false, true>
+}): ColumnDefinition<TOutput, true, TInsert, TUpdate, false, true, TSqlType>
 export function column<
   TOutput = unknown,
   TInsert = TOutput,
   TUpdate = TInsert,
+  TSqlType extends AnySqlType = SqlUnknown,
 >(options: {
   readonly nullable: true
   readonly hasDefault?: false
   readonly generated?: false
   readonly sqlName?: string
-}): ColumnDefinition<TOutput, true, TInsert, TUpdate, false, false>
+}): ColumnDefinition<TOutput, true, TInsert, TUpdate, false, false, TSqlType>
 export function column<
   TOutput = unknown,
   TInsert = TOutput,
   TUpdate = TInsert,
+  TSqlType extends AnySqlType = SqlUnknown,
 >(options: {
   readonly nullable?: false
   readonly hasDefault: true
   readonly generated: true
   readonly sqlName?: string
-}): ColumnDefinition<TOutput, false, TInsert, TUpdate, true, true>
+}): ColumnDefinition<TOutput, false, TInsert, TUpdate, true, true, TSqlType>
 export function column<
   TOutput = unknown,
   TInsert = TOutput,
   TUpdate = TInsert,
+  TSqlType extends AnySqlType = SqlUnknown,
 >(options: {
   readonly nullable?: false
   readonly hasDefault: true
   readonly generated?: false
   readonly sqlName?: string
-}): ColumnDefinition<TOutput, false, TInsert, TUpdate, true, false>
+}): ColumnDefinition<TOutput, false, TInsert, TUpdate, true, false, TSqlType>
 export function column<
   TOutput = unknown,
   TInsert = TOutput,
   TUpdate = TInsert,
+  TSqlType extends AnySqlType = SqlUnknown,
 >(options: {
   readonly nullable?: false
   readonly hasDefault?: false
   readonly generated: true
   readonly sqlName?: string
-}): ColumnDefinition<TOutput, false, TInsert, TUpdate, false, true>
-export function column<TOutput = unknown, TInsert = TOutput, TUpdate = TInsert>(
+}): ColumnDefinition<TOutput, false, TInsert, TUpdate, false, true, TSqlType>
+export function column<
+  TOutput = unknown,
+  TInsert = TOutput,
+  TUpdate = TInsert,
+  TSqlType extends AnySqlType = SqlUnknown,
+>(
   options?: FalseColumnOptions
-): ColumnDefinition<TOutput, false, TInsert, TUpdate, false, false>
+): ColumnDefinition<TOutput, false, TInsert, TUpdate, false, false, TSqlType>
 export function column<
   TOutput = unknown,
   TInsert = TOutput,
   TUpdate = TInsert,
   const TOptions extends ColumnOptions = {},
->(options?: TOptions): ColumnFromOptions<TOutput, TInsert, TUpdate, TOptions>
+  TSqlType extends AnySqlType = SqlUnknown,
+>(
+  options?: TOptions
+): ColumnFromOptions<TOutput, TInsert, TUpdate, TOptions, TSqlType>
 export function column<
   TOutput = unknown,
   TInsert = TOutput,
   TUpdate = TInsert,
   const TOptions extends ColumnOptions = {},
+  TSqlType extends AnySqlType = SqlUnknown,
 >(options?: TOptions) {
   return Object.freeze({
     definitionKind: 'column' as const,
@@ -202,7 +267,13 @@ export function column<
     generated: options?.generated === true,
     sqlName: options?.sqlName,
     $type: narrowColumnType,
-  }) as ColumnFromOptions<TOutput, TInsert, TUpdate, TOptions>
+  }) as unknown as ColumnFromOptions<
+    TOutput,
+    TInsert,
+    TUpdate,
+    TOptions,
+    TSqlType
+  >
 }
 
 export function nullable<
@@ -212,6 +283,7 @@ export function nullable<
   TUpdate,
   THasDefault extends boolean,
   TGenerated extends boolean,
+  TSqlType extends AnySqlType,
 >(
   definition: ColumnDefinition<
     TOutput,
@@ -219,7 +291,8 @@ export function nullable<
     TInsert,
     TUpdate,
     THasDefault,
-    TGenerated
+    TGenerated,
+    TSqlType
   >
 ) {
   return Object.freeze({
@@ -231,44 +304,45 @@ export function nullable<
     TInsert,
     TUpdate,
     THasDefault,
-    TGenerated
+    TGenerated,
+    TSqlType
   >
 }
 
 export function integer<const TOptions extends ColumnOptions = {}>(
   options?: TOptions
 ) {
-  return column<number, number, number, TOptions>(options)
+  return column<number, number, number, TOptions, SqlInteger>(options)
 }
 
 export function numeric<const TOptions extends ColumnOptions = {}>(
   options?: TOptions
 ) {
-  return column<number, number, number, TOptions>(options)
+  return column<number, number, number, TOptions, SqlDecimal>(options)
 }
 
 export function text<const TOptions extends ColumnOptions = {}>(
   options?: TOptions
 ) {
-  return column<string, string, string, TOptions>(options)
+  return column<string, string, string, TOptions, SqlText>(options)
 }
 
 export function boolean<const TOptions extends ColumnOptions = {}>(
   options?: TOptions
 ) {
-  return column<boolean, boolean, boolean, TOptions>(options)
+  return column<boolean, boolean, boolean, TOptions, SqlBoolean>(options)
 }
 
 export function date<const TOptions extends ColumnOptions = {}>(
   options?: TOptions
 ) {
-  return column<Date, Date, Date, TOptions>(options)
+  return column<Date, Date, Date, TOptions, SqlDate>(options)
 }
 
 export function timestamp<const TOptions extends ColumnOptions = {}>(
   options?: TOptions
 ) {
-  return column<Date, Date, Date, TOptions>(options)
+  return column<Date, Date, Date, TOptions, SqlTimestamp>(options)
 }
 
 /** Alias for timestamp columns whose application name emphasizes date-time. */
@@ -277,26 +351,28 @@ export const dateTime = timestamp
 export function uuid<const TOptions extends ColumnOptions = {}>(
   options?: TOptions
 ) {
-  return column<string, string, string, TOptions>(options)
+  return column<string, string, string, TOptions, SqlUuid>(options)
 }
 
 export function json<
   TOutput = unknown,
   const TOptions extends ColumnOptions = {},
 >(options?: TOptions) {
-  return column<TOutput, TOutput, TOutput, TOptions>(options)
+  return column<TOutput, TOutput, TOutput, TOptions, SqlJson<TOutput>>(options)
 }
 
 export function bigint<const TOptions extends ColumnOptions = {}>(
   options?: TOptions
 ) {
-  return column<bigint, bigint, bigint, TOptions>(options)
+  return column<bigint, bigint, bigint, TOptions, SqlBigInt>(options)
 }
 
 export function binary<const TOptions extends ColumnOptions = {}>(
   options?: TOptions
 ) {
-  return column<Uint8Array, Uint8Array, Uint8Array, TOptions>(options)
+  return column<Uint8Array, Uint8Array, Uint8Array, TOptions, SqlBinary>(
+    options
+  )
 }
 
 /** Common driver-neutral name for a binary/blob column. */

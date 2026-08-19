@@ -14,6 +14,7 @@ import {
   type Fragment,
   type RenderContext,
 } from '../core/fragment.ts'
+import type { AnySqlType } from '../core/sql-types.ts'
 import {
   assertDialectCapability,
   type DialectCapability,
@@ -38,6 +39,7 @@ export type AnyExpression = Expression<any, any>
 export type ExpressionOutput<T> = OutputOf<T>
 export type ExpressionRequires<T> = RequiresOf<T>
 export type ExpressionNullability<T> = NullabilityOf<T>
+export type ExpressionSqlType<T> = import('../core/fragment.ts').SqlTypeOf<T>
 
 /** Add a concrete dialect requirement without dropping expression metadata. */
 export function withDialectCapability<
@@ -69,7 +71,7 @@ export type ExpressionWithOutput<
   TOutput,
   TKind extends ExpressionKind = ExpressionKind,
 > = Expression<
-  | ResultMeta<TOutput, unknown>
+  | ResultMeta<TOutput, unknown, AnySqlType>
   | RequiresSourceMeta<unknown>
   | NullableSourceMeta<unknown>
   | ExpressionMeta<unknown>

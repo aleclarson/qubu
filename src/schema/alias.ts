@@ -17,6 +17,7 @@ import {
   type SourceColumns,
   type SourceIdentity,
   type SourceRow,
+  type SourceSqlTypeMap,
 } from './source.ts'
 
 export type AliasIdentity<TBase, TAlias extends string> = {
@@ -26,22 +27,25 @@ export type AliasIdentity<TBase, TAlias extends string> = {
 }
 
 export type AliasedSource<
-  TBase extends Source<any, any, any>,
+  TBase extends Source<any, any, any, any>,
   TAlias extends string,
 > = Source<
   AliasIdentity<SourceIdentity<TBase>, TAlias>,
   SourceRow<TBase>,
-  RequiresOuterMetadataOf<TBase> | CapabilityMetadataOf<TBase>
+  RequiresOuterMetadataOf<TBase> | CapabilityMetadataOf<TBase>,
+  SourceSqlTypeMap<TBase>
 > & {
   readonly alias: TAlias
   readonly base: TBase
   readonly columns: SourceColumns<
     SourceRow<TBase>,
-    AliasIdentity<SourceIdentity<TBase>, TAlias>
+    AliasIdentity<SourceIdentity<TBase>, TAlias>,
+    SourceSqlTypeMap<TBase>
   >
 } & SourceColumns<
     SourceRow<TBase>,
-    AliasIdentity<SourceIdentity<TBase>, TAlias>
+    AliasIdentity<SourceIdentity<TBase>, TAlias>,
+    SourceSqlTypeMap<TBase>
   >
 
 export type QueryAliasIdentity<TAlias extends string> = {
@@ -60,7 +64,7 @@ export type QuerySource<
 } & SourceColumns<TRow, QueryAliasIdentity<TAlias>>
 
 export function alias<
-  TBase extends Source<any, any, any>,
+  TBase extends Source<any, any, any, any>,
   const TAlias extends string,
 >(source: TBase, name: TAlias): AliasedSource<TBase, TAlias>
 export function alias<TQuery extends AnyQuery, const TAlias extends string>(
@@ -72,7 +76,7 @@ export function alias<TQuery extends AnyQuery, const TAlias extends string>(
   RequiresOuterMetadataOf<TQuery> | CapabilityMetadataOf<TQuery>
 >
 export function alias(
-  sourceOrQuery: Source<any, any, any> | AnyQuery,
+  sourceOrQuery: Source<any, any, any, any> | AnyQuery,
   name: string
 ) {
   const reference = identifier(name)

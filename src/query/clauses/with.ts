@@ -33,7 +33,7 @@ export type CteSource<
   readonly columns: SourceColumns<TRow, CteIdentity<TName>>
 } & SourceColumns<TRow, CteIdentity<TName>>
 
-export type AnyCteSource = Source<any, any, any> & {
+export type AnyCteSource = Source<any, any, any, any> & {
   readonly cteName: string
   readonly query: Query<any, any, any>
   readonly columns: Record<string, unknown>

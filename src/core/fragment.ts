@@ -1,11 +1,17 @@
 import type { Dialect, DialectCapability } from './dialect.ts'
+import type { AnySqlType, SqlUnknown } from './sql-types.ts'
 
 declare const fragmentMetadata: unique symbol
 
-export type ResultMeta<TOutput, TNullableFrom = never> = {
+export type ResultMeta<
+  TOutput,
+  TNullableFrom = never,
+  TSqlType extends AnySqlType = SqlUnknown,
+> = {
   readonly kind: 'result'
   readonly output: TOutput
   readonly nullableFrom: TNullableFrom
+  readonly sqlType: TSqlType
 }
 
 export type RequiresSourceMeta<TSource> = {
@@ -74,7 +80,7 @@ export type RequiresCapabilityMeta<
 }
 
 export type FragmentMeta =
-  | ResultMeta<unknown, unknown>
+  | ResultMeta<unknown, unknown, AnySqlType>
   | RequiresSourceMeta<unknown>
   | RequiresOuterSourceMeta<unknown>
   | ProvidesOuterSourceMeta<unknown>
@@ -137,6 +143,12 @@ type ResultNullableFrom<TMetadata> = TMetadata extends {
 }
   ? TSource
   : never
+
+type ResultSqlType<TMetadata> = TMetadata extends {
+  readonly sqlType: infer TSqlType extends AnySqlType
+}
+  ? TSqlType
+  : SqlUnknown
 
 type RequiredSource<TMetadata> = TMetadata extends {
   readonly kind: 'requires-source'
@@ -212,6 +224,9 @@ export type InheritedMetadataOf<TMetadata> = WithoutResult<TMetadata>
 export type InheritedMetadata<T> = InheritedMetadataOf<MetadataOf<T>>
 
 export type OutputOf<T> = ResultOutput<ResultMetadata<MetadataOf<T>>>
+
+/** The SQL semantic domain produced by a result-bearing fragment. */
+export type SqlTypeOf<T> = ResultSqlType<ResultMetadata<MetadataOf<T>>>
 
 export type RequiresOf<T> = RequiredSource<MetadataOf<T>>
 

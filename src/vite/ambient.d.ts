@@ -154,14 +154,17 @@ declare global {
     TUpdate = TInsert,
     THasDefault extends boolean = false,
     TGenerated extends boolean = false,
+    TSqlType extends import('qubu').AnySqlType = import('qubu').SqlUnknown,
   > = import('qubu').ColumnDefinition<
     TOutput,
     TNullable,
     TInsert,
     TUpdate,
     THasDefault,
-    TGenerated
+    TGenerated,
+    TSqlType
   >
+  type ColumnSqlType<T> = import('qubu').ColumnSqlType<T>
   type ColumnReference<
     TName extends string = string,
     TMetadata = never,
@@ -191,10 +194,47 @@ declare global {
   > = import('qubu').CardinalityMeta<TCardinality>
   type CardinalityOf<T> = import('qubu').CardinalityOf<T>
   type CapabilitiesOf<T> = import('qubu').CapabilitiesOf<T>
-  type ResultMeta<TOutput, TNullableFrom = never> = import('qubu').ResultMeta<
+  type ResultMeta<
     TOutput,
-    TNullableFrom
+    TNullableFrom = never,
+    TSqlType extends import('qubu').AnySqlType = import('qubu').SqlUnknown,
+  > = import('qubu').ResultMeta<TOutput, TNullableFrom, TSqlType>
+  type SqlTypeOf<T> = import('qubu').SqlTypeOf<T>
+  type SqlSemanticType<TName extends string = string> =
+    import('qubu').SqlSemanticType<TName>
+  type AnySqlType = import('qubu').AnySqlType
+  type SqlUnknown = import('qubu').SqlUnknown
+  type SqlTextLike = import('qubu').SqlTextLike
+  type SqlNumericLike = import('qubu').SqlNumericLike
+  type SqlOrderable<TGroup = unknown> = import('qubu').SqlOrderable<TGroup>
+  type SqlEqualityComparable<TGroup = unknown> =
+    import('qubu').SqlEqualityComparable<TGroup>
+  type SqlText = import('qubu').SqlText
+  type SqlUuid = import('qubu').SqlUuid
+  type SqlInteger = import('qubu').SqlInteger
+  type SqlDecimal = import('qubu').SqlDecimal
+  type SqlBoolean = import('qubu').SqlBoolean
+  type SqlDate = import('qubu').SqlDate
+  type SqlTimestamp = import('qubu').SqlTimestamp
+  type SqlJson<TValue = unknown> = import('qubu').SqlJson<TValue>
+  type SqlBigInt = import('qubu').SqlBigInt
+  type SqlBinary = import('qubu').SqlBinary
+  type SqlTypeSatisfies<TActual, TConstraint> = import('qubu').SqlTypeSatisfies<
+    TActual,
+    TConstraint
   >
+  type SqlEqualityCompatible<TLeft, TRight> =
+    import('qubu').SqlEqualityCompatible<TLeft, TRight>
+  type SqlOrderCompatible<TLeft, TRight> = import('qubu').SqlOrderCompatible<
+    TLeft,
+    TRight
+  >
+  type FieldLike<
+    TOptions extends
+      import('qubu').FieldLikeOptions = import('qubu').FieldLikeOptions,
+  > = import('qubu').FieldLike<TOptions>
+  type SourceLike<TShape extends object> = import('qubu').SourceLike<TShape>
+  type TableLike<TShape extends object> = import('qubu').TableLike<TShape>
   type RequiresSourceMeta<TSource> = import('qubu').RequiresSourceMeta<TSource>
   type RequiresOuterSourceMeta<TSource> =
     import('qubu').RequiresOuterSourceMeta<TSource>
@@ -228,7 +268,9 @@ declare global {
     TIdentity = unknown,
     TRow extends object = Record<string, unknown>,
     TMetadata = never,
-  > = import('qubu').Source<TIdentity, TRow, TMetadata>
+    TSqlTypes extends
+      import('qubu').SourceSqlTypes<TRow> = import('qubu').UnknownSourceSqlTypes<TRow>,
+  > = import('qubu').Source<TIdentity, TRow, TMetadata, TSqlTypes>
   type Table<
     TName extends string = string,
     TDefinitions extends

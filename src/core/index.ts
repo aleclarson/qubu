@@ -1,6 +1,7 @@
 export * from './dialect.ts'
 export * from './fragment.ts'
 export * from './render.ts'
+export * from './sql-types.ts'
 export * from './primitives/compose.ts'
 export * from './primitives/identifier.ts'
 export * from './primitives/parameter.ts'

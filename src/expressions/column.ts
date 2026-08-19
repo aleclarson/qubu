@@ -7,6 +7,7 @@ import {
   type RequiresSourceMeta,
   type ResultMeta,
 } from '../core/fragment.ts'
+import type { AnySqlType, SqlUnknown } from '../core/sql-types.ts'
 import { identifier } from '../core/primitives/identifier.ts'
 import { makeExpression, type Expression } from './types.ts'
 
@@ -33,18 +34,19 @@ export function createColumnReference<
   TOutput,
   TFieldName extends string,
   TSource,
+  TSqlType extends AnySqlType = SqlUnknown,
 >(
   columnName: string,
   sourceReference: Fragment<never>,
   fieldName: TFieldName
 ): ColumnReference<
   TFieldName,
-  | ResultMeta<TOutput, TSource>
+  | ResultMeta<TOutput, TSource, TSqlType>
   | RequiresSourceMeta<TSource>
   | ExpressionMeta<ColumnDependency<TSource, TFieldName>>
 > {
   const expression = makeExpression<
-    | ResultMeta<TOutput, TSource>
+    | ResultMeta<TOutput, TSource, TSqlType>
     | RequiresSourceMeta<TSource>
     | ExpressionMeta<ColumnDependency<TSource, TFieldName>>,
     'column'
@@ -60,7 +62,7 @@ export function createColumnReference<
     columnName,
   }) as ColumnReference<
     TFieldName,
-    | ResultMeta<TOutput, TSource>
+    | ResultMeta<TOutput, TSource, TSqlType>
     | RequiresSourceMeta<TSource>
     | ExpressionMeta<ColumnDependency<TSource, TFieldName>>
   >
