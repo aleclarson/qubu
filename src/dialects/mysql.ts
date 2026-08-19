@@ -1,5 +1,6 @@
 import { createDialect, type PaginationPart } from '../core/dialect.ts'
 import type { RenderContext } from '../core/fragment.ts'
+import { mysqlJson } from './json.ts'
 
 function renderMySqlPagination(
   context: RenderContext,
@@ -23,5 +24,6 @@ export function mysqlDialect() {
     quoteIdentifier: identifier => `\`${identifier.replaceAll('`', '``')}\``,
     placeholder: () => '?',
     pagination: { render: renderMySqlPagination },
+    json: mysqlJson,
   })
 }

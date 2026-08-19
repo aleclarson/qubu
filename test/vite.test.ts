@@ -88,9 +88,11 @@ select({ id: users.id }, from(users));`,
 test('exposes ambient Qubu value types', () => {
   const typedTable: typeof table = undefined as never
   const typedSelect: typeof select = undefined as never
+  const typedJsonPath: typeof jsonPath = undefined as never
 
   expectTypeOf(typedTable).toBeFunction()
   expectTypeOf(typedSelect).toBeFunction()
+  expectTypeOf(typedJsonPath).toBeFunction()
 })
 
 test('supports filters and ignores non-script modules', () => {

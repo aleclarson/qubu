@@ -2,6 +2,8 @@ import { standardDialect } from '../dialects/standard.ts'
 import type { Dialect, DialectCapability } from './dialect.ts'
 import type { AnyFragment, CapabilitiesOf, RenderContext } from './fragment.ts'
 
+type DefaultDialectCapability = 'json'
+
 export interface RenderedQuery {
   readonly text: string
   readonly parameters: readonly unknown[]
@@ -33,7 +35,7 @@ export type RenderCapabilityValidation<
     }
 
 export function render<TQuery extends AnyFragment>(
-  query: TQuery & RenderCapabilityValidation<TQuery, never>
+  query: TQuery & RenderCapabilityValidation<TQuery, DefaultDialectCapability>
 ): RenderedQuery
 export function render<
   TQuery extends AnyFragment,

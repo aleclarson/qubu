@@ -6,6 +6,7 @@ import {
   withDialectCapability,
   type ExpressionWithOutput,
 } from '../expressions/types.ts'
+import { postgresJson } from './json.ts'
 
 const postgresPagination = {
   render(context: RenderContext, parts: readonly PaginationPart[]) {
@@ -33,6 +34,7 @@ export function postgresDialect() {
     placeholder: position => `$${position}`,
     pagination: postgresPagination,
     capabilities: ['ilike'],
+    json: postgresJson,
   })
 }
 

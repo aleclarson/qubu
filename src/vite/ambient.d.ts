@@ -76,6 +76,11 @@ declare global {
   const isNull: typeof import('qubu').isNull
   const isTrue: typeof import('qubu').isTrue
   const json: typeof import('qubu').json
+  const jsonBoolean: typeof import('qubu').jsonBoolean
+  const jsonExists: typeof import('qubu').jsonExists
+  const jsonNumber: typeof import('qubu').jsonNumber
+  const jsonPath: typeof import('qubu').jsonPath
+  const jsonText: typeof import('qubu').jsonText
   const keyword: typeof import('qubu').keyword
   const leftJoin: typeof import('qubu').leftJoin
   const lateral: typeof import('qubu').lateral
@@ -166,12 +171,19 @@ declare global {
       import('qubu').DialectCapability = import('qubu').DialectCapability,
   > = import('qubu').Dialect<TCapabilities>
   type DialectCapability = import('qubu').DialectCapability
+  type DialectJson = import('qubu').DialectJson
   type Expression<
     TMetadata = any,
     TKind extends import('qubu').ExpressionKind = import('qubu').ExpressionKind,
   > = import('qubu').Expression<TMetadata, TKind>
   type Fragment<TMetadata = any> = import('qubu').Fragment<TMetadata>
   type FragmentMeta = import('qubu').FragmentMeta
+  type JsonPath<
+    TSegments extends
+      readonly import('qubu').JsonPathSegment[] = readonly import('qubu').JsonPathSegment[],
+  > = import('qubu').JsonPath<TSegments>
+  type JsonPathSegment = import('qubu').JsonPathSegment
+  type JsonScalarKind = import('qubu').JsonScalarKind
   type QueryCardinality = import('qubu').QueryCardinality
   type CardinalityMeta<
     TCardinality extends

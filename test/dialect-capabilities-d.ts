@@ -27,7 +27,9 @@ type Equal<TLeft, TRight> = [TLeft] extends [TRight]
 
 type Assert<TCondition extends true> = TCondition
 
-export type CapabilityVocabulary = Assert<Equal<DialectCapability, 'ilike'>>
+export type CapabilityVocabulary = Assert<
+  Equal<DialectCapability, 'ilike' | 'json'>
+>
 
 export type PostgresQueryRequiresIlike = Assert<
   Equal<CapabilitiesOf<typeof postgresOnlyQuery>, 'ilike'>
@@ -52,7 +54,7 @@ export type CapabilityMetadataIsTagged = Assert<
 >
 
 export type PostgresDialectAdvertisesIlike = Assert<
-  typeof postgresDialect extends () => Dialect<'ilike'> ? true : false
+  typeof postgresDialect extends () => Dialect<'ilike' | 'json'> ? true : false
 >
 
 export type NamedDialectAdvertisesIlike = Assert<

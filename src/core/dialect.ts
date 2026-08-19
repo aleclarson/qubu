@@ -1,7 +1,25 @@
-import type { RenderContext } from './fragment.ts'
+import type { AnyFragment, RenderContext } from './fragment.ts'
 
 /** Capabilities whose syntax must be explicitly supported by a dialect. */
-export type DialectCapability = 'ilike'
+export type DialectCapability = 'ilike' | 'json'
+
+/** Scalar application types supported by the portable JSON renderer. */
+export type JsonScalarKind = 'text' | 'number' | 'boolean'
+
+/** Dialect policy for portable scalar JSON reads and path existence checks. */
+export interface DialectJson {
+  renderScalar(
+    context: RenderContext,
+    document: AnyFragment,
+    path: readonly (string | number)[],
+    kind: JsonScalarKind
+  ): void
+  renderExists(
+    context: RenderContext,
+    document: AnyFragment,
+    path: readonly (string | number)[]
+  ): void
+}
 
 export type PaginationKind = 'offset' | 'fetch'
 
@@ -26,17 +44,21 @@ export interface Dialect<
   quoteIdentifier(identifier: string): string
   placeholder(position: number): string
   readonly pagination?: DialectPagination
+  /** Rendering policy for Qubu's portable JSON operations. */
+  readonly json?: DialectJson
   /** Capabilities advertised by this dialect at the rendering boundary. */
   readonly capabilities?: readonly TCapabilities[]
 }
 
 export interface DialectOptions<
-  TCapabilities extends DialectCapability = never,
+  TCapabilities extends Exclude<DialectCapability, 'json'> = never,
+  TJson extends DialectJson | undefined = DialectJson | undefined,
 > {
   readonly name: string
   readonly quoteIdentifier?: (identifier: string) => string
   readonly placeholder: (position: number) => string
   readonly pagination?: DialectPagination
+  readonly json?: TJson
   readonly capabilities?: readonly TCapabilities[]
 }
 
@@ -48,15 +70,29 @@ const quoteIdentifier = (identifier: string) =>
  * to leave open. More involved syntax can be supplied as a custom fragment.
  */
 export function createDialect<
-  const TCapabilities extends DialectCapability = never,
->(options: DialectOptions<TCapabilities>): Dialect<TCapabilities> {
+  const TCapabilities extends Exclude<DialectCapability, 'json'> = never,
+>(
+  options: DialectOptions<TCapabilities, DialectJson> & {
+    readonly json: DialectJson
+  }
+): Dialect<TCapabilities | 'json'>
+export function createDialect<
+  const TCapabilities extends Exclude<DialectCapability, 'json'> = never,
+>(options: DialectOptions<TCapabilities, undefined>): Dialect<TCapabilities>
+export function createDialect(
+  options: DialectOptions<Exclude<DialectCapability, 'json'>>
+): Dialect {
   return Object.freeze({
     name: options.name,
     quoteIdentifier: options.quoteIdentifier ?? quoteIdentifier,
     placeholder: options.placeholder,
     pagination: options.pagination,
-    capabilities: Object.freeze([...(options.capabilities ?? [])]),
-  }) as Dialect<TCapabilities>
+    json: options.json,
+    capabilities: Object.freeze([
+      ...(options.capabilities ?? []),
+      ...(options.json ? (['json'] as const) : []),
+    ]),
+  }) as Dialect
 }
 
 /**

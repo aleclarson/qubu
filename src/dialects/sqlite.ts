@@ -1,5 +1,6 @@
 import { createDialect, type PaginationPart } from '../core/dialect.ts'
 import type { RenderContext } from '../core/fragment.ts'
+import { sqliteJson } from './json.ts'
 
 function renderSqlitePagination(
   context: RenderContext,
@@ -22,5 +23,6 @@ export function sqliteDialect() {
     name: 'sqlite',
     placeholder: () => '?',
     pagination: { render: renderSqlitePagination },
+    json: sqliteJson,
   })
 }

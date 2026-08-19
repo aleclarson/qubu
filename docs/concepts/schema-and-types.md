@@ -93,6 +93,59 @@ The driver adapter remains responsible for database-specific encoding and row
 decoding. A `timestamp()` column describes the TypeScript value; it does not
 choose a wire format for a particular database client.
 
+## Read JSON scalars
+
+Use a structured `jsonPath()` when a query needs a string, number, boolean, or
+existence check inside a JSON document:
+
+```ts
+import {
+  from,
+  json,
+  jsonBoolean,
+  jsonExists,
+  jsonPath,
+  jsonText,
+  select,
+  table,
+} from 'qubu'
+
+const events = table('events', {
+  payload: json<{
+    user?: { name?: string; active?: boolean }
+  }>(),
+})
+
+const query = select(
+  {
+    name: jsonText(events.payload, jsonPath('user', 'name')),
+    active: jsonBoolean(events.payload, jsonPath('user', 'active')),
+    hasUser: jsonExists(events.payload, jsonPath('user')),
+  },
+  from(events)
+)
+```
+
+Strings are object keys and non-negative integers are array indexes. The path
+is structured rather than raw SQL, so each dialect can encode keys and indexes
+without interpolating caller-provided syntax.
+
+Scalar reads return SQL `NULL` when the path is missing, contains JSON `null`,
+or resolves to a different JSON scalar type. `jsonExists()` returns `true` for
+a present JSON `null`, `false` for a missing path, and `false` when the document
+is SQL `NULL`. These rules keep existence separate from extraction nullability.
+
+The standard dialect emits SQL/JSON `JSON_VALUE` and `JSON_EXISTS` syntax.
+PostgreSQL, MySQL, and SQLite use their native JSON policies to preserve the
+same result types. The current policies require PostgreSQL 12 or newer, MySQL
+8.0.21 or newer, and SQLite JSON functions; an application-created dialect
+must provide a JSON renderer; `createDialect()` advertises the `json` capability
+automatically when that renderer is present.
+
+JSON paths currently cover deterministic key and index traversal. Wildcards,
+filters, recursive descent, JSON-returning extraction, document mutation, and
+row expansion remain explicit dialect extensions.
+
 ## Use the derived write types
 
 `TableInsertInput` and `TableUpdateInput` expose the same rules to application

@@ -18,7 +18,7 @@ test('renders a capability-bearing query with a supporting dialect', () => {
     parameters: ['%ada%'],
   })
 
-  expectTypeOf(postgresDialect()).toMatchTypeOf<Dialect<'ilike'>>()
+  expectTypeOf(postgresDialect()).toMatchTypeOf<Dialect<'ilike' | 'json'>>()
 })
 
 test('keeps portable features renderable by every dialect', () => {
