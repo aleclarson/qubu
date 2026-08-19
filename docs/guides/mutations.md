@@ -67,6 +67,29 @@ const query = update(
 The assignment expression is source-aware, so a column from an unrelated table
 cannot silently enter the update.
 
+Use `omit` for a runtime-conditional assignment. Qubu removes omitted fields
+before validating and rendering the effective assignment set:
+
+```ts
+import { eq, omit, update, where } from 'qubu'
+
+const query = update(
+  users,
+  {
+    name: rename ? 'Archived' : omit,
+    email: clearEmail ? null : omit,
+  },
+  where(eq(users.id, 7))
+)
+```
+
+`omit` means that the column is absent from `SET`. It is distinct from `null`
+and explicit `undefined`, which remain bound assignment values, and it does not
+emit SQL `DEFAULT`. At least one assignment must remain; `update()` throws
+before rendering when every field is omitted. Possible expression branches
+remain source- and capability-aware even when their runtime alternative is
+`omit`.
+
 ## Delete with a predicate
 
 ```ts

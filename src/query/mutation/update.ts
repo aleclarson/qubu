@@ -6,6 +6,7 @@ import {
 import type { RenderContext, RequiresOf } from '../../core/fragment.ts'
 import type { SourceIdentity } from '../../schema/source.ts'
 import type { AnyTable, TableUpdateInput } from '../../schema/table.ts'
+import { omit, type Omit } from '../omit.ts'
 import {
   createMutation,
   type MutationClause,
@@ -18,8 +19,10 @@ import {
   validateMutationClauses,
 } from './types.ts'
 
-export type UpdateAssignmentValue<T> = T | ExpressionWithOutput<T>
+/** A value, target-compatible expression, or explicitly omitted update field. */
+export type UpdateAssignmentValue<T> = T | ExpressionWithOutput<T> | Omit
 
+/** Writable table fields accepted by {@link update}. */
 export type UpdateAssignments<TTable extends AnyTable> = {
   -readonly [K in keyof TableUpdateInput<
     TTable['definitions']
@@ -78,7 +81,7 @@ export function update<
 > {
   const normalizedClauses = clauses as readonly MutationClause[]
   validateMutationClauses('UPDATE', normalizedClauses)
-  validateUpdate(table, assignments)
+  const entries = validateUpdate(table, assignments)
 
   const whereClause = normalizedClauses.find(
     clause => clause.clauseKind === 'where'
@@ -92,7 +95,6 @@ export function update<
     context.render(table.reference)
     context.append(' SET ')
 
-    const entries = Object.entries(assignments)
     entries.forEach(([columnName, value], index) => {
       if (index > 0) context.append(', ')
       context.render(identifier(table.sqlNames[columnName] ?? columnName))
@@ -130,7 +132,9 @@ function validateUpdate(table: AnyTable, assignments: object) {
     string,
     { generated?: boolean }
   >
-  const entries = Object.entries(assignments)
+  const entries = Object.entries(assignments).filter(
+    ([, value]) => value !== omit
+  )
   if (entries.length === 0)
     throw new Error('UPDATE requires at least one assignment')
 
@@ -141,4 +145,6 @@ function validateUpdate(table: AnyTable, assignments: object) {
       throw new Error(`Generated column "${columnName}" cannot be updated`)
     }
   }
+
+  return entries
 }

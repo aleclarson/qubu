@@ -9,6 +9,7 @@ import {
   insertInto,
   insertSelect,
   integer,
+  omit,
   render,
   returning,
   select,
@@ -110,6 +111,37 @@ test('tracks target scope through UPDATE assignment expressions', () => {
     text: 'UPDATE "users" SET "name" = UPPER("users"."name") WHERE ("users"."id" = ?)',
     parameters: [10],
   })
+})
+
+test('omits conditional UPDATE assignments while preserving SQL values', () => {
+  const conditionalUpdate = (
+    includeName: boolean,
+    email: string | null | undefined,
+    id: number
+  ) =>
+    update(
+      users,
+      { name: includeName ? upper(users.name) : omit, email },
+      where(eq(users.id, id))
+    )
+
+  const enabled = conditionalUpdate(true, null, 11)
+  const disabled = conditionalUpdate(false, undefined, 12)
+
+  expect(render(enabled)).toEqual({
+    text: 'UPDATE "users" SET "name" = UPPER("users"."name"), "email" = ? WHERE ("users"."id" = ?)',
+    parameters: [null, 11],
+  })
+  expect(render(disabled)).toEqual({
+    text: 'UPDATE "users" SET "email" = ? WHERE ("users"."id" = ?)',
+    parameters: [undefined, 12],
+  })
+})
+
+test('rejects an UPDATE whose assignments are all omitted', () => {
+  expect(() => update(users, { name: omit }, allowAll())).toThrowError(
+    'UPDATE requires at least one assignment'
+  )
 })
 
 test('requires an explicit unrestricted-mutation opt-in', () => {
