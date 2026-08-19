@@ -37,6 +37,7 @@ declare global {
   const customClause: typeof import('qubu').customClause
   const date: typeof import('qubu').date
   const dateTime: typeof import('qubu').dateTime
+  const dialectColumn: typeof import('qubu').dialectColumn
   const defaultValues: typeof import('qubu').defaultValues
   const deleteFrom: typeof import('qubu').deleteFrom
   const desc: typeof import('qubu').desc
@@ -100,6 +101,8 @@ declare global {
   const modulo: typeof import('qubu').modulo
   const multiply: typeof import('qubu').multiply
   const naturalJoin: typeof import('qubu').naturalJoin
+  const nativeColumn: typeof import('qubu').nativeColumn
+  const nativeStorage: typeof import('qubu').nativeStorage
   const ne: typeof import('qubu').ne
   const not: typeof import('qubu').not
   const notEqual: typeof import('qubu').notEqual
@@ -118,6 +121,7 @@ declare global {
   const parameter: typeof import('qubu').parameter
   const parenthesize: typeof import('qubu').parenthesize
   const postgresDialect: typeof import('qubu').postgresDialect
+  const portableStorage: typeof import('qubu').portableStorage
   const primaryKey: typeof import('qubu').primaryKey
   const qualifiedIdentifier: typeof import('qubu').qualifiedIdentifier
   const references: typeof import('qubu').references
@@ -161,6 +165,7 @@ declare global {
     THasDefault extends boolean = false,
     TGenerated extends boolean = false,
     TSqlType extends import('qubu').AnySqlType = import('qubu').SqlUnknown,
+    TStorage extends import('qubu').ColumnStorage | undefined = undefined,
   > = import('qubu').ColumnDefinition<
     TOutput,
     TNullable,
@@ -168,9 +173,28 @@ declare global {
     TUpdate,
     THasDefault,
     TGenerated,
-    TSqlType
+    TSqlType,
+    TStorage
   >
   type ColumnSqlType<T> = import('qubu').ColumnSqlType<T>
+  type ColumnStorage = import('qubu').ColumnStorage
+  type PortableStorageType = import('qubu').PortableStorageType
+  type PortableColumnStorage<
+    TType extends
+      import('qubu').PortableStorageType = import('qubu').PortableStorageType,
+  > = import('qubu').PortableColumnStorage<TType>
+  type NativeColumnStorage<
+    TDialect extends string = string,
+    TDeclaration extends string = string,
+  > = import('qubu').NativeColumnStorage<TDialect, TDeclaration>
+  type ColumnStorageOf<T> = import('qubu').ColumnStorageOf<T>
+  type ColumnStorageType<T> = import('qubu').ColumnStorageType<T>
+  type ColumnStorageTypeOf<T> = import('qubu').ColumnStorageTypeOf<T>
+  type ColumnStorageDialectOf<T> = import('qubu').ColumnStorageDialectOf<T>
+  type ColumnStorageDeclarationOf<T> =
+    import('qubu').ColumnStorageDeclarationOf<T>
+  type ColumnStorageKindOf<T> = import('qubu').ColumnStorageKindOf<T>
+  type StorageOf<T> = import('qubu').StorageOf<T>
   type ColumnReference<
     TName extends string = string,
     TMetadata = never,

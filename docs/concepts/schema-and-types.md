@@ -283,6 +283,48 @@ The same definitions are typed cast targets. `cast(value, text())` derives a
 spelling. Cast nullability comes from `value`, so schema definitions carrying
 `nullable`, `hasDefault`, or `generated` flags are not cast targets.
 
+## Physical storage is a separate axis
+
+Column definitions also retain the physical storage category used by schema
+tooling. Built-in helpers use portable descriptors:
+
+| Helpers                     | Portable storage |
+| --------------------------- | ---------------- |
+| `integer()`                 | `integer`        |
+| `numeric()`                 | `numeric`        |
+| `text()`                    | `text`           |
+| `boolean()`                 | `boolean`        |
+| `date()`                    | `date`           |
+| `timestamp()`, `dateTime()` | `timestamp`      |
+| `uuid()`                    | `uuid`           |
+| `json<T>()`                 | `json`           |
+| `bigint()`                  | `bigint`         |
+| `binary()`, `blob()`        | `binary`         |
+
+The storage category does not replace the application value type, SQL
+semantic domain, or cast target. For example, `numeric()` decodes to a
+`number`, carries `SqlDecimal`, has portable storage `numeric`, and uses the
+logical `decimal` cast target. These facts can change independently.
+
+Use a dialect-native descriptor when a custom column needs an exact vendor
+declaration. The dialect tag keeps that declaration from being mistaken for a
+portable spelling:
+
+```ts
+import { nativeColumn, nativeStorage, table } from 'qubu'
+
+const accounts = table('accounts', {
+  handle: nativeColumn(nativeStorage('postgres', 'citext COLLATE "C"')),
+})
+```
+
+`nativeStorage()` preserves the declaration text exactly and freezes the
+descriptor. `ColumnStorageOf<typeof accounts.definitions.handle>` extracts the descriptor;
+`ColumnStorageTypeOf`, `ColumnStorageDialectOf`, and
+`ColumnStorageDeclarationOf` extract its portable category or native details.
+Native metadata is descriptive only. It does not change selection, mutation,
+or query rendering behavior.
+
 This distinction matters even when JavaScript types match. `text()` and
 `uuid()` both decode to `string`, but UUID supports portable equality rather
 than text functions or ordering. Read [SQL semantic types](sql-semantic-types.md)

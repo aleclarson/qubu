@@ -42,7 +42,7 @@ import type { OrderTerm } from '../query/clauses/order-by.ts'
 
 export type TableDefinitions = Record<
   string,
-  ColumnDefinition<any, any, any, any, any, any, any>
+  ColumnDefinition<any, any, any, any, any, any, any, any>
 >
 
 export type AnyTable = Source<any, any, any, any, any> & {

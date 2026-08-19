@@ -25,7 +25,8 @@ type CastDefinition = ColumnDefinition<
   any,
   false,
   false,
-  AnySqlType
+  AnySqlType,
+  any
 > & {
   readonly castTarget: CastTarget
 }

@@ -19,12 +19,186 @@ import type {
   PortableCastType,
 } from '../core/dialect.ts'
 
+/** Portable physical storage spellings understood by every schema dialect. */
+export type PortableStorageType =
+  | 'integer'
+  | 'numeric'
+  | 'text'
+  | 'boolean'
+  | 'date'
+  | 'timestamp'
+  | 'uuid'
+  | 'json'
+  | 'bigint'
+  | 'binary'
+
+/** A dialect-neutral physical storage descriptor. */
+export interface PortableColumnStorage<
+  TType extends PortableStorageType = PortableStorageType,
+> {
+  readonly kind: 'portable'
+  /** Stable physical storage category, independent of the SQL domain. */
+  readonly type: TType
+}
+
+/** A physical storage declaration owned by one SQL dialect. */
+export interface NativeColumnStorage<
+  TDialect extends string = string,
+  TDeclaration extends string = string,
+> {
+  readonly kind: 'native'
+  /** Adapter name that owns the declaration. */
+  readonly dialect: TDialect
+  /** Exact dialect declaration, preserved without normalization. */
+  readonly type: TDeclaration
+}
+
+/** Physical storage metadata carried by a column definition. */
+export type ColumnStorage = PortableColumnStorage | NativeColumnStorage
+
+/** Alias for callers that prefer the descriptor terminology. */
+export type StorageDescriptor = ColumnStorage
+/** Alias for the complete column storage union. */
+export type ColumnStorageDescriptor = ColumnStorage
+/** Alias for the dialect-owned branch of {@link ColumnStorage}. */
+export type DialectNativeStorage<
+  TDialect extends string = string,
+  TDeclaration extends string = string,
+> = NativeColumnStorage<TDialect, TDeclaration>
+/** Alias for the dialect-owned descriptor terminology. */
+export type NativeStorageDescriptor<
+  TDialect extends string = string,
+  TDeclaration extends string = string,
+> = NativeColumnStorage<TDialect, TDeclaration>
+/** Alias for the portable branch of {@link ColumnStorage}. */
+export type PortableStorage<
+  TType extends PortableStorageType = PortableStorageType,
+> = PortableColumnStorage<TType>
+/** Alias for the portable descriptor terminology. */
+export type PortableStorageDescriptor<
+  TType extends PortableStorageType = PortableStorageType,
+> = PortableColumnStorage<TType>
+/** Alias for the native branch of {@link ColumnStorage}. */
+export type NativeStorage<
+  TDialect extends string = string,
+  TDeclaration extends string = string,
+> = NativeColumnStorage<TDialect, TDeclaration>
+
+/** Create an immutable portable physical storage descriptor. */
+export function portableStorage<const TType extends PortableStorageType>(
+  type: TType
+): PortableColumnStorage<TType> {
+  return Object.freeze({ kind: 'portable' as const, type })
+}
+
+/** Create an immutable dialect-native physical storage descriptor. */
+export function nativeStorage<
+  const TDialect extends string,
+  const TDeclaration extends string,
+>(
+  dialect: TDialect,
+  type: TDeclaration
+): NativeColumnStorage<TDialect, TDeclaration>
+/** Create a native descriptor from a named object for adapter integrations. */
+export function nativeStorage<
+  const TDialect extends string,
+  const TDeclaration extends string,
+>(options: {
+  readonly dialect: TDialect
+  readonly type: TDeclaration
+}): NativeColumnStorage<TDialect, TDeclaration>
+/** Accept `declaration` when adapting an external type registry. */
+export function nativeStorage<
+  const TDialect extends string,
+  const TDeclaration extends string,
+>(options: {
+  readonly dialect: TDialect
+  readonly declaration: TDeclaration
+}): NativeColumnStorage<TDialect, TDeclaration>
+export function nativeStorage(
+  dialectOrOptions:
+    | string
+    | { readonly dialect: string; readonly type: string }
+    | { readonly dialect: string; readonly declaration: string },
+  type?: string
+): NativeColumnStorage {
+  const dialect =
+    typeof dialectOrOptions === 'string'
+      ? dialectOrOptions
+      : dialectOrOptions.dialect
+  const declaration = (
+    typeof dialectOrOptions === 'string'
+      ? type
+      : 'type' in dialectOrOptions
+        ? dialectOrOptions.type
+        : dialectOrOptions.declaration
+  ) as string
+  return Object.freeze({
+    kind: 'native' as const,
+    dialect,
+    type: declaration,
+  })
+}
+
+/** Describes the storage branch carried by a column definition. */
+export type ColumnStorageOf<T> = T extends {
+  readonly storage?: infer TStorage
+}
+  ? TStorage
+  : never
+
+/** Extract the portable storage category from a column definition. */
+export type ColumnStorageTypeOf<T> =
+  Extract<
+    ColumnStorageOf<T>,
+    PortableColumnStorage
+  > extends PortableColumnStorage<infer TType>
+    ? TType
+    : never
+
+/** Extract the owning dialect from a native column definition. */
+export type ColumnStorageDialectOf<T> =
+  Extract<ColumnStorageOf<T>, NativeColumnStorage> extends NativeColumnStorage<
+    infer TDialect,
+    any
+  >
+    ? TDialect
+    : never
+
+/** Extract the exact native declaration from a column definition. */
+export type ColumnStorageDeclarationOf<T> =
+  Extract<ColumnStorageOf<T>, NativeColumnStorage> extends NativeColumnStorage<
+    any,
+    infer TDeclaration
+  >
+    ? TDeclaration
+    : never
+
+/** Extract the descriptor discriminant from a column definition. */
+export type ColumnStorageKindOf<T> = Extract<
+  ColumnStorageOf<T>,
+  ColumnStorage
+>['kind']
+
+/** Short alias for {@link ColumnStorageOf}. */
+export type StorageOf<T> = ColumnStorageOf<T>
+/** Alias matching the existing `ColumnSqlType` extraction naming. */
+export type ColumnStorageType<T> = ColumnStorageOf<T>
+/** Alias for the portable category extraction. */
+export type StorageTypeOf<T> = ColumnStorageTypeOf<T>
+/** Alias for the dialect extraction. */
+export type StorageDialectOf<T> = ColumnStorageDialectOf<T>
+/** Alias for the native declaration extraction. */
+export type StorageDeclarationOf<T> = ColumnStorageDeclarationOf<T>
+
 export interface ColumnOptions {
   readonly nullable?: boolean
   readonly hasDefault?: boolean
   readonly generated?: boolean
   /** Override the snake_case SQL identifier derived from the field name. */
   readonly sqlName?: string
+  /** Physical storage metadata for a custom column definition. */
+  readonly storage?: ColumnStorage
   /**
    * Raw SQL target that makes a custom definition reusable with cast().
    * The value is emitted verbatim and must come from trusted source code.
@@ -32,8 +206,9 @@ export interface ColumnOptions {
   readonly castType?: string
 }
 
-type BuiltInColumnOptions = Omit<ColumnOptions, 'castType'> & {
+type BuiltInColumnOptions = Omit<ColumnOptions, 'castType' | 'storage'> & {
   readonly castType?: never
+  readonly storage?: never
 }
 
 export interface ColumnDefinition<
@@ -44,12 +219,15 @@ export interface ColumnDefinition<
   THasDefault extends boolean = false,
   TGenerated extends boolean = false,
   TSqlType extends AnySqlType = SqlUnknown,
+  TStorage extends ColumnStorage | undefined = undefined,
 > {
   readonly definitionKind: 'column'
   readonly nullable: TNullable
   readonly hasDefault: THasDefault
   readonly generated: TGenerated
   readonly sqlName?: string
+  /** Physical storage metadata, separate from the application and SQL types. */
+  readonly storage?: TStorage
   /** Runtime CAST target when this definition can describe a cast result. */
   readonly castTarget?: CastTarget
   readonly __output?: TOutput
@@ -69,7 +247,8 @@ export interface ColumnDefinition<
     SameType<TUpdate, TOutput> extends true ? TType : TUpdate,
     THasDefault,
     TGenerated,
-    TSqlType
+    TSqlType,
+    TStorage
   > &
     (this extends { readonly castTarget: infer TCastTarget extends CastTarget }
       ? { readonly castTarget: TCastTarget }
@@ -109,7 +288,12 @@ export type ColumnFromOptions<
   TUpdate,
   Flag<TOptions['hasDefault']>,
   Flag<TOptions['generated']>,
-  TSqlType
+  TSqlType,
+  TOptions extends { readonly storage: infer TStorage }
+    ? TStorage extends ColumnStorage
+      ? TStorage
+      : undefined
+    : undefined
 > &
   (TOptions extends { readonly castType: string }
     ? { readonly castTarget: NamedCastTarget }
@@ -119,6 +303,7 @@ export type ColumnOutput<T> =
   T extends ColumnDefinition<
     infer TOutput,
     infer TNullable,
+    any,
     any,
     any,
     any,
@@ -138,6 +323,7 @@ export type ColumnInsertInput<T> =
     any,
     any,
     any,
+    any,
     any
   >
     ? TNullable extends true
@@ -153,6 +339,7 @@ export type ColumnUpdateInput<T> =
     infer TUpdate,
     any,
     any,
+    any,
     any
   >
     ? TNullable extends true
@@ -161,24 +348,42 @@ export type ColumnUpdateInput<T> =
     : never
 
 export type ColumnHasDefault<T> =
-  T extends ColumnDefinition<any, any, any, any, infer THasDefault, any, any>
+  T extends ColumnDefinition<
+    any,
+    any,
+    any,
+    any,
+    infer THasDefault,
+    any,
+    any,
+    any
+  >
     ? THasDefault
     : false
 
 export type ColumnIsGenerated<T> =
-  T extends ColumnDefinition<any, any, any, any, any, infer TGenerated, any>
+  T extends ColumnDefinition<
+    any,
+    any,
+    any,
+    any,
+    any,
+    infer TGenerated,
+    any,
+    any
+  >
     ? TGenerated
     : false
 
 /** Extract the SQL semantic domain declared by a column definition. */
 export type ColumnSqlType<T> =
-  T extends ColumnDefinition<any, any, any, any, any, any, infer TSqlType>
+  T extends ColumnDefinition<any, any, any, any, any, any, infer TSqlType, any>
     ? TSqlType
     : SqlUnknown
 
 /** Whether a column definition explicitly permits SQL NULL values. */
 export type ColumnIsNullable<T> =
-  T extends ColumnDefinition<any, infer TNullable, any, any, any, any, any>
+  T extends ColumnDefinition<any, infer TNullable, any, any, any, any, any, any>
     ? TNullable
     : false
 
@@ -196,7 +401,8 @@ type AnyColumnDefinition = ColumnDefinition<
   any,
   any,
   any,
-  AnySqlType
+  AnySqlType,
+  any
 >
 
 type NamedCastColumn<TDefinition extends AnyColumnDefinition> = TDefinition & {
@@ -209,6 +415,37 @@ type PortableCastColumn<
 > = TDefinition & {
   readonly castTarget: PortableCastTarget<TType>
 }
+
+type StoredColumnDefinition<
+  TDefinition extends AnyColumnDefinition,
+  TStorage extends ColumnStorage,
+> =
+  TDefinition extends ColumnDefinition<
+    infer TOutput,
+    infer TNullable,
+    infer TInsert,
+    infer TUpdate,
+    infer THasDefault,
+    infer TGenerated,
+    infer TSqlType,
+    any
+  >
+    ? ColumnDefinition<
+        TOutput,
+        TNullable,
+        TInsert,
+        TUpdate,
+        THasDefault,
+        TGenerated,
+        TSqlType,
+        TStorage
+      > &
+        (TDefinition extends {
+          readonly castTarget: infer TCastTarget extends CastTarget
+        }
+          ? { readonly castTarget: TCastTarget }
+          : unknown)
+    : never
 
 function withPortableCast<
   TDefinition extends AnyColumnDefinition,
@@ -223,6 +460,38 @@ function withPortableCast<
   })
 }
 
+function withPortableStorage<
+  TDefinition extends AnyColumnDefinition,
+  const TType extends PortableStorageType,
+>(
+  definition: TDefinition,
+  type: TType
+): StoredColumnDefinition<TDefinition, PortableColumnStorage<TType>> {
+  return Object.freeze({
+    ...definition,
+    storage: portableStorage(type),
+  }) as StoredColumnDefinition<TDefinition, PortableColumnStorage<TType>>
+}
+
+export function column<
+  TOutput = unknown,
+  TInsert = TOutput,
+  TUpdate = TInsert,
+  TSqlType extends AnySqlType = SqlUnknown,
+  const TStorage extends ColumnStorage = ColumnStorage,
+  const TOptions extends Omit<ColumnOptions, 'storage'> = Omit<
+    ColumnOptions,
+    'storage'
+  >,
+>(
+  options: TOptions & { readonly storage: TStorage }
+): ColumnFromOptions<
+  TOutput,
+  TInsert,
+  TUpdate,
+  TOptions & { readonly storage: TStorage },
+  TSqlType
+>
 export function column<
   TOutput = unknown,
   TInsert = TOutput,
@@ -323,6 +592,15 @@ export function column<
   TOutput = unknown,
   TInsert = TOutput,
   TUpdate = TInsert,
+  TSqlType extends AnySqlType = SqlUnknown,
+  const TOptions extends ColumnOptions = {},
+>(
+  options?: TOptions
+): ColumnFromOptions<TOutput, TInsert, TUpdate, TOptions, TSqlType>
+export function column<
+  TOutput = unknown,
+  TInsert = TOutput,
+  TUpdate = TInsert,
   const TOptions extends ColumnOptions = {},
   TSqlType extends AnySqlType = SqlUnknown,
 >(
@@ -341,6 +619,9 @@ export function column<
     hasDefault: options?.hasDefault === true,
     generated: options?.generated === true,
     sqlName: options?.sqlName,
+    storage: options?.storage
+      ? Object.freeze({ ...options.storage })
+      : undefined,
     $type: narrowColumnType,
     castTarget: options?.castType
       ? Object.freeze({
@@ -357,6 +638,76 @@ export function column<
   >
 }
 
+type NativeColumnOptions = Omit<ColumnOptions, 'storage'> & {
+  readonly storage?: never
+}
+
+/** Create a column whose physical declaration belongs to one SQL dialect. */
+export function nativeColumn<
+  TOutput = unknown,
+  TInsert = TOutput,
+  TUpdate = TInsert,
+  const TOptions extends NativeColumnOptions = {},
+  TSqlType extends AnySqlType = SqlUnknown,
+  const TDialect extends string = string,
+  const TDeclaration extends string = string,
+>(
+  storage: NativeColumnStorage<TDialect, TDeclaration>,
+  options?: TOptions
+): ColumnDefinition<
+  TOutput,
+  Flag<TOptions['nullable']>,
+  TInsert,
+  TUpdate,
+  Flag<TOptions['hasDefault']>,
+  Flag<TOptions['generated']>,
+  TSqlType,
+  NativeColumnStorage<TDialect, TDeclaration>
+>
+/** Create a dialect-native column from an adapter name and exact declaration. */
+export function nativeColumn<
+  const TDialect extends string,
+  const TDeclaration extends string,
+  TOutput = unknown,
+  TInsert = TOutput,
+  TUpdate = TInsert,
+  const TOptions extends NativeColumnOptions = {},
+  TSqlType extends AnySqlType = SqlUnknown,
+>(
+  dialect: TDialect,
+  type: TDeclaration,
+  options?: TOptions
+): ColumnDefinition<
+  TOutput,
+  Flag<TOptions['nullable']>,
+  TInsert,
+  TUpdate,
+  Flag<TOptions['hasDefault']>,
+  Flag<TOptions['generated']>,
+  TSqlType,
+  NativeColumnStorage<TDialect, TDeclaration>
+>
+export function nativeColumn(
+  storageOrDialect: NativeColumnStorage | string,
+  typeOrOptions?: string | NativeColumnOptions,
+  maybeOptions?: NativeColumnOptions
+) {
+  const storage =
+    typeof storageOrDialect === 'string'
+      ? nativeStorage(storageOrDialect, typeOrOptions as string)
+      : storageOrDialect
+  const options = (
+    typeof storageOrDialect === 'string' ? maybeOptions : typeOrOptions
+  ) as NativeColumnOptions | undefined
+  return column({
+    ...(options ?? {}),
+    storage,
+  })
+}
+
+/** Alias for integrations that call dialect-owned columns "dialect columns". */
+export const dialectColumn = nativeColumn
+
 export function nullable<
   TOutput,
   TNullable extends boolean,
@@ -365,6 +716,7 @@ export function nullable<
   THasDefault extends boolean,
   TGenerated extends boolean,
   TSqlType extends AnySqlType,
+  TStorage extends ColumnStorage | undefined,
 >(
   definition: ColumnDefinition<
     TOutput,
@@ -373,7 +725,8 @@ export function nullable<
     TUpdate,
     THasDefault,
     TGenerated,
-    TSqlType
+    TSqlType,
+    TStorage
   >
 ) {
   return Object.freeze({
@@ -386,15 +739,19 @@ export function nullable<
     TUpdate,
     THasDefault,
     TGenerated,
-    TSqlType
+    TSqlType,
+    TStorage
   >
 }
 
 export function integer<const TOptions extends BuiltInColumnOptions = {}>(
   options?: TOptions
 ) {
-  return withPortableCast(
-    column<number, number, number, TOptions, SqlInteger>(options),
+  return withPortableStorage(
+    withPortableCast(
+      column<number, number, number, TOptions, SqlInteger>(options),
+      'integer'
+    ),
     'integer'
   )
 }
@@ -402,17 +759,23 @@ export function integer<const TOptions extends BuiltInColumnOptions = {}>(
 export function numeric<const TOptions extends BuiltInColumnOptions = {}>(
   options?: TOptions
 ) {
-  return withPortableCast(
-    column<number, number, number, TOptions, SqlDecimal>(options),
-    'decimal'
+  return withPortableStorage(
+    withPortableCast(
+      column<number, number, number, TOptions, SqlDecimal>(options),
+      'decimal'
+    ),
+    'numeric'
   )
 }
 
 export function text<const TOptions extends BuiltInColumnOptions = {}>(
   options?: TOptions
 ) {
-  return withPortableCast(
-    column<string, string, string, TOptions, SqlText>(options),
+  return withPortableStorage(
+    withPortableCast(
+      column<string, string, string, TOptions, SqlText>(options),
+      'text'
+    ),
     'text'
   )
 }
@@ -420,8 +783,11 @@ export function text<const TOptions extends BuiltInColumnOptions = {}>(
 export function boolean<const TOptions extends BuiltInColumnOptions = {}>(
   options?: TOptions
 ) {
-  return withPortableCast(
-    column<boolean, boolean, boolean, TOptions, SqlBoolean>(options),
+  return withPortableStorage(
+    withPortableCast(
+      column<boolean, boolean, boolean, TOptions, SqlBoolean>(options),
+      'boolean'
+    ),
     'boolean'
   )
 }
@@ -429,8 +795,11 @@ export function boolean<const TOptions extends BuiltInColumnOptions = {}>(
 export function date<const TOptions extends BuiltInColumnOptions = {}>(
   options?: TOptions
 ) {
-  return withPortableCast(
-    column<Date, Date, Date, TOptions, SqlDate>(options),
+  return withPortableStorage(
+    withPortableCast(
+      column<Date, Date, Date, TOptions, SqlDate>(options),
+      'date'
+    ),
     'date'
   )
 }
@@ -438,8 +807,11 @@ export function date<const TOptions extends BuiltInColumnOptions = {}>(
 export function timestamp<const TOptions extends BuiltInColumnOptions = {}>(
   options?: TOptions
 ) {
-  return withPortableCast(
-    column<Date, Date, Date, TOptions, SqlTimestamp>(options),
+  return withPortableStorage(
+    withPortableCast(
+      column<Date, Date, Date, TOptions, SqlTimestamp>(options),
+      'timestamp'
+    ),
     'timestamp'
   )
 }
@@ -450,8 +822,11 @@ export const dateTime = timestamp
 export function uuid<const TOptions extends BuiltInColumnOptions = {}>(
   options?: TOptions
 ) {
-  return withPortableCast(
-    column<string, string, string, TOptions, SqlUuid>(options),
+  return withPortableStorage(
+    withPortableCast(
+      column<string, string, string, TOptions, SqlUuid>(options),
+      'uuid'
+    ),
     'uuid'
   )
 }
@@ -460,8 +835,11 @@ export function json<
   TOutput = unknown,
   const TOptions extends BuiltInColumnOptions = {},
 >(options?: TOptions) {
-  return withPortableCast(
-    column<TOutput, TOutput, TOutput, TOptions, SqlJson<TOutput>>(options),
+  return withPortableStorage(
+    withPortableCast(
+      column<TOutput, TOutput, TOutput, TOptions, SqlJson<TOutput>>(options),
+      'json'
+    ),
     'json'
   )
 }
@@ -469,8 +847,11 @@ export function json<
 export function bigint<const TOptions extends BuiltInColumnOptions = {}>(
   options?: TOptions
 ) {
-  return withPortableCast(
-    column<bigint, bigint, bigint, TOptions, SqlBigInt>(options),
+  return withPortableStorage(
+    withPortableCast(
+      column<bigint, bigint, bigint, TOptions, SqlBigInt>(options),
+      'bigint'
+    ),
     'bigint'
   )
 }
@@ -478,8 +859,11 @@ export function bigint<const TOptions extends BuiltInColumnOptions = {}>(
 export function binary<const TOptions extends BuiltInColumnOptions = {}>(
   options?: TOptions
 ) {
-  return withPortableCast(
-    column<Uint8Array, Uint8Array, Uint8Array, TOptions, SqlBinary>(options),
+  return withPortableStorage(
+    withPortableCast(
+      column<Uint8Array, Uint8Array, Uint8Array, TOptions, SqlBinary>(options),
+      'binary'
+    ),
     'binary'
   )
 }
