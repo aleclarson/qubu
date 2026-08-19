@@ -16,6 +16,7 @@ import {
   type Source,
   type SourceColumns,
   type SourceIdentity,
+  type SourceConstraints,
   type SourceRow,
   type SourceSqlTypeMap,
 } from './source.ts'
@@ -27,13 +28,14 @@ export type AliasIdentity<TBase, TAlias extends string> = {
 }
 
 export type AliasedSource<
-  TBase extends Source<any, any, any, any>,
+  TBase extends Source<any, any, any, any, any>,
   TAlias extends string,
 > = Source<
   AliasIdentity<SourceIdentity<TBase>, TAlias>,
   SourceRow<TBase>,
   RequiresOuterMetadataOf<TBase> | CapabilityMetadataOf<TBase>,
-  SourceSqlTypeMap<TBase>
+  SourceSqlTypeMap<TBase>,
+  SourceConstraints<TBase>
 > & {
   readonly alias: TAlias
   readonly base: TBase
@@ -42,6 +44,7 @@ export type AliasedSource<
     AliasIdentity<SourceIdentity<TBase>, TAlias>,
     SourceSqlTypeMap<TBase>
   >
+  readonly constraints: SourceConstraints<TBase>
 } & SourceColumns<
     SourceRow<TBase>,
     AliasIdentity<SourceIdentity<TBase>, TAlias>,
@@ -66,7 +69,7 @@ export type QuerySource<
 } & SourceColumns<TRow, QueryAliasIdentity<TAlias>, TSqlTypes>
 
 export function alias<
-  TBase extends Source<any, any, any, any>,
+  TBase extends Source<any, any, any, any, any>,
   const TAlias extends string,
 >(source: TBase, name: TAlias): AliasedSource<TBase, TAlias>
 export function alias<TQuery extends AnyQuery, const TAlias extends string>(
@@ -78,19 +81,17 @@ export function alias<TQuery extends AnyQuery, const TAlias extends string>(
   RequiresOuterMetadataOf<TQuery> | CapabilityMetadataOf<TQuery>,
   QuerySqlTypeMap<TQuery>
 >
-export function alias(
-  sourceOrQuery: Source<any, any, any, any> | AnyQuery,
-  name: string
-) {
+export function alias(sourceOrQuery: unknown, name: string): unknown {
+  const input = sourceOrQuery as Source<any, any, any, any, any> | AnyQuery
   const reference = identifier(name)
-  const isQuery = 'queryKind' in sourceOrQuery
+  const isQuery = 'queryKind' in input
   const source = createSource(
     isQuery ? 'query-alias' : 'table-alias',
     context => {
       if (isQuery) {
-        context.renderRelation(parenthesize(sourceOrQuery))
+        context.renderRelation(parenthesize(input))
       } else {
-        context.render(sourceOrQuery)
+        context.render(input)
       }
       context.append(' AS ')
       context.render(reference)
@@ -99,8 +100,8 @@ export function alias(
   )
 
   const fieldNames = isQuery
-    ? Object.keys(sourceOrQuery.row)
-    : Object.keys(sourceOrQuery.columns)
+    ? Object.keys(input.row)
+    : Object.keys(input.columns)
   const querySqlNames = isQuery
     ? resolveSqlNames(fieldNames.map(fieldName => ({ fieldName })))
     : undefined
@@ -108,7 +109,7 @@ export function alias(
     fieldNames.map(fieldName => {
       const columnName = isQuery
         ? querySqlNames![fieldName]
-        : sourceOrQuery.columns[fieldName].columnName
+        : input.columns[fieldName].columnName
       return [
         fieldName,
         createColumnReference(
@@ -122,8 +123,9 @@ export function alias(
 
   Object.assign(source, {
     alias: name,
-    base: isQuery ? undefined : sourceOrQuery,
-    query: isQuery ? sourceOrQuery : undefined,
+    base: isQuery ? undefined : input,
+    query: isQuery ? input : undefined,
+    constraints: isQuery ? [] : input.constraints,
     columns,
   })
   exposeColumns(source, columns)

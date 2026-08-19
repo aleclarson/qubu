@@ -115,6 +115,7 @@ declare global {
   const parameter: typeof import('qubu').parameter
   const parenthesize: typeof import('qubu').parenthesize
   const postgresDialect: typeof import('qubu').postgresDialect
+  const primaryKey: typeof import('qubu').primaryKey
   const qualifiedIdentifier: typeof import('qubu').qualifiedIdentifier
   const render: typeof import('qubu').render
   const rightJoin: typeof import('qubu').rightJoin
@@ -133,6 +134,7 @@ declare global {
   const toSql: typeof import('qubu').toSql
   const union: typeof import('qubu').union
   const unionAll: typeof import('qubu').unionAll
+  const unique: typeof import('qubu').unique
   const unsafe: typeof import('qubu').unsafe
   const unsafeExpression: typeof import('qubu').unsafeExpression
   const unsafeMutation: typeof import('qubu').unsafeMutation
@@ -279,12 +281,21 @@ declare global {
     TMetadata = never,
     TSqlTypes extends
       import('qubu').SourceSqlTypes<TRow> = import('qubu').UnknownSourceSqlTypes<TRow>,
-  > = import('qubu').Source<TIdentity, TRow, TMetadata, TSqlTypes>
+    TConstraints extends
+      readonly import('qubu').SourceConstraint[] = readonly [],
+  > = import('qubu').Source<TIdentity, TRow, TMetadata, TSqlTypes, TConstraints>
+  type SourceConstraint = import('qubu').SourceConstraint
+  type KeyConstraint<
+    TKind extends 'primary-key' | 'unique' = 'primary-key' | 'unique',
+    TColumns extends readonly string[] = readonly string[],
+  > = import('qubu').KeyConstraint<TKind, TColumns>
   type Table<
     TName extends string = string,
     TDefinitions extends
       import('qubu').TableDefinitions = import('qubu').TableDefinitions,
-  > = import('qubu').Table<TName, TDefinitions>
+    TConstraints extends
+      readonly import('qubu').SourceConstraint[] = readonly [],
+  > = import('qubu').Table<TName, TDefinitions, TConstraints>
 }
 
 export {}

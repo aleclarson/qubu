@@ -12,10 +12,16 @@ import type { DistinctClause } from '../clauses/distinct.ts'
 import type { AnyPaginationClause, FetchClause } from '../clauses/pagination.ts'
 import type { GroupByClause } from '../clauses/group-by.ts'
 import type { HavingClause } from '../clauses/having.ts'
-import type { ProvidedSourceIdentity } from '../../schema/source.ts'
+import type {
+  AnySource,
+  ProvidedSourceIdentity,
+  SourceConstraints,
+  SourceIdentity,
+} from '../../schema/source.ts'
+import type { ColumnDependency } from '../../expressions/column.ts'
 import type { JoinClause } from '../clauses/joins.ts'
 import type { AnySelectClause } from '../clauses/types.ts'
-import type { FromClause, FromScope } from '../clauses/from.ts'
+import type { FromClause, FromScope, FromSource } from '../clauses/from.ts'
 import type { OrderByClause } from '../clauses/order-by.ts'
 import type { WithClause } from '../clauses/with.ts'
 import type { SelectionItems, SelectionRequires } from '../selection.ts'
@@ -134,6 +140,50 @@ type RequiresGrouping<TSelection, TClauses extends readonly AnySelectClause[]> =
       ? true
       : HasAggregate<SelectionItems<TSelection> | GroupingRuleClauses<TClauses>>
 
+type ClauseSource<TClause> = TClause extends FromClause
+  ? FromSource<TClause>
+  : TClause extends JoinClause<infer TSource, any>
+    ? TSource
+    : never
+
+type ConstraintDeterminesSource<
+  TConstraint,
+  TSource extends AnySource,
+  TGroupedDependencies,
+> = TConstraint extends {
+  readonly kind: 'primary-key' | 'unique'
+  readonly columns: infer TColumns
+}
+  ? TColumns extends readonly string[]
+    ? [ColumnDependency<SourceIdentity<TSource>, TColumns[number]>] extends [
+        TGroupedDependencies,
+      ]
+      ? true
+      : false
+    : false
+  : false
+
+type DeterminedSourceIdentity<TSource, TGroupedDependencies> =
+  TSource extends AnySource
+    ? true extends ConstraintDeterminesSource<
+        SourceConstraints<TSource>[number],
+        TSource,
+        TGroupedDependencies
+      >
+      ? SourceIdentity<TSource>
+      : never
+    : never
+
+type FunctionallyDeterminedDependencies<
+  TClauses extends readonly AnySelectClause[],
+> = ColumnDependency<
+  DeterminedSourceIdentity<
+    ClauseSource<TClauses[number]>,
+    GroupingDependenciesOf<TClauses[number]>
+  >,
+  string
+>
+
 type GroupingFailure<
   TExpression,
   TClauses extends readonly AnySelectClause[],
@@ -143,7 +193,8 @@ type GroupingFailure<
     : [
           Exclude<
             VisibleDependenciesOf<TExpression>,
-            GroupingDependenciesOf<TClauses[number]>
+            | GroupingDependenciesOf<TClauses[number]>
+            | FunctionallyDeterminedDependencies<TClauses>
           >,
         ] extends [never]
       ? never
@@ -182,9 +233,10 @@ type GroupingFailures<
   | GroupByAggregateFailures<TClauses>
 
 /**
- * Enforce the conservative grouped-query rule: visible column dependencies
- * must be grouped, while aggregate arguments are consumed by the aggregate.
- * Non-column GROUP BY expressions are accepted as exact grouping keys only.
+ * Enforce the grouped-query rule: visible column dependencies must be grouped
+ * or functionally determined by a grouped, declared key from the same source.
+ * Aggregate arguments are consumed by the aggregate. Non-column GROUP BY
+ * expressions are accepted as exact grouping keys only.
  */
 export type GroupingValidation<
   TSelection,

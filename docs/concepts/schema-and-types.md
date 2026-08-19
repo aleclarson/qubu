@@ -94,6 +94,57 @@ inserts while narrowing selected and updated values to `1 | 2`.
 `$type<T>()` is a compile-time assertion. It does not validate values at
 runtime or add a database constraint.
 
+## Declare keys for grouped-query proofs
+
+Add primary and unique keys when the application schema knows the database
+enforces them. Qubu uses this metadata to validate functional dependencies in
+grouped queries; it does not emit a constraint or migrate the database:
+
+```ts
+import { integer, primaryKey, table, text, unique } from 'qubu'
+
+const memberships = table(
+  'memberships',
+  {
+    id: integer(),
+    tenantId: integer(),
+    slug: text(),
+    displayName: text(),
+  },
+  {
+    constraints: [primaryKey('id'), unique('tenantId', 'slug')],
+  }
+)
+```
+
+Each constraint is structured metadata with a `kind` and a non-empty
+`columns` tuple. Pass multiple field names to `primaryKey()` or `unique()` for
+a composite key. Constraint names use application field keys such as
+`tenantId`, not rendered SQL names such as `tenant_id`.
+
+Key columns must be non-nullable in the Qubu definition. This matters for
+`unique()` because SQL unique constraints commonly allow multiple rows whose
+key contains `NULL`; such a key cannot prove that one group determines the
+remaining columns. Qubu rejects nullable key declarations instead of making a
+dialect-specific assumption.
+
+Grouping every column in a declared key allows other columns from that same
+source to be selected:
+
+```ts
+const summary = select(
+  { displayName: memberships.displayName, total: count() },
+  from(memberships),
+  groupBy(memberships.tenantId, memberships.slug)
+)
+```
+
+The proof follows a table alias and remains source-local through a join,
+including a source made nullable by `leftJoin()`. It does not automatically
+cross a derived-query, CTE, lateral-query, or custom-source boundary: those
+relations can change cardinality or projection semantics, so grouping their
+apparent key still requires an explicit proof on that source model.
+
 ## JavaScript and SQL types are separate
 
 The first-party helpers declare both the application value and a portable SQL

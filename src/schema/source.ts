@@ -15,6 +15,7 @@ import type {
 } from '../expressions/column.ts'
 import { createColumnReference } from '../expressions/column.ts'
 import { resolveSqlNames } from '../core/naming.ts'
+import type { SourceConstraint } from './constraints.ts'
 
 export const sourceIdentity: unique symbol = Symbol('qubu.source.identity')
 
@@ -57,6 +58,7 @@ export interface Source<
   TRow extends object = Record<string, unknown>,
   TMetadata = never,
   TSqlTypes extends SourceSqlTypes<TRow> = UnknownSourceSqlTypes<TRow>,
+  TConstraints extends readonly SourceConstraint[] = readonly [],
 > extends Fragment<
     | ResultMeta<readonly TRow[]>
     | ProvidesSourceMeta<TIdentity, TRow>
@@ -66,9 +68,10 @@ export interface Source<
   readonly [sourceIdentity]: TIdentity
   readonly reference: Fragment<never>
   readonly columns: SourceColumns<TRow, TIdentity, TSqlTypes>
+  readonly constraints: TConstraints
 }
 
-export type AnySource = Source<any, any, any, any>
+export type AnySource = Source<any, any, any, any, any>
 
 /** The source-provision fact carried by a source-producing fragment. */
 export type SourceProvision<T> = Extract<
@@ -85,14 +88,20 @@ export type ProvidedSourceRow<T> =
   SourceProvision<T> extends ProvidesSourceMeta<any, infer TRow> ? TRow : never
 
 export type SourceIdentity<T> =
-  T extends Source<infer TIdentity, any, any, any> ? TIdentity : never
+  T extends Source<infer TIdentity, any, any, any, any> ? TIdentity : never
 export type SourceRow<T> =
-  T extends Source<any, infer TRow, any, any> ? TRow : never
+  T extends Source<any, infer TRow, any, any, any> ? TRow : never
 /** Extract the field-to-SQL-domain map retained by a source. */
 export type SourceSqlTypeMap<T> =
-  T extends Source<any, infer TRow, any, infer TSqlTypes>
+  T extends Source<any, infer TRow, any, infer TSqlTypes, any>
     ? TSqlTypes & SourceSqlTypes<TRow>
     : never
+/** Structured schema constraints declared for a source. */
+export type SourceConstraints<T> = T extends {
+  readonly constraints: infer TConstraints extends readonly SourceConstraint[]
+}
+  ? TConstraints
+  : never
 
 export interface CustomSourceOptions<
   TIdentity,
@@ -136,17 +145,20 @@ export function createSource<
   TRow extends object,
   TMetadata = never,
   TSqlTypes extends SourceSqlTypes<TRow> = UnknownSourceSqlTypes<TRow>,
+  TConstraints extends readonly SourceConstraint[] = readonly [],
 >(
   sourceKind: SourceKind,
   render: RenderFunction,
-  reference: Fragment<never>
-): Source<TIdentity, TRow, TMetadata, TSqlTypes> {
+  reference: Fragment<never>,
+  constraints: TConstraints = [] as unknown as TConstraints
+): Source<TIdentity, TRow, TMetadata, TSqlTypes, TConstraints> {
   return {
     sourceKind,
     render,
     reference,
     columns: {} as SourceColumns<TRow, TIdentity, TSqlTypes>,
-  } as Source<TIdentity, TRow, TMetadata, TSqlTypes>
+    constraints,
+  } as Source<TIdentity, TRow, TMetadata, TSqlTypes, TConstraints>
 }
 
 /**
@@ -218,6 +230,7 @@ export function exposeColumns(
     'query',
     'cteName',
     'identity',
+    'constraints',
   ])
 
   for (const [name, column] of Object.entries(columns)) {

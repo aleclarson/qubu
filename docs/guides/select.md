@@ -279,8 +279,10 @@ const counts = select(
 `users.name` is grouped, while `posts.id` is consumed by `COUNT()`. The same
 dependency rule applies to `HAVING` and grouped `ORDER BY` expressions. A
 projection such as `{ email: users.email, postCount: count(posts.id) }` is
-rejected unless `users.email` is also grouped; Qubu does not infer functional
-dependencies from database keys.
+rejected unless `users.email` is grouped or is functionally determined by a
+grouped primary or unique key declared in the table schema. Qubu uses only
+explicit key metadata and keeps the proof within the source boundary; see
+[Schema and type metadata](../concepts/schema-and-types.md#declare-keys-for-grouped-query-proofs).
 
 ## Window functions
 

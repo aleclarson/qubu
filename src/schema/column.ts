@@ -176,6 +176,12 @@ export type ColumnSqlType<T> =
     ? TSqlType
     : SqlUnknown
 
+/** Whether a column definition explicitly permits SQL NULL values. */
+export type ColumnIsNullable<T> =
+  T extends ColumnDefinition<any, infer TNullable, any, any, any, any, any>
+    ? TNullable
+    : false
+
 type FalseColumnOptions = {
   readonly nullable?: false
   readonly hasDefault?: false

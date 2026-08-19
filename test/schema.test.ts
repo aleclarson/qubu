@@ -6,12 +6,14 @@ import {
   from,
   integer,
   json,
+  primaryKey,
   render,
   select,
   table,
   text,
   timestamp,
   uuid,
+  unique,
 } from '../src/index.ts'
 import type { TableInsertInput, TableUpdateInput } from '../src/index.ts'
 
@@ -41,6 +43,24 @@ test('provides common driver-neutral schema value helpers', () => {
   expectTypeOf(query.row.payload).toMatchTypeOf<{ kind: string } | null>()
   const binaryValue: typeof query.row.body = new Uint8Array()
   expect(binaryValue).toBeInstanceOf(Uint8Array)
+})
+
+test('retains structured key constraints without changing table SQL', () => {
+  const accounts = table(
+    'accounts',
+    { tenantId: integer(), email: text(), name: text() },
+    {
+      constraints: [primaryKey('tenantId', 'email'), unique('email')],
+    }
+  )
+
+  expect(accounts.constraints).toEqual([
+    { kind: 'primary-key', columns: ['tenantId', 'email'] },
+    { kind: 'unique', columns: ['email'] },
+  ])
+  expect(render(select({ name: accounts.name }, from(accounts))).text).toBe(
+    'SELECT "accounts"."name" AS "name" FROM "accounts"'
+  )
 })
 
 test('derives insert and update inputs from write-time column metadata', () => {

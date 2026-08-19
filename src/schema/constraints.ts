@@ -90,3 +90,29 @@ export interface TableLike<TShape extends object> extends SourceLike<TShape> {
   readonly definitions: object
   readonly sqlNames: Readonly<Record<string, string>>
 }
+
+/** A schema constraint whose columns form a relational key. */
+export interface KeyConstraint<
+  TKind extends 'primary-key' | 'unique' = 'primary-key' | 'unique',
+  TColumns extends readonly string[] = readonly string[],
+> {
+  readonly kind: TKind
+  readonly columns: TColumns
+}
+
+/** Structured schema metadata carried by sources that declare constraints. */
+export type SourceConstraint = KeyConstraint
+
+/** Declare a primary key, including a composite primary key. */
+export function primaryKey<
+  const TColumns extends readonly [string, ...string[]],
+>(...columns: TColumns): KeyConstraint<'primary-key', TColumns> {
+  return Object.freeze({ kind: 'primary-key', columns })
+}
+
+/** Declare a non-null unique key, including a composite unique key. */
+export function unique<const TColumns extends readonly [string, ...string[]]>(
+  ...columns: TColumns
+): KeyConstraint<'unique', TColumns> {
+  return Object.freeze({ kind: 'unique', columns })
+}
