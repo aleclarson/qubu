@@ -23,6 +23,41 @@ export interface DialectJson {
 
 export type PaginationKind = 'offset' | 'fetch'
 
+/** Logical built-in targets that a dialect can spell in CAST expressions. */
+export type PortableCastType =
+  | 'integer'
+  | 'decimal'
+  | 'text'
+  | 'boolean'
+  | 'date'
+  | 'timestamp'
+  | 'uuid'
+  | 'json'
+  | 'bigint'
+  | 'binary'
+
+/** A logical cast target whose concrete spelling is selected by a dialect. */
+export interface PortableCastTarget<
+  TType extends PortableCastType = PortableCastType,
+> {
+  readonly kind: 'portable-cast'
+  readonly type: TType
+}
+
+/** A trusted raw cast target supplied by a custom definition. */
+export interface NamedCastTarget<TTypeName extends string = string> {
+  readonly kind: 'named-cast'
+  readonly typeName: TTypeName
+}
+
+/** Runtime target carried by a definition that can be used with cast(). */
+export type CastTarget = PortableCastTarget | NamedCastTarget
+
+/** Dialect-specific spellings for built-in logical CAST targets. */
+export type DialectCastTypes = Readonly<
+  Partial<Record<PortableCastType, string>>
+>
+
 export interface PaginationPart {
   readonly kind: PaginationKind
   readonly rows: number
@@ -46,6 +81,8 @@ export interface Dialect<
   readonly pagination?: DialectPagination
   /** Rendering policy for Qubu's portable JSON operations. */
   readonly json?: DialectJson
+  /** Overrides for the standard spelling of logical CAST targets. */
+  readonly castTypes?: DialectCastTypes
   /** Capabilities advertised by this dialect at the rendering boundary. */
   readonly capabilities?: readonly TCapabilities[]
 }
@@ -59,7 +96,31 @@ export interface DialectOptions<
   readonly placeholder: (position: number) => string
   readonly pagination?: DialectPagination
   readonly json?: TJson
+  /** Overrides for the standard spelling of logical CAST targets. */
+  readonly castTypes?: DialectCastTypes
   readonly capabilities?: readonly TCapabilities[]
+}
+
+const standardCastTypes: Readonly<Record<PortableCastType, string>> = {
+  integer: 'INTEGER',
+  decimal: 'DECIMAL',
+  text: 'TEXT',
+  boolean: 'BOOLEAN',
+  date: 'DATE',
+  timestamp: 'TIMESTAMP',
+  uuid: 'UUID',
+  json: 'JSON',
+  bigint: 'BIGINT',
+  binary: 'VARBINARY',
+}
+
+/** Resolve a logical or explicitly named CAST target for a dialect. */
+export function resolveCastTarget(
+  dialect: Dialect,
+  target: CastTarget
+): string {
+  if (target.kind === 'named-cast') return target.typeName
+  return dialect.castTypes?.[target.type] ?? standardCastTypes[target.type]
 }
 
 const quoteIdentifier = (identifier: string) =>
@@ -88,6 +149,9 @@ export function createDialect(
     placeholder: options.placeholder,
     pagination: options.pagination,
     json: options.json,
+    castTypes: options.castTypes
+      ? Object.freeze({ ...options.castTypes })
+      : undefined,
     capabilities: Object.freeze([
       ...(options.capabilities ?? []),
       ...(options.json ? (['json'] as const) : []),

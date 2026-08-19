@@ -25,5 +25,14 @@ export function mysqlDialect() {
     placeholder: () => '?',
     pagination: { render: renderMySqlPagination },
     json: mysqlJson,
+    castTypes: {
+      integer: 'SIGNED',
+      text: 'CHAR',
+      boolean: 'UNSIGNED',
+      timestamp: 'DATETIME',
+      uuid: 'CHAR',
+      bigint: 'SIGNED',
+      binary: 'BINARY',
+    },
   })
 }

@@ -175,6 +175,15 @@ declare global {
   > = import('qubu').Dialect<TCapabilities>
   type DialectCapability = import('qubu').DialectCapability
   type DialectJson = import('qubu').DialectJson
+  type PortableCastType = import('qubu').PortableCastType
+  type PortableCastTarget<
+    TType extends
+      import('qubu').PortableCastType = import('qubu').PortableCastType,
+  > = import('qubu').PortableCastTarget<TType>
+  type NamedCastTarget<TTypeName extends string = string> =
+    import('qubu').NamedCastTarget<TTypeName>
+  type CastTarget = import('qubu').CastTarget
+  type DialectCastTypes = import('qubu').DialectCastTypes
   type Expression<
     TMetadata = any,
     TKind extends import('qubu').ExpressionKind = import('qubu').ExpressionKind,

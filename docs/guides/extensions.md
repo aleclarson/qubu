@@ -122,7 +122,7 @@ actually supports. Compatibility groups allow a dialect-specific domain to
 interoperate with a built-in family:
 
 ```ts
-import { column } from 'qubu'
+import { cast, column } from 'qubu'
 import type {
   SqlEqualityComparable,
   SqlOrderable,
@@ -136,13 +136,20 @@ interface SqlCitext
     SqlOrderable<'text'>,
     SqlEqualityComparable<'text'> {}
 
-const citext = column<string, string, string, SqlCitext>()
+const citext = column<string, string, string, SqlCitext>({
+  castType: 'CITEXT',
+})
+
+const nameAsCitext = cast(users.name, citext)
 ```
 
 The first three `column` type arguments are output, insert, and update values;
 the fourth is the SQL domain. The `text` equality and ordering groups make the
 custom domain compatible with `SqlText`. Use a distinct group when cross-type
-comparison is not portable.
+comparison is not portable. `castType` also makes this plain definition a cast
+target; its SQL text is emitted verbatim, so keep it in trusted extension code.
+Definitions with schema flags are not accepted as cast targets because cast
+nullability comes from the operand and write flags have no cast meaning.
 
 Declare result domains at other extension boundaries too:
 
@@ -152,17 +159,17 @@ import type { SqlText, SqlUuid } from 'qubu'
 
 const id = typedValue<SqlUuid, string>('108cb836-20d2-41b2-8c23-f0c94700aa7e')
 const normalized = typedCall<SqlText, string>()('custom_text', users.name)
-const nameAsText = typedCast<string, SqlText>()(users.name, 'TEXT')
+const rawNameAsText = typedCast<string, SqlText>()(users.name, 'TEXT')
 const generated = unsafeExpression<string, SqlText>('custom_text()')
 ```
 
 `typedCall()` preserves source requirements from its arguments. `typedCast()`
-preserves its operand's nullability and source metadata, while the supplied
-type name remains caller- or adapter-owned SQL. `typedValue()` binds a
-parameter. `unsafeExpression()` emits its string unchanged and should remain a
-last resort.
+is the flexible fallback when no reusable definition describes the target; it
+preserves operand nullability and source metadata while emitting its supplied
+type name verbatim. `typedValue()` binds a parameter. `unsafeExpression()`
+emits its string unchanged and should remain a last resort.
 
-Use the typed wrappers for the common declaration-first workflow. The
+Use the typed wrappers when an extension cannot reuse a schema definition. The
 lower-level forms also expose the SQL domain in their generic lists:
 `call<Output, Name, Arguments, NullableFrom, SqlType>()` and
 `cast<Output, SqlType>()`. They are useful when an extension already computes

@@ -116,6 +116,11 @@ The driver adapter remains responsible for database-specific encoding and row
 decoding. A `timestamp()` column describes the TypeScript value and portable
 SQL domain; it does not choose a wire format for a particular database client.
 
+The same definitions are typed cast targets. `cast(value, text())` derives a
+`string`/`SqlText` result and lets the active dialect choose the concrete type
+spelling. Cast nullability comes from `value`, so schema definitions carrying
+`nullable`, `hasDefault`, or `generated` flags are not cast targets.
+
 This distinction matters even when JavaScript types match. `text()` and
 `uuid()` both decode to `string`, but UUID supports portable equality rather
 than text functions or ordering. Read [SQL semantic types](sql-semantic-types.md)

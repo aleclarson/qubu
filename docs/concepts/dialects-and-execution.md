@@ -1,6 +1,6 @@
 # Dialects and execution
 
-> Keep portable query construction separate from placeholder, identifier, pagination, and driver decisions at the rendering boundary.
+> Keep portable query construction separate from placeholder, identifier, pagination, cast-target, and driver decisions at the rendering boundary.
 
 ## Render once, choose a policy at the boundary
 
@@ -127,11 +127,17 @@ import { createDialect, render } from 'qubu'
 const namedParameters = createDialect({
   name: 'named-parameters',
   placeholder: position => `:p${position}`,
+  castTypes: { text: 'STRING' },
 })
 
 const statement = render(query, namedParameters)
 // ... WHERE ("users"."id" = :p1)
 ```
+
+`castTypes` overrides how logical targets from definitions such as `text()`
+render in `CAST` expressions. Omitted entries use the standard spelling. A
+custom definition's explicit `castType` is emitted verbatim instead of passing
+through this map.
 
 For syntax that is not a small policy decision, add a [custom fragment or
 clause](../guides/extensions.md) instead of making the standard dialect

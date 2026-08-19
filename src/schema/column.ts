@@ -12,6 +12,12 @@ import type {
   SqlUnknown,
   SqlUuid,
 } from '../core/sql-types.ts'
+import type {
+  CastTarget,
+  NamedCastTarget,
+  PortableCastTarget,
+  PortableCastType,
+} from '../core/dialect.ts'
 
 export interface ColumnOptions {
   readonly nullable?: boolean
@@ -19,6 +25,15 @@ export interface ColumnOptions {
   readonly generated?: boolean
   /** Override the snake_case SQL identifier derived from the field name. */
   readonly sqlName?: string
+  /**
+   * Raw SQL target that makes a custom definition reusable with cast().
+   * The value is emitted verbatim and must come from trusted source code.
+   */
+  readonly castType?: string
+}
+
+type BuiltInColumnOptions = Omit<ColumnOptions, 'castType'> & {
+  readonly castType?: never
 }
 
 export interface ColumnDefinition<
@@ -35,6 +50,8 @@ export interface ColumnDefinition<
   readonly hasDefault: THasDefault
   readonly generated: TGenerated
   readonly sqlName?: string
+  /** Runtime CAST target when this definition can describe a cast result. */
+  readonly castTarget?: CastTarget
   readonly __output?: TOutput
   readonly __insert?: TInsert
   readonly __update?: TUpdate
@@ -53,7 +70,10 @@ export interface ColumnDefinition<
     THasDefault,
     TGenerated,
     TSqlType
-  >
+  > &
+    (this extends { readonly castTarget: infer TCastTarget extends CastTarget }
+      ? { readonly castTarget: TCastTarget }
+      : unknown)
   readonly __sqlType?: TSqlType
 }
 
@@ -90,7 +110,10 @@ export type ColumnFromOptions<
   Flag<TOptions['hasDefault']>,
   Flag<TOptions['generated']>,
   TSqlType
->
+> &
+  (TOptions extends { readonly castType: string }
+    ? { readonly castTarget: NamedCastTarget }
+    : unknown)
 
 export type ColumnOutput<T> =
   T extends ColumnDefinition<
@@ -159,6 +182,51 @@ type FalseColumnOptions = {
   readonly generated?: false
   readonly sqlName?: string
 }
+
+type AnyColumnDefinition = ColumnDefinition<
+  any,
+  any,
+  any,
+  any,
+  any,
+  any,
+  AnySqlType
+>
+
+type NamedCastColumn<TDefinition extends AnyColumnDefinition> = TDefinition & {
+  readonly castTarget: NamedCastTarget
+}
+
+type PortableCastColumn<
+  TDefinition extends AnyColumnDefinition,
+  TType extends PortableCastType,
+> = TDefinition & {
+  readonly castTarget: PortableCastTarget<TType>
+}
+
+function withPortableCast<
+  TDefinition extends AnyColumnDefinition,
+  const TType extends PortableCastType,
+>(
+  definition: TDefinition,
+  type: TType
+): PortableCastColumn<TDefinition, TType> {
+  return Object.freeze({
+    ...definition,
+    castTarget: Object.freeze({ kind: 'portable-cast' as const, type }),
+  })
+}
+
+export function column<
+  TOutput = unknown,
+  TInsert = TOutput,
+  TUpdate = TInsert,
+  TSqlType extends AnySqlType = SqlUnknown,
+>(
+  options: FalseColumnOptions & { readonly castType: string }
+): NamedCastColumn<
+  ColumnDefinition<TOutput, false, TInsert, TUpdate, false, false, TSqlType>
+>
 
 export function column<
   TOutput = unknown,
@@ -268,6 +336,12 @@ export function column<
     generated: options?.generated === true,
     sqlName: options?.sqlName,
     $type: narrowColumnType,
+    castTarget: options?.castType
+      ? Object.freeze({
+          kind: 'named-cast' as const,
+          typeName: options.castType,
+        })
+      : undefined,
   }) as unknown as ColumnFromOptions<
     TOutput,
     TInsert,
@@ -310,69 +384,97 @@ export function nullable<
   >
 }
 
-export function integer<const TOptions extends ColumnOptions = {}>(
+export function integer<const TOptions extends BuiltInColumnOptions = {}>(
   options?: TOptions
 ) {
-  return column<number, number, number, TOptions, SqlInteger>(options)
+  return withPortableCast(
+    column<number, number, number, TOptions, SqlInteger>(options),
+    'integer'
+  )
 }
 
-export function numeric<const TOptions extends ColumnOptions = {}>(
+export function numeric<const TOptions extends BuiltInColumnOptions = {}>(
   options?: TOptions
 ) {
-  return column<number, number, number, TOptions, SqlDecimal>(options)
+  return withPortableCast(
+    column<number, number, number, TOptions, SqlDecimal>(options),
+    'decimal'
+  )
 }
 
-export function text<const TOptions extends ColumnOptions = {}>(
+export function text<const TOptions extends BuiltInColumnOptions = {}>(
   options?: TOptions
 ) {
-  return column<string, string, string, TOptions, SqlText>(options)
+  return withPortableCast(
+    column<string, string, string, TOptions, SqlText>(options),
+    'text'
+  )
 }
 
-export function boolean<const TOptions extends ColumnOptions = {}>(
+export function boolean<const TOptions extends BuiltInColumnOptions = {}>(
   options?: TOptions
 ) {
-  return column<boolean, boolean, boolean, TOptions, SqlBoolean>(options)
+  return withPortableCast(
+    column<boolean, boolean, boolean, TOptions, SqlBoolean>(options),
+    'boolean'
+  )
 }
 
-export function date<const TOptions extends ColumnOptions = {}>(
+export function date<const TOptions extends BuiltInColumnOptions = {}>(
   options?: TOptions
 ) {
-  return column<Date, Date, Date, TOptions, SqlDate>(options)
+  return withPortableCast(
+    column<Date, Date, Date, TOptions, SqlDate>(options),
+    'date'
+  )
 }
 
-export function timestamp<const TOptions extends ColumnOptions = {}>(
+export function timestamp<const TOptions extends BuiltInColumnOptions = {}>(
   options?: TOptions
 ) {
-  return column<Date, Date, Date, TOptions, SqlTimestamp>(options)
+  return withPortableCast(
+    column<Date, Date, Date, TOptions, SqlTimestamp>(options),
+    'timestamp'
+  )
 }
 
 /** Alias for timestamp columns whose application name emphasizes date-time. */
 export const dateTime = timestamp
 
-export function uuid<const TOptions extends ColumnOptions = {}>(
+export function uuid<const TOptions extends BuiltInColumnOptions = {}>(
   options?: TOptions
 ) {
-  return column<string, string, string, TOptions, SqlUuid>(options)
+  return withPortableCast(
+    column<string, string, string, TOptions, SqlUuid>(options),
+    'uuid'
+  )
 }
 
 export function json<
   TOutput = unknown,
-  const TOptions extends ColumnOptions = {},
+  const TOptions extends BuiltInColumnOptions = {},
 >(options?: TOptions) {
-  return column<TOutput, TOutput, TOutput, TOptions, SqlJson<TOutput>>(options)
+  return withPortableCast(
+    column<TOutput, TOutput, TOutput, TOptions, SqlJson<TOutput>>(options),
+    'json'
+  )
 }
 
-export function bigint<const TOptions extends ColumnOptions = {}>(
+export function bigint<const TOptions extends BuiltInColumnOptions = {}>(
   options?: TOptions
 ) {
-  return column<bigint, bigint, bigint, TOptions, SqlBigInt>(options)
+  return withPortableCast(
+    column<bigint, bigint, bigint, TOptions, SqlBigInt>(options),
+    'bigint'
+  )
 }
 
-export function binary<const TOptions extends ColumnOptions = {}>(
+export function binary<const TOptions extends BuiltInColumnOptions = {}>(
   options?: TOptions
 ) {
-  return column<Uint8Array, Uint8Array, Uint8Array, TOptions, SqlBinary>(
-    options
+  return withPortableCast(
+    column<Uint8Array, Uint8Array, Uint8Array, TOptions, SqlBinary>(options),
+    'binary'
   )
 }
 

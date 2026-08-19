@@ -36,6 +36,7 @@ export function postgresDialect() {
     name: 'postgresql',
     placeholder: position => `$${position}`,
     pagination: postgresPagination,
+    castTypes: { binary: 'BYTEA' },
     capabilities: ['ilike'],
     json: postgresJson,
   })

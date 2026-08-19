@@ -24,5 +24,14 @@ export function sqliteDialect() {
     placeholder: () => '?',
     pagination: { render: renderSqlitePagination },
     json: sqliteJson,
+    castTypes: {
+      decimal: 'NUMERIC',
+      boolean: 'INTEGER',
+      date: 'TEXT',
+      timestamp: 'TEXT',
+      uuid: 'TEXT',
+      json: 'TEXT',
+      binary: 'BLOB',
+    },
   })
 }

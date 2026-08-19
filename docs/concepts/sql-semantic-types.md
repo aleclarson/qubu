@@ -90,16 +90,16 @@ operation. This contextual typing does not relabel an expression: comparing a
 the database operation intentionally changes domains:
 
 ```ts
-import { like, typedCast } from 'qubu'
-import type { SqlText } from 'qubu'
+import { cast, like, text } from 'qubu'
 
-const idAsText = typedCast<string, SqlText>()(records.id, 'TEXT')
+const idAsText = cast(records.id, text())
 like(idAsText, '108c%')
 ```
 
-The cast type name is emitted exactly as supplied. Choose a spelling supported
-by the active database and keep vendor-specific casts near the relevant
-dialect or adapter.
+Built-in definitions carry logical cast targets, so the active dialect can
+render `TEXT`, MySQL `CHAR`, or another configured spelling while the result
+remains `string`/`SqlText`. Use a custom definition or `typedCast()` when the
+target is vendor-specific.
 
 ## Known incompatibility is rejected
 
@@ -133,8 +133,9 @@ for custom domains, functions, values, casts, and raw expressions.
 
 ## Static metadata is not database proof
 
-SQL semantic types affect TypeScript only. They do not inspect the database,
-change rendered SQL, validate migrations, select a wire encoding, or verify
-that a cast name exists. The application remains responsible for keeping table
-definitions aligned with the database, and the driver adapter remains
-responsible for encoding parameters and decoding rows.
+SQL semantic domains affect TypeScript only. A definition used explicitly as a
+cast target also contributes a logical or named runtime target, but Qubu does
+not inspect the database, validate migrations, select a wire encoding, or
+verify that the rendered type name exists. The application remains responsible
+for keeping table definitions aligned with the database, and the driver
+adapter remains responsible for encoding parameters and decoding rows.

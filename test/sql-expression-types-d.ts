@@ -3,24 +3,30 @@ import {
   all,
   alias,
   average,
+  bigint,
+  binary,
   between,
+  boolean,
   caseWhen,
   cast,
   cte,
+  coalesce,
+  column,
+  concat,
+  customSource,
+  date,
   eq,
   from,
   inList,
   inQuery,
   integer,
+  json,
   like,
   lower,
   lt,
   minimum,
-  coalesce,
-  concat,
-  column,
-  customSource,
   nullable,
+  numeric,
   order,
   scalar,
   select,
@@ -28,6 +34,7 @@ import {
   syntax,
   table,
   text,
+  timestamp,
   typedCall,
   typedCast,
   typedValue,
@@ -38,10 +45,14 @@ import {
   where,
 } from '../src/index.ts'
 import type {
+  SqlBigInt,
+  SqlBinary,
   SqlBoolean,
+  SqlDate,
   SqlDecimal,
   SqlInteger,
   SqlText,
+  SqlTimestamp,
   SqlTypeOf,
   SqlUnknown,
   SqlUuid,
@@ -54,6 +65,10 @@ import type {
   SqlTextLike,
   AnySqlType,
   SqlEqualityCompatible,
+  SqlSemanticType,
+  SqlOrderable,
+  OutputOf,
+  NullabilityOf,
 } from '../src/index.ts'
 import { ilike } from '../src/dialects/postgres.ts'
 
@@ -211,16 +226,96 @@ const explicitCast = cast<string, SqlText, typeof records.id>(
   'TEXT'
 )
 const ergonomicCast = typedCast<string, SqlText>()(records.id, 'TEXT')
+const definitionCast = cast(records.id, text())
+const narrowedDefinitionCast = cast(
+  records.id,
+  text().$type<'primary' | 'secondary'>()
+)
+
+interface SqlCitext
+  extends SqlSemanticType<'postgres.citext'>,
+    SqlTextLike,
+    SqlOrderable<'text'> {}
+
+const citext = column<string, string, string, SqlCitext>({ castType: 'CITEXT' })
+const customDefinitionCast = cast(records.label, citext)
+const builtInDefinitionCasts = [
+  cast(records.id, integer()),
+  cast(records.id, numeric()),
+  cast(records.id, text()),
+  cast(records.id, boolean()),
+  cast(records.id, date()),
+  cast(records.id, timestamp()),
+  cast(records.id, uuid()),
+  cast(records.id, json<{ id: string }>()),
+  cast(records.id, bigint()),
+  cast(records.id, binary()),
+] as const
 const customCall = typedCall<SqlText, string>()('custom_text', records.label)
 const customValue = typedValue<SqlUuid, string>('uuid-value')
 const customUnsafe = unsafeExpression<string, SqlText>('custom_text()')
 
 export type CastPropagation = Assert<
   Equal<
-    [SqlTypeOf<typeof explicitCast>, SqlTypeOf<typeof ergonomicCast>],
-    [SqlText, SqlText]
+    [
+      SqlTypeOf<typeof explicitCast>,
+      SqlTypeOf<typeof ergonomicCast>,
+      SqlTypeOf<typeof definitionCast>,
+      SqlTypeOf<typeof narrowedDefinitionCast>,
+      OutputOf<typeof definitionCast>,
+      RequiresOf<typeof definitionCast>,
+      NullabilityOf<typeof definitionCast>,
+      SqlTypeOf<typeof customDefinitionCast>,
+    ],
+    [
+      SqlText,
+      SqlText,
+      SqlText,
+      SqlText,
+      string,
+      SourceIdentity<typeof records>,
+      SourceIdentity<typeof records>,
+      SqlCitext,
+    ]
   >
 >
+export type BuiltInCastDomains = Assert<
+  Equal<
+    [
+      SqlTypeOf<(typeof builtInDefinitionCasts)[0]>,
+      SqlTypeOf<(typeof builtInDefinitionCasts)[1]>,
+      SqlTypeOf<(typeof builtInDefinitionCasts)[2]>,
+      SqlTypeOf<(typeof builtInDefinitionCasts)[3]>,
+      SqlTypeOf<(typeof builtInDefinitionCasts)[4]>,
+      SqlTypeOf<(typeof builtInDefinitionCasts)[5]>,
+      SqlTypeOf<(typeof builtInDefinitionCasts)[6]>,
+      SqlTypeOf<(typeof builtInDefinitionCasts)[7]>,
+      SqlTypeOf<(typeof builtInDefinitionCasts)[8]>,
+      SqlTypeOf<(typeof builtInDefinitionCasts)[9]>,
+    ],
+    [
+      SqlInteger,
+      SqlDecimal,
+      SqlText,
+      SqlBoolean,
+      SqlDate,
+      SqlTimestamp,
+      SqlUuid,
+      import('../src/index.ts').SqlJson<{ id: string }>,
+      SqlBigInt,
+      SqlBinary,
+    ]
+  >
+>
+
+// @ts-expect-error Cast targets do not accept schema nullability flags.
+cast(records.id, text({ nullable: true }))
+
+// @ts-expect-error A custom definition needs an explicit runtime cast type.
+cast(records.id, column<string>())
+
+// @ts-expect-error Built-in helpers use their dialect-resolved logical target.
+text({ castType: 'CITEXT' })
 export type CallPropagation = Assert<
   Equal<
     [SqlTypeOf<typeof customCall>, RequiresOf<typeof customCall>],
