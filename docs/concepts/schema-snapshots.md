@@ -60,6 +60,10 @@ matrix](../reference/postgres-snapshot.md). Its query dialect keeps the name
 `postgresql`; snapshot metadata uses `postgres`.
 The SQLite adapter is documented in the [SQLite snapshot support
 matrix](../reference/sqlite-snapshot.md).
+The MySQL adapter is documented in the [MySQL snapshot support
+matrix](../reference/mysql-snapshot.md). Its query and snapshot dialects both
+use `mysql`, while MySQL-only `ON UPDATE` and `AUTO_INCREMENT` details remain
+inside the column and identity metadata they describe.
 
 Snapshot v1 intentionally stops before introspection, comparison, rename
 resolution, migration planning, and DDL generation. Those operations may

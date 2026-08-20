@@ -309,6 +309,13 @@ function validatePostgresTable(
       'PostgreSQL column',
       diagnostics
     )
+    if (definition.onUpdate !== undefined) {
+      diagnostics.push({
+        code: 'unsupported-dialect-option',
+        message: 'MySQL ON UPDATE expressions are not supported by PostgreSQL',
+        path: [...tablePath, 'columns', columnId, 'onUpdate'],
+      })
+    }
     const generated = definition.generatedColumn
     if (
       generated !== undefined &&

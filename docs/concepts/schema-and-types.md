@@ -167,6 +167,26 @@ id: integer({
 The SQLite snapshot adapter preserves this distinction without changing the
 query-facing identity of the column.
 
+MySQL `AUTO_INCREMENT` is also a column-level identity detail. Attach it to an
+identity column with the MySQL dialect extension; the MySQL snapshot adapter
+checks the integer storage and key shape instead of inferring either fact:
+
+```ts
+id: integer({
+  identity: identityColumn('by-default', {
+    dialect: { dialect: 'mysql', autoIncrement: true },
+  }),
+})
+```
+
+MySQL's optional `ON UPDATE` clause accepts a branded deterministic schema
+expression. It is retained by the MySQL adapter and diagnosed by adapters for
+engines that do not have the same column behavior:
+
+```ts
+updatedAt: timestamp({ onUpdate: currentTimestamp })
+```
+
 Legacy flags without a complete descriptor are retained as explicit external
 metadata. This records that the database or another schema authority owns the
 detail; `externalDefault()` and `externalGeneratedColumn()` make that marker

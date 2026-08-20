@@ -140,6 +140,8 @@ export interface SnapshotColumn {
   readonly default?: SnapshotDefault
   readonly generatedColumn?: SnapshotGeneratedColumn
   readonly identity?: SnapshotIdentity
+  /** MySQL's parameter-free column update expression, when supported. */
+  readonly onUpdate?: SnapshotExpression
 }
 
 /** An expression or bare column used by an index. */

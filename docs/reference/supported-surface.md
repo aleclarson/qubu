@@ -21,6 +21,8 @@ The PostgreSQL snapshot adapter and its support limits are listed in the
 [PostgreSQL snapshot matrix](postgres-snapshot.md).
 The SQLite snapshot adapter and its support limits are listed in the
 [SQLite snapshot matrix](sqlite-snapshot.md).
+The MySQL snapshot adapter and its support limits are listed in the
+[MySQL snapshot matrix](mysql-snapshot.md).
 
 ## Capability map
 

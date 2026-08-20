@@ -26,6 +26,7 @@ import {
   type ExternalDefaultDescriptor,
   type ExternalGeneratedColumnDescriptor,
 } from './column-behavior.ts'
+import type { AnySchemaExpression } from '../expressions/types.ts'
 
 /** Portable physical storage spellings understood by every schema dialect. */
 export type PortableStorageType =
@@ -209,6 +210,8 @@ export interface ColumnOptions {
   readonly generatedColumn?: GeneratedColumnDescriptor
   /** Database identity metadata; identity is not an ordinary expression. */
   readonly identity?: IdentityDescriptor
+  /** MySQL's optional parameter-free `ON UPDATE` expression. */
+  readonly onUpdate?: AnySchemaExpression
   /** Override the snake_case SQL identifier derived from the field name. */
   readonly sqlName?: string
   /** Physical storage metadata for a custom column definition. */
@@ -241,6 +244,9 @@ export interface ColumnDefinition<
   TIdentity extends IdentityDescriptor | undefined =
     | IdentityDescriptor
     | undefined,
+  TOnUpdate extends AnySchemaExpression | undefined =
+    | AnySchemaExpression
+    | undefined,
 > {
   readonly definitionKind: 'column'
   readonly nullable: TNullable
@@ -252,6 +258,8 @@ export interface ColumnDefinition<
   readonly generatedColumn?: TGeneratedColumn
   /** Identity behavior is modeled separately from generated expressions. */
   readonly identity?: TIdentity
+  /** MySQL's optional parameter-free `ON UPDATE` expression. */
+  readonly onUpdate?: TOnUpdate
   readonly sqlName?: string
   /** Physical storage metadata, separate from the application and SQL types. */
   readonly storage?: TStorage
@@ -278,7 +286,8 @@ export interface ColumnDefinition<
     TStorage,
     TDefault,
     TGeneratedColumn,
-    TIdentity
+    TIdentity,
+    TOnUpdate
   > &
     (this extends { readonly castTarget: infer TCastTarget extends CastTarget }
       ? { readonly castTarget: TCastTarget }
@@ -325,6 +334,12 @@ type ColumnIdentityOption<TOptions extends ColumnOptions> = TOptions extends {
   ? TIdentity
   : undefined
 
+type ColumnOnUpdateOption<TOptions extends ColumnOptions> = TOptions extends {
+  readonly onUpdate: infer TOnUpdate extends AnySchemaExpression
+}
+  ? TOnUpdate
+  : undefined
+
 type IsAny<T> = 0 extends 1 & T ? true : false
 
 type SameType<TLeft, TRight> =
@@ -363,7 +378,8 @@ export type ColumnFromOptions<
     : undefined,
   ColumnDefaultOption<TOptions>,
   ColumnGeneratedOption<TOptions>,
-  ColumnIdentityOption<TOptions>
+  ColumnIdentityOption<TOptions>,
+  ColumnOnUpdateOption<TOptions>
 > &
   (TOptions extends { readonly castType: string }
     ? { readonly castTarget: NamedCastTarget }
@@ -513,6 +529,25 @@ export type ColumnIdentityOf<T> =
     ? TIdentity
     : undefined
 
+/** Extract a column's optional deterministic `ON UPDATE` expression. */
+export type ColumnOnUpdateOf<T> =
+  T extends ColumnDefinition<
+    any,
+    any,
+    any,
+    any,
+    any,
+    any,
+    any,
+    any,
+    any,
+    any,
+    any,
+    infer TOnUpdate
+  >
+    ? TOnUpdate
+    : undefined
+
 /** Extract the SQL semantic domain declared by a column definition. */
 export type ColumnSqlType<T> =
   T extends ColumnDefinition<
@@ -596,7 +631,8 @@ type StoredColumnDefinition<
     any,
     infer TDefault,
     infer TGeneratedColumn,
-    infer TIdentity
+    infer TIdentity,
+    infer TOnUpdate
   >
     ? ColumnDefinition<
         TOutput,
@@ -609,7 +645,8 @@ type StoredColumnDefinition<
         TStorage,
         TDefault,
         TGeneratedColumn,
-        TIdentity
+        TIdentity,
+        Extract<TOnUpdate, AnySchemaExpression> | undefined
       > &
         (TDefinition extends {
           readonly castTarget: infer TCastTarget extends CastTarget
@@ -895,7 +932,8 @@ type NativeColumnFromOptions<
   NativeColumnStorage<TDialect, TDeclaration>,
   ColumnDefaultOption<TOptions>,
   ColumnGeneratedOption<TOptions>,
-  ColumnIdentityOption<TOptions>
+  ColumnIdentityOption<TOptions>,
+  ColumnOnUpdateOption<TOptions>
 > &
   (TOptions extends { readonly castType: string }
     ? { readonly castTarget: NamedCastTarget }
@@ -977,6 +1015,7 @@ export function nullable<
   TDefault extends ColumnDefault | undefined,
   TGeneratedColumn extends GeneratedColumnDescriptor | undefined,
   TIdentity extends IdentityDescriptor | undefined,
+  TOnUpdate extends AnySchemaExpression | undefined,
 >(
   definition: ColumnDefinition<
     TOutput,
@@ -989,7 +1028,8 @@ export function nullable<
     TStorage,
     TDefault,
     TGeneratedColumn,
-    TIdentity
+    TIdentity,
+    TOnUpdate
   >
 ) {
   return Object.freeze({
@@ -1006,7 +1046,8 @@ export function nullable<
     TStorage,
     TDefault,
     TGeneratedColumn,
-    TIdentity
+    TIdentity,
+    TOnUpdate
   >
 }
 

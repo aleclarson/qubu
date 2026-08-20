@@ -346,6 +346,13 @@ function validateSqliteTable(
       'SQLite column',
       diagnostics
     )
+    if (definition.onUpdate !== undefined) {
+      diagnostics.push({
+        code: 'unsupported-dialect-option',
+        message: 'MySQL ON UPDATE expressions are not supported by SQLite',
+        path: [...tablePath, 'columns', columnId, 'onUpdate'],
+      })
+    }
 
     const storage = definition.storage
 

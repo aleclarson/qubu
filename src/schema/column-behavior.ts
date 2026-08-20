@@ -84,9 +84,17 @@ export interface SqliteIdentityExtension
   readonly autoIncrement?: boolean
 }
 
+/** MySQL's column-level AUTO_INCREMENT identity detail. */
+export interface MysqlIdentityExtension
+  extends SchemaDialectExtension<'mysql'> {
+  /** Emit MySQL's AUTO_INCREMENT behavior for this identity column. */
+  readonly autoIncrement?: boolean
+}
+
 /** Dialect-owned identity details retained independently from generation. */
 export type IdentityDialectExtension =
   | SqliteIdentityExtension
+  | MysqlIdentityExtension
   | (SchemaDialectExtension<string> & Readonly<Record<string, unknown>>)
 
 /** Complete identity metadata for a database-generated column value. */
@@ -102,6 +110,7 @@ export type ColumnBehaviorErrorCode =
   | 'invalid-default'
   | 'invalid-generated-column'
   | 'invalid-identity'
+  | 'invalid-on-update'
   | 'default-flag-conflict'
   | 'generated-flag-conflict'
   | 'default-generated-conflict'
@@ -228,6 +237,7 @@ export interface ResolvedColumnBehavior {
   readonly default?: ColumnDefault
   readonly generatedColumn?: GeneratedColumnDescriptor
   readonly identity?: IdentityDescriptor
+  readonly onUpdate?: AnySchemaExpression
 }
 
 /** Normalize complete and legacy column behavior into immutable metadata. */
@@ -237,12 +247,25 @@ export function resolveColumnBehavior(options: {
   readonly default?: ColumnDefault
   readonly generatedColumn?: GeneratedColumnDescriptor
   readonly identity?: IdentityDescriptor
+  readonly onUpdate?: AnySchemaExpression
 }): ResolvedColumnBehavior {
   const hasDefaultFlag = options.hasDefault === true
   const generatedFlag = options.generated === true
   const defaultDescriptor = options.default
   const generatedDescriptor = options.generatedColumn
   const identityDescriptor = options.identity
+  const onUpdateExpression = options.onUpdate
+
+  if (
+    onUpdateExpression !== undefined &&
+    !isSchemaExpression(onUpdateExpression)
+  ) {
+    throw new ColumnBehaviorError(
+      'invalid-on-update',
+      'Column onUpdate metadata must carry the deterministic schema-expression brand',
+      'onUpdate'
+    )
+  }
 
   if (defaultDescriptor !== undefined) {
     assertDefaultDescriptor(defaultDescriptor)
@@ -339,6 +362,7 @@ export function resolveColumnBehavior(options: {
         ? externalGeneratedColumn()
         : undefined),
     identity: normalizedIdentity,
+    onUpdate: onUpdateExpression,
   })
 }
 

@@ -375,10 +375,11 @@ function validateColumn(
       'default',
       'generatedColumn',
       'identity',
+      'onUpdate',
     ],
     path,
     diagnostics,
-    ['storage', 'default', 'generatedColumn', 'identity']
+    ['storage', 'default', 'generatedColumn', 'identity', 'onUpdate']
   )
   const id = validateId(value.id, [...path, 'id'], diagnostics)
   const physicalName = validateName(
@@ -437,6 +438,25 @@ function validateColumn(
           dialect,
           diagnostics
         )
+  const onUpdate =
+    value.onUpdate === undefined
+      ? undefined
+      : validateExpression(
+          value.onUpdate,
+          [...path, 'onUpdate'],
+          'default',
+          dialect,
+          diagnostics
+        )
+  if (onUpdate !== undefined && dialect !== 'mysql') {
+    diagnostics.push(
+      diagnostic(
+        'dialect-mismatch',
+        'Column onUpdate metadata is only valid for MySQL snapshots',
+        [...path, 'onUpdate']
+      )
+    )
+  }
   if (
     id === undefined ||
     physicalName === undefined ||
@@ -455,6 +475,7 @@ function validateColumn(
     ...(defaultValue === undefined ? {} : { default: defaultValue }),
     ...(generatedColumn === undefined ? {} : { generatedColumn }),
     ...(identity === undefined ? {} : { identity }),
+    ...(onUpdate === undefined ? {} : { onUpdate }),
   }
 }
 

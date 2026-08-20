@@ -181,6 +181,9 @@ declare global {
     TIdentity extends import('qubu').IdentityDescriptor | undefined =
       | import('qubu').IdentityDescriptor
       | undefined,
+    TOnUpdate extends import('qubu').AnySchemaExpression | undefined =
+      | import('qubu').AnySchemaExpression
+      | undefined,
   > = import('qubu').ColumnDefinition<
     TOutput,
     TNullable,
@@ -192,15 +195,18 @@ declare global {
     TStorage,
     TDefault,
     TGeneratedColumn,
-    TIdentity
+    TIdentity,
+    TOnUpdate
   >
   type ColumnSqlType<T> = import('qubu').ColumnSqlType<T>
   type ColumnDefault = import('qubu').ColumnDefault
   type ColumnDefaultOf<T> = import('qubu').ColumnDefaultOf<T>
   type ColumnGeneratedOf<T> = import('qubu').ColumnGeneratedOf<T>
   type ColumnIdentityOf<T> = import('qubu').ColumnIdentityOf<T>
+  type ColumnOnUpdateOf<T> = import('qubu').ColumnOnUpdateOf<T>
   type GeneratedColumnDescriptor = import('qubu').GeneratedColumnDescriptor
   type IdentityDescriptor = import('qubu').IdentityDescriptor
+  type MysqlIdentityExtension = import('qubu').MysqlIdentityExtension
   type ColumnStorage = import('qubu').ColumnStorage
   type PortableStorageType = import('qubu').PortableStorageType
   type PortableColumnStorage<

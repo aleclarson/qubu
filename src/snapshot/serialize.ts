@@ -358,7 +358,16 @@ function serializeColumn(
         diagnostics
       )
     : undefined
-
+  const onUpdate = definition.onUpdate
+    ? encodeExpression(
+        definition.onUpdate,
+        'default',
+        dialect,
+        ['columns', id, 'onUpdate'],
+        options,
+        diagnostics
+      )
+    : undefined
   return {
     id,
     physicalName,
@@ -369,6 +378,7 @@ function serializeColumn(
     ...(defaultValue === undefined ? {} : { default: defaultValue }),
     ...(generatedColumn === undefined ? {} : { generatedColumn }),
     ...(identity === undefined ? {} : { identity }),
+    ...(onUpdate === undefined ? {} : { onUpdate }),
   }
 }
 
