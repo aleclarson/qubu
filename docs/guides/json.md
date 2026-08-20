@@ -62,4 +62,4 @@ recursive descent, JSON-returning extraction, document mutation, and row
 expansion remain dialect-specific extensions.
 
 For the SQL domain and nullability rules behind JSON columns, read
-[SQL semantic types](../concepts/sql-semantic-types.md).
+[SQL semantic types](../sql-semantic-types.md).

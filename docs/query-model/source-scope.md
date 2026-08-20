@@ -80,7 +80,7 @@ const namesSource = alias(names, 'names')
 const query = select({ name: namesSource.name }, from(namesSource))
 ```
 
-Use [Compose queries](../../guides/compose-queries.md) for the full CTE,
+Use [Compose queries](../guides/compose-queries.md) for the full CTE,
 derived-table, scalar-subquery, and set-operation workflow.
 
 ## Produce a custom FROM source
@@ -185,5 +185,5 @@ its outer requirement. The same requirement flows through `scalar()`,
   outer-join nullability, and scalar subqueries.
 - [Fragments and metadata](fragments.md) explains the type facts that carry
   source requirements through custom expressions and clauses.
-- [Extend Qubu](../../guides/extensions.md) shows how to publish a custom
+- [Extend Qubu](../guides/extensions/overview.md) shows how to publish a custom
   source or clause.

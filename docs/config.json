@@ -8,7 +8,10 @@
   "navigation": {
     "order": [
       "getting-started.md",
-      "concepts/",
+      "query-model/",
+      "schema/",
+      "dialects-and-execution.md",
+      "sql-semantic-types.md",
       "guides/",
       "reference/",
       "troubleshooting.md"

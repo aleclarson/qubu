@@ -73,16 +73,16 @@ type UserRow = typeof query.row
 > [!NOTE]
 > Rendering produces a statement; it does not execute it. Keep the
 > `RenderedQuery` value for logging, testing, or passing to a
-> [driver-owned adapter](concepts/dialects-and-execution.md).
+> [driver-owned adapter](dialects-and-execution.md).
 
 ## Next steps
 
-- [Build a `SELECT`](guides/select.md) with joins, predicates, aggregates, and
+- [Build a `SELECT`](guides/select/overview.md) with joins, predicates, aggregates, and
   pagination.
 - [Compose queries](guides/compose-queries.md) from CTEs and derived sources.
 - [Write mutations](guides/mutations.md) with typed insert/update/delete
   inputs.
-- [Choose a database dialect](concepts/dialects-and-execution.md) when the
+- [Choose a database dialect](dialects-and-execution.md) when the
   driver expects different identifier, placeholder, or pagination syntax.
 - [Read JSON scalars](guides/json.md) from a JSON column.
 - [Use the Vite compiler hint](guides/vite-plugin.md) for directive-based

@@ -140,7 +140,7 @@ custom definition's explicit `castType` is emitted verbatim instead of passing
 through this map.
 
 For syntax that is not a small policy decision, add a [custom fragment or
-clause](../guides/extensions.md) instead of making the standard dialect
+clause](guides/extensions/overview.md) instead of making the standard dialect
 pretend that vendor behavior is portable.
 
 > [!WARNING]

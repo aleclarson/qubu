@@ -129,6 +129,6 @@ SQL semantic domains are retained too, so a returned query used by typed
 composition does not collapse UUID, text, numeric, or other known fields to
 their JavaScript types alone.
 
-See [Column behavior and write types](../concepts/schema/columns-and-writes.md)
-for custom output, insert, and update types, then [Dialects and execution](../concepts/dialects-and-execution.md)
+See [Column behavior and write types](../schema/columns-and-writes.md)
+for custom output, insert, and update types, then [Dialects and execution](../dialects-and-execution.md)
 for the driver boundary.

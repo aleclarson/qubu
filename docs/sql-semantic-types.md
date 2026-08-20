@@ -128,7 +128,7 @@ const legacyId = column<string>()
 
 `SqlUnknown` is an escape hatch, not evidence about the database. Prefer a
 declared domain for reusable extensions so incompatible composition fails at
-the call site. See [Extend Qubu](../guides/extensions.md#declare-a-custom-sql-domain)
+the call site. See [Typed expressions](guides/extensions/typed-expressions.md#declare-a-custom-sql-domain)
 for custom domains, functions, values, casts, and raw expressions.
 
 ## Static metadata is not database proof

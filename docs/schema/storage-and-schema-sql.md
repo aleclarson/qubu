@@ -99,5 +99,5 @@ before schema rendering accepts it.
 - [Tables and names](tables-and-names.md) covers logical IDs and SQL naming.
 - [Constraints, keys, and indexes](constraints-and-indexes.md) covers metadata
   consumed by grouped queries and schema adapters.
-- [Canonical schema snapshots](../schema-snapshots.md) explains how storage and
+- [Canonical schema snapshots](snapshots.md) explains how storage and
   constraints become serialized data.

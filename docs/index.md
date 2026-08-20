@@ -12,20 +12,16 @@ parameters.
 If this is your first query, follow [Getting started](getting-started.md) to
 define a table, build a `SELECT`, and inspect its SQL and parameters.
 
-Use the rest of the docs by task:
+## Choose a task
 
-- [Build a `SELECT`](guides/select.md) with filters, joins, grouping, ordering,
-  and pagination.
+- [Build a `SELECT`](guides/select/overview.md) with projections, joins,
+  predicates, ordering, and grouping.
 - [Compose queries](guides/compose-queries.md) with CTEs, derived tables,
   subqueries, and set operations.
 - [Write mutations](guides/mutations.md) with typed `INSERT`, `UPDATE`, and
   `DELETE` statements.
-- [Extend Qubu](guides/extensions.md) with a custom dialect policy, fragment,
-  or clause when the built-in API is not enough.
-- [Use dialects and adapters](concepts/dialects-and-execution.md) when SQL must
-  match a particular driver or execution layer.
-- [Serialize schema metadata](concepts/schema-snapshots.md) through the optional
-  `qubu/snapshot` tooling entrypoint.
+- [Extend Qubu](guides/extensions/overview.md) with a custom source, clause,
+  dialect policy, or typed expression.
 - [Read JSON scalars](guides/json.md) from structured JSON paths.
 - [Enable the Vite compiler hint](guides/vite-plugin.md) when query modules
   should opt into named imports through a directive.
@@ -38,17 +34,29 @@ driver-specific row handling.
 
 ```mermaid
 flowchart LR
-  A["Tables and columns"] --> B["Expressions and clauses"]
-  B --> C["Typed query"]
-  C --> D["Dialect renderer"]
-  D --> E["SQL text + ordered parameters"]
-  E --> F["Driver-owned adapter"]
-  F --> G["Application rows"]
+A["Tables and columns"] --> B["Expressions and clauses"]
+B --> C["Typed query"]
+C --> D["Dialect renderer"]
+D --> E["SQL text + ordered parameters"]
+E --> F["Driver-owned adapter"]
+F --> G["Application rows"]
 ```
 
 Values become bound parameters, and the active dialect quotes identifiers. Raw
 SQL is available through explicit unsafe helpers. The call site shows where
 that unchecked syntax enters the query.
+
+## Understand the Qubu model
+
+Use these pages when a guide leaves a rule unexplained or when an extension
+needs to preserve a fact across composition:
+
+| Model                   | Start with                                          | Covers                                                                              |
+| ----------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Query model             | [Source scope](query-model/source-scope.md)         | Source identity, result shapes, fragments, metadata, and query composition          |
+| Schema model            | [Tables and names](schema/tables-and-names.md)      | Tables, write types, constraints, storage, schema SQL, and snapshots                |
+| Rendering and execution | [Dialects and execution](dialects-and-execution.md) | Placeholder and identifier policies, capabilities, adapters, and raw-SQL boundaries |
+| SQL semantic types      | [SQL semantic types](sql-semantic-types.md)         | Application types, SQL domains, nullability, and compatible operations              |
 
 ## A small example
 
@@ -68,25 +76,17 @@ const query = select(
 
 render(query)
 // {
-//   text: 'SELECT "users"."id" AS "id", "users"."name" AS "name" FROM "users" WHERE ("users"."id" = ?)',
-//   parameters: [7],
+// text: 'SELECT "users"."id" AS "id", "users"."name" AS "name" FROM "users" WHERE ("users"."id" = ?)',
+// parameters: [7],
 // }
 ```
 
-The inferred row is `{ id: number; name: string }`. The value `7` stays out of
-the SQL text and appears in the `parameters` array in placeholder order.
+The inferred row is `{ id: number; name: string }`. The value `7` stays out
+of the SQL text and appears in the `parameters` array in placeholder order.
 
-## Choose the next concept
-
-| If you need to decide...                                       | Read...                                                                  |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| Why a column can be rejected outside `FROM` or `JOIN` scope    | [Source scope](concepts/query-model/source-scope.md)                     |
-| How a query changes across PostgreSQL, SQLite, or MySQL        | [Dialects and execution](concepts/dialects-and-execution.md)             |
-| How nullability, defaults, and generated columns affect writes | [Column behavior and write types](concepts/schema/columns-and-writes.md) |
-| Why equal JavaScript types can allow different SQL operations  | [SQL semantic types](concepts/sql-semantic-types.md)                     |
-| Which package entrypoint or feature to use                     | [Supported features](reference/supported-surface.md)                     |
-| What a failure means and what to verify                        | [Troubleshooting](troubleshooting.md)                                    |
+The [supported features](reference/supported-surface.md) page lists package
+entrypoints and boundaries. [Troubleshooting](troubleshooting.md) starts from
+common errors and points to the concept page behind each one.
 
 Qubu builds and renders SQL; it does not provide an ORM, migrations, connection
-pooling, transactions, or relationship loading. See the [supported
-features](reference/supported-surface.md#boundary) for the full boundary.
+pooling, transactions, or relationship loading.

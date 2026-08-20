@@ -91,12 +91,12 @@ clauses were passed to `select()` in another order.
 Qubu tracks source scope, result shape, nullability, cardinality, and portable
 SQL capabilities. It does not encode every vendor grammar rule or implicit
 conversion. Use standard fragments for portable SQL and move vendor-specific
-syntax to [dialects or custom extensions](../../concepts/dialects-and-execution.md).
+syntax to [dialects or custom extensions](../dialects-and-execution.md).
 
 ## Read next
 
 - [Source scope](source-scope.md) covers source identities and correlation.
 - [Result shapes and cardinality](result-shapes.md) covers projections and
   nullable results.
-- [Extend Qubu](../../guides/extensions.md) applies this model to custom
+- [Extend Qubu](../guides/extensions/overview.md) applies this model to custom
   expressions, clauses, and sources.

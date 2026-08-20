@@ -1,0 +1,23 @@
+# Use unsafe syntax
+
+> Keep raw SQL visible and trusted when Qubu does not model the syntax you need.
+
+`unsafeExpression()` and related escape hatches exist for syntax that cannot be
+modeled yet. They do not quote identifiers or bind values for you:
+
+```ts
+import { select, unsafeExpression } from 'qubu'
+
+const query = select({
+  today: unsafeExpression('CURRENT_DATE'),
+})
+```
+
+Keep raw identifiers and values out of the string. Prefer a typed custom
+fragment when the syntax will be reused, and bind runtime values with
+`context.parameter()`.
+
+Read [Dialects and execution](../../dialects-and-execution.md) for the boundary
+between rendering and driver behavior. Read [Add typed
+expressions](typed-expressions.md) when the extension needs a result domain or
+source metadata.

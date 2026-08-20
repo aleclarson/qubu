@@ -5,7 +5,7 @@
 ## Column is not available in this query scope
 
 Qubu found a column whose source is not in `FROM` or `JOIN` clauses.
-Read [Source scope](concepts/query-model/source-scope.md) for the source
+Read [Source scope](query-model/source-scope.md) for the source
 identity rules behind this error.
 
 Check that the query includes the original source or use the columns exposed by
@@ -44,7 +44,7 @@ const idExpression = scalar(idQuery)
 ```
 
 Use a normal derived table or CTE when the nested query needs multiple fields.
-For scalar result nullability, see [Result shapes and cardinality](concepts/query-model/result-shapes.md).
+For scalar result nullability, see [Result shapes and cardinality](query-model/result-shapes.md).
 
 ## Placeholders do not match the driver
 

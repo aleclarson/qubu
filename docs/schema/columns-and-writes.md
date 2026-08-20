@@ -80,7 +80,7 @@ autoIncrement requires an exact INTEGER rowid alias that is the sole column of
 a primary key. MySQL's AUTO_INCREMENT is a column-level identity extension, and
 MySQL's ON UPDATE clause accepts a branded deterministic expression. The
 database-specific restrictions are listed in the
-[snapshot overview](../schema-snapshots.md) and its dialect matrices.
+[snapshot overview](snapshots.md) and its dialect matrices.
 
 ## Narrow an application type
 
@@ -124,5 +124,5 @@ const update: AccountUpdate = {
 because the database supplies a default, but it remains a valid nullable update
 field.
 
-Continue with [Write mutations](../../guides/mutations.md) for typed INSERT,
+Continue with [Write mutations](../guides/mutations.md) for typed INSERT,
 UPDATE, and DELETE statements.

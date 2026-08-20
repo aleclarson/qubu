@@ -40,8 +40,8 @@ const query = select(
 
 When a query becomes a CTE or derived table, its row shape becomes the columns
 available from that new source. `RETURNING` uses the same projection rules.
-See [Compose queries](../../guides/compose-queries.md) and
-[Write mutations](../../guides/mutations.md) for those workflows.
+See [Compose queries](../guides/compose-queries.md) and
+[Write mutations](../guides/mutations.md) for those workflows.
 
 The examples below continue with the `users` table from the first example.
 

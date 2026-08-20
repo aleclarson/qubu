@@ -68,4 +68,4 @@ own:
 
 When you need one of those concerns, pass the rendered query through an
 application-owned adapter or another library. Start with [Dialects and
-execution](../concepts/dialects-and-execution.md).
+execution](../dialects-and-execution.md).
