@@ -10,6 +10,7 @@
 | `qubu/postgres` | PostgreSQL dialect helpers such as `postgresDialect()` and `ilike()`                                |
 | `qubu/sqlite`   | The SQLite dialect policy                                                                           |
 | `qubu/mysql`    | The MySQL dialect policy                                                                            |
+| `qubu/snapshot` | Canonical schema v1 traversal, encoding, strict decoding, diagnostics, and content digests          |
 | `qubu/vite`     | The optional `qubu()` Vite compiler hint                                                            |
 | `qubu/globals`  | Opt-in ambient declarations for directive-bearing modules                                           |
 
@@ -27,7 +28,7 @@ database-specific dependency visible where that is useful.
 | Write queries      | `INSERT` values/defaults/select, `UPDATE`, `DELETE`, typed assignments, `RETURNING`, and explicit unrestricted-write opt-in                                                                                                                                                                                                                                                  |
 | Rendering          | Standard, PostgreSQL, SQLite, MySQL, and user-created identifier, placeholder, pagination, JSON, logical cast-target, and schema-literal policies                                                                                                                                                                                                                            |
 | Execution boundary | Generic `QueryAdapter` plus `execute()`; connection and driver behavior remain external                                                                                                                                                                                                                                                                                      |
-| Build tooling      | Optional Vite directive transform with matching TypeScript ambient declarations                                                                                                                                                                                                                                                                                              |
+| Build tooling      | Optional Vite directive transform with matching TypeScript ambient declarations, plus the opt-in `qubu/snapshot` canonical schema tooling entrypoint                                                                                                                                                                                                                         |
 
 ## Safety boundaries
 

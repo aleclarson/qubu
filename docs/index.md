@@ -25,6 +25,8 @@ Use the rest of the docs by task:
   or clause when the built-in surface is not enough.
 - [Use dialects and adapters](concepts/dialects-and-execution.md) when SQL must
   match a particular driver or execution layer.
+- [Serialize schema metadata](concepts/schema-snapshots.md) through the optional
+  `qubu/snapshot` tooling entrypoint.
 - [Enable the Vite compiler hint](guides/vite-plugin.md) when query modules
   should opt into named imports through a directive.
 

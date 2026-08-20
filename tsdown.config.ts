@@ -6,6 +6,7 @@ export default defineConfig({
     postgres: 'src/dialects/postgres.ts',
     sqlite: 'src/dialects/sqlite.ts',
     mysql: 'src/dialects/mysql.ts',
+    snapshot: 'src/snapshot/index.ts',
     vite: 'src/vite/index.ts',
   },
   format: 'esm',
