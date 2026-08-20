@@ -141,6 +141,23 @@ export function tryCreateSchemaSnapshot<TSchema extends Schema<any>>(
   const tableIds = new Map<object, string>()
   const tablesById = new Map<string, AnyTable>()
 
+  if (adapter?.validate !== undefined) {
+    try {
+      diagnostics.push(
+        ...adapter.validate(schema, {
+          path: [],
+          dialect,
+        })
+      )
+    } catch (error) {
+      diagnostics.push({
+        code: 'invalid-schema',
+        message: error instanceof Error ? error.message : String(error),
+        path: [],
+      })
+    }
+  }
+
   for (const [id, entry] of tableEntries) {
     tableIds.set(entry.table, id)
     tablesById.set(id, entry.table)
@@ -807,8 +824,14 @@ function encodeExpression(
     try {
       return encoder(expression, { mode, path, dialect })
     } catch (error) {
+      const code =
+        error instanceof Error &&
+        'code' in error &&
+        (error as { readonly code?: unknown }).code === 'dialect-mismatch'
+          ? 'dialect-mismatch'
+          : 'unsupported-expression'
       diagnostics.push({
-        code: 'unsupported-expression',
+        code,
         message: error instanceof Error ? error.message : String(error),
         path,
       })

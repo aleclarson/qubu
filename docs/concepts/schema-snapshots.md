@@ -55,6 +55,9 @@ envelope. A dialect adapter owns physical storage mapping, SQL literal and
 expression encoding, dialect extensions, capability checks, and any dialect
 naming policy. PostgreSQL, SQLite, and MySQL adapters can implement
 `SchemaSnapshotAdapter` without duplicating traversal or decoder rules.
+The PostgreSQL adapter is documented in the [PostgreSQL snapshot support
+matrix](../reference/postgres-snapshot.md). Its query dialect keeps the name
+`postgresql`; snapshot metadata uses `postgres`.
 
 Snapshot v1 intentionally stops before introspection, comparison, rename
 resolution, migration planning, and DDL generation. Those operations may

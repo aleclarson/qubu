@@ -17,6 +17,9 @@
 Dialect helpers are also re-exported from `qubu`, but subpath imports make the
 database-specific dependency visible where that is useful.
 
+The PostgreSQL snapshot adapter and its support limits are listed in the
+[PostgreSQL snapshot matrix](postgres-snapshot.md).
+
 ## Capability map
 
 | Area               | Supported building blocks                                                                                                                                                                                                                                                                                                                                                    |

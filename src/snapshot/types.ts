@@ -280,6 +280,12 @@ export interface SnapshotExtensionContext {
   readonly dialect: SnapshotDialect
 }
 
+/** Context supplied to an adapter's dialect-capability validation hook. */
+export interface SnapshotValidationContext {
+  readonly path: readonly (string | number)[]
+  readonly dialect: SnapshotDialect
+}
+
 /**
  * Dialect-owned hooks used by the common traversal. Commit 6 supplies the
  * neutral fallback; PostgreSQL, SQLite, and MySQL adapters can implement this
@@ -289,6 +295,15 @@ export interface SnapshotExtensionContext {
 export interface SchemaSnapshotAdapter {
   readonly dialect: SnapshotDialect
   readonly namingPolicy?: SnapshotNamingPolicy
+  /**
+   * Report dialect capability findings before common traversal starts. The
+   * common serializer owns diagnostic aggregation and ordering; adapters own
+   * version- or engine-specific checks.
+   */
+  readonly validate?: (
+    schema: Schema<any>,
+    context: SnapshotValidationContext
+  ) => readonly SnapshotDiagnostic[]
   readonly encodeStorage?: (
     storage: ColumnStorage,
     context: SnapshotStorageContext
@@ -315,6 +330,7 @@ export type SnapshotDiagnosticCode =
   | 'future-version'
   | 'invalid-cross-reference'
   | 'non-canonical'
+  | 'unsupported-dialect-option'
 
 /** A path-addressed snapshot diagnostic suitable for CLI or editor output. */
 export interface SnapshotDiagnostic {
