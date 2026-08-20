@@ -431,7 +431,12 @@ function validateColumn(
   const identity =
     value.identity === undefined
       ? undefined
-      : validateIdentity(value.identity, [...path, 'identity'], diagnostics)
+      : validateIdentity(
+          value.identity,
+          [...path, 'identity'],
+          dialect,
+          diagnostics
+        )
   if (
     id === undefined ||
     physicalName === undefined ||
@@ -471,7 +476,13 @@ function validateStorage(
     return type === undefined ? undefined : { kind: 'portable', type }
   }
   if (value.kind === 'native') {
-    requireKeys(value, ['kind', 'dialect', 'type'], path, diagnostics)
+    requireKeys(
+      value,
+      ['kind', 'dialect', 'type', 'affinity'],
+      path,
+      diagnostics,
+      ['affinity']
+    )
     const storageDialect = validateName(
       value.dialect,
       [...path, 'dialect'],
@@ -490,9 +501,41 @@ function validateStorage(
           [...path, 'dialect']
         )
       )
+    const affinityValue = value.affinity
+    const affinity =
+      affinityValue === undefined ||
+      affinityValue === 'blob' ||
+      affinityValue === 'integer' ||
+      affinityValue === 'numeric' ||
+      affinityValue === 'real' ||
+      affinityValue === 'text'
+        ? affinityValue
+        : undefined
+    if (affinityValue !== undefined && affinity === undefined) {
+      diagnostics.push(
+        diagnostic('invalid-snapshot', 'Storage affinity is invalid', [
+          ...path,
+          'affinity',
+        ])
+      )
+    }
+    if (affinity !== undefined && snapshotDialect !== 'sqlite') {
+      diagnostics.push(
+        diagnostic(
+          'dialect-mismatch',
+          'Storage affinity is only valid for SQLite snapshots',
+          [...path, 'affinity']
+        )
+      )
+    }
     return storageDialect === undefined || type === undefined
       ? undefined
-      : { kind: 'native', dialect: storageDialect, type }
+      : {
+          kind: 'native',
+          dialect: storageDialect,
+          type,
+          ...(affinity === undefined ? {} : { affinity }),
+        }
   }
   diagnostics.push(
     diagnostic('invalid-snapshot', 'Storage kind must be portable or native', [
@@ -606,6 +649,7 @@ function validateGenerated(
 function validateIdentity(
   value: unknown,
   path: readonly (string | number)[],
+  dialect: string | undefined,
   diagnostics: SnapshotDiagnostic[]
 ): SnapshotIdentity | undefined {
   if (!isRecord(value)) {
@@ -614,7 +658,9 @@ function validateIdentity(
     )
     return undefined
   }
-  requireKeys(value, ['kind', 'generation'], path, diagnostics)
+  requireKeys(value, ['kind', 'generation', 'dialect'], path, diagnostics, [
+    'dialect',
+  ])
   if (value.kind !== 'identity')
     diagnostics.push(
       diagnostic('invalid-snapshot', 'Identity kind must be identity', [
@@ -634,7 +680,17 @@ function validateIdentity(
     (value.generation !== 'always' && value.generation !== 'by-default')
   )
     return undefined
-  return { kind: 'identity', generation: value.generation }
+  const extension = validateExtension(
+    value.dialect,
+    [...path, 'dialect'],
+    dialect,
+    diagnostics
+  )
+  return {
+    kind: 'identity',
+    generation: value.generation,
+    ...(extension === undefined ? {} : { dialect: extension }),
+  }
 }
 
 function validateConstraint(

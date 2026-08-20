@@ -350,7 +350,13 @@ function serializeColumn(
       )
     : undefined
   const identity = definition.identity
-    ? encodeIdentity(definition.identity)
+    ? encodeIdentity(
+        definition.identity,
+        dialect,
+        ['tables', id, 'columns', id, 'identity'],
+        options,
+        diagnostics
+      )
     : undefined
 
   return {
@@ -449,8 +455,25 @@ function encodeGenerated(
     : { kind: 'expression', expression, mode: value.mode }
 }
 
-function encodeIdentity(value: IdentityDescriptor): SnapshotIdentity {
-  return { kind: 'identity', generation: value.generation }
+function encodeIdentity(
+  value: IdentityDescriptor,
+  dialect: SnapshotDialect,
+  path: readonly (string | number)[],
+  options: SchemaSnapshotOptions,
+  diagnostics: SnapshotDiagnostic[]
+): SnapshotIdentity | undefined {
+  const extension = encodeExtension(
+    value.dialect,
+    dialect,
+    [...path, 'dialect'],
+    options,
+    diagnostics
+  )
+  return {
+    kind: 'identity',
+    generation: value.generation,
+    ...(extension === undefined ? {} : { dialect: extension }),
+  }
 }
 
 function serializeConstraint(

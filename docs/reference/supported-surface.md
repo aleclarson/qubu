@@ -19,6 +19,8 @@ database-specific dependency visible where that is useful.
 
 The PostgreSQL snapshot adapter and its support limits are listed in the
 [PostgreSQL snapshot matrix](postgres-snapshot.md).
+The SQLite snapshot adapter and its support limits are listed in the
+[SQLite snapshot matrix](sqlite-snapshot.md).
 
 ## Capability map
 

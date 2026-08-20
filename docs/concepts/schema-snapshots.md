@@ -58,6 +58,8 @@ naming policy. PostgreSQL, SQLite, and MySQL adapters can implement
 The PostgreSQL adapter is documented in the [PostgreSQL snapshot support
 matrix](../reference/postgres-snapshot.md). Its query dialect keeps the name
 `postgresql`; snapshot metadata uses `postgres`.
+The SQLite adapter is documented in the [SQLite snapshot support
+matrix](../reference/sqlite-snapshot.md).
 
 Snapshot v1 intentionally stops before introspection, comparison, rename
 resolution, migration planning, and DDL generation. Those operations may

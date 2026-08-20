@@ -152,6 +152,20 @@ does not render it while declaring the column, so a future dialect adapter can
 apply its own literal and expression rules. Generated expressions record
 `stored` or `virtual` mode. `identityColumn('always' | 'by-default')` is kept
 separate because identity behavior is not an ordinary generated expression.
+Dialect-owned identity details stay nested under `identity.dialect`. For
+SQLite, `autoIncrement: true` is only valid on an exact `INTEGER` rowid alias
+that is the sole column of a primary key:
+
+```ts
+id: integer({
+  identity: identityColumn('by-default', {
+    dialect: { dialect: 'sqlite', autoIncrement: true },
+  }),
+})
+```
+
+The SQLite snapshot adapter preserves this distinction without changing the
+query-facing identity of the column.
 
 Legacy flags without a complete descriptor are retained as explicit external
 metadata. This records that the database or another schema authority owns the

@@ -3,6 +3,10 @@ import type {
   SchemaExpression,
 } from '../expressions/types.ts'
 import { isSchemaExpression } from '../expressions/types.ts'
+import {
+  freezeSchemaMetadata,
+  type SchemaDialectExtension,
+} from './metadata.ts'
 
 /** Values that can be represented without a dialect-specific SQL renderer. */
 export type SchemaLiteralValue = null | boolean | string | number | bigint
@@ -73,10 +77,24 @@ export type GeneratedDescriptor = GeneratedColumnDescriptor
 /** Identity generation policy. Identity is not an ordinary SQL expression. */
 export type IdentityGeneration = 'always' | 'by-default'
 
+/** SQLite's opt-in AUTOINCREMENT behavior for an INTEGER rowid alias. */
+export interface SqliteIdentityExtension
+  extends SchemaDialectExtension<'sqlite'> {
+  /** Preserve deleted rowids instead of allowing SQLite to reuse them. */
+  readonly autoIncrement?: boolean
+}
+
+/** Dialect-owned identity details retained independently from generation. */
+export type IdentityDialectExtension =
+  | SqliteIdentityExtension
+  | (SchemaDialectExtension<string> & Readonly<Record<string, unknown>>)
+
 /** Complete identity metadata for a database-generated column value. */
 export interface IdentityDescriptor {
   readonly kind: 'identity'
   readonly generation: IdentityGeneration
+  /** Optional dialect-owned identity semantics such as SQLite AUTOINCREMENT. */
+  readonly dialect?: IdentityDialectExtension
 }
 
 /** Structured failures raised while resolving column behavior metadata. */
@@ -183,16 +201,24 @@ export function externalGeneratedColumn(): ExternalGeneratedColumnDescriptor {
 
 /** Describe a database identity column without inventing a generated SQL expression. */
 export function identityColumn(
-  generation: IdentityGeneration = 'by-default'
+  generation?: IdentityGeneration,
+  options?: { readonly dialect?: IdentityDialectExtension }
 ): IdentityDescriptor {
-  if (generation !== 'always' && generation !== 'by-default') {
+  const resolvedGeneration = generation ?? 'by-default'
+  if (resolvedGeneration !== 'always' && resolvedGeneration !== 'by-default') {
     throw new ColumnBehaviorError(
       'invalid-identity',
-      `Identity generation must be "always" or "by-default", received "${String(generation)}"`,
+      `Identity generation must be "always" or "by-default", received "${String(resolvedGeneration)}"`,
       'identity.generation'
     )
   }
-  return Object.freeze({ kind: 'identity' as const, generation })
+  return Object.freeze({
+    kind: 'identity' as const,
+    generation: resolvedGeneration,
+    ...(options?.dialect === undefined
+      ? {}
+      : { dialect: freezeSchemaMetadata(options.dialect) }),
+  })
 }
 
 /** The normalized behavior fields attached to a column definition. */
@@ -347,6 +373,9 @@ function freezeIdentityDescriptor(
   return Object.freeze({
     kind: 'identity' as const,
     generation: value.generation,
+    ...(value.dialect === undefined
+      ? {}
+      : { dialect: freezeSchemaMetadata(value.dialect) }),
   })
 }
 
@@ -433,6 +462,20 @@ function assertIdentityDescriptor(value: IdentityDescriptor): void {
       'Identity metadata must use generation "always" or "by-default"',
       'identity.generation'
     )
+  }
+  if (value.dialect !== undefined) {
+    if (
+      typeof value.dialect !== 'object' ||
+      value.dialect === null ||
+      typeof value.dialect.dialect !== 'string' ||
+      value.dialect.dialect.length === 0
+    ) {
+      throw new ColumnBehaviorError(
+        'invalid-identity',
+        'Identity dialect metadata must contain a non-empty dialect tag',
+        'identity.dialect'
+      )
+    }
   }
 }
 

@@ -75,6 +75,8 @@ export type SnapshotStorage =
       readonly kind: 'native'
       readonly dialect: string
       readonly type: string
+      /** SQLite's derived type affinity, when the selected adapter records it. */
+      readonly affinity?: 'blob' | 'integer' | 'numeric' | 'real' | 'text'
     }
 
 /** A deterministic expression after it crosses the snapshot data boundary. */
@@ -124,6 +126,7 @@ export type SnapshotGeneratedColumn =
 export interface SnapshotIdentity {
   readonly kind: 'identity'
   readonly generation: 'always' | 'by-default'
+  readonly dialect?: SnapshotDialectExtension
 }
 
 /** A canonical column record keyed by its stable logical field ID. */
