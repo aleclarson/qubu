@@ -2,9 +2,11 @@
 
 > Start from the observed error or output, verify the boundary that produced it, and apply the smallest fix that changes the result.
 
-## “The column is not available in this query scope”
+## Column is not available in this query scope
 
 Qubu found a column whose source is not in `FROM` or `JOIN` clauses.
+Read [Source scope](concepts/query-model/source-scope.md) for the source
+identity rules behind this error.
 
 Check that the query includes the original source or use the columns exposed by
 the alias, CTE, or derived table you actually placed in the query:
@@ -18,7 +20,7 @@ select({ name: author.name }, from(author))
 `author.name` is valid in this query; `users.name` is a different source
 identity after aliasing.
 
-## “UPDATE/DELETE requires a WHERE”
+## UPDATE/DELETE requires a WHERE
 
 This is the default mutation safety check. Add a source-aware predicate:
 
@@ -31,7 +33,7 @@ If every row is intentionally affected, pass `allowAll()` explicitly and keep
 that decision close to the authorization or maintenance code that justifies
 it.
 
-## “scalar() requires a query with exactly one selected column”
+## scalar() requires one selected column
 
 A scalar subquery must return one selected field. Reduce the projection before
 calling `scalar()`:
@@ -42,6 +44,7 @@ const idExpression = scalar(idQuery)
 ```
 
 Use a normal derived table or CTE when the nested query needs multiple fields.
+For scalar result nullability, see [Result shapes and cardinality](concepts/query-model/result-shapes.md).
 
 ## Placeholders do not match the driver
 

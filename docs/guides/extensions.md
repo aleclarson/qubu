@@ -1,6 +1,6 @@
 # Extend Qubu
 
-> Add a small dialect policy, expression, or clause when the standard surface does not cover a driver-specific or uncommon SQL feature.
+> Add a dialect policy, expression, or clause when the built-in API does not cover a driver-specific or uncommon SQL feature.
 
 ## Prefer a value-level extension
 
@@ -98,7 +98,7 @@ render(query, colonDialect)
 you provide `quoteIdentifier`. A complete pagination policy can be supplied
 through the optional `pagination` renderer.
 
-## Build expressions from public primitives
+## Build expressions from public helpers
 
 `fragment()`, `makeExpression()`, `parameter()`, `identifier()`, `syntax()`,
 `customClause()`, and `customSource()` are the public building blocks for
@@ -164,7 +164,7 @@ const generated = unsafeExpression<string, SqlText>('custom_text()')
 ```
 
 `typedCall()` preserves source requirements from its arguments. `typedCast()`
-is the flexible fallback when no reusable definition describes the target; it
+is the fallback when no reusable definition describes the target; it
 preserves operand nullability and source metadata while emitting its supplied
 type name verbatim. `typedValue()` binds a parameter. `unsafeExpression()`
 emits its string unchanged and should remain a last resort.
@@ -179,9 +179,9 @@ Untyped `column()`, `value()`, `call()`, and custom expressions use
 `SqlUnknown`, which stays permissive for backward compatibility. Declaring a
 known domain opts the extension into incompatible-operation errors. See [SQL
 semantic types](../concepts/sql-semantic-types.md) for the capability model and
-its non-goals.
+its limits.
 
-## Use unsafe primitives only for intentional raw syntax
+## Use unsafe helpers only for intentional raw syntax
 
 `unsafeExpression()` and related escape hatches exist for syntax that cannot be
 modeled yet. They do not quote identifiers or bind values for you:

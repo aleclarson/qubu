@@ -1,6 +1,6 @@
-# Supported surface
+# Supported features
 
-> Use this page to choose the public package entrypoint and understand where Qubu's responsibilities stop.
+> Choose a package entrypoint and see which work Qubu handles.
 
 ## Package entrypoints
 
@@ -43,8 +43,8 @@ Qubu binds values through the render context and quotes identifiers through the
 active dialect. `UPDATE` and `DELETE` require a `WHERE` clause unless the caller
 passes `allowAll()`.
 
-Raw syntax is available through explicit unsafe primitives. Those primitives
-are not a sanitizer and do not make interpolated values safe. Use
+Use raw syntax through explicit unsafe helpers. They are not a sanitizer and
+do not make interpolated values safe. Use
 `context.parameter()` in custom renderers and keep driver encoding in the
 adapter.
 

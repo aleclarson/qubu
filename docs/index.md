@@ -1,16 +1,15 @@
 # Qubu
 
-> Query builder for TypeScript: reads like SQL, declarative schema, highly composable, type inference, simple type declarations
+> Build parameterized SQL from typed tables, expressions, and clauses.
 
-Qubu is a functional-first SQL builder for TypeScript. Tables, expressions,
-clauses, and complete queries are values that compose without a mutable query
-builder. The result keeps SQL recognizable while TypeScript tracks selected
-row shapes, source scope, and nullability; rendering still collects runtime
-parameters in placeholder order.
+Qubu builds SQL from values. Tables, expressions, clauses, and complete queries
+compose without a mutable query builder. TypeScript tracks selected row shapes,
+source scope, and nullability, while rendering returns SQL text and ordered
+parameters.
 
 ## Start here
 
-If this is your first query, follow [Getting Started](getting-started.md) to
+If this is your first query, follow [Getting started](getting-started.md) to
 define a table, build a `SELECT`, and inspect its SQL and parameters.
 
 Use the rest of the docs by task:
@@ -22,11 +21,12 @@ Use the rest of the docs by task:
 - [Write mutations](guides/mutations.md) with typed `INSERT`, `UPDATE`, and
   `DELETE` statements.
 - [Extend Qubu](guides/extensions.md) with a custom dialect policy, fragment,
-  or clause when the built-in surface is not enough.
+  or clause when the built-in API is not enough.
 - [Use dialects and adapters](concepts/dialects-and-execution.md) when SQL must
   match a particular driver or execution layer.
 - [Serialize schema metadata](concepts/schema-snapshots.md) through the optional
   `qubu/snapshot` tooling entrypoint.
+- [Read JSON scalars](guides/json.md) from structured JSON paths.
 - [Enable the Vite compiler hint](guides/vite-plugin.md) when query modules
   should opt into named imports through a directive.
 
@@ -46,9 +46,9 @@ flowchart LR
   F --> G["Application rows"]
 ```
 
-Values become bound parameters, and identifiers are quoted through the active
-dialect. Raw SQL is available through explicit unsafe primitives, so the code
-that crosses that boundary remains visible at the call site.
+Values become bound parameters, and the active dialect quotes identifiers. Raw
+SQL is available through explicit unsafe helpers. The call site shows where
+that unchecked syntax enters the query.
 
 ## A small example
 
@@ -78,15 +78,15 @@ the SQL text and appears in the `parameters` array in placeholder order.
 
 ## Choose the next concept
 
-| If you need to decide...                                       | Read...                                                       |
-| -------------------------------------------------------------- | ------------------------------------------------------------- |
-| Why a column can be rejected outside `FROM` or `JOIN` scope    | [Fragments and source scope](concepts/fragments-and-scope.md) |
-| How a query changes across PostgreSQL, SQLite, or MySQL        | [Dialects and execution](concepts/dialects-and-execution.md)  |
-| How nullability, defaults, and generated columns affect writes | [Schema and type metadata](concepts/schema-and-types.md)      |
-| Why equal JavaScript types can allow different SQL operations  | [SQL semantic types](concepts/sql-semantic-types.md)          |
-| Which package entrypoint or feature to use                     | [Supported surface](reference/supported-surface.md)           |
-| What a failure means and what to verify                        | [Troubleshooting](troubleshooting.md)                         |
+| If you need to decide...                                       | Read...                                                                  |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Why a column can be rejected outside `FROM` or `JOIN` scope    | [Source scope](concepts/query-model/source-scope.md)                     |
+| How a query changes across PostgreSQL, SQLite, or MySQL        | [Dialects and execution](concepts/dialects-and-execution.md)             |
+| How nullability, defaults, and generated columns affect writes | [Column behavior and write types](concepts/schema/columns-and-writes.md) |
+| Why equal JavaScript types can allow different SQL operations  | [SQL semantic types](concepts/sql-semantic-types.md)                     |
+| Which package entrypoint or feature to use                     | [Supported features](reference/supported-surface.md)                     |
+| What a failure means and what to verify                        | [Troubleshooting](troubleshooting.md)                                    |
 
 Qubu builds and renders SQL; it does not provide an ORM, migrations, connection
 pooling, transactions, or relationship loading. See the [supported
-surface](reference/supported-surface.md#boundary) for the full boundary.
+features](reference/supported-surface.md#boundary) for the full boundary.

@@ -1,5 +1,7 @@
 # Canonical schema snapshots
 
+> Serialize schema metadata into strict, deterministic data and keep serialization separate from migrations and DDL.
+
 Qubu's schema tooling lives behind the `qubu/snapshot` entrypoint. It converts
 an immutable `schema()` registry into versioned data that can be inspected,
 hashed, checked into source control, and handed to a dialect adapter. Importing

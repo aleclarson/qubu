@@ -1,4 +1,4 @@
-# Getting Started
+# Getting started
 
 > Define a typed table, build one parameterized query, and inspect the exact SQL before connecting a driver.
 
@@ -35,6 +35,7 @@ nullable email column is inferred as `string | null` when selected.
 
 Pass a projection and independent clauses to `select()`. Clauses may be
 written in the order that reads best; Qubu renders them in SQL order.
+The example uses the `users` table from the previous section.
 
 ```ts
 import { eq, from, render, select, where } from 'qubu'
@@ -74,21 +75,6 @@ type UserRow = typeof query.row
 > `RenderedQuery` value for logging, testing, or passing to a
 > [driver-owned adapter](concepts/dialects-and-execution.md).
 
-## Add a database dialect
-
-Select a dialect at the rendering boundary when the driver expects different
-identifier, placeholder, or pagination syntax:
-
-```ts
-import { postgresDialect, render } from 'qubu'
-
-const statement = render(query, postgresDialect())
-// statement.text contains $1 instead of ?
-```
-
-See [Dialects and execution](concepts/dialects-and-execution.md) for the
-built-in policies and the adapter contract.
-
 ## Next steps
 
 - [Build a `SELECT`](guides/select.md) with joins, predicates, aggregates, and
@@ -96,5 +82,8 @@ built-in policies and the adapter contract.
 - [Compose queries](guides/compose-queries.md) from CTEs and derived sources.
 - [Write mutations](guides/mutations.md) with typed insert/update/delete
   inputs.
+- [Choose a database dialect](concepts/dialects-and-execution.md) when the
+  driver expects different identifier, placeholder, or pagination syntax.
+- [Read JSON scalars](guides/json.md) from a JSON column.
 - [Use the Vite compiler hint](guides/vite-plugin.md) for directive-based
   imports.

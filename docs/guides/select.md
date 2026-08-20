@@ -1,6 +1,6 @@
 # Build a `SELECT`
 
-> Turn typed table values into readable, parameterized `SELECT` statements while keeping filters, joins, and result shapes visible.
+> Build a `SELECT` from typed tables, then inspect its filters, joins, ordering, and result row.
 
 ## Start with a projection and a source
 
@@ -42,6 +42,9 @@ That keeps the SQL output and the inferred row keys aligned.
 
 Named object projections keep the row shape visible at the selection site,
 which is useful when the result is consumed by application code.
+
+The examples below reuse the `users` table above and the `posts` table from
+the join example.
 
 ## Add joins and predicates
 
@@ -282,7 +285,7 @@ projection such as `{ email: users.email, postCount: count(posts.id) }` is
 rejected unless `users.email` is grouped or is functionally determined by a
 grouped primary or unique key declared in the table schema. Qubu uses only
 explicit key metadata and keeps the proof within the source boundary; see
-[Schema and type metadata](../concepts/schema-and-types.md#declare-keys-for-grouped-query-proofs).
+[Constraints, keys, and indexes](../concepts/schema/constraints-and-indexes.md#use-key-metadata-for-grouped-queries).
 
 ## Window functions
 
