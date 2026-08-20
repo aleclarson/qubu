@@ -2,8 +2,6 @@ import { expect, test } from 'vitest'
 import {
   ColumnBehaviorError,
   column,
-  defaultExpression,
-  defaultLiteral,
   defineSchemaExpression,
   externalDefault,
   externalGeneratedColumn,
@@ -18,7 +16,7 @@ test('normalizes complete defaults and generated behavior without rendering SQL'
   const expression = defineSchemaExpression('function', context => {
     context.append('CURRENT_TIMESTAMP')
   })
-  const createdAt = text({ default: defaultExpression(expression) })
+  const createdAt = text({ default: expression })
   const computed = integer({
     generatedColumn: generatedColumn(expression, 'virtual'),
   })
@@ -63,28 +61,45 @@ test('represents legacy write flags as explicit external behavior', () => {
 })
 
 test('canonicalizes supported literal values', () => {
-  expect(defaultLiteral(null)).toEqual({
+  expect(column({ default: null }).default).toEqual({
     kind: 'literal',
     value: { kind: 'null' },
   })
-  expect(defaultLiteral(-0)).toEqual({
+  expect(column({ default: -0 }).default).toEqual({
     kind: 'literal',
     value: { kind: 'number', value: '0' },
   })
-  expect(defaultLiteral(42n)).toEqual({
+  expect(column({ default: 42n }).default).toEqual({
     kind: 'literal',
     value: { kind: 'bigint', value: '42' },
   })
-  expect(defaultLiteral("O'Reilly")).toEqual({
+  expect(column({ default: "O'Reilly" }).default).toEqual({
     kind: 'literal',
     value: { kind: 'string', value: "O'Reilly" },
   })
 })
 
+test('treats strings as literals and branded values as expressions', () => {
+  const stringDefault = text({ default: 'CURRENT_TIMESTAMP' })
+  const expression = defineSchemaExpression('function', context => {
+    context.append('CURRENT_TIMESTAMP')
+  })
+  const expressionDefault = text({ default: expression })
+
+  expect(stringDefault.default).toEqual({
+    kind: 'literal',
+    value: { kind: 'string', value: 'CURRENT_TIMESTAMP' },
+  })
+  expect(expressionDefault.default).toEqual({
+    kind: 'expression',
+    expression,
+  })
+})
+
 test('rejects incompatible complete behavior early', () => {
-  expect(() =>
-    column({ default: defaultLiteral(1), hasDefault: false })
-  ).toThrowError(ColumnBehaviorError)
+  expect(() => column({ default: 1, hasDefault: false })).toThrowError(
+    ColumnBehaviorError
+  )
   expect(() =>
     column({
       generatedColumn: generatedColumn(value(1)),
@@ -93,13 +108,13 @@ test('rejects incompatible complete behavior early', () => {
   ).toThrowError(ColumnBehaviorError)
   expect(() =>
     column({
-      default: defaultLiteral(1),
+      default: 1,
       generatedColumn: generatedColumn(value(1)),
     })
   ).toThrowError(ColumnBehaviorError)
 
   try {
-    column({ default: defaultLiteral(1), hasDefault: false })
+    column({ default: 1, hasDefault: false })
   } catch (error) {
     expect(error).toMatchObject({
       name: 'ColumnBehaviorError',

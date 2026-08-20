@@ -20,11 +20,15 @@ import type {
 } from '../core/dialect.ts'
 import {
   resolveColumnBehavior,
+  type ColumnDefaultInput,
   type ColumnDefault,
   type GeneratedColumnDescriptor,
   type IdentityDescriptor,
   type ExternalDefaultDescriptor,
   type ExternalGeneratedColumnDescriptor,
+  type LiteralDefaultDescriptor,
+  type ExpressionDefaultDescriptor,
+  type SchemaLiteralValue,
 } from './column-behavior.ts'
 import type { AnySchemaExpression } from '../expressions/types.ts'
 
@@ -204,8 +208,8 @@ export interface ColumnOptions {
   readonly nullable?: boolean
   readonly hasDefault?: boolean
   readonly generated?: boolean
-  /** Complete database default metadata, independent of the write flag. */
-  readonly default?: ColumnDefault
+  /** A literal, deterministic expression, or externally managed default. */
+  readonly default?: ColumnDefaultInput
   /** Complete generated-column metadata, independent of identity behavior. */
   readonly generatedColumn?: GeneratedColumnDescriptor
   /** Database identity metadata; identity is not an ordinary expression. */
@@ -297,11 +301,19 @@ export interface ColumnDefinition<
 
 type Flag<T extends boolean | undefined> = T extends true ? true : false
 
-type ColumnHasDefaultOption<TOptions extends ColumnOptions> = TOptions extends {
-  readonly default: ColumnDefault
-}
-  ? true
-  : Flag<TOptions['hasDefault']>
+type HasExplicitOption<
+  TOptions,
+  TKey extends PropertyKey,
+> = TKey extends keyof TOptions
+  ? {} extends Pick<TOptions, TKey>
+    ? false
+    : true
+  : false
+
+type ColumnHasDefaultOption<TOptions extends ColumnOptions> =
+  HasExplicitOption<TOptions, 'default'> extends true
+    ? true
+    : Flag<TOptions['hasDefault']>
 
 type ColumnIsGeneratedOption<TOptions extends ColumnOptions> =
   TOptions extends {
@@ -312,13 +324,20 @@ type ColumnIsGeneratedOption<TOptions extends ColumnOptions> =
       ? true
       : Flag<TOptions['generated']>
 
-type ColumnDefaultOption<TOptions extends ColumnOptions> = TOptions extends {
-  readonly default: infer TDefault extends ColumnDefault
-}
-  ? TDefault
-  : TOptions['hasDefault'] extends true
-    ? ExternalDefaultDescriptor
-    : undefined
+type ColumnDefaultOption<TOptions extends ColumnOptions> =
+  HasExplicitOption<TOptions, 'default'> extends true
+    ? TOptions extends { readonly default: infer TDefault }
+      ? TDefault extends AnySchemaExpression
+        ? ExpressionDefaultDescriptor<TDefault>
+        : TDefault extends ExternalDefaultDescriptor
+          ? TDefault
+          : TDefault extends SchemaLiteralValue
+            ? LiteralDefaultDescriptor
+            : never
+      : never
+    : TOptions['hasDefault'] extends true
+      ? ExternalDefaultDescriptor
+      : undefined
 
 type ColumnGeneratedOption<TOptions extends ColumnOptions> = TOptions extends {
   readonly generatedColumn: infer TGenerated extends GeneratedColumnDescriptor
@@ -878,13 +897,9 @@ export function column<
 >(
   options?: TOptions
 ): ColumnFromOptions<TOutput, TInsert, TUpdate, TOptions, TSqlType>
-export function column<
-  TOutput = unknown,
-  TInsert = TOutput,
-  TUpdate = TInsert,
-  const TOptions extends ColumnOptions = {},
-  TSqlType extends AnySqlType = SqlUnknown,
->(options?: TOptions) {
+export function column<const TOptions extends ColumnOptions = {}>(
+  options?: TOptions
+): any {
   return Object.freeze({
     definitionKind: 'column' as const,
     nullable: options?.nullable === true,
@@ -900,13 +915,7 @@ export function column<
           typeName: options.castType,
         })
       : undefined,
-  }) as unknown as ColumnFromOptions<
-    TOutput,
-    TInsert,
-    TUpdate,
-    TOptions,
-    TSqlType
-  >
+  })
 }
 
 type NativeColumnOptions = Omit<ColumnOptions, 'storage'> & {
@@ -986,7 +995,7 @@ export function nativeColumn(
   storageOrDialect: NativeColumnStorage | string,
   typeOrOptions?: string | NativeColumnOptions,
   maybeOptions?: NativeColumnOptions
-) {
+): any {
   const storage =
     typeof storageOrDialect === 'string'
       ? nativeStorage(storageOrDialect, typeOrOptions as string)

@@ -2,8 +2,6 @@ import { expect, test } from 'vitest'
 import {
   and,
   check,
-  defaultExpression,
-  defaultLiteral,
   defineSchemaExpression,
   foreignKey,
   generatedColumn,
@@ -31,7 +29,7 @@ const accounts = table(
   'accounts',
   {
     id: integer(),
-    email: text({ nullable: true, default: defaultLiteral('pending') }),
+    email: text({ nullable: true, default: 'pending' }),
     display: text({
       generatedColumn: generatedColumn(value('display'), 'virtual'),
     }),
@@ -53,10 +51,8 @@ const memberships = table(
   {
     accountId: integer(),
     role: text({
-      default: defaultExpression(
-        defineSchemaExpression('function', context =>
-          context.append("'member'")
-        )
+      default: defineSchemaExpression('function', context =>
+        context.append("'member'")
       ),
     }),
   },
@@ -219,7 +215,7 @@ test('rejects native storage owned by another snapshot dialect', () => {
 test('requires the selected dialect for unsafe schema SQL', () => {
   const unsafe = table('unsafe_defaults', {
     value: text({
-      default: defaultExpression(unsafeSchemaSql('postgresql', 'CURRENT_DATE')),
+      default: unsafeSchemaSql('postgresql', 'CURRENT_DATE'),
     }),
   })
   expect(() => createSchemaSnapshot(schema({ unsafe }))).toThrow(

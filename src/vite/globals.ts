@@ -36,8 +36,6 @@ export const qubuGlobals = [
   'customClause',
   'date',
   'dateTime',
-  'defaultExpression',
-  'defaultLiteral',
   'dialectColumn',
   'defaultValues',
   'deleteFrom',

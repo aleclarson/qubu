@@ -37,8 +37,6 @@ declare global {
   const customClause: typeof import('qubu').customClause
   const date: typeof import('qubu').date
   const dateTime: typeof import('qubu').dateTime
-  const defaultExpression: typeof import('qubu').defaultExpression
-  const defaultLiteral: typeof import('qubu').defaultLiteral
   const dialectColumn: typeof import('qubu').dialectColumn
   const defaultValues: typeof import('qubu').defaultValues
   const deleteFrom: typeof import('qubu').deleteFrom
@@ -200,6 +198,7 @@ declare global {
   >
   type ColumnSqlType<T> = import('qubu').ColumnSqlType<T>
   type ColumnDefault = import('qubu').ColumnDefault
+  type ColumnDefaultInput = import('qubu').ColumnDefaultInput
   type ColumnDefaultOf<T> = import('qubu').ColumnDefaultOf<T>
   type ColumnGeneratedOf<T> = import('qubu').ColumnGeneratedOf<T>
   type ColumnIdentityOf<T> = import('qubu').ColumnIdentityOf<T>

@@ -1,7 +1,5 @@
 import { expectTypeOf } from 'vitest'
 import {
-  defaultExpression,
-  defaultLiteral,
   defineSchemaExpression,
   generatedColumn,
   identityColumn,
@@ -24,8 +22,8 @@ import type {
 const expression = defineSchemaExpression('function', context => {
   context.append('CURRENT_TIMESTAMP')
 })
-const literalDefault = text({ default: defaultLiteral('pending') })
-const expressionDefault = text({ default: defaultExpression(expression) })
+const literalDefault = text({ default: 'pending' })
+const expressionDefault = text({ default: expression })
 const generated = integer({
   generatedColumn: generatedColumn(expression, 'stored'),
 })

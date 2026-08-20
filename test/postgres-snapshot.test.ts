@@ -2,8 +2,6 @@ import { expect, test } from 'vitest'
 import {
   boolean,
   check,
-  defaultExpression,
-  defaultLiteral,
   desc,
   foreignKey,
   generatedColumn,
@@ -37,8 +35,8 @@ const accounts = table(
     id: integer({
       identity: { kind: 'identity', generation: 'always' },
     }),
-    email: text({ default: defaultLiteral('pending') }),
-    active: boolean({ default: defaultExpression(value(true)) }),
+    email: text({ default: 'pending' }),
+    active: boolean({ default: true }),
     profile: json(),
     slug: text({
       generatedColumn: generatedColumn(value('account'), 'stored'),
@@ -83,7 +81,7 @@ const memberships = table(
   'account_memberships',
   {
     accountId: integer(),
-    role: text({ default: defaultExpression(value('member')) }),
+    role: text({ default: 'member' }),
   },
   membership => ({
     constraints: {
@@ -121,14 +119,7 @@ test('serializes PostgreSQL storage, behavior, constraints, indexes, and extensi
       hasDefault: true,
       generated: false,
       storage: { kind: 'native', dialect: 'postgresql', type: 'BOOLEAN' },
-      default: {
-        kind: 'expression',
-        expression: {
-          kind: 'expression',
-          expressionKind: 'value',
-          sql: 'TRUE',
-        },
-      },
+      default: { kind: 'literal', value: { kind: 'boolean', value: true } },
     },
     {
       id: 'email',
@@ -233,7 +224,7 @@ test('shares query and snapshot dialect identity', () => {
 
   const raw = table('raw_defaults', {
     value: text({
-      default: defaultExpression(unsafeSchemaSql('postgresql', 'CURRENT_DATE')),
+      default: unsafeSchemaSql('postgresql', 'CURRENT_DATE'),
     }),
   })
   expect(
@@ -308,7 +299,7 @@ test('reports PostgreSQL capability and naming diagnostics', () => {
 test('rejects schema SQL tagged with another dialect name', () => {
   const raw = table('wrong_tag', {
     value: text({
-      default: defaultExpression(unsafeSchemaSql('postgres', 'CURRENT_DATE')),
+      default: unsafeSchemaSql('postgres', 'CURRENT_DATE'),
     }),
   })
   const result = tryCreatePostgresSchemaSnapshot(schema({ raw }))

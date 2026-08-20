@@ -2,8 +2,6 @@ import { expect, test } from 'vitest'
 import {
   boolean,
   check,
-  defaultExpression,
-  defaultLiteral,
   foreignKey,
   generatedColumn,
   gt,
@@ -39,8 +37,8 @@ const accounts = table(
         dialect: { dialect: 'sqlite', autoIncrement: true },
       }),
     }),
-    email: text({ nullable: true, default: defaultLiteral("O'Reilly") }),
-    active: boolean({ default: defaultExpression(value(true)) }),
+    email: text({ nullable: true, default: "O'Reilly" }),
+    active: boolean({ default: true }),
     slug: text({
       generatedColumn: generatedColumn(value('account'), 'stored'),
     }),
@@ -68,7 +66,7 @@ const memberships = table(
   'account_memberships',
   {
     accountId: integer(),
-    role: text({ default: defaultExpression(value('member')) }),
+    role: text({ default: 'member' }),
   },
   membership => ({
     constraints: {
@@ -106,14 +104,7 @@ test('serializes SQLite affinity, literals, generated columns, identities, and p
         type: 'INTEGER',
         affinity: 'integer',
       },
-      default: {
-        kind: 'expression',
-        expression: {
-          kind: 'expression',
-          expressionKind: 'value',
-          sql: '1',
-        },
-      },
+      default: { kind: 'literal', value: { kind: 'boolean', value: true } },
     },
     {
       id: 'email',
@@ -256,7 +247,7 @@ test('keeps query and snapshot dialect identities separate', () => {
 
   const raw = table('raw_defaults', {
     value: text({
-      default: defaultExpression(unsafeSchemaSql('sqlite', 'CURRENT_DATE\r\n')),
+      default: unsafeSchemaSql('sqlite', 'CURRENT_DATE\r\n'),
     }),
   })
   expect(
@@ -377,7 +368,7 @@ test('rejects native storage and unsafe SQL owned by another dialect', () => {
   })
   const wrongRaw = table('wrong_raw', {
     value: text({
-      default: defaultExpression(unsafeSchemaSql('postgresql', 'CURRENT_DATE')),
+      default: unsafeSchemaSql('postgresql', 'CURRENT_DATE'),
     }),
   })
   const result = tryCreateSqliteSchemaSnapshot(schema({ native, wrongRaw }))

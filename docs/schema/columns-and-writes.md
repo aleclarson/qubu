@@ -37,8 +37,7 @@ complete metadata when schema tooling also needs the database fact:
 
 ```ts
 import {
-  defaultExpression,
-  defaultLiteral,
+  boolean,
   defineSchemaExpression,
   generatedColumn,
   identityColumn,
@@ -54,21 +53,24 @@ const currentTimestamp = defineSchemaExpression('function', context => {
 
 const accounts = table('accounts', {
   id: integer({ identity: identityColumn('always') }),
-  status: text({ default: defaultLiteral('pending') }),
+  status: text({ default: 'pending' }),
+  active: boolean({ default: true }),
   score: integer({
     generatedColumn: generatedColumn(value(1), 'stored'),
   }),
   createdAt: text({
-    default: defaultExpression(currentTimestamp),
+    default: currentTimestamp,
   }),
 })
 ```
 
-`defaultLiteral()` stores a canonical literal. `defaultExpression()` stores a
-branded deterministic expression for a schema adapter to render later.
-Generated expressions record stored or virtual mode. An identity descriptor
-stays separate because identity behavior is not an ordinary generated
-expression.
+Primitive values in `default` are canonical literals. Strings are never
+interpreted as SQL, and booleans remain semantic values so each dialect can
+choose its own spelling. Pass a branded deterministic schema expression
+directly when the default is SQL, and use `unsafeSchemaSql()` only for trusted
+syntax Qubu does not model. Generated expressions record stored or virtual
+mode. An identity descriptor stays separate because identity behavior is not
+an ordinary generated expression.
 
 Complete defaults cannot be combined with generated or identity metadata.
 Contradictory flags fail with a structured `ColumnBehaviorError`. Use

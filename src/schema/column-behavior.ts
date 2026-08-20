@@ -11,6 +11,18 @@ import {
 /** Values that can be represented without a dialect-specific SQL renderer. */
 export type SchemaLiteralValue = null | boolean | string | number | bigint
 
+/**
+ * Public input accepted by a column's `default` option.
+ *
+ * Primitive values are always literals. Branded schema expressions are
+ * rendered as SQL expressions, and an external descriptor records a default
+ * whose definition belongs to another schema authority.
+ */
+export type ColumnDefaultInput =
+  | SchemaLiteralValue
+  | AnySchemaExpression
+  | ExternalDefaultDescriptor
+
 /** A canonical, dialect-neutral literal node retained by default metadata. */
 export type CanonicalLiteral =
   | { readonly kind: 'null' }
@@ -154,8 +166,7 @@ export function canonicalLiteral(value: SchemaLiteralValue): CanonicalLiteral {
   })
 }
 
-/** Create an immutable literal default descriptor. */
-export function defaultLiteral<const TValue extends SchemaLiteralValue>(
+function literalDefault<const TValue extends SchemaLiteralValue>(
   value: TValue
 ): LiteralDefaultDescriptor {
   return Object.freeze({
@@ -164,12 +175,16 @@ export function defaultLiteral<const TValue extends SchemaLiteralValue>(
   })
 }
 
-/** Create an immutable expression-backed default descriptor. */
-export function defaultExpression<
-  const TExpression extends AnySchemaExpression,
->(expression: TExpression): ExpressionDefaultDescriptor<TExpression> {
-  assertSchemaExpression(expression, 'default.expression')
-  return Object.freeze({ kind: 'expression' as const, expression })
+/** Normalize a public default input into its canonical snapshot descriptor. */
+function normalizeDefault(value: ColumnDefaultInput): ColumnDefault {
+  if (isSchemaExpression(value)) {
+    return Object.freeze({
+      kind: 'expression' as const,
+      expression: value,
+    })
+  }
+  if (isExternalDefaultDescriptor(value)) return externalDefault()
+  return literalDefault(value)
 }
 
 /** Mark a legacy or externally managed database default explicitly. */
@@ -244,14 +259,17 @@ export interface ResolvedColumnBehavior {
 export function resolveColumnBehavior(options: {
   readonly hasDefault?: boolean
   readonly generated?: boolean
-  readonly default?: ColumnDefault
+  readonly default?: ColumnDefaultInput
   readonly generatedColumn?: GeneratedColumnDescriptor
   readonly identity?: IdentityDescriptor
   readonly onUpdate?: AnySchemaExpression
 }): ResolvedColumnBehavior {
   const hasDefaultFlag = options.hasDefault === true
   const generatedFlag = options.generated === true
-  const defaultDescriptor = options.default
+  const defaultDescriptor =
+    options.default === undefined
+      ? undefined
+      : normalizeDefault(options.default)
   const generatedDescriptor = options.generatedColumn
   const identityDescriptor = options.identity
   const onUpdateExpression = options.onUpdate
@@ -378,6 +396,16 @@ function freezeDefaultDescriptor(value: ColumnDefault): ColumnDefault {
     kind: 'literal' as const,
     value: Object.freeze({ ...value.value }),
   }) as ColumnDefault
+}
+
+function isExternalDefaultDescriptor(
+  value: unknown
+): value is ExternalDefaultDescriptor {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { readonly kind?: unknown }).kind === 'external'
+  )
 }
 
 function freezeGeneratedColumnDescriptor(

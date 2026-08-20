@@ -1,7 +1,6 @@
 import { expect, test } from 'vitest'
 import {
   check,
-  defaultLiteral,
   defineSchemaExpression,
   desc,
   foreignKey,
@@ -47,7 +46,7 @@ const accounts = table(
         dialect: { dialect: 'mysql', autoIncrement: true },
       }),
     }),
-    email: text({ nullable: true, default: defaultLiteral("O'Reilly") }),
+    email: text({ nullable: true, default: "O'Reilly" }),
     updatedAt: timestamp({ onUpdate: currentTimestamp }),
     slug: text({
       generatedColumn: generatedColumn(value('account'), 'virtual'),
@@ -220,7 +219,7 @@ test('keeps MySQL canonical bytes independent of registry order', () => {
 test('uses MySQL literals and preserves exact native declarations', () => {
   const native = table('native_types', {
     amount: nativeColumn('mysql', 'DECIMAL(10, 2) UNSIGNED'),
-    enabled: text({ default: defaultLiteral(true) }),
+    enabled: text({ default: true }),
   })
   const snapshot = createMysqlSchemaSnapshot(schema({ native }))
   expect(snapshot.tables[0]?.columns[0]?.storage).toEqual({
