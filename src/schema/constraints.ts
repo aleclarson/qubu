@@ -117,7 +117,7 @@ export type ConstraintTiming = 'immediate' | 'deferred'
 
 /** PostgreSQL-only constraint options retained for a schema adapter. */
 export interface PostgresConstraintExtension
-  extends SchemaDialectExtension<'postgres'> {
+  extends SchemaDialectExtension<'postgresql'> {
   /** PostgreSQL `NOT VALID` validation state for a constraint. */
   readonly notValid?: boolean
 }
@@ -312,7 +312,7 @@ export function validateConstraintDialect(
     if (mismatch !== undefined) diagnostics.push(mismatch)
 
     if (
-      extension.dialect === 'postgres' &&
+      extension.dialect === 'postgresql' &&
       'notValid' in extension &&
       extension.notValid === true &&
       (constraint.kind === 'primary-key' ||

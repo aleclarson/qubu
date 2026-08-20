@@ -18,7 +18,7 @@ export type IndexTerm = AnyExpression | OrderTerm<any>
 
 /** PostgreSQL-specific index method and storage metadata. */
 export interface PostgresIndexExtension
-  extends SchemaDialectExtension<'postgres'> {
+  extends SchemaDialectExtension<'postgresql'> {
   readonly method?: 'btree' | 'hash' | 'gist' | 'spgist' | 'gin' | 'brin'
   readonly concurrently?: boolean
   readonly operatorClasses?: Readonly<Record<string, string>>

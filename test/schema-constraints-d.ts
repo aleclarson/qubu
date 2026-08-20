@@ -29,11 +29,11 @@ const accounts = table(
     constraints: {
       accountsPrimary: primaryKey(accounts.id, {
         physicalName: 'typed_accounts_pk',
-        dialect: { dialect: 'postgres', notValid: false },
+        dialect: { dialect: 'postgresql', notValid: false },
       }),
       nullableCodeUnique: uniqueConstraint(accounts.nullableCode, {
         nulls: 'not-distinct',
-        dialect: { dialect: 'postgres' },
+        dialect: { dialect: 'postgresql' },
       }),
       codeUnique: unique(accounts.code),
     },
@@ -41,7 +41,7 @@ const accounts = table(
       codeIndex: index([accounts.code], {
         include: [accounts.nullableCode],
         dialect: {
-          dialect: 'postgres',
+          dialect: 'postgresql',
           method: 'btree',
           concurrently: true,
           operatorClasses: { code: 'text_ops' },

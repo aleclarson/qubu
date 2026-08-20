@@ -9,6 +9,7 @@ import type {
   SchemaSnapshot,
   SchemaSnapshotAdapter,
 } from '../src/snapshot/index.ts'
+import type { SchemaDialect } from '../src/index.ts'
 
 const records = table('records', { name: text() })
 const registry = schema({ records })
@@ -20,3 +21,6 @@ expectTypeOf(
   createSchemaSnapshot(registry, { adapter: postgresSnapshotAdapter })
 ).toMatchTypeOf<SchemaSnapshot>()
 expectTypeOf(postgresSnapshotAdapter).toMatchTypeOf<SchemaSnapshotAdapter>()
+expectTypeOf(postgresSnapshotAdapter.dialect).toMatchTypeOf<
+  SchemaDialect<'ilike' | 'json'>
+>()

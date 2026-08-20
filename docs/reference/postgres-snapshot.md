@@ -17,17 +17,15 @@ const snapshot = createPostgresSchemaSnapshot(appSchema)
 // Equivalent: createSchemaSnapshot(appSchema, { adapter: postgresSnapshotAdapter })
 ```
 
-The snapshot dialect is named `postgres`. Qubu's query renderer keeps its
-existing `postgresql` dialect name. `unsafeSchemaSql('postgres', sql)` belongs
-to snapshot metadata, while `unsafeSchemaSql('postgresql', sql)` is rejected by
-this adapter.
+The schema dialect extends Qubu's existing `postgresql` query dialect, so both
+snapshot metadata and `unsafeSchemaSql()` use `postgresql` consistently.
 
 ## Support matrix
 
 | Schema fact         | PostgreSQL v1 behavior                                                                                                                                                                                                       |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Portable storage    | Emits PostgreSQL declarations: `INTEGER`, `NUMERIC`, `TEXT`, `BOOLEAN`, `DATE`, `TIMESTAMP`, `UUID`, `JSONB`, `BIGINT`, and `BYTEA`.                                                                                         |
-| Native storage      | Preserves a non-empty declaration tagged `postgres` exactly. Other dialect tags fail.                                                                                                                                        |
+| Native storage      | Preserves a non-empty declaration tagged `postgresql` exactly. Other dialect tags fail.                                                                                                                                      |
 | Literals            | Encodes finite numbers, strings, booleans, `bigint`, and `NULL` without query parameters.                                                                                                                                    |
 | Defaults            | Canonical literals, branded deterministic expressions, and explicit external behavior are retained. Column references in defaults fail.                                                                                      |
 | Identity            | `always` and `by-default` identity metadata stays separate from generated expressions.                                                                                                                                       |

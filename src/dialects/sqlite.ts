@@ -2,6 +2,22 @@ import { createDialect, type PaginationPart } from '../core/dialect.ts'
 import type { RenderContext } from '../core/fragment.ts'
 import { sqliteJson } from './json.ts'
 
+function renderSqliteSchemaLiteral(value: unknown): string {
+  if (value === null) return 'NULL'
+  if (typeof value === 'boolean') return value ? '1' : '0'
+  if (typeof value === 'string') return `'${value.replaceAll("'", "''")}'`
+  if (typeof value === 'bigint') return String(value)
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      throw new TypeError('SQLite schema literals require finite numbers')
+    }
+    return Object.is(value, -0) ? '0' : String(value)
+  }
+  throw new TypeError(
+    `Unsupported SQLite schema literal type: ${value === undefined ? 'undefined' : typeof value}`
+  )
+}
+
 function renderSqlitePagination(
   context: RenderContext,
   parts: readonly PaginationPart[]
@@ -33,5 +49,6 @@ export function sqliteDialect() {
       json: 'TEXT',
       binary: 'BLOB',
     },
+    renderSchemaLiteral: renderSqliteSchemaLiteral,
   })
 }

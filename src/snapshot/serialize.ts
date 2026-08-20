@@ -17,6 +17,8 @@ import type {
   ForeignKeyTarget,
 } from '../schema/constraints.ts'
 import { defaultSchemaNamingPolicy, type Schema } from '../schema/registry.ts'
+import type { SchemaDialect } from '../schema/dialect.ts'
+import { createSchemaDialect } from '../schema/dialect.ts'
 import type { SchemaDialectExtension } from '../schema/metadata.ts'
 import { generatedSchemaObjectName } from '../schema/metadata.ts'
 import {
@@ -43,7 +45,6 @@ import {
   type SnapshotConstraint,
   type SnapshotCreateResult,
   type SnapshotDefault,
-  type SnapshotDialect,
   type SnapshotDialectExtension,
   type SnapshotExpression,
   type SnapshotForeignKey,
@@ -59,6 +60,14 @@ import {
 } from './types.ts'
 import type { SnapshotDiagnostic, SnapshotExpressionContext } from './types.ts'
 
+const neutralSchemaDialect = createSchemaDialect(
+  Object.freeze({
+    ...standardDialect(),
+    name: neutralSnapshotDialect.name,
+  }),
+  { version: schemaSnapshotDialectVersion }
+)
+
 /** Error raised when a live Qubu schema cannot be represented as a snapshot. */
 export class SnapshotSerializationError extends SnapshotValidationError {
   readonly name = 'SnapshotSerializationError'
@@ -67,10 +76,11 @@ export class SnapshotSerializationError extends SnapshotValidationError {
 /** Options for the neutral traversal and a future dialect adapter. */
 export interface SchemaSnapshotOptions {
   readonly adapter?: SchemaSnapshotAdapter
-  readonly dialect?: SnapshotDialect
-  readonly expressionEncoder?: SchemaSnapshotAdapter['encodeExpression']
-  readonly storageEncoder?: SchemaSnapshotAdapter['encodeStorage']
-  readonly extensionEncoder?: SchemaSnapshotAdapter['encodeDialectExtension']
+  readonly dialect?: SchemaDialect
+  /** Explicit hook overrides retained for custom tooling integrations. */
+  readonly expressionEncoder?: SchemaDialect['schema']['encodeExpression']
+  readonly storageEncoder?: SchemaDialect['schema']['encodeStorage']
+  readonly extensionEncoder?: SchemaDialect['schema']['encodeDialectExtension']
   readonly namingPolicy?: {
     readonly name: string
     readonly version?: number
@@ -110,7 +120,7 @@ export function tryCreateSchemaSnapshot<TSchema extends Schema<any>>(
     options.adapter !== undefined &&
     options.dialect !== undefined &&
     (options.adapter.dialect.name !== options.dialect.name ||
-      options.adapter.dialect.version !== options.dialect.version)
+      options.adapter.dialect.schema.version !== options.dialect.schema.version)
   ) {
     return {
       ok: false,
@@ -126,10 +136,10 @@ export function tryCreateSchemaSnapshot<TSchema extends Schema<any>>(
   }
 
   const adapter = options.adapter
-  const dialect = options.dialect ?? adapter?.dialect ?? neutralSnapshotDialect
+  const dialect = options.dialect ?? adapter?.dialect ?? neutralSchemaDialect
   const namingPolicy =
     options.namingPolicy ??
-    adapter?.namingPolicy ??
+    dialect.schema.namingPolicy ??
     Object.freeze({
       name:
         schema.namingPolicy.tableName === defaultSchemaNamingPolicy.tableName
@@ -141,10 +151,11 @@ export function tryCreateSchemaSnapshot<TSchema extends Schema<any>>(
   const tableIds = new Map<object, string>()
   const tablesById = new Map<string, AnyTable>()
 
-  if (adapter?.validate !== undefined) {
+  const validate = adapter?.dialect.schema.validate ?? dialect.schema.validate
+  if (validate !== undefined) {
     try {
       diagnostics.push(
-        ...adapter.validate(schema, {
+        ...validate(schema, {
           path: [],
           dialect,
         })
@@ -188,7 +199,7 @@ export function tryCreateSchemaSnapshot<TSchema extends Schema<any>>(
     version: schemaSnapshotVersion,
     dialect: Object.freeze({
       name: dialect.name,
-      version: dialect.version,
+      version: dialect.schema.version,
     }),
     namingPolicy: Object.freeze({
       name: namingPolicy.name,
@@ -238,7 +249,7 @@ function serializeTable(
   physicalName: string,
   tableIds: ReadonlyMap<object, string>,
   tablesById: ReadonlyMap<string, AnyTable>,
-  dialect: SnapshotDialect,
+  dialect: SchemaDialect,
   options: SchemaSnapshotOptions,
   diagnostics: SnapshotDiagnostic[]
 ): SnapshotTable | undefined {
@@ -318,7 +329,7 @@ function serializeColumn(
   id: string,
   definition: TableDefinitions[string],
   physicalName: string,
-  dialect: SnapshotDialect,
+  dialect: SchemaDialect,
   options: SchemaSnapshotOptions,
   diagnostics: SnapshotDiagnostic[]
 ): SnapshotColumn {
@@ -384,7 +395,7 @@ function serializeColumn(
 
 function encodeStorage(
   storage: ColumnStorage,
-  dialect: SnapshotDialect,
+  dialect: SchemaDialect,
   path: readonly (string | number)[],
   options: SchemaSnapshotOptions,
   diagnostics: SnapshotDiagnostic[]
@@ -397,7 +408,10 @@ function encodeStorage(
     })
     return undefined
   }
-  const encoder = options.storageEncoder ?? options.adapter?.encodeStorage
+  const encoder =
+    options.storageEncoder ??
+    options.adapter?.dialect.schema.encodeStorage ??
+    dialect.schema.encodeStorage
   if (encoder !== undefined) {
     try {
       return encoder(storage, { path, dialect })
@@ -422,7 +436,7 @@ function encodeStorage(
 
 function encodeDefault(
   value: ColumnDefault,
-  dialect: SnapshotDialect,
+  dialect: SchemaDialect,
   path: readonly (string | number)[],
   options: SchemaSnapshotOptions,
   diagnostics: SnapshotDiagnostic[]
@@ -446,7 +460,7 @@ function encodeDefault(
 
 function encodeGenerated(
   value: GeneratedColumnDescriptor,
-  dialect: SnapshotDialect,
+  dialect: SchemaDialect,
   path: readonly (string | number)[],
   options: SchemaSnapshotOptions,
   diagnostics: SnapshotDiagnostic[]
@@ -467,7 +481,7 @@ function encodeGenerated(
 
 function encodeIdentity(
   value: IdentityDescriptor,
-  dialect: SnapshotDialect,
+  dialect: SchemaDialect,
   path: readonly (string | number)[],
   options: SchemaSnapshotOptions,
   diagnostics: SnapshotDiagnostic[]
@@ -492,7 +506,7 @@ function serializeConstraint(
   table: AnyTable,
   tableIds: ReadonlyMap<object, string>,
   tablesById: ReadonlyMap<string, AnyTable>,
-  dialect: SnapshotDialect,
+  dialect: SchemaDialect,
   options: SchemaSnapshotOptions,
   diagnostics: SnapshotDiagnostic[]
 ): SnapshotConstraint | undefined {
@@ -712,7 +726,7 @@ function serializeIndex(
     readonly dialect?: SchemaDialectExtension
   },
   table: AnyTable,
-  dialect: SnapshotDialect,
+  dialect: SchemaDialect,
   options: SchemaSnapshotOptions,
   diagnostics: SnapshotDiagnostic[]
 ): SnapshotIndex | undefined {
@@ -777,7 +791,7 @@ function serializeIndex(
 function serializeIndexTerm(
   term: AnyExpression | OrderTerm<any>,
   table: AnyTable,
-  dialect: SnapshotDialect,
+  dialect: SchemaDialect,
   path: readonly (string | number)[],
   options: SchemaSnapshotOptions,
   diagnostics: SnapshotDiagnostic[]
@@ -815,7 +829,7 @@ function serializeIndexTerm(
 function serializeIndexTermExpression(
   expression: AnyExpression,
   table: AnyTable,
-  dialect: SnapshotDialect,
+  dialect: SchemaDialect,
   path: readonly (string | number)[],
   options: SchemaSnapshotOptions,
   diagnostics: SnapshotDiagnostic[]
@@ -847,12 +861,15 @@ function serializeIndexTermExpression(
 function encodeExpression(
   expression: AnyExpression,
   mode: SnapshotExpressionContext['mode'],
-  dialect: SnapshotDialect,
+  dialect: SchemaDialect,
   path: readonly (string | number)[],
   options: SchemaSnapshotOptions,
   diagnostics: SnapshotDiagnostic[]
 ): SnapshotExpression | undefined {
-  const encoder = options.expressionEncoder ?? options.adapter?.encodeExpression
+  const encoder =
+    options.expressionEncoder ??
+    options.adapter?.dialect.schema.encodeExpression ??
+    dialect.schema.encodeExpression
   if (encoder !== undefined) {
     try {
       return encoder(expression, { mode, path, dialect })
@@ -873,9 +890,9 @@ function encodeExpression(
   }
 
   // The common format still needs to represent built-in deterministic
-  // expressions when no target dialect adapter has been selected. Use the
-  // standard SQL spelling only as a neutral fallback; adapters own any
-  // dialect-specific rewrite in their explicit hook above.
+  // expressions when no target dialect adapter has been selected. The active
+  // schema dialect remains the rendering policy, so identifiers and literals
+  // cannot silently drift from query rendering.
   if (isUnsafeSchemaSql(expression)) {
     if (expression.schemaSqlDialect !== dialect.name) {
       diagnostics.push({
@@ -895,7 +912,7 @@ function encodeExpression(
   try {
     const rendered = renderSchemaExpression(expression as AnySchemaExpression, {
       mode,
-      dialect: standardDialect(),
+      dialect,
     })
     return {
       kind: 'expression',
@@ -914,7 +931,7 @@ function encodeExpression(
 
 function encodeExtension(
   extension: SchemaDialectExtension | undefined,
-  dialect: SnapshotDialect,
+  dialect: SchemaDialect,
   path: readonly (string | number)[],
   options: SchemaSnapshotOptions,
   diagnostics: SnapshotDiagnostic[]
@@ -929,7 +946,9 @@ function encodeExtension(
     return undefined
   }
   const encoder =
-    options.extensionEncoder ?? options.adapter?.encodeDialectExtension
+    options.extensionEncoder ??
+    options.adapter?.dialect.schema.encodeDialectExtension ??
+    dialect.schema.encodeDialectExtension
   if (encoder !== undefined) {
     try {
       return encoder(extension, { path, dialect })
@@ -949,7 +968,7 @@ function encodeExtension(
   try {
     return {
       dialect: extension.dialect,
-      version: schemaSnapshotDialectVersion,
+      version: dialect.schema.version,
       data: toSnapshotJsonValue(data),
     }
   } catch (error) {

@@ -22,7 +22,9 @@ import {
   createSchemaSnapshot,
   decodeSchemaSnapshot,
   encodeSchemaSnapshot,
+  postgresSchemaDialect,
   schemaSnapshotDigest,
+  sqliteSchemaDialect,
 } from '../src/snapshot/index.ts'
 
 const accounts = table(
@@ -202,7 +204,7 @@ test('rejects native storage owned by another snapshot dialect', () => {
   if (firstColumn)
     firstColumn.storage = {
       kind: 'native',
-      dialect: 'postgres',
+      dialect: 'postgresql',
       type: 'INTEGER',
     }
 
@@ -217,7 +219,7 @@ test('rejects native storage owned by another snapshot dialect', () => {
 test('requires the selected dialect for unsafe schema SQL', () => {
   const unsafe = table('unsafe_defaults', {
     value: text({
-      default: defaultExpression(unsafeSchemaSql('postgres', 'CURRENT_DATE')),
+      default: defaultExpression(unsafeSchemaSql('postgresql', 'CURRENT_DATE')),
     }),
   })
   expect(() => createSchemaSnapshot(schema({ unsafe }))).toThrow(
@@ -225,14 +227,14 @@ test('requires the selected dialect for unsafe schema SQL', () => {
   )
   expect(() =>
     createSchemaSnapshot(schema({ unsafe }), {
-      dialect: { name: 'sqlite', version: 1 },
+      dialect: sqliteSchemaDialect,
     })
-  ).toThrow(/snapshot dialect/)
+  ).toThrow(/schema dialect/)
   const postgres = createSchemaSnapshot(schema({ unsafe }), {
-    dialect: { name: 'postgres', version: 1 },
+    dialect: postgresSchemaDialect,
   })
   expect(postgres.tables[0]?.columns[0]?.default).toMatchObject({
     kind: 'expression',
-    expression: { dialect: 'postgres', sql: 'CURRENT_DATE' },
+    expression: { dialect: 'postgresql', sql: 'CURRENT_DATE' },
   })
 })

@@ -1,4 +1,3 @@
-import { createDialect, type Dialect } from '../core/dialect.ts'
 import { isColumnReference } from '../expressions/column.ts'
 import type {
   AnyExpression,
@@ -8,6 +7,7 @@ import {
   isUnsafeSchemaSql,
   renderSchemaExpression,
 } from '../schema/expressions.ts'
+import { createSchemaDialect, type SchemaDialect } from '../schema/dialect.ts'
 import type { ColumnStorage, PortableStorageType } from '../schema/column.ts'
 import type { Schema, SchemaTableEntry } from '../schema/registry.ts'
 import {
@@ -20,6 +20,7 @@ import {
 } from '../schema/constraints.ts'
 import { validateIndexDialect, type SourceIndex } from '../schema/indexes.ts'
 import type { AnyTable, TableDefinitions } from '../schema/table.ts'
+import { sqliteDialect } from '../dialects/sqlite.ts'
 import { toSnapshotJsonValue } from './canonical.ts'
 import {
   createSchemaSnapshot,
@@ -101,54 +102,35 @@ export function sqliteStorageAffinity(
   return 'numeric'
 }
 
-/** SQLite's deterministic schema-expression dialect. */
-const sqliteSchemaExpressionDialect: Dialect = createDialect({
-  name: sqliteSnapshotDialect.name,
-  placeholder: () => '?',
-  renderSchemaLiteral(value) {
-    if (value === null) return 'NULL'
-    if (typeof value === 'boolean') return value ? '1' : '0'
-    if (typeof value === 'string') return `'${value.replaceAll("'", "''")}'`
-    if (typeof value === 'bigint') return String(value)
-    if (typeof value === 'number') {
-      if (!Number.isFinite(value)) {
-        throw new TypeError('SQLite schema literals require finite numbers')
-      }
-      return Object.is(value, -0) ? '0' : String(value)
-    }
-    throw new TypeError(
-      `Unsupported SQLite schema literal type: ${value === undefined ? 'undefined' : typeof value}`
-    )
-  },
-})
+/** SQLite's query dialect plus its schema metadata behavior. */
+export const sqliteSchemaDialect: SchemaDialect<'json'> = createSchemaDialect(
+  sqliteDialect(),
+  {
+    version: schemaSnapshotDialectVersion,
+    validate: validateSqliteSchema,
+    encodeStorage(storage: ColumnStorage, context: SnapshotStorageContext) {
+      return encodeSqliteStorage(storage, context.dialect)
+    },
+    encodeExpression(
+      expression: AnyExpression,
+      context: SnapshotExpressionContext
+    ) {
+      return encodeSqliteExpression(expression, context.mode, context.dialect)
+    },
+    encodeDialectExtension(
+      extension: SchemaDialectExtension,
+      context: SnapshotExtensionContext
+    ) {
+      return encodeSqliteExtension(extension, context.dialect)
+    },
+  }
+)
 
-/**
- * Adapter-owned hooks for SQLite storage affinity, literals, expressions, and
- * extensions. Common traversal and canonical ordering remain shared with the
- * other snapshot adapters.
- */
-export const sqliteSnapshotAdapter: SchemaSnapshotAdapter = Object.freeze({
-  dialect: sqliteSnapshotDialect,
-  validate: validateSqliteSchema,
-  encodeStorage(
-    storage: ColumnStorage,
-    context: SnapshotStorageContext
-  ): SnapshotStorage {
-    return encodeSqliteStorage(storage, context.dialect)
-  },
-  encodeExpression(
-    expression: AnyExpression,
-    context: SnapshotExpressionContext
-  ): SnapshotExpression {
-    return encodeSqliteExpression(expression, context.mode)
-  },
-  encodeDialectExtension(
-    extension: SchemaDialectExtension,
-    _context: SnapshotExtensionContext
-  ) {
-    return encodeSqliteExtension(extension)
-  },
-})
+/** Snapshot adapter retaining the historical adapter-shaped entry point. */
+export const sqliteSnapshotAdapter: SchemaSnapshotAdapter<'json'> =
+  Object.freeze({
+    dialect: sqliteSchemaDialect,
+  })
 
 /** Create a canonical SQLite schema snapshot. */
 export function createSqliteSchemaSnapshot<TSchema extends Schema<any>>(
@@ -180,7 +162,7 @@ export type SqliteSnapshotOptions = Omit<
 
 function encodeSqliteStorage(
   storage: ColumnStorage,
-  dialect: SnapshotDialect
+  dialect: SchemaDialect
 ): SnapshotStorage {
   if (storage.kind === 'native') {
     if (storage.dialect !== dialect.name) {
@@ -215,20 +197,21 @@ function encodeSqliteStorage(
 
 function encodeSqliteExpression(
   expression: AnyExpression,
-  mode: 'default' | 'generated' | 'check' | 'index'
+  mode: 'default' | 'generated' | 'check' | 'index',
+  dialect: SchemaDialect
 ): SnapshotExpression {
   if (
     isUnsafeSchemaSql(expression) &&
-    expression.schemaSqlDialect !== sqliteSnapshotDialect.name
+    expression.schemaSqlDialect !== dialect.name
   ) {
     throw new SqliteSnapshotDialectError(
-      `Schema SQL is tagged for "${expression.schemaSqlDialect}" but the SQLite snapshot dialect is "${sqliteSnapshotDialect.name}"`
+      `Schema SQL is tagged for "${expression.schemaSqlDialect}" but the SQLite schema dialect is "${dialect.name}"`
     )
   }
 
   const rendered = renderSchemaExpression(expression as AnySchemaExpression, {
     mode,
-    dialect: sqliteSchemaExpressionDialect,
+    dialect,
   })
   if (rendered.parameters.length !== 0) {
     throw new TypeError('SQLite schema expressions must be parameter-free')
@@ -238,20 +221,21 @@ function encodeSqliteExpression(
     kind: 'expression',
     expressionKind: expression.expressionKind,
     sql: rendered.text,
-    ...(isUnsafeSchemaSql(expression)
-      ? { dialect: sqliteSnapshotDialect.name }
-      : {}),
+    ...(isUnsafeSchemaSql(expression) ? { dialect: dialect.name } : {}),
   }
 }
 
-function encodeSqliteExtension(extension: { readonly dialect: string }): {
+function encodeSqliteExtension(
+  extension: { readonly dialect: string },
+  dialect: SchemaDialect
+): {
   readonly dialect: string
   readonly version: number
   readonly data: SnapshotJsonValue
 } {
-  if (extension.dialect !== sqliteSnapshotDialect.name) {
+  if (extension.dialect !== dialect.name) {
     throw new TypeError(
-      `SQLite snapshot extensions require dialect "${sqliteSnapshotDialect.name}"`
+      `SQLite schema extensions require dialect "${dialect.name}"`
     )
   }
 
@@ -261,8 +245,8 @@ function encodeSqliteExtension(extension: { readonly dialect: string }): {
       .sort(([left], [right]) => left.localeCompare(right))
   )
   return {
-    dialect: sqliteSnapshotDialect.name,
-    version: schemaSnapshotDialectVersion,
+    dialect: dialect.name,
+    version: dialect.schema.version,
     data: sortSnapshotJson(toSnapshotJsonValue(data)),
   }
 }

@@ -1,7 +1,7 @@
 import { snakeCaseIdentifier } from '../core/naming.ts'
 
-/** Dialects with first-party schema metadata adapters. */
-export type SchemaDialect = 'postgres' | 'sqlite' | 'mysql'
+/** Dialect identities with first-party schema metadata adapters. */
+export type SchemaDialectName = 'postgresql' | 'sqlite' | 'mysql'
 
 /** A dialect-owned extension attached to serializable schema metadata. */
 export interface SchemaDialectExtension<TDialect extends string = string> {

@@ -1,10 +1,9 @@
-import type { AnyExpression } from '../expressions/types.ts'
+import type { DialectCapability } from '../core/dialect.ts'
+import type { SchemaDialect } from '../schema/dialect.ts'
 import type {
-  ColumnStorage,
   PortableColumnStorage,
   NativeColumnStorage,
 } from '../schema/column.ts'
-import type { SchemaDialectExtension } from '../schema/metadata.ts'
 import type { Schema } from '../schema/registry.ts'
 
 /** The JSON object tag used by Qubu schema snapshots. */
@@ -270,57 +269,38 @@ export interface SchemaSnapshot {
 export interface SnapshotExpressionContext {
   readonly mode: 'default' | 'generated' | 'check' | 'index'
   readonly path: readonly (string | number)[]
-  readonly dialect: SnapshotDialect
+  readonly dialect: SchemaDialect
 }
 
 /** Storage context supplied to a dialect adapter. */
 export interface SnapshotStorageContext {
   readonly path: readonly (string | number)[]
-  readonly dialect: SnapshotDialect
+  readonly dialect: SchemaDialect
 }
 
 /** Extension context supplied to a dialect adapter. */
 export interface SnapshotExtensionContext {
   readonly path: readonly (string | number)[]
-  readonly dialect: SnapshotDialect
+  readonly dialect: SchemaDialect
 }
 
 /** Context supplied to an adapter's dialect-capability validation hook. */
 export interface SnapshotValidationContext {
   readonly path: readonly (string | number)[]
-  readonly dialect: SnapshotDialect
+  readonly dialect: SchemaDialect
 }
 
 /**
- * Dialect-owned hooks used by the common traversal. Commit 6 supplies the
- * neutral fallback; PostgreSQL, SQLite, and MySQL adapters can implement this
- * contract without taking ownership of canonical ordering or cross-reference
- * validation.
+ * Adapter boundary for the common traversal. Schema hooks live on
+ * `dialect.schema`; the adapter only selects that schema dialect, so
+ * PostgreSQL, SQLite, and MySQL can share the query rendering policy without
+ * taking ownership of canonical ordering or cross-reference validation.
  */
-export interface SchemaSnapshotAdapter {
-  readonly dialect: SnapshotDialect
-  readonly namingPolicy?: SnapshotNamingPolicy
-  /**
-   * Report dialect capability findings before common traversal starts. The
-   * common serializer owns diagnostic aggregation and ordering; adapters own
-   * version- or engine-specific checks.
-   */
-  readonly validate?: (
-    schema: Schema<any>,
-    context: SnapshotValidationContext
-  ) => readonly SnapshotDiagnostic[]
-  readonly encodeStorage?: (
-    storage: ColumnStorage,
-    context: SnapshotStorageContext
-  ) => SnapshotStorage
-  readonly encodeExpression?: (
-    expression: AnyExpression,
-    context: SnapshotExpressionContext
-  ) => SnapshotExpression
-  readonly encodeDialectExtension?: (
-    extension: SchemaDialectExtension,
-    context: SnapshotExtensionContext
-  ) => SnapshotDialectExtension
+export interface SchemaSnapshotAdapter<
+  TCapabilities extends DialectCapability = DialectCapability,
+> {
+  /** The query dialect plus its schema hooks and metadata. */
+  readonly dialect: SchemaDialect<TCapabilities>
 }
 
 /** Structured diagnostic categories emitted by snapshot tooling. */

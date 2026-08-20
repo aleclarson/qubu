@@ -1,4 +1,3 @@
-import { createDialect, type Dialect } from '../core/dialect.ts'
 import { isColumnReference } from '../expressions/column.ts'
 import type {
   AnyExpression,
@@ -8,6 +7,7 @@ import {
   isUnsafeSchemaSql,
   renderSchemaExpression,
 } from '../schema/expressions.ts'
+import { createSchemaDialect, type SchemaDialect } from '../schema/dialect.ts'
 import type { ColumnStorage, PortableStorageType } from '../schema/column.ts'
 import type { Schema, SchemaTableEntry } from '../schema/registry.ts'
 import {
@@ -20,7 +20,7 @@ import {
 } from '../schema/constraints.ts'
 import { validateIndexDialect, type SourceIndex } from '../schema/indexes.ts'
 import type { AnyTable, TableDefinitions } from '../schema/table.ts'
-import { mysqlJson } from '../dialects/json.ts'
+import { mysqlDialect } from '../dialects/mysql.ts'
 import { toSnapshotJsonValue } from './canonical.ts'
 import {
   createSchemaSnapshot,
@@ -69,64 +69,35 @@ const mysqlStorageTypes: Readonly<Record<PortableStorageType, string>> =
     binary: 'VARBINARY',
   })
 
-/** MySQL's deterministic schema-expression dialect. */
-const mysqlSchemaExpressionDialect: Dialect = createDialect({
-  name: mysqlSnapshotDialect.name,
-  quoteIdentifier: identifier => `\`${identifier.replaceAll('`', '``')}\``,
-  placeholder: () => '?',
-  json: mysqlJson,
-  castTypes: {
-    integer: 'SIGNED',
-    text: 'CHAR',
-    boolean: 'UNSIGNED',
-    timestamp: 'DATETIME',
-    uuid: 'CHAR(36)',
-    bigint: 'SIGNED',
-    binary: 'BINARY',
-  },
-  renderSchemaLiteral(value) {
-    if (value === null) return 'NULL'
-    if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE'
-    if (typeof value === 'string') return `'${value.replaceAll("'", "''")}'`
-    if (typeof value === 'bigint') return String(value)
-    if (typeof value === 'number') {
-      if (!Number.isFinite(value)) {
-        throw new TypeError('MySQL schema literals require finite numbers')
-      }
-      return Object.is(value, -0) ? '0' : String(value)
-    }
-    throw new TypeError(
-      `Unsupported MySQL schema literal type: ${value === undefined ? 'undefined' : typeof value}`
-    )
-  },
-})
+/** MySQL's query dialect plus its schema metadata behavior. */
+export const mysqlSchemaDialect: SchemaDialect<'json'> = createSchemaDialect(
+  mysqlDialect(),
+  {
+    version: schemaSnapshotDialectVersion,
+    validate: validateMysqlSchema,
+    encodeStorage(storage: ColumnStorage, context: SnapshotStorageContext) {
+      return encodeMysqlStorage(storage, context.dialect)
+    },
+    encodeExpression(
+      expression: AnyExpression,
+      context: SnapshotExpressionContext
+    ) {
+      return encodeMysqlExpression(expression, context.mode, context.dialect)
+    },
+    encodeDialectExtension(
+      extension: SchemaDialectExtension,
+      context: SnapshotExtensionContext
+    ) {
+      return encodeMysqlExtension(extension, context.dialect)
+    },
+  }
+)
 
-/**
- * Adapter-owned hooks for MySQL storage, literals, expressions, and
- * extensions. Traversal and canonical ordering remain in `qubu/snapshot`.
- */
-export const mysqlSnapshotAdapter: SchemaSnapshotAdapter = Object.freeze({
-  dialect: mysqlSnapshotDialect,
-  validate: validateMysqlSchema,
-  encodeStorage(
-    storage: ColumnStorage,
-    context: SnapshotStorageContext
-  ): SnapshotStorage {
-    return encodeMysqlStorage(storage, context.dialect)
-  },
-  encodeExpression(
-    expression: AnyExpression,
-    context: SnapshotExpressionContext
-  ): SnapshotExpression {
-    return encodeMysqlExpression(expression, context.mode)
-  },
-  encodeDialectExtension(
-    extension: SchemaDialectExtension,
-    _context: SnapshotExtensionContext
-  ) {
-    return encodeMysqlExtension(extension)
-  },
-})
+/** Snapshot adapter retaining the historical adapter-shaped entry point. */
+export const mysqlSnapshotAdapter: SchemaSnapshotAdapter<'json'> =
+  Object.freeze({
+    dialect: mysqlSchemaDialect,
+  })
 
 /** Create a canonical MySQL schema snapshot. */
 export function createMysqlSchemaSnapshot<TSchema extends Schema<any>>(
@@ -158,7 +129,7 @@ export type MysqlSnapshotOptions = Omit<
 
 function encodeMysqlStorage(
   storage: ColumnStorage,
-  dialect: SnapshotDialect
+  dialect: SchemaDialect
 ): SnapshotStorage {
   if (storage.kind === 'native') {
     if (storage.dialect !== dialect.name) {
@@ -187,20 +158,21 @@ function encodeMysqlStorage(
 
 function encodeMysqlExpression(
   expression: AnyExpression,
-  mode: 'default' | 'generated' | 'check' | 'index'
+  mode: 'default' | 'generated' | 'check' | 'index',
+  dialect: SchemaDialect
 ): SnapshotExpression {
   if (
     isUnsafeSchemaSql(expression) &&
-    expression.schemaSqlDialect !== mysqlSnapshotDialect.name
+    expression.schemaSqlDialect !== dialect.name
   ) {
     throw new MysqlSnapshotDialectError(
-      `Schema SQL is tagged for "${expression.schemaSqlDialect}" but the MySQL snapshot dialect is "${mysqlSnapshotDialect.name}"`
+      `Schema SQL is tagged for "${expression.schemaSqlDialect}" but the MySQL schema dialect is "${dialect.name}"`
     )
   }
 
   const rendered = renderSchemaExpression(expression as AnySchemaExpression, {
     mode,
-    dialect: mysqlSchemaExpressionDialect,
+    dialect,
   })
   if (rendered.parameters.length !== 0) {
     throw new TypeError('MySQL schema expressions must be parameter-free')
@@ -210,20 +182,21 @@ function encodeMysqlExpression(
     kind: 'expression',
     expressionKind: expression.expressionKind,
     sql: rendered.text,
-    ...(isUnsafeSchemaSql(expression)
-      ? { dialect: mysqlSnapshotDialect.name }
-      : {}),
+    ...(isUnsafeSchemaSql(expression) ? { dialect: dialect.name } : {}),
   }
 }
 
-function encodeMysqlExtension(extension: { readonly dialect: string }): {
+function encodeMysqlExtension(
+  extension: { readonly dialect: string },
+  dialect: SchemaDialect
+): {
   readonly dialect: string
   readonly version: number
   readonly data: SnapshotJsonValue
 } {
-  if (extension.dialect !== mysqlSnapshotDialect.name) {
+  if (extension.dialect !== dialect.name) {
     throw new MysqlSnapshotDialectError(
-      `MySQL snapshot extensions require dialect "${mysqlSnapshotDialect.name}"`
+      `MySQL schema extensions require dialect "${dialect.name}"`
     )
   }
 
@@ -233,8 +206,8 @@ function encodeMysqlExtension(extension: { readonly dialect: string }): {
       .sort(([left], [right]) => left.localeCompare(right))
   )
   return {
-    dialect: mysqlSnapshotDialect.name,
-    version: schemaSnapshotDialectVersion,
+    dialect: dialect.name,
+    version: dialect.schema.version,
     data: sortSnapshotJson(toSnapshotJsonValue(data)),
   }
 }

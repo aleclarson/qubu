@@ -69,13 +69,13 @@ test('attaches deterministic portable storage to every built-in helper', () => {
 })
 
 test('keeps dialect and exact declaration for native storage', () => {
-  const descriptor = nativeStorage('postgres', 'citext COLLATE "C"')
+  const descriptor = nativeStorage('postgresql', 'citext COLLATE "C"')
   const custom = nativeColumn(descriptor, { nullable: true })
   const records = table('native_storage_records', { value: custom })
 
   expect(custom.storage).toEqual({
     kind: 'native',
-    dialect: 'postgres',
+    dialect: 'postgresql',
     type: 'citext COLLATE "C"',
   })
   expect(custom.storage).not.toBe(descriptor)

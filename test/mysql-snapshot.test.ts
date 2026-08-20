@@ -286,7 +286,7 @@ test('reports MySQL capability and cross-dialect diagnostics', () => {
     }),
   })
   const wrongDialect = table('wrong_dialect', {
-    value: nativeColumn('postgres', 'TEXT'),
+    value: nativeColumn('postgresql', 'TEXT'),
   })
   const result = tryCreateMysqlSchemaSnapshot(
     schema({ parent, invalid, noKey, wrongStorage, wrongDialect })
@@ -327,7 +327,7 @@ test('reports MySQL capability and cross-dialect diagnostics', () => {
 test('rejects raw SQL tagged for another dialect', () => {
   const raw = table('wrong_raw', {
     value: text({
-      onUpdate: unsafeSchemaSql('postgres', 'CURRENT_DATE'),
+      onUpdate: unsafeSchemaSql('postgresql', 'CURRENT_DATE'),
     }),
   })
   const result = tryCreateMysqlSchemaSnapshot(schema({ raw }))

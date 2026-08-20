@@ -373,11 +373,11 @@ test('reports unsupported SQLite foreign-key, generated-column, and index combin
 
 test('rejects native storage and unsafe SQL owned by another dialect', () => {
   const native = table('wrong_storage', {
-    value: nativeColumn('postgres', 'TEXT'),
+    value: nativeColumn('postgresql', 'TEXT'),
   })
   const wrongRaw = table('wrong_raw', {
     value: text({
-      default: defaultExpression(unsafeSchemaSql('postgres', 'CURRENT_DATE')),
+      default: defaultExpression(unsafeSchemaSql('postgresql', 'CURRENT_DATE')),
     }),
   })
   const result = tryCreateSqliteSchemaSnapshot(schema({ native, wrongRaw }))

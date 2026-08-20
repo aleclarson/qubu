@@ -49,6 +49,14 @@ an entity identity, a rename marker, or migration lineage.
 
 ## Adapter boundary
 
+`SchemaDialect` is a capability superset of `Dialect`. Create one with
+`createSchemaDialect(queryDialect, hooks)`; the resulting object retains the
+query dialect's name, identifier quoting, placeholders, literals, JSON, casts,
+and advertised capabilities while adding schema encoders and validation under
+`.schema`. Snapshot adapters reference that object instead of constructing a
+second query dialect. The schema snapshot format version remains independent
+from the dialect identity.
+
 The common traversal owns logical IDs, fixed property order, canonical sorting,
 portable constraints, cross-reference checks, and the immutable snapshot
 envelope. A dialect adapter owns physical storage mapping, SQL literal and
@@ -56,8 +64,8 @@ expression encoding, dialect extensions, capability checks, and any dialect
 naming policy. PostgreSQL, SQLite, and MySQL adapters can implement
 `SchemaSnapshotAdapter` without duplicating traversal or decoder rules.
 The PostgreSQL adapter is documented in the [PostgreSQL snapshot support
-matrix](../reference/postgres-snapshot.md). Its query dialect keeps the name
-`postgresql`; snapshot metadata uses `postgres`.
+matrix](../reference/postgres-snapshot.md). Its schema dialect extends the
+`postgresql` query dialect, and snapshot metadata uses that same identity.
 The SQLite adapter is documented in the [SQLite snapshot support
 matrix](../reference/sqlite-snapshot.md).
 The MySQL adapter is documented in the [MySQL snapshot support

@@ -1,4 +1,3 @@
-import { createDialect, type Dialect } from '../core/dialect.ts'
 import type {
   AnyExpression,
   AnySchemaExpression,
@@ -7,6 +6,7 @@ import {
   isUnsafeSchemaSql,
   renderSchemaExpression,
 } from '../schema/expressions.ts'
+import { createSchemaDialect, type SchemaDialect } from '../schema/dialect.ts'
 import type { ColumnStorage, PortableStorageType } from '../schema/column.ts'
 import type { Schema, SchemaTableEntry } from '../schema/registry.ts'
 import {
@@ -19,7 +19,7 @@ import {
 } from '../schema/constraints.ts'
 import { validateIndexDialect, type SourceIndex } from '../schema/indexes.ts'
 import type { AnyTable, TableDefinitions } from '../schema/table.ts'
-import { postgresJson } from '../dialects/json.ts'
+import { postgresDialect } from '../dialects/postgres.ts'
 import { toSnapshotJsonValue } from './canonical.ts'
 import {
   createSchemaSnapshot,
@@ -45,7 +45,7 @@ import type { SchemaDialectExtension } from '../schema/metadata.ts'
 
 /** PostgreSQL's v1 snapshot extension identity. */
 export const postgresSnapshotDialect: SnapshotDialect = Object.freeze({
-  name: 'postgres',
+  name: 'postgresql',
   version: schemaSnapshotDialectVersion,
 })
 
@@ -67,61 +67,33 @@ const postgresStorageTypes: Readonly<Record<PortableStorageType, string>> =
     binary: 'BYTEA',
   })
 
-/**
- * The schema-rendering dialect is intentionally separate from
- * `postgresDialect()`. Query rendering uses the historical name `postgresql`,
- * while snapshot metadata and `unsafeSchemaSql()` use the shorter `postgres`
- * identity.
- */
-const postgresSchemaExpressionDialect: Dialect = createDialect({
-  name: postgresSnapshotDialect.name,
-  placeholder: position => `$${position}`,
-  capabilities: ['ilike'],
-  castTypes: { binary: 'BYTEA' },
-  json: postgresJson,
-  renderSchemaLiteral(value) {
-    if (value === null) return 'NULL'
-    if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE'
-    if (typeof value === 'string') return `'${value.replaceAll("'", "''")}'`
-    if (typeof value === 'bigint') return String(value)
-    if (typeof value === 'number') {
-      if (!Number.isFinite(value)) {
-        throw new TypeError('PostgreSQL schema literals require finite numbers')
-      }
-      return Object.is(value, -0) ? '0' : String(value)
-    }
-    throw new TypeError(
-      `Unsupported PostgreSQL schema literal type: ${value === undefined ? 'undefined' : typeof value}`
-    )
-  },
-})
+/** PostgreSQL's query dialect plus its schema metadata behavior. */
+export const postgresSchemaDialect: SchemaDialect<'ilike' | 'json'> =
+  createSchemaDialect(postgresDialect(), {
+    version: schemaSnapshotDialectVersion,
+    validate: validatePostgresSchema,
+    encodeStorage(storage: ColumnStorage, context: SnapshotStorageContext) {
+      return encodePostgresStorage(storage, context.dialect)
+    },
+    encodeExpression(
+      expression: AnyExpression,
+      context: SnapshotExpressionContext
+    ) {
+      return encodePostgresExpression(expression, context.mode, context.dialect)
+    },
+    encodeDialectExtension(
+      extension: SchemaDialectExtension,
+      context: SnapshotExtensionContext
+    ) {
+      return encodePostgresExtension(extension, context.dialect)
+    },
+  })
 
-/**
- * Adapter-owned hooks for PostgreSQL storage, literals, expressions, and
- * extensions. Traversal and canonical ordering remain in `qubu/snapshot`.
- */
-export const postgresSnapshotAdapter: SchemaSnapshotAdapter = Object.freeze({
-  dialect: postgresSnapshotDialect,
-  validate: validatePostgresSchema,
-  encodeStorage(
-    storage: ColumnStorage,
-    context: SnapshotStorageContext
-  ): SnapshotStorage {
-    return encodePostgresStorage(storage, context.dialect)
-  },
-  encodeExpression(
-    expression: AnyExpression,
-    context: SnapshotExpressionContext
-  ): SnapshotExpression {
-    return encodePostgresExpression(expression, context.mode)
-  },
-  encodeDialectExtension(
-    extension: SchemaDialectExtension,
-    _context: SnapshotExtensionContext
-  ) {
-    return encodePostgresExtension(extension)
-  },
-})
+/** Snapshot adapter retaining the historical adapter-shaped entry point. */
+export const postgresSnapshotAdapter: SchemaSnapshotAdapter<'ilike' | 'json'> =
+  Object.freeze({
+    dialect: postgresSchemaDialect,
+  })
 
 /** Create a canonical PostgreSQL schema snapshot. */
 export function createPostgresSchemaSnapshot<TSchema extends Schema<any>>(
@@ -153,7 +125,7 @@ export type PostgresSnapshotOptions = Omit<
 
 function encodePostgresStorage(
   storage: ColumnStorage,
-  dialect: SnapshotDialect
+  dialect: SchemaDialect
 ): SnapshotStorage {
   if (storage.kind === 'native') {
     if (storage.dialect !== dialect.name) {
@@ -184,20 +156,21 @@ function encodePostgresStorage(
 
 function encodePostgresExpression(
   expression: AnyExpression,
-  mode: 'default' | 'generated' | 'check' | 'index'
+  mode: 'default' | 'generated' | 'check' | 'index',
+  dialect: SchemaDialect
 ): SnapshotExpression {
   if (
     isUnsafeSchemaSql(expression) &&
-    expression.schemaSqlDialect !== postgresSnapshotDialect.name
+    expression.schemaSqlDialect !== dialect.name
   ) {
     throw new PostgresSnapshotDialectError(
-      `Schema SQL is tagged for "${expression.schemaSqlDialect}" but the PostgreSQL snapshot dialect is "${postgresSnapshotDialect.name}"`
+      `Schema SQL is tagged for "${expression.schemaSqlDialect}" but the PostgreSQL schema dialect is "${dialect.name}"`
     )
   }
 
   const rendered = renderSchemaExpression(expression as AnySchemaExpression, {
     mode,
-    dialect: postgresSchemaExpressionDialect,
+    dialect,
   })
   if (rendered.parameters.length !== 0) {
     throw new TypeError('PostgreSQL schema expressions must be parameter-free')
@@ -207,20 +180,21 @@ function encodePostgresExpression(
     kind: 'expression',
     expressionKind: expression.expressionKind,
     sql: rendered.text,
-    ...(isUnsafeSchemaSql(expression)
-      ? { dialect: postgresSnapshotDialect.name }
-      : {}),
+    ...(isUnsafeSchemaSql(expression) ? { dialect: dialect.name } : {}),
   }
 }
 
-function encodePostgresExtension(extension: { readonly dialect: string }): {
+function encodePostgresExtension(
+  extension: { readonly dialect: string },
+  dialect: SchemaDialect
+): {
   readonly dialect: string
   readonly version: number
   readonly data: SnapshotJsonValue
 } {
-  if (extension.dialect !== postgresSnapshotDialect.name) {
+  if (extension.dialect !== dialect.name) {
     throw new TypeError(
-      `PostgreSQL snapshot extensions require dialect "${postgresSnapshotDialect.name}"`
+      `PostgreSQL schema extensions require dialect "${dialect.name}"`
     )
   }
 
@@ -230,8 +204,8 @@ function encodePostgresExtension(extension: { readonly dialect: string }): {
       .sort(([left], [right]) => left.localeCompare(right))
   )
   return {
-    dialect: postgresSnapshotDialect.name,
-    version: schemaSnapshotDialectVersion,
+    dialect: dialect.name,
+    version: dialect.schema.version,
     data: sortSnapshotJson(toSnapshotJsonValue(data)),
   }
 }

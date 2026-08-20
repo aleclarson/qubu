@@ -509,7 +509,7 @@ portable spelling:
 import { nativeColumn, nativeStorage, table } from 'qubu'
 
 const accounts = table('accounts', {
-  handle: nativeColumn(nativeStorage('postgres', 'citext COLLATE "C"')),
+  handle: nativeColumn(nativeStorage('postgresql', 'citext COLLATE "C"')),
 })
 ```
 

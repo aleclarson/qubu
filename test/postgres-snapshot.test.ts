@@ -43,7 +43,7 @@ const accounts = table(
     slug: text({
       generatedColumn: generatedColumn(value('account'), 'stored'),
     }),
-    handle: nativeColumn('postgres', 'CITEXT', { nullable: true }),
+    handle: nativeColumn('postgresql', 'CITEXT', { nullable: true }),
   },
   account => ({
     constraints: {
@@ -59,7 +59,7 @@ const accounts = table(
       }),
       positive: check(gt(account.id, value(0)), {
         physicalName: 'account_records_positive',
-        dialect: { dialect: 'postgres', notValid: true },
+        dialect: { dialect: 'postgresql', notValid: true },
       }),
     },
     indexes: {
@@ -68,7 +68,7 @@ const accounts = table(
         include: [account.id],
         where: eq(account.active, value(true)),
         dialect: {
-          dialect: 'postgres',
+          dialect: 'postgresql',
           method: 'btree',
           concurrently: true,
           operatorClasses: { email: 'text_ops' },
@@ -94,7 +94,7 @@ const memberships = table(
           onDelete: 'cascade',
           deferrable: true,
           initially: 'deferred',
-          dialect: { dialect: 'postgres', notValid: true },
+          dialect: { dialect: 'postgresql', notValid: true },
         }
       ),
     },
@@ -111,7 +111,7 @@ test('serializes PostgreSQL storage, behavior, constraints, indexes, and extensi
     table => table.id === 'memberships'
   )
 
-  expect(snapshot.dialect).toEqual({ name: 'postgres', version: 1 })
+  expect(snapshot.dialect).toEqual({ name: 'postgresql', version: 1 })
   expect(snapshot.namespace).toBe('public')
   expect(accountsTable?.columns).toEqual([
     {
@@ -120,7 +120,7 @@ test('serializes PostgreSQL storage, behavior, constraints, indexes, and extensi
       nullable: false,
       hasDefault: true,
       generated: false,
-      storage: { kind: 'native', dialect: 'postgres', type: 'BOOLEAN' },
+      storage: { kind: 'native', dialect: 'postgresql', type: 'BOOLEAN' },
       default: {
         kind: 'expression',
         expression: {
@@ -136,7 +136,7 @@ test('serializes PostgreSQL storage, behavior, constraints, indexes, and extensi
       nullable: false,
       hasDefault: true,
       generated: false,
-      storage: { kind: 'native', dialect: 'postgres', type: 'TEXT' },
+      storage: { kind: 'native', dialect: 'postgresql', type: 'TEXT' },
       default: { kind: 'literal', value: { kind: 'string', value: 'pending' } },
     },
     {
@@ -145,7 +145,7 @@ test('serializes PostgreSQL storage, behavior, constraints, indexes, and extensi
       nullable: true,
       hasDefault: false,
       generated: false,
-      storage: { kind: 'native', dialect: 'postgres', type: 'CITEXT' },
+      storage: { kind: 'native', dialect: 'postgresql', type: 'CITEXT' },
     },
     {
       id: 'id',
@@ -153,7 +153,7 @@ test('serializes PostgreSQL storage, behavior, constraints, indexes, and extensi
       nullable: false,
       hasDefault: false,
       generated: true,
-      storage: { kind: 'native', dialect: 'postgres', type: 'INTEGER' },
+      storage: { kind: 'native', dialect: 'postgresql', type: 'INTEGER' },
       identity: { kind: 'identity', generation: 'always' },
     },
     {
@@ -162,7 +162,7 @@ test('serializes PostgreSQL storage, behavior, constraints, indexes, and extensi
       nullable: false,
       hasDefault: false,
       generated: false,
-      storage: { kind: 'native', dialect: 'postgres', type: 'JSONB' },
+      storage: { kind: 'native', dialect: 'postgresql', type: 'JSONB' },
     },
     {
       id: 'slug',
@@ -170,7 +170,7 @@ test('serializes PostgreSQL storage, behavior, constraints, indexes, and extensi
       nullable: false,
       hasDefault: false,
       generated: true,
-      storage: { kind: 'native', dialect: 'postgres', type: 'TEXT' },
+      storage: { kind: 'native', dialect: 'postgresql', type: 'TEXT' },
       generatedColumn: {
         kind: 'expression',
         expression: {
@@ -188,7 +188,7 @@ test('serializes PostgreSQL storage, behavior, constraints, indexes, and extensi
       kind: 'check',
       physicalName: 'account_records_positive',
       dialect: {
-        dialect: 'postgres',
+        dialect: 'postgresql',
         version: 1,
         data: { notValid: true },
       },
@@ -199,7 +199,7 @@ test('serializes PostgreSQL storage, behavior, constraints, indexes, and extensi
     physicalName: 'account_records_email_idx',
     includedColumns: ['id'],
     dialect: {
-      dialect: 'postgres',
+      dialect: 'postgresql',
       version: 1,
       data: {
         concurrently: true,
@@ -227,13 +227,13 @@ test('keeps PostgreSQL canonical bytes independent of registry order', () => {
   expect(schemaSnapshotDigest(first)).toBe(schemaSnapshotDigest(second))
 })
 
-test('keeps query and snapshot dialect identities separate', () => {
+test('shares query and snapshot dialect identity', () => {
   expect(postgresDialect().name).toBe('postgresql')
-  expect(postgresSnapshotAdapter.dialect.name).toBe('postgres')
+  expect(postgresSnapshotAdapter.dialect.name).toBe('postgresql')
 
   const raw = table('raw_defaults', {
     value: text({
-      default: defaultExpression(unsafeSchemaSql('postgres', 'CURRENT_DATE')),
+      default: defaultExpression(unsafeSchemaSql('postgresql', 'CURRENT_DATE')),
     }),
   })
   expect(
@@ -242,7 +242,7 @@ test('keeps query and snapshot dialect identities separate', () => {
     default: {
       kind: 'expression',
       expression: {
-        dialect: 'postgres',
+        dialect: 'postgresql',
         sql: 'CURRENT_DATE',
       },
     },
@@ -305,10 +305,10 @@ test('reports PostgreSQL capability and naming diagnostics', () => {
   }
 })
 
-test('rejects schema SQL tagged with the query dialect name', () => {
+test('rejects schema SQL tagged with another dialect name', () => {
   const raw = table('wrong_tag', {
     value: text({
-      default: defaultExpression(unsafeSchemaSql('postgresql', 'CURRENT_DATE')),
+      default: defaultExpression(unsafeSchemaSql('postgres', 'CURRENT_DATE')),
     }),
   })
   const result = tryCreatePostgresSchemaSnapshot(schema({ raw }))

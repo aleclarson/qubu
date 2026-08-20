@@ -73,15 +73,15 @@ expectTypeOf<
   ColumnStorageTypeOf<typeof definitions.binary>
 >().toEqualTypeOf<'binary'>()
 
-const custom = nativeColumn(nativeStorage('postgres', 'citext COLLATE "C"'), {
+const custom = nativeColumn(nativeStorage('postgresql', 'citext COLLATE "C"'), {
   nullable: true,
 })
 expectTypeOf<ColumnStorageOf<typeof custom>>().toEqualTypeOf<
-  NativeColumnStorage<'postgres', 'citext COLLATE "C"'>
+  NativeColumnStorage<'postgresql', 'citext COLLATE "C"'>
 >()
 expectTypeOf<
   ColumnStorageDialectOf<typeof custom>
->().toEqualTypeOf<'postgres'>()
+>().toEqualTypeOf<'postgresql'>()
 expectTypeOf<
   ColumnStorageDeclarationOf<typeof custom>
 >().toEqualTypeOf<'citext COLLATE "C"'>()

@@ -1,0 +1,26 @@
+import { expectTypeOf } from 'vitest'
+import {
+  createDialect,
+  createSchemaDialect,
+  postgresDialect,
+} from '../src/index.ts'
+import { postgresSchemaDialect } from '../src/snapshot/index.ts'
+import type { Dialect, SchemaDialect } from '../src/index.ts'
+
+const queryDialect = postgresDialect()
+const schemaDialect = createSchemaDialect(queryDialect, { version: 1 })
+
+expectTypeOf(schemaDialect).toMatchTypeOf<Dialect<'ilike' | 'json'>>()
+expectTypeOf(schemaDialect).toMatchTypeOf<SchemaDialect<'ilike' | 'json'>>()
+expectTypeOf(postgresSchemaDialect).toMatchTypeOf<
+  SchemaDialect<'ilike' | 'json'>
+>()
+
+const custom = createSchemaDialect(
+  createDialect({ name: 'custom', placeholder: () => '?' }),
+  {
+    version: 1,
+  }
+)
+expectTypeOf(custom.name).toBeString()
+expectTypeOf(custom.schema.version).toBeNumber()
