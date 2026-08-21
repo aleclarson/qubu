@@ -1,4 +1,5 @@
 export * from './connection.ts'
 export * from './diagnostics.ts'
 export * from './identity.ts'
+export * from './snapshot.ts'
 export * from './types.ts'

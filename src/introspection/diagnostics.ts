@@ -14,6 +14,7 @@ export type IntrospectionDiagnosticCode =
   | 'invalid-catalog-row'
   | 'missing-catalog-row'
   | 'expression-parse-failed'
+  | 'unresolved-reference'
   | 'ambiguous-identity'
   | 'unmodeled-object'
   | 'lossy-mapping'
