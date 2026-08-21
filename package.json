@@ -7,6 +7,7 @@
   ],
   "exports": {
     ".": "./src/index.ts",
+    "./introspection": "./src/introspection/index.ts",
     "./mysql": "./src/dialects/mysql.ts",
     "./postgres": "./src/dialects/postgres.ts",
     "./snapshot": "./src/snapshot/index.ts",
@@ -47,6 +48,7 @@
   "publishConfig": {
     "exports": {
       ".": "./dist/index.mjs",
+      "./introspection": "./dist/introspection.mjs",
       "./mysql": "./dist/mysql.mjs",
       "./postgres": "./dist/postgres.mjs",
       "./snapshot": "./dist/snapshot.mjs",
