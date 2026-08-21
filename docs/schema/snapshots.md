@@ -75,6 +75,10 @@ matrix](../reference/mysql-snapshot.md). Its query and snapshot dialects both
 use `mysql`, while MySQL-only `ON UPDATE` and `AUTO_INCREMENT` details remain
 inside the column and identity metadata they describe.
 
-Snapshot v1 intentionally stops before introspection, comparison, rename
-resolution, migration planning, and DDL generation. Those operations may
-consume this data later, but they do not belong to serialization.
+Snapshot serialization remains separate from database introspection,
+comparison, rename resolution, migration planning, and DDL generation. The
+optional `qubu/introspection` entrypoint can produce the same canonical Snapshot
+v1 data from a user-owned catalog connection, but readers and connection
+lifecycle do not belong to this pure serialization layer. Comparison, rename
+resolution, planning, and DDL may consume the data later without changing the
+snapshot format.

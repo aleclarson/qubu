@@ -25,6 +25,8 @@ define a table, build a `SELECT`, and inspect its SQL and parameters.
 - [Read JSON scalars](guides/json.md) from structured JSON paths.
 - [Enable the Vite compiler hint](guides/vite-plugin.md) when query modules
   should opt into named imports through a directive.
+- [Inspect an existing database](schema/introspection.md) through the optional
+  user-owned catalog boundary.
 
 ## The Qubu pipeline
 
@@ -55,6 +57,7 @@ needs to preserve a fact across composition:
 | ----------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | Query model             | [Source scope](query-model/source-scope.md)         | Source identity, result shapes, fragments, metadata, and query composition          |
 | Schema model            | [Tables and names](schema/tables-and-names.md)      | Tables, write types, constraints, storage, schema SQL, and snapshots                |
+| Database introspection  | [Database introspection](schema/introspection.md)   | Catalog readers, Snapshot v1 mapping, identities, diagnostics, and support limits   |
 | Rendering and execution | [Dialects and execution](dialects-and-execution.md) | Placeholder and identifier policies, capabilities, adapters, and raw-SQL boundaries |
 | SQL semantic types      | [SQL semantic types](sql-semantic-types.md)         | Application types, SQL domains, nullability, and compatible operations              |
 

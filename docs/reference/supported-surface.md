@@ -4,15 +4,16 @@
 
 ## Package entrypoints
 
-| Import          | Use it for                                                                                          |
-| --------------- | --------------------------------------------------------------------------------------------------- |
-| `qubu`          | Core fragments, schema helpers, expressions, `SELECT`, mutations, rendering, and execution adapters |
-| `qubu/postgres` | PostgreSQL dialect helpers such as `postgresDialect()` and `ilike()`                                |
-| `qubu/sqlite`   | The SQLite dialect policy                                                                           |
-| `qubu/mysql`    | The MySQL dialect policy                                                                            |
-| `qubu/snapshot` | Canonical schema v1 traversal, encoding, strict decoding, diagnostics, and content digests          |
-| `qubu/vite`     | The optional `qubu()` Vite compiler hint                                                            |
-| `qubu/globals`  | Opt-in ambient declarations for directive-bearing modules                                           |
+| Import               | Use it for                                                                                          |
+| -------------------- | --------------------------------------------------------------------------------------------------- |
+| `qubu`               | Core fragments, schema helpers, expressions, `SELECT`, mutations, rendering, and execution adapters |
+| `qubu/postgres`      | PostgreSQL dialect helpers such as `postgresDialect()` and `ilike()`                                |
+| `qubu/sqlite`        | The SQLite dialect policy                                                                           |
+| `qubu/mysql`         | The MySQL dialect policy                                                                            |
+| `qubu/snapshot`      | Canonical schema v1 traversal, encoding, strict decoding, diagnostics, and content digests          |
+| `qubu/introspection` | User-owned catalog readers and normalized catalog-to-Snapshot v1 mapping                            |
+| `qubu/vite`          | The optional `qubu()` Vite compiler hint                                                            |
+| `qubu/globals`       | Opt-in ambient declarations for directive-bearing modules                                           |
 
 Dialect helpers are also re-exported from `qubu`, but subpath imports make the
 database-specific dependency visible where that is useful.
@@ -36,6 +37,7 @@ The MySQL snapshot adapter and its support limits are listed in the
 | Rendering          | Standard, PostgreSQL, SQLite, MySQL, and user-created identifier, placeholder, pagination, JSON, logical cast-target, and schema-literal policies                                                                                                                                                                                                                            |
 | Execution boundary | Generic `QueryAdapter` plus `execute()`; connection and driver behavior remain external                                                                                                                                                                                                                                                                                      |
 | Build tooling      | Optional Vite directive transform with matching TypeScript ambient declarations, plus the opt-in `qubu/snapshot` canonical schema tooling entrypoint                                                                                                                                                                                                                         |
+| Introspection      | Optional PostgreSQL, SQLite, and MySQL catalog readers for one selected namespace, structured diagnostics, and strict or explicit lossy Snapshot v1 mapping                                                                                                                                                                                                                  |
 
 ## Safety boundaries
 
@@ -49,19 +51,20 @@ do not make interpolated values safe. Use
 adapter.
 
 SQL semantic types provide compile-time portable capability and compatibility
-checks. They do not introspect a database, validate migrations, verify runtime
-schema state, or model every dialect's implicit coercions. Custom and untyped
+checks. They do not validate migrations, verify runtime schema state, or model
+every dialect's implicit coercions. Database catalog reading is available
+through the separate `qubu/introspection` entrypoint. Custom and untyped
 extensions default to permissive `SqlUnknown`; use declared domains when an
 extension should participate in stricter checks.
 
 ## Boundary
 
-Qubu owns query construction, type propagation, and SQL rendering. It does not
-own:
+Qubu owns query construction, type propagation, SQL rendering, and optional
+read-only catalog normalization. It does not own:
 
 - database connections, pooling, retries, or transactions;
 - driver-specific parameter encoding or row decoding;
-- schema introspection, migrations, or database lifecycle;
+- migrations, migration planning, DDL generation, or database lifecycle;
 - DDL generation and dialect-specific index storage options;
 - ORM identity maps, relationship loading, or change tracking; or
 - hidden execution triggered by building a query value.
