@@ -112,10 +112,14 @@ generated expressions, checks, predicates, and expression index terms remain
 dialect-tagged SQL. Falsy values such as `0`, `false`, `NULL`, and empty
 strings are preserved.
 
-Views, sequences, enums, routines, triggers, policies, extensions,
-partitions, and other deferred objects are not fabricated into Snapshot v1
-tables. Readers retain them as deferred catalog objects when they can observe
-them and report the boundary through diagnostics.
+PostgreSQL readers expose views, materialized views, sequences, enums, domains,
+collations, routines, triggers, policies, partitions, extensions, comments,
+and ownership as typed complete catalog records. `mapCatalogToCompleteSnapshot`
+retains those records in Snapshot v2. The existing `mapCatalogToSnapshot`
+mapper still emits the table-only Snapshot v1 and does not fabricate these
+objects into tables. If a PostgreSQL catalog row lacks the evidence needed for
+safe normalization, the reader retains a deferred or opaque record and emits a
+diagnostic.
 
 ## Diagnostics and safety
 

@@ -1,9 +1,25 @@
 import { expect, test } from 'vitest'
 import {
+  mapCatalogToCompleteSnapshot,
   postgresColumnsQuery,
+  postgresCollationsQuery,
   postgresConstraintsQuery,
+  postgresDomainConstraintsQuery,
+  postgresDomainsQuery,
+  postgresEnumsQuery,
+  postgresExtensionsQuery,
+  postgresIdentitiesQuery,
+  postgresIndexesQuery,
+  postgresMetadataQuery,
+  postgresPartitionsQuery,
+  postgresPoliciesQuery,
   postgresRelationsQuery,
+  postgresRoutinesQuery,
+  postgresRoutineParametersQuery,
+  postgresSequencesQuery,
   postgresServerQuery,
+  postgresTriggersQuery,
+  postgresViewsQuery,
   readPostgresCatalog,
 } from '../src/introspection/index.ts'
 import type {
@@ -34,6 +50,21 @@ function connection(
 
 function options(namespace = 'tenant'): IntrospectionOptions {
   return { namespace }
+}
+
+function exactConnection(
+  rows: Readonly<Record<string, readonly Row[]>>,
+  dialect: CatalogConnection['dialect'] = 'postgresql'
+) {
+  const calls: CatalogQuery[] = []
+  const value: CatalogConnection = {
+    dialect,
+    async query<TRow extends Row = Row>(statement: CatalogQuery) {
+      calls.push(statement)
+      return (rows[statement.text] ?? []) as readonly TRow[]
+    },
+  }
+  return { connection: value, calls }
 }
 
 const completeRows = {
@@ -208,7 +239,35 @@ test('normalizes PostgreSQL relations, columns, defaults, generated columns, and
   ).toBe(true)
   expect(
     fake.calls.filter(call => call.parameters[0] === 'tenant')
-  ).toHaveLength(4)
+  ).toHaveLength(18)
+  expect(
+    new Set(
+      fake.calls
+        .filter(call => call.parameters[0] === 'tenant')
+        .map(call => call.text)
+    )
+  ).toEqual(
+    new Set([
+      postgresRelationsQuery,
+      postgresViewsQuery,
+      postgresColumnsQuery,
+      postgresIdentitiesQuery,
+      postgresConstraintsQuery,
+      postgresIndexesQuery,
+      postgresSequencesQuery,
+      postgresEnumsQuery,
+      postgresDomainsQuery,
+      postgresDomainConstraintsQuery,
+      postgresCollationsQuery,
+      postgresTriggersQuery,
+      postgresRoutinesQuery,
+      postgresRoutineParametersQuery,
+      postgresPartitionsQuery,
+      postgresPoliciesQuery,
+      postgresExtensionsQuery,
+      postgresMetadataQuery,
+    ])
+  )
 })
 
 test('normalizes constraints, foreign keys, checks, predicates, terms, and included columns', async () => {
@@ -314,4 +373,402 @@ test('rejects a connection from another dialect before querying', async () => {
   expect(catalog.diagnostics).toEqual([
     expect.objectContaining({ code: 'dialect-mismatch', severity: 'error' }),
   ])
+})
+
+test('normalizes PostgreSQL complete object families and maps Snapshot v2', async () => {
+  const rows: Record<string, readonly Row[]> = {
+    [postgresServerQuery]: [
+      { server_version_num: '160002', server_version: '16.0' },
+    ],
+    [postgresRelationsQuery]: [
+      { oid: '10', namespace: 'tenant', relname: 'accounts', relkind: 'p' },
+      {
+        oid: '11',
+        namespace: 'tenant',
+        relname: 'accounts_2024',
+        relkind: 'r',
+        relispartition: true,
+      },
+      { oid: '30', namespace: 'tenant', relname: 'account_view', relkind: 'v' },
+      {
+        oid: '31',
+        namespace: 'tenant',
+        relname: 'account_report',
+        relkind: 'm',
+      },
+      { oid: '40', namespace: 'tenant', relname: 'account_seq', relkind: 'S' },
+      {
+        oid: '50',
+        namespace: 'tenant',
+        relname: 'remote_accounts',
+        relkind: 'f',
+      },
+      { oid: '60', namespace: 'tenant', relname: 'account_heap', relkind: 'c' },
+    ],
+    [postgresViewsQuery]: [
+      {
+        oid: '30',
+        namespace: 'tenant',
+        physical_name: 'account_view',
+        relkind: 'v',
+        definition: 'SELECT id FROM accounts',
+        check_option: 'NONE',
+      },
+      {
+        oid: '31',
+        namespace: 'tenant',
+        physical_name: 'account_report',
+        relkind: 'm',
+        definition: 'SELECT count(*) FROM accounts',
+      },
+    ],
+    [postgresColumnsQuery]: [
+      {
+        table_oid: '10',
+        ordinal_position: 1,
+        physical_name: 'id',
+        nullable: false,
+        native_type: 'integer',
+        attidentity: 'a',
+        attgenerated: '',
+        default_expression: null,
+      },
+      {
+        table_oid: '11',
+        ordinal_position: 1,
+        physical_name: 'id',
+        nullable: false,
+        native_type: 'integer',
+        attidentity: '',
+        attgenerated: '',
+        default_expression: null,
+      },
+      {
+        table_oid: '30',
+        ordinal_position: 1,
+        physical_name: 'id',
+        nullable: false,
+        native_type: 'integer',
+        attidentity: '',
+        attgenerated: '',
+        default_expression: null,
+      },
+    ],
+    [postgresIdentitiesQuery]: [
+      {
+        table_oid: '10',
+        ordinal_position: 1,
+        seqstart: '1',
+        seqincrement: '1',
+        seqmin: '1',
+        seqmax: '2147483647',
+        seqcache: '1',
+        seqcycle: false,
+        sequence_type: 'integer',
+      },
+    ],
+    [postgresConstraintsQuery]: [
+      {
+        oid: '101',
+        table_oid: '10',
+        physical_name: 'accounts_pkey',
+        contype: 'p',
+        conkey: [1],
+        backing_index_oid: '201',
+        condeferrable: false,
+        condeferred: false,
+        convalidated: true,
+      },
+    ],
+    [postgresIndexesQuery]: [
+      {
+        index_oid: '201',
+        table_oid: '10',
+        physical_name: 'accounts_pkey',
+        indisunique: true,
+        indnkeyatts: 1,
+        indnatts: 1,
+        method: 'btree',
+        position: 1,
+        attnum: 1,
+        indoption: 0,
+        operator_class: 'int4_ops',
+        term_definition: 'id',
+      },
+    ],
+    [postgresSequencesQuery]: [
+      {
+        oid: '40',
+        namespace: 'tenant',
+        physical_name: 'account_seq',
+        native_type: 'bigint',
+        seqstart: '1',
+        seqincrement: '1',
+        seqmin: '1',
+        seqmax: '9223372036854775807',
+        seqcache: '10',
+        seqcycle: false,
+        owned_table_oid: '10',
+        owned_column_position: 1,
+      },
+    ],
+    [postgresEnumsQuery]: [
+      {
+        oid: '300',
+        namespace: 'tenant',
+        physical_name: 'account_role',
+        value_oid: '301',
+        value: 'member',
+        ordinal_position: 1,
+      },
+      {
+        oid: '300',
+        namespace: 'tenant',
+        physical_name: 'account_role',
+        value_oid: '302',
+        value: 'owner',
+        ordinal_position: 2,
+      },
+    ],
+    [postgresDomainsQuery]: [
+      {
+        oid: '310',
+        namespace: 'tenant',
+        physical_name: 'account_id',
+        native_type: 'integer',
+        nullable: false,
+        default_expression: '1',
+      },
+    ],
+    [postgresDomainConstraintsQuery]: [
+      {
+        oid: '311',
+        domain_oid: '310',
+        physical_name: 'account_id_positive',
+        definition: 'CHECK (VALUE > 0)',
+        condeferrable: false,
+        condeferred: false,
+        convalidated: true,
+      },
+    ],
+    [postgresCollationsQuery]: [
+      {
+        oid: '400',
+        namespace: 'tenant',
+        physical_name: 'tenant_en',
+        collprovider: 'i',
+        collcollate: 'en-US',
+        collctype: 'en-US',
+        colliculocale: 'en-US',
+        collisdeterministic: true,
+        collversion: '153.14',
+      },
+    ],
+    [postgresTriggersQuery]: [
+      {
+        oid: '500',
+        table_oid: '10',
+        namespace: 'tenant',
+        physical_name: 'accounts_audit',
+        trigger_type: 23,
+        tgenabled: 'O',
+        condition: '(old.id IS DISTINCT FROM new.id)',
+        definition:
+          'CREATE TRIGGER accounts_audit BEFORE INSERT OR UPDATE ON accounts FOR EACH ROW EXECUTE FUNCTION audit_accounts()',
+      },
+    ],
+    [postgresRoutinesQuery]: [
+      {
+        oid: '600',
+        namespace: 'tenant',
+        physical_name: 'account_count',
+        prokind: 'f',
+        return_type: 'integer',
+        language: 'sql',
+        definition:
+          'CREATE FUNCTION account_count() RETURNS integer AS $$ SELECT 1 $$ LANGUAGE SQL',
+        identity_arguments: '',
+        provolatile: 's',
+        proparallel: 's',
+        prosecdef: false,
+      },
+    ],
+    [postgresRoutineParametersQuery]: [],
+    [postgresPartitionsQuery]: [
+      {
+        partition_oid: '11',
+        parent_oid: '10',
+        namespace: 'tenant',
+        physical_name: 'accounts_2024',
+        partstrat: 'r',
+        key_attributes: '{1}',
+        bound: 'FOR VALUES FROM (1) TO (10)',
+        relispartition: true,
+        relkind: 'r',
+      },
+    ],
+    [postgresPoliciesQuery]: [
+      {
+        oid: '800',
+        table_oid: '10',
+        namespace: 'tenant',
+        physical_name: 'tenant_accounts',
+        polcmd: 'r',
+        polpermissive: true,
+        roles: ['app'],
+        using_expression: '(tenant_id = current_user_id())',
+        check_expression: null,
+      },
+    ],
+    [postgresExtensionsQuery]: [
+      {
+        oid: '700',
+        namespace: 'tenant',
+        physical_name: 'pgcrypto',
+        extversion: '1.3',
+        extrelocatable: false,
+        config_relations: null,
+        config_conditions: null,
+      },
+    ],
+    [postgresMetadataQuery]: [
+      {
+        catalog_relation: 'pg_class',
+        object_oid: '10',
+        object_subid: 0,
+        object_kind: 'table',
+        object_name: 'accounts',
+        namespace: 'tenant',
+        description: 'Account rows',
+        owner: 'app_owner',
+      },
+      {
+        catalog_relation: 'pg_class',
+        object_oid: '10',
+        object_subid: 1,
+        object_kind: 'column',
+        object_name: 'id',
+        namespace: 'tenant',
+        description: 'Account identifier',
+        owner: 'app_owner',
+      },
+      {
+        catalog_relation: 'pg_constraint',
+        object_oid: '101',
+        object_subid: 0,
+        object_kind: 'constraint',
+        object_name: 'accounts_pkey',
+        namespace: 'tenant',
+        description: 'Primary key',
+        owner: 'app_owner',
+      },
+      {
+        catalog_relation: 'pg_trigger',
+        object_oid: '500',
+        object_subid: 0,
+        object_kind: 'trigger',
+        object_name: 'accounts_audit',
+        namespace: 'tenant',
+        description: 'Audit changes',
+        owner: 'app_owner',
+      },
+      {
+        catalog_relation: 'pg_policy',
+        object_oid: '800',
+        object_subid: 0,
+        object_kind: 'policy',
+        object_name: 'tenant_accounts',
+        namespace: 'tenant',
+        description: 'Tenant boundary',
+        owner: 'app_owner',
+      },
+      {
+        catalog_relation: 'pg_extension',
+        object_oid: '700',
+        object_subid: 0,
+        object_kind: 'extension',
+        object_name: 'pgcrypto',
+        namespace: 'tenant',
+        description: 'Crypto helpers',
+        owner: 'app_owner',
+      },
+    ],
+  }
+  const fake = exactConnection(rows)
+  const catalog = await readPostgresCatalog(fake.connection, options())
+
+  expect((catalog.views ?? []).map(view => view.kind)).toEqual([
+    'view',
+    'materialized-view',
+  ])
+  expect(catalog.sequences?.[0]).toMatchObject({
+    physicalName: 'account_seq',
+    start: { kind: 'literal', value: 1 },
+    ownedBy: { kind: 'table', id: 'accounts' },
+  })
+  expect(catalog.enums?.[0]?.values.map(value => value.value)).toEqual([
+    'member',
+    'owner',
+  ])
+  expect(catalog.domains?.[0]?.constraints?.[0]).toMatchObject({
+    kind: 'check',
+  })
+  expect(catalog.collations?.[0]).toMatchObject({
+    provider: 'i',
+    locale: 'en-US',
+    deterministic: true,
+  })
+  expect(catalog.triggers?.[0]).toMatchObject({
+    timing: 'before',
+    events: ['insert', 'update'],
+    orientation: 'row',
+  })
+  expect(catalog.routines?.[0]).toMatchObject({
+    routineKind: 'function',
+    volatility: 'stable',
+    parallel: 'safe',
+  })
+  expect(catalog.partitions?.[0]).toMatchObject({
+    parent: { kind: 'table', id: 'accounts' },
+    strategy: 'range',
+  })
+  expect(catalog.policies?.[0]).toMatchObject({
+    table: { kind: 'table', id: 'accounts' },
+    command: 'select',
+  })
+  expect(catalog.extensionObjects?.[0]).toMatchObject({
+    extensionName: 'pgcrypto',
+    extensionVersion: '1.3',
+  })
+  expect(catalog.comments).toHaveLength(6)
+  expect(catalog.ownership).toHaveLength(6)
+  expect(catalog.deferredObjects).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        objectKind: 'foreign-table',
+        physicalName: 'remote_accounts',
+      }),
+    ])
+  )
+  expect(catalog.opaqueObjects).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ objectKind: 'postgres-relation:c' }),
+    ])
+  )
+
+  const mapped = mapCatalogToCompleteSnapshot(catalog)
+  expect(mapped.ok).toBe(true)
+  if (!mapped.ok) return
+  expect(mapped.snapshot.views).toHaveLength(2)
+  expect(mapped.snapshot.sequences).toHaveLength(1)
+  expect(mapped.snapshot.enums).toHaveLength(1)
+  expect(mapped.snapshot.domains).toHaveLength(1)
+  expect(mapped.snapshot.collations).toHaveLength(1)
+  expect(mapped.snapshot.triggers).toHaveLength(1)
+  expect(mapped.snapshot.routines).toHaveLength(1)
+  expect(mapped.snapshot.partitions).toHaveLength(1)
+  expect(mapped.snapshot.policies).toHaveLength(1)
+  expect(mapped.snapshot.extensions).toHaveLength(1)
+  expect(mapped.snapshot.comments).toHaveLength(6)
+  expect(mapped.snapshot.ownership).toHaveLength(6)
 })

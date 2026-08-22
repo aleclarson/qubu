@@ -422,6 +422,7 @@ export type CatalogDeferredObjectKind =
   | 'virtual-table'
   | 'shadow-table'
   | 'temporary-object'
+  | 'foreign-table'
   | 'other'
 
 /** A deferred or unmodeled object retained for diagnostics and future support. */
