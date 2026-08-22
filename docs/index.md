@@ -29,6 +29,8 @@ define a table, build a `SELECT`, and inspect its SQL and parameters.
   user-owned catalog boundary.
 - [Compare snapshots](schema/diff.md) with explicit rename hints and reviewable
   safety diagnostics.
+- [Build migration plans](schema/migration-plans.md) as reviewed, deterministic
+  data before a later DDL step.
 
 ## The Qubu pipeline
 

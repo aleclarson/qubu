@@ -70,5 +70,6 @@ reordering tables, object groups, columns, or other canonical collections does
 not create changes. Ordered index terms, foreign-key columns, enum positions,
 and routine parameter positions retain their meaning.
 
-Diff output is data only. Migration planning, DDL rendering, and database
-execution belong to later boundaries.
+Diff output is data only. Feed a resolved result into the
+[migration-plan boundary](migration-plans.md) when a reviewed change list is
+needed; DDL rendering and database execution remain later boundaries.
