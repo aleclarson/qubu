@@ -1,2 +1,2 @@
 - Qubu is pre-alpha. Avoid backwards-compatibility work; prefer hard breaks with no legacy shims.
-- Read [TESTING.md](TESTING.md) before adding or changing tests. It defines the test-layer boundaries and the scope of live dialect tests.
+- Read [.agents/rules/TESTING.md](.agents/rules/TESTING.md) before adding or changing tests. It defines the test-layer boundaries and the scope of live dialect tests.

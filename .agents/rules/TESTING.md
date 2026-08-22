@@ -1,11 +1,11 @@
-# Testing Qubu
+# Testing rules
 
-> Choose the smallest test that proves a Qubu-owned behavior, and use a real database only when the database boundary is part of that behavior.
+> Use the smallest test that proves a Qubu-owned behavior. Use a live database only when the database boundary is part of that behavior.
 
 ## Start with the promise
 
-Every test should protect a behavior a Qubu user can observe. Before writing
-one, name that behavior in a sentence:
+Every test must protect a behavior that a Qubu user or developer can observe.
+Before writing one, name that behavior in a sentence:
 
 > A PostgreSQL query containing `ilike()` renders and executes through the
 > adapter, returning the expected rows.
@@ -15,15 +15,16 @@ of PostgreSQL's implementation.
 
 ## Choose the smallest test layer
 
-| Layer               | Use it for                                                                       | What to assert                                                     |
-| ------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Type contract       | Inference, capability requirements, source scope, row shapes, and invalid calls  | A compile-time success or the expected `@ts-expect-error`          |
-| Unit or render test | SQL text, parameter order, metadata normalization, diagnostics, and pure helpers | Exact output when formatting is the behavior under test            |
-| Live dialect E2E    | Behavior that can fail only at the database boundary                             | Returned rows, bound values, mutations, or normalized catalog data |
+| Layer                   | Use it for                                      | What to assert                                 |
+| ----------------------- | ----------------------------------------------- | ---------------------------------------------- |
+| Type contract           | Types, inference, and invalid calls             | Compile-time success or `@ts-expect-error`     |
+| Deterministic unit/fake | SQL, parameters, normalization, and diagnostics | Exact output or normalized data                |
+| Live dialect E2E        | Actual database or driver compatibility         | Rows, bound values, mutations, or catalog data |
 
-If a type or render test can catch the regression, use it instead of a live
-database. E2E tests cost more and tell us less when they only repeat a string
-assertion.
+If a type or deterministic test can catch the regression, use it instead of a
+live database. Use fake adapters or catalog connections for query mapping,
+normalization, and diagnostics. Live E2E should validate compatibility with an
+actual engine or driver, not repeat a string assertion.
 
 ## Runtime and type-test conventions
 
@@ -32,8 +33,10 @@ assertion.
   concrete subject, such as `renders MySQL identifiers` or `executes a bound
 JSON query`.
 - Put type-checking tests in files ending with `-d.ts`.
-- When setting up a test file without implementing its behavior yet, mark the
-  test cases with `.skip` until the implementation is ready.
+- When explicitly asked to set up a test file without implementing its
+  behavior yet, mark the placeholder cases with `.skip`. Never use `.skip` to
+  hide a failing or flaky test; implement or remove the placeholder before
+  treating the coverage as complete.
 - Keep runtime fixtures close to the test that owns them. Share a fixture only
   when several tests need the same behavior and changing it should affect all
   of them.
@@ -45,13 +48,15 @@ JSON query`.
 ## Live dialect E2E tests
 
 The database is a fixture for Qubu's adapter and introspection boundaries. The
-current suite lives in `test/e2e/dialects.test.ts` and runs for SQLite,
-PostgreSQL, and MySQL through the `dialect-e2e` CI matrix. Standard SQL has no
-server target, so its coverage stays in render and type tests.
+current suite lives in `test/e2e/dialects.test.ts` and runs for every supported
+live dialect in the `dialect-e2e` CI matrix: SQLite, PostgreSQL, and MySQL.
+Standard SQL has no server target, so its coverage stays in render and type
+tests.
 
-An E2E test may use raw SQL to create a small fixture schema. That SQL prepares
-the environment; it is not a test of DDL generation. The test itself should
-use Qubu to build and execute the query or read the catalog.
+An E2E test may use raw SQL to create, clear, and remove a small fixture schema.
+That SQL prepares or cleans up the environment; it is not a test of DDL
+generation. The behavior under test should use Qubu to build and execute the
+query or read the catalog.
 
 Good E2E coverage looks like this:
 
@@ -68,8 +73,8 @@ Avoid these cases:
 - testing whether the database engine implements its own SQL features;
 - asserting exact SQL formatting in a live test;
 - testing driver-library behavior that Qubu does not own;
-- adding DDL, migration, transaction, or pooling tests when those remain
-  outside Qubu's boundary.
+- adding tests for DDL execution, migrations, transaction orchestration,
+  pooling, retries, or authentication unless Qubu owns that behavior.
 
 Keep each live fixture small and isolated. Use a distinctive table name,
 clear it before each test, and remove it during teardown. Assert the smallest
@@ -82,11 +87,13 @@ When a feature changes:
 
 1. Add a type contract if the change affects TypeScript acceptance or
    inference.
-2. Add a unit or render test for deterministic output and diagnostics.
+2. Add a deterministic unit, render, or fake-boundary test for output,
+   normalization, and diagnostics.
 3. Add E2E coverage only when a real database or catalog is needed to expose
    the regression.
-4. Add only the affected dialects to the live matrix. Keep portable behavior
-   in shared tests and dialect-specific behavior in focused cases.
+4. Keep every supported live dialect in the CI matrix. Keep portable behavior
+   in shared tests and put dialect-specific behavior in focused cases without
+   weakening the shared assertion.
 
 Before opening a change, ask:
 
@@ -94,15 +101,18 @@ Before opening a change, ask:
 - Could a type or render test prove it more directly?
 - Does the test assert an outcome rather than database internals?
 - Can it run independently of the other tests?
-- Does the supported-dialect matrix need a new case?
+- Does the supported-dialect matrix still cover every live dialect?
+- Is any `.skip` limited to an explicitly requested scaffold?
 
 ## Useful commands
 
-Run the normal checks with:
+Run the checks used by CI with:
 
 ```bash
-pnpm run test -- --run
+pnpm run lint
 pnpm run typecheck
+pnpm run test -- --run
+pnpm run build
 ```
 
 Run the local SQLite E2E case with:
