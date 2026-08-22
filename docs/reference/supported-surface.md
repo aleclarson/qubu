@@ -11,6 +11,7 @@
 | `qubu/sqlite`        | The SQLite dialect policy                                                                           |
 | `qubu/mysql`         | The MySQL dialect policy                                                                            |
 | `qubu/snapshot`      | Canonical schema v1 traversal, encoding, strict decoding, diagnostics, and content digests          |
+| `qubu/diff`          | Canonical Snapshot v1/v2 comparison, explicit rename hints, suggestions, and safety diagnostics     |
 | `qubu/introspection` | User-owned catalog readers and normalized catalog-to-Snapshot v1 mapping                            |
 | `qubu/vite`          | The optional `qubu()` Vite compiler hint                                                            |
 | `qubu/globals`       | Opt-in ambient declarations for directive-bearing modules                                           |
@@ -36,7 +37,7 @@ The MySQL snapshot adapter and its support limits are listed in the
 | Write queries      | `INSERT` values/defaults/select, `UPDATE`, `DELETE`, typed assignments, `RETURNING`, and explicit unrestricted-write opt-in                                                                                                                                                                                                                                                  |
 | Rendering          | Standard, PostgreSQL, SQLite, MySQL, and user-created identifier, placeholder, pagination, JSON, logical cast-target, and schema-literal policies                                                                                                                                                                                                                            |
 | Execution boundary | Generic `QueryAdapter` plus `execute()`; connection and driver behavior remain external                                                                                                                                                                                                                                                                                      |
-| Build tooling      | Optional Vite directive transform with matching TypeScript ambient declarations, plus the opt-in `qubu/snapshot` canonical schema tooling entrypoint                                                                                                                                                                                                                         |
+| Build tooling      | Optional Vite directive transform with matching TypeScript ambient declarations, plus the opt-in `qubu/snapshot` and `qubu/diff` canonical schema tooling entrypoints                                                                                                                                                                                                        |
 | Introspection      | Optional PostgreSQL, SQLite, and MySQL catalog readers for one selected namespace, structured diagnostics, and strict or explicit lossy Snapshot v1 mapping                                                                                                                                                                                                                  |
 
 ## Safety boundaries
@@ -59,8 +60,8 @@ extension should participate in stricter checks.
 
 ## Boundary
 
-Qubu owns query construction, type propagation, SQL rendering, and optional
-read-only catalog normalization. It does not own:
+Qubu owns query construction, type propagation, SQL rendering, optional
+read-only catalog normalization, and pure snapshot comparison. It does not own:
 
 - database connections, pooling, retries, or transactions;
 - driver-specific parameter encoding or row decoding;

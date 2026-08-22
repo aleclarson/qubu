@@ -27,6 +27,8 @@ define a table, build a `SELECT`, and inspect its SQL and parameters.
   should opt into named imports through a directive.
 - [Inspect an existing database](schema/introspection.md) through the optional
   user-owned catalog boundary.
+- [Compare snapshots](schema/diff.md) with explicit rename hints and reviewable
+  safety diagnostics.
 
 ## The Qubu pipeline
 

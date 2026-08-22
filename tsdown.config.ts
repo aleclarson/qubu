@@ -8,6 +8,7 @@ export default defineConfig({
     sqlite: 'src/dialects/sqlite.ts',
     mysql: 'src/dialects/mysql.ts',
     snapshot: 'src/snapshot/index.ts',
+    diff: 'src/diff/index.ts',
     vite: 'src/vite/index.ts',
   },
   format: 'esm',

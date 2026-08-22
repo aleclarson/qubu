@@ -17,7 +17,7 @@ flowchart LR
   B --> C[Normalized catalog]
   C --> D[Pure snapshot mapper]
   D --> E[Canonical snapshot]
-  E -. later .-> F[Diff, rename, or migration planning]
+  E -. later .-> F[Snapshot diffing or migration planning]
 ```
 
 The reader owns catalog SQL and dialect-specific row normalization. The
@@ -92,7 +92,8 @@ Physical names remain unchanged in the snapshot. OIDs, SQLite rowids, and
 internal `sqlite_autoindex_*` names are current-run or implementation details,
 not persisted Qubu identities. A changed physical name is not automatically a
 rename. Pass the previous snapshot or an identity hint when a later diff must
-preserve identity across a rename.
+preserve identity across a rename. See [snapshot diffing](diff.md) for the
+comparison and hint boundary.
 
 The first version selects one namespace: a PostgreSQL schema, MySQL database,
 or SQLite database such as `main`. It does not combine attached databases or
