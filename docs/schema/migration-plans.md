@@ -72,3 +72,5 @@ future versions, malformed operations, missing edges, and dependency cycles.
 
 The plan is a handoff to a later DDL boundary. It is not an execution result,
 transaction journal, retry record, or connection-owned migration runner.
+
+Use [`qubu/ddl`](./ddl-emission.md) after the plan is reviewed and approved.

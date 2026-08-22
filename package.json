@@ -7,6 +7,7 @@
   ],
   "exports": {
     ".": "./src/index.ts",
+    "./ddl": "./src/ddl/index.ts",
     "./diff": "./src/diff/index.ts",
     "./introspection": "./src/introspection/index.ts",
     "./migration": "./src/migration/index.ts",
@@ -55,6 +56,7 @@
   "publishConfig": {
     "exports": {
       ".": "./dist/index.mjs",
+      "./ddl": "./dist/ddl.mjs",
       "./diff": "./dist/diff.mjs",
       "./introspection": "./dist/introspection.mjs",
       "./migration": "./dist/migration.mjs",

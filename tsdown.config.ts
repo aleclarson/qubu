@@ -9,6 +9,7 @@ export default defineConfig({
     mysql: 'src/dialects/mysql.ts',
     snapshot: 'src/snapshot/index.ts',
     diff: 'src/diff/index.ts',
+    ddl: 'src/ddl/index.ts',
     migration: 'src/migration/index.ts',
     vite: 'src/vite/index.ts',
   },
