@@ -32,6 +32,8 @@ assertion.
   concrete subject, such as `renders MySQL identifiers` or `executes a bound
 JSON query`.
 - Put type-checking tests in files ending with `-d.ts`.
+- When setting up a test file without implementing its behavior yet, mark the
+  test cases with `.skip` until the implementation is ready.
 - Keep runtime fixtures close to the test that owns them. Share a fixture only
   when several tests need the same behavior and changing it should affect all
   of them.
