@@ -39,3 +39,89 @@ jobs:
 
       - name: Build
         run: pnpm run --if-present build
+
+  dialect-e2e:
+    name: Dialect E2E (${{ matrix.dialect }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dialect:
+          - sqlite
+          - postgresql
+          - mysql
+    env:
+      QUBU_E2E_DIALECT: ${{ matrix.dialect }}
+      POSTGRES_URL: postgresql://postgres:postgres@127.0.0.1:5432/qubu
+      MYSQL_HOST: 127.0.0.1
+      MYSQL_PORT: 3306
+      MYSQL_USER: root
+      MYSQL_PASSWORD: root
+      MYSQL_DATABASE: qubu
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.29.3
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start PostgreSQL
+        if: matrix.dialect == 'postgresql'
+        run: |
+          set -euo pipefail
+          docker run --detach --name qubu-postgres \
+            --publish 5432:5432 \
+            --env POSTGRES_PASSWORD=postgres \
+            --env POSTGRES_DB=qubu \
+            postgres:16
+          for attempt in {1..60}; do
+            if docker exec qubu-postgres pg_isready -U postgres -d qubu >/dev/null 2>&1; then
+              echo "PostgreSQL is ready after ${attempt} checks"
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs qubu-postgres
+          exit 1
+
+      - name: Start MySQL
+        if: matrix.dialect == 'mysql'
+        run: |
+          set -euo pipefail
+          docker run --detach --name qubu-mysql \
+            --publish 3306:3306 \
+            --env MYSQL_ROOT_PASSWORD=root \
+            --env MYSQL_DATABASE=qubu \
+            mysql:8.4
+          for attempt in {1..60}; do
+            if docker exec qubu-mysql mysqladmin ping -h127.0.0.1 -uroot -proot --silent >/dev/null 2>&1; then
+              echo "MySQL is ready after ${attempt} checks"
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs qubu-mysql
+          exit 1
+
+      - name: Run dialect E2E tests
+        run: pnpm run test:e2e
+
+      - name: Show PostgreSQL logs
+        if: failure() && matrix.dialect == 'postgresql'
+        run: docker logs qubu-postgres
+
+      - name: Show MySQL logs
+        if: failure() && matrix.dialect == 'mysql'
+        run: docker logs qubu-mysql

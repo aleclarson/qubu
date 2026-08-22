@@ -28,7 +28,8 @@ export const sqliteSchemaQuery = `
 `
 export const sqliteTableListQuery = `
   SELECT schema, name, type, ncol, wr, strict
-  FROM pragma_table_list(?)
+  FROM pragma_table_list
+  WHERE schema = ?
   ORDER BY name
 `
 export const sqliteTableInfoQuery = `
