@@ -1,0 +1,26 @@
+{
+  "name": "qubu-intro-video",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "remotion studio src/index.ts",
+    "preview": "remotion studio src/index.ts",
+    "render:youtube": "remotion render src/index.ts QubuIntroLandscape out/qubu-intro-youtube.mp4",
+    "render:mobile": "remotion render src/index.ts QubuIntroPortrait out/qubu-intro-mobile.mp4",
+    "render:stills": "remotion still src/index.ts QubuIntroLandscape out/qubu-cover-youtube.png --frame=845 && remotion still src/index.ts QubuIntroPortrait out/qubu-cover-mobile.png --frame=845",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.515",
+    "@remotion/google-fonts": "4.0.515",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "remotion": "4.0.515"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.10",
+    "@types/react-dom": "19.1.7",
+    "typescript": "5.9.2"
+  }
+}
