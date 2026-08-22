@@ -1,6 +1,6 @@
 # Database introspection
 
-> Read one existing database namespace into explainable catalog data and an optional canonical Snapshot v1 without giving Qubu ownership of the connection.
+> Read one existing database namespace into explainable catalog data and an optional canonical Snapshot v1 or complete Snapshot v2 without giving Qubu ownership of the connection.
 
 Database introspection is an optional capability exported from
 `qubu/introspection`. It discovers database facts. It does not recreate the
@@ -15,7 +15,7 @@ The caller owns the connection and supplies a small catalog query adapter:
 flowchart LR
   A[User-owned connection] --> B[Dialect catalog reader]
   B --> C[Normalized catalog]
-  C --> D[Pure Snapshot v1 mapper]
+  C --> D[Pure snapshot mapper]
   D --> E[Canonical snapshot]
   E -. later .-> F[Diff, rename, or migration planning]
 ```
@@ -66,6 +66,13 @@ if (!result.ok) {
 
 result.snapshot.tables // canonical Snapshot v1 data
 ```
+
+Readers may expose additional typed object families through the normalized
+catalog. Use `createCompleteIntrospectionCatalog()` to materialize and freeze
+all optional collections, then `mapCatalogToCompleteSnapshot()` when views,
+sequences, routines, policies, comments, ownership, and retained opaque or
+deferred objects must cross the strict Snapshot v2 boundary. Snapshot v1 is
+still selected explicitly by `mapCatalogToSnapshot()` and remains table-shaped.
 
 The result is successful only when Snapshot v1 validation succeeds. A failed
 result may retain the partial catalog and structured diagnostics, but it has no

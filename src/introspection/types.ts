@@ -19,6 +19,20 @@ export type CatalogEntityKind =
   | 'column'
   | 'constraint'
   | 'index'
+  | 'view'
+  | 'materialized-view'
+  | 'sequence'
+  | 'enum'
+  | 'domain'
+  | 'collation'
+  | 'trigger'
+  | 'routine'
+  | 'partition'
+  | 'policy'
+  | 'extension'
+  | 'comment'
+  | 'ownership'
+  | 'opaque-object'
   | 'deferred-object'
 
 /** A scalar value retained as catalog data rather than executable SQL. */
@@ -92,6 +106,54 @@ export interface CatalogUnknownField {
   readonly name: string
   readonly value: CatalogData | CatalogSqlExpression
   readonly provenance?: CatalogProvenance
+}
+
+/** A reference to an object in the normalized catalog. */
+export interface CatalogObjectReference {
+  readonly kind: Exclude<CatalogEntityKind, 'namespace'>
+  readonly id: string
+}
+
+/** A comment observed for a physical catalog object. */
+export interface CatalogComment {
+  readonly kind: 'comment'
+  readonly id: string
+  readonly object: CatalogObjectReference
+  readonly text: string
+  readonly reference?: CatalogReference
+  readonly provenance?: CatalogProvenance
+  readonly dialect?: CatalogDialectExtension
+  readonly unknownFields?: readonly CatalogUnknownField[]
+}
+
+/** Ownership metadata observed for a physical catalog object. */
+export interface CatalogOwnership {
+  readonly kind: 'ownership'
+  readonly id: string
+  readonly object: CatalogObjectReference
+  readonly owner: string
+  readonly reference?: CatalogReference
+  readonly provenance?: CatalogProvenance
+  readonly dialect?: CatalogDialectExtension
+  readonly unknownFields?: readonly CatalogUnknownField[]
+}
+
+/** Optional metadata shared by complete normalized catalog objects. */
+export interface CatalogObjectMetadata {
+  readonly provenance?: CatalogProvenance
+  readonly comment?: CatalogComment
+  readonly ownership?: CatalogOwnership
+}
+
+/** Common identity and physical-name fields for complete catalog objects. */
+export interface CatalogObjectBase extends CatalogObjectMetadata {
+  readonly kind: Exclude<CatalogEntityKind, 'namespace'>
+  readonly id: string
+  readonly identitySource: CatalogIdentitySource
+  readonly physicalName: string
+  readonly reference?: CatalogReference
+  readonly dialect?: CatalogDialectExtension
+  readonly unknownFields?: readonly CatalogUnknownField[]
 }
 
 /** Portable classification retained beside an exact native declaration. */
@@ -170,6 +232,11 @@ export interface CatalogNamespace {
   readonly kind: 'postgres-schema' | 'sqlite-database' | 'mysql-database'
   readonly name: string
   readonly reference?: CatalogReference
+  readonly provenance?: CatalogProvenance
+  readonly comment?: CatalogComment
+  readonly ownership?: CatalogOwnership
+  readonly dialect?: CatalogDialectExtension
+  readonly unknownFields?: readonly CatalogUnknownField[]
 }
 
 /** A logical reference used for normalized cross-object relationships. */
@@ -180,7 +247,7 @@ export interface CatalogEntityReference {
 }
 
 /** A primary key constraint in the normalized catalog. */
-export interface CatalogPrimaryKeyConstraint {
+export interface CatalogPrimaryKeyConstraint extends CatalogObjectMetadata {
   readonly kind: 'primary-key'
   readonly id: string
   readonly identitySource: CatalogIdentitySource
@@ -196,7 +263,7 @@ export interface CatalogPrimaryKeyConstraint {
 }
 
 /** A unique constraint, including nullable uniqueness semantics. */
-export interface CatalogUniqueConstraint {
+export interface CatalogUniqueConstraint extends CatalogObjectMetadata {
   readonly kind: 'unique'
   readonly id: string
   readonly identitySource: CatalogIdentitySource
@@ -219,7 +286,7 @@ export interface CatalogForeignKeyTarget {
 }
 
 /** A foreign key with ordered columns and referential actions. */
-export interface CatalogForeignKeyConstraint {
+export interface CatalogForeignKeyConstraint extends CatalogObjectMetadata {
   readonly kind: 'foreign-key'
   readonly id: string
   readonly identitySource: CatalogIdentitySource
@@ -248,7 +315,7 @@ export interface CatalogForeignKeyConstraint {
 }
 
 /** A check constraint whose expression remains tagged catalog SQL. */
-export interface CatalogCheckConstraint {
+export interface CatalogCheckConstraint extends CatalogObjectMetadata {
   readonly kind: 'check'
   readonly id: string
   readonly identitySource: CatalogIdentitySource
@@ -290,7 +357,7 @@ export type CatalogIndexTerm =
     }
 
 /** A normalized index with ordered terms and backing relationships. */
-export interface CatalogIndex {
+export interface CatalogIndex extends CatalogObjectMetadata {
   readonly kind: 'index'
   readonly id: string
   readonly identitySource: CatalogIdentitySource
@@ -307,7 +374,7 @@ export interface CatalogIndex {
 }
 
 /** A normalized table containing only ordinary included table metadata. */
-export interface CatalogTable {
+export interface CatalogTable extends CatalogObjectMetadata {
   readonly kind: 'table'
   readonly id: string
   readonly identitySource: CatalogIdentitySource
@@ -322,7 +389,7 @@ export interface CatalogTable {
 }
 
 /** A normalized visible column within an ordinary table. */
-export interface CatalogColumn {
+export interface CatalogColumn extends CatalogObjectMetadata {
   readonly kind: 'column'
   readonly id: string
   readonly identitySource: CatalogIdentitySource
@@ -335,6 +402,7 @@ export interface CatalogColumn {
   readonly identity?: CatalogIdentity
   readonly onUpdate?: CatalogSqlExpression
   readonly reference?: CatalogReference
+  readonly dialect?: CatalogDialectExtension
   readonly unknownFields?: readonly CatalogUnknownField[]
 }
 
@@ -345,6 +413,7 @@ export type CatalogDeferredObjectKind =
   | 'sequence'
   | 'enum'
   | 'domain'
+  | 'collation'
   | 'routine'
   | 'trigger'
   | 'policy'
@@ -356,9 +425,12 @@ export type CatalogDeferredObjectKind =
   | 'other'
 
 /** A deferred or unmodeled object retained for diagnostics and future support. */
-export interface CatalogDeferredObject {
+export interface CatalogDeferredObject extends CatalogObjectMetadata {
   readonly kind: 'deferred-object'
   readonly objectKind: CatalogDeferredObjectKind
+  /** Optional in the legacy reader contract; complete readers should set it. */
+  readonly id?: string
+  readonly identitySource?: CatalogIdentitySource
   readonly physicalName: string
   readonly reference?: CatalogReference
   readonly unknownFields?: readonly CatalogUnknownField[]
@@ -371,13 +443,218 @@ export interface CatalogDialectExtension {
   readonly data: CatalogData
 }
 
+/** A view or materialized view definition and its exposed columns. */
+export interface CatalogView extends CatalogObjectBase {
+  readonly kind: 'view' | 'materialized-view'
+  readonly columns: readonly CatalogColumn[]
+  readonly definition: CatalogSqlExpression
+  readonly dependencies?: readonly CatalogObjectReference[]
+  readonly checkOption?: 'none' | 'local' | 'cascaded'
+  readonly securityBarrier?: boolean
+  readonly securityInvoker?: boolean
+}
+
+/** Sequence metadata, including options needed to describe an identity. */
+export interface CatalogSequence extends CatalogObjectBase {
+  readonly kind: 'sequence'
+  readonly storage?: CatalogStorageType
+  readonly start?: CatalogValueFact
+  readonly increment?: CatalogValueFact
+  readonly minimum?: CatalogValueFact
+  readonly maximum?: CatalogValueFact
+  readonly cache?: CatalogValueFact
+  readonly cycle?: boolean
+  readonly ownedBy?: CatalogObjectReference
+  readonly identity?: CatalogIdentity
+}
+
+/** One ordered enum label retained exactly as returned by the database. */
+export interface CatalogEnumValue {
+  readonly value: string
+  readonly ordinalPosition: number
+  readonly provenance?: CatalogProvenance
+}
+
+/** A database enum type with stable label ordering. */
+export interface CatalogEnum extends CatalogObjectBase {
+  readonly kind: 'enum'
+  readonly values: readonly CatalogEnumValue[]
+}
+
+/** A domain type layered over a native storage declaration. */
+export interface CatalogDomain extends CatalogObjectBase {
+  readonly kind: 'domain'
+  readonly storage: CatalogStorageType
+  readonly nullable?: boolean
+  readonly default?: CatalogValueFact
+  readonly constraints?: readonly CatalogCheckConstraint[]
+}
+
+/** Collation properties that affect comparison and ordering semantics. */
+export interface CatalogCollation extends CatalogObjectBase {
+  readonly kind: 'collation'
+  readonly provider?: string
+  readonly locale?: string
+  readonly deterministic?: boolean
+  readonly version?: string
+}
+
+/** A trigger attached to a table or view, retaining its body as opaque SQL. */
+export interface CatalogTrigger extends CatalogObjectBase {
+  readonly kind: 'trigger'
+  readonly table: CatalogObjectReference
+  readonly timing: 'before' | 'after' | 'instead-of' | 'unknown'
+  readonly events: readonly ('insert' | 'update' | 'delete' | 'truncate')[]
+  readonly orientation?: 'row' | 'statement'
+  readonly condition?: CatalogSqlExpression
+  readonly body: CatalogSqlExpression
+  readonly enabled?: boolean
+}
+
+/** A routine parameter as observed in a function or procedure signature. */
+export interface CatalogRoutineParameter {
+  readonly name?: string
+  readonly mode?: 'in' | 'out' | 'inout' | 'variadic' | 'table'
+  readonly storage: CatalogStorageType
+  readonly default?: CatalogValueFact
+  readonly ordinalPosition: number
+  readonly provenance?: CatalogProvenance
+}
+
+/** A function, procedure, aggregate, or other routine declaration. */
+export interface CatalogRoutine extends CatalogObjectBase {
+  readonly kind: 'routine'
+  readonly routineKind:
+    | 'function'
+    | 'procedure'
+    | 'aggregate'
+    | 'window'
+    | 'unknown'
+  readonly parameters: readonly CatalogRoutineParameter[]
+  readonly returnType?: CatalogStorageType
+  readonly language?: string
+  readonly body?: CatalogSqlExpression
+  readonly volatility?: 'immutable' | 'stable' | 'volatile' | 'unknown'
+  readonly parallel?: 'safe' | 'restricted' | 'unsafe' | 'unknown'
+  readonly security?: 'invoker' | 'definer' | 'unknown'
+  readonly dependencies?: readonly CatalogObjectReference[]
+}
+
+/** A partition child and its normalized bound expression. */
+export interface CatalogPartition extends CatalogObjectBase {
+  readonly kind: 'partition'
+  readonly parent: CatalogObjectReference
+  readonly strategy: 'range' | 'list' | 'hash' | 'reference' | 'unknown'
+  readonly keyColumns?: readonly string[]
+  readonly bound?: CatalogSqlExpression
+  readonly default?: boolean
+}
+
+/** A row-level security policy attached to a table. */
+export interface CatalogPolicy extends CatalogObjectBase {
+  readonly kind: 'policy'
+  readonly table: CatalogObjectReference
+  readonly command:
+    | 'all'
+    | 'select'
+    | 'insert'
+    | 'update'
+    | 'delete'
+    | 'unknown'
+  readonly roles?: readonly string[]
+  readonly permissive?: boolean
+  readonly using?: CatalogSqlExpression
+  readonly check?: CatalogSqlExpression
+}
+
+/** An engine extension object and its typed, versioned payload. */
+export interface CatalogExtensionObject extends CatalogObjectBase {
+  readonly kind: 'extension'
+  readonly extensionName: string
+  readonly extensionVersion?: string
+  readonly schema?: string
+  readonly data: CatalogData
+  readonly configuration?: CatalogData
+}
+
+/** An observed object whose family is not yet modeled by a first-party type. */
+export interface CatalogOpaqueObject extends CatalogObjectBase {
+  readonly kind: 'opaque-object'
+  readonly objectKind: string
+  readonly data: CatalogData
+  readonly sql?: CatalogSqlExpression
+}
+
+/** Naming alias for adapters that call retained objects "unknown" records. */
+export type CatalogUnknownObject = CatalogOpaqueObject
+
+/** Every complete object family retained by the normalized catalog. */
+export type CatalogCompleteObject =
+  | CatalogTable
+  | CatalogView
+  | CatalogSequence
+  | CatalogEnum
+  | CatalogDomain
+  | CatalogCollation
+  | CatalogTrigger
+  | CatalogRoutine
+  | CatalogPartition
+  | CatalogPolicy
+  | CatalogExtensionObject
+  | CatalogOpaqueObject
+  | CatalogDeferredObject
+  | CatalogComment
+  | CatalogOwnership
+
+/** Short alias for the complete normalized object union. */
+export type CatalogObject = CatalogCompleteObject
+
+/** The complete normalized catalog shape used by the v2 snapshot mapper. */
+export interface CompleteIntrospectionCatalog {
+  readonly dialect: CatalogDialect
+  readonly server: CatalogServerInfo
+  readonly capabilities: CatalogCapabilities
+  readonly namespace: CatalogNamespace
+  readonly tables: readonly CatalogTable[]
+  readonly views: readonly CatalogView[]
+  readonly sequences: readonly CatalogSequence[]
+  readonly enums: readonly CatalogEnum[]
+  readonly domains: readonly CatalogDomain[]
+  readonly collations: readonly CatalogCollation[]
+  readonly triggers: readonly CatalogTrigger[]
+  readonly routines: readonly CatalogRoutine[]
+  readonly partitions: readonly CatalogPartition[]
+  readonly policies: readonly CatalogPolicy[]
+  readonly extensionObjects: readonly CatalogExtensionObject[]
+  readonly deferredObjects: readonly CatalogDeferredObject[]
+  readonly opaqueObjects: readonly CatalogOpaqueObject[]
+  readonly comments: readonly CatalogComment[]
+  readonly ownership: readonly CatalogOwnership[]
+  readonly diagnostics: readonly IntrospectionDiagnostic[]
+}
+
 /** The complete normalized catalog for one selected physical namespace. */
 export interface IntrospectionCatalog {
   readonly dialect: CatalogDialect
   readonly server: CatalogServerInfo
   readonly namespace: CatalogNamespace
   readonly tables: readonly CatalogTable[]
+  /** Complete object families are optional until a dialect reader populates them. */
+  readonly views?: readonly CatalogView[]
+  readonly sequences?: readonly CatalogSequence[]
+  readonly enums?: readonly CatalogEnum[]
+  readonly domains?: readonly CatalogDomain[]
+  readonly collations?: readonly CatalogCollation[]
+  readonly triggers?: readonly CatalogTrigger[]
+  readonly routines?: readonly CatalogRoutine[]
+  readonly partitions?: readonly CatalogPartition[]
+  readonly policies?: readonly CatalogPolicy[]
+  readonly extensionObjects?: readonly CatalogExtensionObject[]
   readonly deferredObjects: readonly CatalogDeferredObject[]
+  readonly opaqueObjects?: readonly CatalogOpaqueObject[]
+  readonly comments?: readonly CatalogComment[]
+  readonly ownership?: readonly CatalogOwnership[]
+  readonly capabilities?: CatalogCapabilities
   readonly diagnostics: readonly IntrospectionDiagnostic[]
 }
 

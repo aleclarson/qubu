@@ -77,8 +77,10 @@ inside the column and identity metadata they describe.
 
 Snapshot serialization remains separate from database introspection,
 comparison, rename resolution, migration planning, and DDL generation. The
-optional `qubu/introspection` entrypoint can produce the same canonical Snapshot
-v1 data from a user-owned catalog connection, but readers and connection
-lifecycle do not belong to this pure serialization layer. Comparison, rename
-resolution, planning, and DDL may consume the data later without changing the
-snapshot format.
+optional `qubu/introspection` entrypoint can produce the same canonical
+Snapshot v1 data from a user-owned catalog connection. The complete normalized
+catalog can also be encoded as strict Snapshot v2 with the dedicated
+complete-snapshot APIs described in [the catalog model](catalog-model.md).
+Readers and connection lifecycle do not belong to this pure serialization
+layer. Comparison, rename resolution, planning, and DDL may consume either
+version later without changing the snapshot's ownership boundaries.

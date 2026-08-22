@@ -1,4 +1,6 @@
 export * from './canonical.ts'
+export * from './complete-types.ts'
+export * from './complete.ts'
 export * from './decode.ts'
 export * from './postgres.ts'
 export * from './serialize.ts'

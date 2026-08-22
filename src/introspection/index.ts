@@ -1,4 +1,6 @@
 export * from './connection.ts'
+export * from './catalog.ts'
+export * from './complete-snapshot.ts'
 export * from './diagnostics.ts'
 export * from './identity.ts'
 export * from './mysql.ts'
