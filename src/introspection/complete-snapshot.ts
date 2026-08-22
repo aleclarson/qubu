@@ -840,7 +840,12 @@ function mapDeferredObject(
     objectKind: object.objectKind,
     physicalName: object.physicalName,
     ...(data === undefined ? {} : { data: toSnapshotJsonValue(data) }),
-    ...mapMetadata(object.provenance, undefined, dialect, object.reference),
+    ...mapMetadata(
+      object.provenance,
+      object.dialect,
+      dialect,
+      object.reference
+    ),
   }
 }
 

@@ -1,6 +1,8 @@
 import { expectTypeOf } from 'vitest'
 import type {
   CatalogConnection,
+  CatalogDeferredObject,
+  CatalogDialectExtension,
   CatalogIdentityHint,
   CatalogIntrospector,
   CatalogQuery,
@@ -46,6 +48,20 @@ const expression: CatalogSqlExpression = {
 expectTypeOf(expression.text).toBeString()
 expectTypeOf(expression.provenance.kind).toEqualTypeOf<
   'catalog' | 'decompiler' | 'create-sql'
+>()
+
+const sqliteDeferred: CatalogDeferredObject = {
+  kind: 'deferred-object',
+  objectKind: 'virtual-table',
+  physicalName: 'search',
+  dialect: {
+    dialect: 'sqlite',
+    version: 1,
+    data: { module: 'fts5' },
+  },
+}
+expectTypeOf(sqliteDeferred.dialect).toEqualTypeOf<
+  CatalogDialectExtension | undefined
 >()
 
 // @ts-expect-error Catalog SQL is immutable opaque data.

@@ -434,6 +434,7 @@ export interface CatalogDeferredObject extends CatalogObjectMetadata {
   readonly identitySource?: CatalogIdentitySource
   readonly physicalName: string
   readonly reference?: CatalogReference
+  readonly dialect?: CatalogDialectExtension
   readonly unknownFields?: readonly CatalogUnknownField[]
 }
 

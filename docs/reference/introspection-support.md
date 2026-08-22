@@ -20,18 +20,19 @@ silently downgrade to a different product's catalog rules.
 
 ## Catalog facts
 
-| Fact                        | PostgreSQL                                                                                                                                          | SQLite                                                                | MySQL                                                              |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Tables and visible columns  | `pg_class`, `pg_attribute`                                                                                                                          | `sqlite_schema`, `table_xinfo`                                        | `TABLES`, `COLUMNS`                                                |
-| Native storage              | `format_type`                                                                                                                                       | declared type                                                         | `COLUMN_TYPE`                                                      |
-| Defaults                    | `pg_get_expr`                                                                                                                                       | `dflt_value`                                                          | `COLUMN_DEFAULT`                                                   |
-| Generated columns           | stored expressions                                                                                                                                  | stored/virtual when CREATE SQL is recoverable                         | stored/virtual and `GENERATION_EXPRESSION`                         |
-| Identity behavior           | `attidentity`                                                                                                                                       | `INTEGER PRIMARY KEY`, `AUTOINCREMENT`                                | `AUTO_INCREMENT`                                                   |
-| Keys and foreign keys       | `pg_constraint`                                                                                                                                     | table metadata and `foreign_key_list`                                 | `TABLE_CONSTRAINTS`, `KEY_COLUMN_USAGE`, `REFERENTIAL_CONSTRAINTS` |
-| Checks                      | `pg_constraint` and decompiled definition                                                                                                           | CREATE SQL                                                            | `CHECK_CONSTRAINTS`                                                |
-| Indexes                     | `pg_index`, access method, decompiled terms                                                                                                         | `index_list`, `index_xinfo`, schema SQL                               | `STATISTICS`                                                       |
-| Complete PostgreSQL objects | views/materialized views, sequences, enums/domains, collations, triggers, routines, partitions, row-level policies, comments/owners, and extensions | N/A                                                                   | N/A                                                                |
-| Deferred or opaque objects  | foreign tables and relation kinds without a safe typed mapping                                                                                      | views, triggers, virtual/shadow tables, and unrecoverable definitions | views and non-base tables                                          |
+| Fact                        | PostgreSQL                                                                                                                                          | SQLite                                                                                   | MySQL                                                              |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Tables and visible columns  | `pg_class`, `pg_attribute`                                                                                                                          | `sqlite_schema`, `table_xinfo`                                                           | `TABLES`, `COLUMNS`                                                |
+| Native storage              | `format_type`                                                                                                                                       | declared type                                                                            | `COLUMN_TYPE`                                                      |
+| Defaults                    | `pg_get_expr`                                                                                                                                       | `dflt_value`                                                                             | `COLUMN_DEFAULT`                                                   |
+| Generated columns           | stored expressions                                                                                                                                  | stored/virtual when CREATE SQL is recoverable                                            | stored/virtual and `GENERATION_EXPRESSION`                         |
+| Identity behavior           | `attidentity`                                                                                                                                       | `INTEGER PRIMARY KEY`, `AUTOINCREMENT`                                                   | `AUTO_INCREMENT`                                                   |
+| Keys and foreign keys       | `pg_constraint`                                                                                                                                     | table metadata and `foreign_key_list`                                                    | `TABLE_CONSTRAINTS`, `KEY_COLUMN_USAGE`, `REFERENTIAL_CONSTRAINTS` |
+| Checks                      | `pg_constraint` and decompiled definition                                                                                                           | CREATE SQL                                                                               | `CHECK_CONSTRAINTS`                                                |
+| Indexes                     | `pg_index`, access method, decompiled terms                                                                                                         | `index_list`, `index_xinfo`, schema SQL                                                  | `STATISTICS`                                                       |
+| Complete PostgreSQL objects | views/materialized views, sequences, enums/domains, collations, triggers, routines, partitions, row-level policies, comments/owners, and extensions | N/A                                                                                      | N/A                                                                |
+| Complete SQLite objects     | N/A                                                                                                                                                 | views and triggers when CREATE SQL is recoverable; table/view columns from `table_xinfo` | N/A                                                                |
+| Deferred or opaque objects  | foreign tables and relation kinds without a safe typed mapping                                                                                      | virtual/shadow tables, attached-database boundaries, and unrecoverable definitions       | views and non-base tables                                          |
 
 The readers preserve physical names and use database catalog identifiers only
 as current-run join keys. The normalized catalog keeps opaque SQL and its
@@ -53,6 +54,43 @@ declarations.
 Use `mapCatalogToCompleteSnapshot()` for this object set. Use
 `mapCatalogToSnapshot()` when a caller explicitly needs the existing table-only
 Snapshot v1.
+
+## SQLite complete catalog surface
+
+The SQLite reader uses fixed statements over `sqlite_schema` and the
+table-valued PRAGMAs `database_list`, `table_list`, `table_xinfo`,
+`index_list`, `index_xinfo`, and `foreign_key_list`. Each table-valued PRAGMA
+receives bound namespace or object parameters through the caller's
+`CatalogConnection`. The reader does not interpolate a database name into SQL.
+
+SQLite views and triggers become typed complete catalog objects when their
+CREATE SQL has a recoverable definition and target. Their SQL remains tagged
+opaque data with a `sqlite` dialect and a catalog reference. Generated column
+expressions, declared storage types, SQLite affinity, rowid aliases, and
+`AUTOINCREMENT` are kept as column or identity dialect extensions. User indexes
+retain ordered column or expression terms and partial predicates. Inline UNIQUE
+constraints are recovered from their internal indexes with deterministic Qubu
+names, so SQLite's `sqlite_autoindex_*` names do not become persisted logical
+IDs.
+
+SQLite virtual tables and shadow tables remain typed deferred objects with an
+`unmodeled-object` diagnostic. A selected attached database can expose table
+PRAGMA rows, but its schema SQL is outside the fixed `main` and `temp`
+statements. Qubu marks that result as limited and keeps other attached
+databases as opaque boundary records. It never combines attached databases into
+the selected namespace. SQLite does not provide the PostgreSQL object families
+such as routines, materialized views, policies, or ownership, so the reader
+does not fabricate them.
+
+`mapCatalogToCompleteSnapshot()` retains the typed views, triggers, deferred
+objects, opaque boundaries, and dialect extensions in Snapshot v2. The existing
+`mapCatalogToSnapshot()` still maps only tables and preserves Snapshot v1
+behavior.
+
+The query and normalization seams follow the catalog-reading portions of the
+[Drizzle SQLite introspector](https://github.com/drizzle-team/drizzle-orm/blob/main/drizzle-kit/src/introspect-sqlite.ts).
+Drizzle's module generates source declarations; Qubu keeps the same SQLite
+metadata sources as normalized data and never evaluates database-provided SQL.
 
 ## Snapshot v1 surface
 

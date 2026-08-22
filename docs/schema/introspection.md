@@ -121,6 +121,15 @@ objects into tables. If a PostgreSQL catalog row lacks the evidence needed for
 safe normalization, the reader retains a deferred or opaque record and emits a
 diagnostic.
 
+SQLite readers expose recoverable views and triggers as typed complete records.
+They retain virtual and shadow tables as deferred objects, and keep attached
+databases outside the selected namespace as opaque boundary records. SQLite
+declared types, derived affinity, generated expressions, rowid identity, and
+`AUTOINCREMENT` stay tagged with SQLite dialect metadata. When an attached
+database is selected, table PRAGMAs may be visible but CREATE SQL remains
+limited to the fixed `main` and `temp` catalog statements, so the reader marks
+the catalog visibility as limited instead of combining namespaces.
+
 ## Diagnostics and safety
 
 Diagnostics include a severity, stable code, catalog path, physical reference
