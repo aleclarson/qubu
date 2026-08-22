@@ -2,18 +2,11 @@
 
 > Use the smallest test that proves a Qubu-owned behavior. Use a live database only when the database boundary is part of that behavior.
 
-## Start with the promise
-
-Every test must protect a behavior that a Qubu user or developer can observe.
-Before writing one, name that behavior in a sentence:
-
-> A PostgreSQL query containing `ilike()` renders and executes through the
-> adapter, returning the expected rows.
-
-That sentence gives the test its scope. It does not need to prove every detail
-of PostgreSQL's implementation.
-
 ## Choose the smallest test layer
+
+State the Qubu behavior under test in one sentence, then choose the smallest
+layer that proves it. A test protects an observable behavior, not every detail
+of the underlying database or implementation.
 
 | Layer                   | Use it for                                      | What to assert                                 |
 | ----------------------- | ----------------------------------------------- | ---------------------------------------------- |
@@ -47,11 +40,10 @@ JSON query`.
 
 ## Live dialect E2E tests
 
-The database is a fixture for Qubu's adapter and introspection boundaries. The
-current suite lives in `test/e2e/dialects.test.ts` and runs for every supported
-live dialect in the `dialect-e2e` CI matrix: SQLite, PostgreSQL, and MySQL.
-Standard SQL has no server target, so its coverage stays in render and type
-tests.
+The database is a fixture for Qubu's adapter and introspection boundaries. Live
+dialect tests run through the dedicated CI matrix, which must include every
+supported live dialect. Standard SQL has no server target, so its coverage stays
+in render and type tests.
 
 An E2E test may use raw SQL to create, clear, and remove a small fixture schema.
 That SQL prepares or cleans up the environment; it is not a test of DDL
@@ -73,8 +65,8 @@ Avoid these cases:
 - testing whether the database engine implements its own SQL features;
 - asserting exact SQL formatting in a live test;
 - testing driver-library behavior that Qubu does not own;
-- adding tests for DDL execution, migrations, transaction orchestration,
-  pooling, retries, or authentication unless Qubu owns that behavior.
+- testing database or connection-lifecycle behavior Qubu does not own, such as
+  migrations, transaction orchestration, or pooling.
 
 Keep each live fixture small and isolated. Use a distinctive table name,
 clear it before each test, and remove it during teardown. Assert the smallest
@@ -95,25 +87,15 @@ When a feature changes:
    in shared tests and put dialect-specific behavior in focused cases without
    weakening the shared assertion.
 
-Before opening a change, ask:
+Before committing, ask:
 
 - What Qubu promise does this test protect?
-- Could a type or render test prove it more directly?
-- Does the test assert an outcome rather than database internals?
-- Can it run independently of the other tests?
-- Does the supported-dialect matrix still cover every live dialect?
+- Is this the smallest layer that proves it, and does it assert a Qubu outcome?
+- Is it independent, with its own fixture and cleanup where needed?
+- Does the CI matrix still cover every supported live dialect?
 - Is any `.skip` limited to an explicitly requested scaffold?
 
-## Useful commands
-
-Run the checks used by CI with:
-
-```bash
-pnpm run lint
-pnpm run typecheck
-pnpm run test -- --run
-pnpm run build
-```
+## Run live E2E locally
 
 Run the local SQLite E2E case with:
 
