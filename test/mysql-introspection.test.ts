@@ -1,11 +1,19 @@
 import { expect, test } from 'vitest'
 import {
+  mapCatalogToCompleteSnapshot,
   mysqlChecksQuery,
   mysqlColumnsQuery,
+  mysqlCollationsQuery,
+  mysqlEventsQuery,
   mysqlKeyUsageQuery,
+  mysqlPartitionsQuery,
+  mysqlRoutineParametersQuery,
+  mysqlRoutinesQuery,
   mysqlServerQuery,
   mysqlStatisticsQuery,
   mysqlTablesQuery,
+  mysqlTriggersQuery,
+  mysqlViewsQuery,
   readMysqlCatalog,
 } from '../src/introspection/index.ts'
 import type {
@@ -41,8 +49,29 @@ function completeConnection() {
       return [{ version: '8.0.36', version_comment: 'MySQL Community Server' }]
     if (statement.text === mysqlTablesQuery)
       return [
-        { table_name: 'orders', table_type: 'BASE TABLE' },
-        { table_name: 'order_view', table_type: 'VIEW' },
+        {
+          table_name: 'orders',
+          table_type: 'BASE TABLE',
+          engine: 'InnoDB',
+          table_collation: 'utf8mb4_0900_ai_ci',
+          create_options: 'partitioned',
+          table_comment: 'Order records',
+        },
+        {
+          table_name: 'customers',
+          table_type: 'BASE TABLE',
+          engine: 'InnoDB',
+          table_collation: 'utf8mb4_0900_ai_ci',
+          create_options: '',
+          table_comment: '',
+        },
+        {
+          table_name: 'order_view',
+          table_type: 'VIEW',
+          table_collation: 'utf8mb4_0900_ai_ci',
+          table_comment: 'Order summary',
+        },
+        { table_name: 'legacy_sequence', table_type: 'SEQUENCE' },
       ]
     if (statement.text === mysqlColumnsQuery)
       return [
@@ -56,6 +85,9 @@ function completeConnection() {
           column_default: null,
           extra: 'auto_increment',
           generation_expression: null,
+          character_set_name: null,
+          collation_name: null,
+          column_comment: 'Primary order identifier',
         },
         {
           table_name: 'orders',
@@ -67,6 +99,9 @@ function completeConnection() {
           column_default: '0',
           extra: '',
           generation_expression: null,
+          character_set_name: null,
+          collation_name: null,
+          column_comment: '',
         },
         {
           table_name: 'orders',
@@ -78,6 +113,9 @@ function completeConnection() {
           column_default: '',
           extra: '',
           generation_expression: null,
+          character_set_name: 'utf8mb4',
+          collation_name: 'utf8mb4_0900_ai_ci',
+          column_comment: 'Customer-facing label',
         },
         {
           table_name: 'orders',
@@ -89,6 +127,9 @@ function completeConnection() {
           column_default: 'CURRENT_TIMESTAMP',
           extra: 'on update CURRENT_TIMESTAMP',
           generation_expression: null,
+          character_set_name: null,
+          collation_name: null,
+          column_comment: '',
         },
         {
           table_name: 'orders',
@@ -100,6 +141,65 @@ function completeConnection() {
           column_default: null,
           extra: 'STORED GENERATED',
           generation_expression: 'subtotal + tax',
+          character_set_name: null,
+          collation_name: null,
+          column_comment: '',
+        },
+        {
+          table_name: 'orders',
+          column_name: 'customer_id',
+          ordinal_position: 6,
+          column_type: 'bigint unsigned',
+          data_type: 'bigint',
+          is_nullable: 'YES',
+          column_default: null,
+          extra: '',
+          generation_expression: null,
+          character_set_name: null,
+          collation_name: null,
+          column_comment: '',
+        },
+        {
+          table_name: 'customers',
+          column_name: 'id',
+          ordinal_position: 1,
+          column_type: 'bigint unsigned',
+          data_type: 'bigint',
+          is_nullable: 'NO',
+          column_default: null,
+          extra: '',
+          generation_expression: null,
+          character_set_name: null,
+          collation_name: null,
+          column_comment: '',
+        },
+        {
+          table_name: 'order_view',
+          column_name: 'view_id',
+          ordinal_position: 1,
+          column_type: 'bigint unsigned',
+          data_type: 'bigint',
+          is_nullable: 'NO',
+          column_default: null,
+          extra: '',
+          generation_expression: null,
+          character_set_name: null,
+          collation_name: null,
+          column_comment: 'Projected order identifier',
+        },
+        {
+          table_name: 'order_view',
+          column_name: 'label',
+          ordinal_position: 2,
+          column_type: 'varchar(100)',
+          data_type: 'varchar',
+          is_nullable: 'YES',
+          column_default: null,
+          extra: '',
+          generation_expression: null,
+          character_set_name: 'utf8mb4',
+          collation_name: 'utf8mb4_0900_ai_ci',
+          column_comment: '',
         },
       ]
     if (statement.text === mysqlKeyUsageQuery)
@@ -155,6 +255,9 @@ function completeConnection() {
           index_type: 'BTREE',
           expression: null,
           sub_part: 12,
+          is_visible: 'YES',
+          comment: 'label lookup',
+          index_comment: 'prefix index',
         },
         {
           table_name: 'orders',
@@ -166,13 +269,169 @@ function completeConnection() {
           index_type: 'BTREE',
           expression: '(total + 1)',
           sub_part: null,
+          is_visible: 'NO',
+          comment: '',
+          index_comment: '',
+        },
+      ]
+    if (statement.text === mysqlViewsQuery)
+      return [
+        {
+          table_name: 'order_view',
+          view_definition: 'SELECT id AS view_id, label FROM orders',
+          check_option: 'CASCADED',
+          is_updatable: 'YES',
+          algorithm: 'MERGE',
+          security_type: 'INVOKER',
+          definer: 'app@localhost',
+        },
+      ]
+    if (statement.text === mysqlRoutinesQuery)
+      return [
+        {
+          routine_name: 'calculate_total',
+          routine_type: 'FUNCTION',
+          data_type: 'decimal',
+          dtd_identifier: 'decimal(10,2)',
+          routine_body: 'SQL',
+          routine_definition: 'RETURN amount + tax',
+          external_language: null,
+          sql_data_access: 'CONTAINS SQL',
+          is_deterministic: 'YES',
+          security_type: 'INVOKER',
+          sql_mode: 'STRICT_TRANS_TABLES',
+          routine_comment: 'Calculates an order total',
+        },
+        {
+          routine_name: 'archive_orders',
+          routine_type: 'PROCEDURE',
+          data_type: null,
+          dtd_identifier: null,
+          routine_body: 'SQL',
+          routine_definition: 'INSERT INTO order_archive SELECT * FROM orders',
+          external_language: null,
+          sql_data_access: 'MODIFIES SQL DATA',
+          is_deterministic: 'NO',
+          security_type: 'DEFINER',
+          sql_mode: 'STRICT_TRANS_TABLES',
+          routine_comment: '',
+        },
+      ]
+    if (statement.text === mysqlRoutineParametersQuery)
+      return [
+        {
+          routine_name: 'calculate_total',
+          ordinal_position: 0,
+          parameter_mode: null,
+          parameter_name: null,
+          data_type: 'decimal',
+          dtd_identifier: 'decimal(10,2)',
+          parameter_default: null,
+        },
+        {
+          routine_name: 'calculate_total',
+          ordinal_position: 1,
+          parameter_mode: 'IN',
+          parameter_name: 'amount',
+          data_type: 'decimal',
+          dtd_identifier: 'decimal(10,2)',
+          parameter_default: '0',
+        },
+        {
+          routine_name: 'calculate_total',
+          ordinal_position: 2,
+          parameter_mode: 'IN',
+          parameter_name: 'tax',
+          data_type: 'decimal',
+          dtd_identifier: 'decimal(10,2)',
+          parameter_default: '0.2',
+        },
+        {
+          routine_name: 'archive_orders',
+          ordinal_position: 1,
+          parameter_mode: 'INOUT',
+          parameter_name: 'order_id',
+          data_type: 'bigint',
+          dtd_identifier: 'bigint',
+          parameter_default: null,
+        },
+      ]
+    if (statement.text === mysqlTriggersQuery)
+      return [
+        {
+          trigger_name: 'orders_audit',
+          event_manipulation: 'INSERT',
+          table_name: 'orders',
+          action_condition: 'NEW.total >= 0',
+          action_statement: 'INSERT INTO order_audit VALUES (NEW.id)',
+          action_orientation: 'ROW',
+          action_timing: 'BEFORE',
+          action_order: 1,
+          definer: 'app@localhost',
+          sql_mode: 'STRICT_TRANS_TABLES',
+        },
+        {
+          trigger_name: 'orders_audit',
+          event_manipulation: 'UPDATE',
+          table_name: 'orders',
+          action_condition: 'NEW.total >= 0',
+          action_statement: 'INSERT INTO order_audit VALUES (NEW.id)',
+          action_orientation: 'ROW',
+          action_timing: 'BEFORE',
+          action_order: 2,
+          definer: 'app@localhost',
+          sql_mode: 'STRICT_TRANS_TABLES',
+        },
+      ]
+    if (statement.text === mysqlPartitionsQuery)
+      return [
+        {
+          table_name: 'orders',
+          partition_name: 'p2024',
+          subpartition_name: null,
+          partition_ordinal_position: 1,
+          subpartition_ordinal_position: null,
+          partition_method: 'RANGE',
+          subpartition_method: null,
+          partition_expression: 'id',
+          subpartition_expression: null,
+          partition_description: '2025',
+          partition_comment: 'Current orders',
+          tablespace_name: 'innodb_file_per_table',
+        },
+      ]
+    if (statement.text === mysqlCollationsQuery)
+      return [
+        {
+          collation_name: 'utf8mb4_0900_ai_ci',
+          character_set_name: 'utf8mb4',
+          collation_id: 255,
+          is_default: 'Yes',
+          is_compiled: 'Yes',
+          sort_length: 1,
+          pad_attribute: 'NO PAD',
+        },
+      ]
+    if (statement.text === mysqlEventsQuery)
+      return [
+        {
+          event_name: 'refresh_orders',
+          event_type: 'RECURRING',
+          status: 'ENABLED',
+          event_definition: 'CALL archive_orders()',
+          event_body: 'SQL',
+          execute_at: null,
+          interval_value: '1',
+          interval_field: 'DAY',
+          event_comment: 'Refresh order metrics',
+          definer: 'app@localhost',
         },
       ]
     return []
   })
 }
 
-test('reads MySQL version gates, native columns, defaults, generated columns, and deferred views', async () => {
+test('reads MySQL version gates, native columns, defaults, generated columns, and table metadata', async () => {
   const fake = completeConnection()
   const catalog = await readMysqlCatalog(fake.connection, options())
   const orders = catalog.tables[0]!
@@ -181,9 +440,18 @@ test('reads MySQL version gates, native columns, defaults, generated columns, an
   expect(catalog.server).toMatchObject({
     product: 'mysql',
     parsedVersion: { major: 8, minor: 0, patch: 36 },
-    capabilities: { generatedColumns: true, checkConstraints: true },
+    capabilities: {
+      generatedColumns: true,
+      checkConstraints: true,
+      views: true,
+      routines: true,
+      triggers: true,
+      partitions: true,
+      collations: true,
+      scheduledEvents: true,
+    },
   })
-  expect(columns).toHaveLength(5)
+  expect(columns).toHaveLength(6)
   expect(columns[0]).toMatchObject({
     physicalName: 'id',
     storage: { nativeType: 'bigint unsigned' },
@@ -206,11 +474,43 @@ test('reads MySQL version gates, native columns, defaults, generated columns, an
     physicalName: 'computed',
     generated: { mode: 'stored', expression: { text: 'subtotal + tax' } },
   })
+  expect(orders).toMatchObject({
+    dialect: {
+      dialect: 'mysql',
+      version: 1,
+      data: {
+        engine: 'InnoDB',
+        collation: 'utf8mb4_0900_ai_ci',
+        createOptions: 'partitioned',
+      },
+    },
+  })
+  expect(catalog.views).toEqual([
+    expect.objectContaining({
+      kind: 'view',
+      physicalName: 'order_view',
+      definition: expect.objectContaining({
+        text: 'SELECT id AS view_id, label FROM orders',
+      }),
+      columns: [
+        expect.objectContaining({ physicalName: 'view_id' }),
+        expect.objectContaining({ physicalName: 'label' }),
+      ],
+      checkOption: 'cascaded',
+      securityInvoker: true,
+      dialect: expect.objectContaining({
+        data: expect.objectContaining({ algorithm: 'MERGE' }),
+      }),
+    }),
+  ])
   expect(catalog.deferredObjects).toEqual([
-    expect.objectContaining({ objectKind: 'view', physicalName: 'order_view' }),
+    expect.objectContaining({
+      objectKind: 'other',
+      physicalName: 'legacy_sequence',
+    }),
   ])
   expect(fake.calls.filter(call => call.parameters[0] === 'shop')).toHaveLength(
-    5
+    12
   )
 })
 
@@ -270,6 +570,189 @@ test('reads constraints, referential actions, STATISTICS terms, and prefix diagn
       expect.objectContaining({ code: 'lossy-mapping', severity: 'warning' }),
     ])
   )
+})
+
+test('normalizes complete MySQL object families, retains boundaries, and maps Snapshot v2', async () => {
+  const fake = completeConnection()
+  const catalog = await readMysqlCatalog(fake.connection, options())
+
+  expect(catalog.views).toEqual([
+    expect.objectContaining({ physicalName: 'order_view' }),
+  ])
+  expect(catalog.routines).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        physicalName: 'calculate_total',
+        routineKind: 'function',
+        returnType: { nativeType: 'decimal(10,2)' },
+        parameters: [
+          expect.objectContaining({
+            name: 'amount',
+            mode: 'in',
+            default: { kind: 'literal', value: 0 },
+          }),
+          expect.objectContaining({
+            name: 'tax',
+            mode: 'in',
+            default: { kind: 'literal', value: 0.2 },
+          }),
+        ],
+        body: expect.objectContaining({ text: 'RETURN amount + tax' }),
+        security: 'invoker',
+        dialect: expect.objectContaining({
+          data: expect.objectContaining({ deterministic: true }),
+        }),
+      }),
+      expect.objectContaining({
+        physicalName: 'archive_orders',
+        routineKind: 'procedure',
+        parameters: [expect.objectContaining({ mode: 'inout' })],
+        security: 'definer',
+      }),
+    ])
+  )
+  expect(catalog.triggers).toEqual([
+    expect.objectContaining({
+      physicalName: 'orders_audit',
+      table: { kind: 'table', id: 'orders' },
+      timing: 'before',
+      events: ['insert', 'update'],
+      orientation: 'row',
+      condition: expect.objectContaining({ text: 'NEW.total >= 0' }),
+      body: expect.objectContaining({
+        text: 'INSERT INTO order_audit VALUES (NEW.id)',
+      }),
+    }),
+  ])
+  expect(catalog.partitions).toEqual([
+    expect.objectContaining({
+      physicalName: 'p2024',
+      parent: { kind: 'table', id: 'orders' },
+      strategy: 'range',
+      keyColumns: ['id'],
+      bound: expect.objectContaining({ text: '2025' }),
+      comment: expect.objectContaining({ text: 'Current orders' }),
+    }),
+  ])
+  expect(catalog.collations).toEqual([
+    expect.objectContaining({
+      physicalName: 'utf8mb4_0900_ai_ci',
+      dialect: expect.objectContaining({
+        data: expect.objectContaining({
+          characterSet: 'utf8mb4',
+          id: 255,
+          isDefault: true,
+          padAttribute: 'NO PAD',
+        }),
+      }),
+    }),
+  ])
+  expect(catalog.opaqueObjects).toEqual([
+    expect.objectContaining({
+      objectKind: 'event',
+      physicalName: 'refresh_orders',
+      data: expect.objectContaining({
+        eventType: 'RECURRING',
+        status: 'ENABLED',
+        intervalValue: '1',
+        intervalField: 'DAY',
+        definer: 'app@localhost',
+      }),
+      sql: expect.objectContaining({ text: 'CALL archive_orders()' }),
+    }),
+  ])
+  expect(catalog.deferredObjects).toEqual([
+    expect.objectContaining({
+      objectKind: 'other',
+      physicalName: 'legacy_sequence',
+    }),
+  ])
+  expect(catalog.comments).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ text: 'Order records' }),
+      expect.objectContaining({ text: 'Primary order identifier' }),
+      expect.objectContaining({ text: 'Order summary' }),
+      expect.objectContaining({ text: 'Calculates an order total' }),
+      expect.objectContaining({ text: 'Current orders' }),
+      expect.objectContaining({ text: 'Refresh order metrics' }),
+      expect.objectContaining({
+        object: { kind: 'column', id: 'view_id' },
+        text: 'Projected order identifier',
+      }),
+    ])
+  )
+  expect(catalog.namespace.dialect).toEqual(
+    expect.objectContaining({
+      dialect: 'mysql',
+      version: 1,
+      data: expect.objectContaining({
+        selectedNamespace: 'shop',
+        views: true,
+        routines: true,
+        triggers: true,
+        partitions: true,
+        collations: true,
+      }),
+    })
+  )
+  expect(catalog.diagnostics).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        code: 'unmodeled-object',
+        path: ['deferredObjects', 'legacy_sequence'],
+      }),
+      expect.objectContaining({
+        code: 'unmodeled-object',
+        path: ['opaqueObjects', 'refresh_orders'],
+      }),
+    ])
+  )
+
+  const queryTexts = new Set(fake.calls.map(call => call.text))
+  expect(queryTexts).toEqual(
+    new Set([
+      mysqlServerQuery,
+      mysqlTablesQuery,
+      mysqlViewsQuery,
+      mysqlColumnsQuery,
+      mysqlKeyUsageQuery,
+      mysqlChecksQuery,
+      mysqlStatisticsQuery,
+      mysqlRoutinesQuery,
+      mysqlRoutineParametersQuery,
+      mysqlTriggersQuery,
+      mysqlPartitionsQuery,
+      mysqlCollationsQuery,
+      mysqlEventsQuery,
+    ])
+  )
+  expect(
+    fake.calls.find(call => call.text === mysqlCollationsQuery)?.parameters
+  ).toEqual(['shop', 'shop'])
+
+  const mapped = mapCatalogToCompleteSnapshot(catalog)
+  expect(mapped.ok).toBe(true)
+  if (!mapped.ok) return
+  expect(mapped.snapshot.version).toBe(2)
+  expect(mapped.snapshot.tables).toHaveLength(2)
+  expect(mapped.snapshot.views).toHaveLength(1)
+  expect(mapped.snapshot.collations).toHaveLength(1)
+  expect(mapped.snapshot.routines).toHaveLength(2)
+  expect(mapped.snapshot.triggers).toHaveLength(1)
+  expect(mapped.snapshot.partitions).toHaveLength(1)
+  expect(mapped.snapshot.deferredObjects).toEqual([
+    expect.objectContaining({
+      objectKind: 'other',
+      physicalName: 'legacy_sequence',
+    }),
+  ])
+  expect(mapped.snapshot.opaqueObjects).toEqual([
+    expect.objectContaining({
+      objectKind: 'event',
+      physicalName: 'refresh_orders',
+    }),
+  ])
+  expect(mapped.snapshot.comments.length).toBeGreaterThanOrEqual(6)
 })
 
 test('rejects MariaDB and unsupported MySQL versions', async () => {

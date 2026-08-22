@@ -69,10 +69,11 @@ result.snapshot.tables // canonical Snapshot v1 data
 
 Readers may expose additional typed object families through the normalized
 catalog. Use `createCompleteIntrospectionCatalog()` to materialize and freeze
-all optional collections, then `mapCatalogToCompleteSnapshot()` when views,
-sequences, routines, policies, comments, ownership, and retained opaque or
-deferred objects must cross the strict Snapshot v2 boundary. Snapshot v1 is
-still selected explicitly by `mapCatalogToSnapshot()` and remains table-shaped.
+all optional collections, then `mapCatalogToCompleteSnapshot()` when an
+adapter-supported family such as views, routines, triggers, partitions,
+collations, comments, or retained opaque and deferred objects must cross the
+strict Snapshot v2 boundary. Snapshot v1 is still selected explicitly by
+`mapCatalogToSnapshot()` and remains table-shaped.
 
 The result is successful only when Snapshot v1 validation succeeds. A failed
 result may retain the partial catalog and structured diagnostics, but it has no
@@ -129,6 +130,42 @@ declared types, derived affinity, generated expressions, rowid identity, and
 database is selected, table PRAGMAs may be visible but CREATE SQL remains
 limited to the fixed `main` and `temp` catalog statements, so the reader marks
 the catalog visibility as limited instead of combining namespaces.
+
+## MySQL 8 complete catalog surface
+
+The MySQL reader supports MySQL 8.0.16 and later within the MySQL 8 series and
+rejects MariaDB. It reads one selected database from `INFORMATION_SCHEMA` and
+keeps catalog SQL as tagged, unevaluated MySQL data. The complete catalog has
+typed records for views, routines and parameters, triggers, partitions,
+collations used by the selected tables or columns, and comments.
+
+View definitions come from `INFORMATION_SCHEMA.VIEWS`. The reader cross-
+references each view with its `INFORMATION_SCHEMA.COLUMNS` rows by physical
+table name, so view columns remain attached to the view and Snapshot v2 can
+validate their own column IDs. A missing definition or an unresolved
+cross-object reference becomes a deferred record with a diagnostic.
+
+MySQL scheduled events are kept as `CatalogOpaqueObject` records with their
+metadata and definition tagged as opaque SQL. The reader emits an
+`unmodeled-object` warning, and Snapshot v2 retains the record in
+`opaqueObjects` without treating it as a typed routine, trigger, or migration
+operation.
+
+Sequences and materialized views are not typed MySQL families. A sequence-like
+or other non-base table row reported by the catalog is retained as a deferred
+object. MySQL row-level security (RLS) policies, extension objects, and
+ownership are unsupported. Definers are retained as dialect metadata on
+objects that expose them; they do not become ownership records. MySQL capability flags mark
+these families as unsupported.
+
+The query and normalization layout follows the catalog-reading portions of the
+[Drizzle MySQL introspector](https://github.com/drizzle-team/drizzle-orm/blob/main/drizzle-kit/src/introspect-mysql.ts).
+Qubu keeps that metadata as normalized typed data and does not generate
+TypeScript declarations or evaluate database-provided SQL.
+
+Use `mapCatalogToCompleteSnapshot()` for the typed MySQL families and its
+opaque or deferred boundaries. Use `mapCatalogToSnapshot()` when the caller
+needs the table-only Snapshot v1.
 
 ## Diagnostics and safety
 

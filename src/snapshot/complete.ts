@@ -3164,6 +3164,9 @@ function validateCompleteCrossReferences(
     snapshot.ownership,
   ])
     for (const object of group) add(object as CompleteSnapshotObject)
+  for (const view of snapshot.views)
+    for (const column of view.columns)
+      add(column as unknown as CompleteSnapshotObject)
 
   const requireReference = (
     reference: CompleteSnapshotObjectReference,

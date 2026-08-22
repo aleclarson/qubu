@@ -20,19 +20,21 @@ silently downgrade to a different product's catalog rules.
 
 ## Catalog facts
 
-| Fact                        | PostgreSQL                                                                                                                                          | SQLite                                                                                   | MySQL                                                              |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Tables and visible columns  | `pg_class`, `pg_attribute`                                                                                                                          | `sqlite_schema`, `table_xinfo`                                                           | `TABLES`, `COLUMNS`                                                |
-| Native storage              | `format_type`                                                                                                                                       | declared type                                                                            | `COLUMN_TYPE`                                                      |
-| Defaults                    | `pg_get_expr`                                                                                                                                       | `dflt_value`                                                                             | `COLUMN_DEFAULT`                                                   |
-| Generated columns           | stored expressions                                                                                                                                  | stored/virtual when CREATE SQL is recoverable                                            | stored/virtual and `GENERATION_EXPRESSION`                         |
-| Identity behavior           | `attidentity`                                                                                                                                       | `INTEGER PRIMARY KEY`, `AUTOINCREMENT`                                                   | `AUTO_INCREMENT`                                                   |
-| Keys and foreign keys       | `pg_constraint`                                                                                                                                     | table metadata and `foreign_key_list`                                                    | `TABLE_CONSTRAINTS`, `KEY_COLUMN_USAGE`, `REFERENTIAL_CONSTRAINTS` |
-| Checks                      | `pg_constraint` and decompiled definition                                                                                                           | CREATE SQL                                                                               | `CHECK_CONSTRAINTS`                                                |
-| Indexes                     | `pg_index`, access method, decompiled terms                                                                                                         | `index_list`, `index_xinfo`, schema SQL                                                  | `STATISTICS`                                                       |
-| Complete PostgreSQL objects | views/materialized views, sequences, enums/domains, collations, triggers, routines, partitions, row-level policies, comments/owners, and extensions | N/A                                                                                      | N/A                                                                |
-| Complete SQLite objects     | N/A                                                                                                                                                 | views and triggers when CREATE SQL is recoverable; table/view columns from `table_xinfo` | N/A                                                                |
-| Deferred or opaque objects  | foreign tables and relation kinds without a safe typed mapping                                                                                      | virtual/shadow tables, attached-database boundaries, and unrecoverable definitions       | views and non-base tables                                          |
+| Fact                        | PostgreSQL                                                                                                                                          | SQLite                                                                                   | MySQL                                                                                                                               |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Tables and visible columns  | `pg_class`, `pg_attribute`                                                                                                                          | `sqlite_schema`, `table_xinfo`                                                           | `TABLES`, `COLUMNS`                                                                                                                 |
+| Native storage              | `format_type`                                                                                                                                       | declared type                                                                            | `COLUMN_TYPE`                                                                                                                       |
+| Defaults                    | `pg_get_expr`                                                                                                                                       | `dflt_value`                                                                             | `COLUMN_DEFAULT`                                                                                                                    |
+| Generated columns           | stored expressions                                                                                                                                  | stored/virtual when CREATE SQL is recoverable                                            | stored/virtual and `GENERATION_EXPRESSION`                                                                                          |
+| Identity behavior           | `attidentity`                                                                                                                                       | `INTEGER PRIMARY KEY`, `AUTOINCREMENT`                                                   | `AUTO_INCREMENT`                                                                                                                    |
+| Keys and foreign keys       | `pg_constraint`                                                                                                                                     | table metadata and `foreign_key_list`                                                    | `TABLE_CONSTRAINTS`, `KEY_COLUMN_USAGE`, `REFERENTIAL_CONSTRAINTS`                                                                  |
+| Checks                      | `pg_constraint` and decompiled definition                                                                                                           | CREATE SQL                                                                               | `CHECK_CONSTRAINTS`                                                                                                                 |
+| Indexes                     | `pg_index`, access method, decompiled terms                                                                                                         | `index_list`, `index_xinfo`, schema SQL                                                  | `STATISTICS`                                                                                                                        |
+| Complete PostgreSQL objects | views/materialized views, sequences, enums/domains, collations, triggers, routines, partitions, row-level policies, comments/owners, and extensions | N/A                                                                                      | N/A                                                                                                                                 |
+| Complete SQLite objects     | N/A                                                                                                                                                 | views and triggers when CREATE SQL is recoverable; table/view columns from `table_xinfo` | N/A                                                                                                                                 |
+| Complete MySQL objects      | N/A                                                                                                                                                 | N/A                                                                                      | typed views and view columns, routines and parameters, triggers, partitions, used collations, comments, and opaque scheduled events |
+| Unsupported MySQL families  | N/A                                                                                                                                                 | N/A                                                                                      | sequences, materialized views, row-level security (RLS) policies, extensions, and ownership                                         |
+| Deferred or opaque objects  | foreign tables and relation kinds without a safe typed mapping                                                                                      | virtual/shadow tables, attached-database boundaries, and unrecoverable definitions       | scheduled events are opaque; unknown or other non-base table rows are deferred                                                      |
 
 The readers preserve physical names and use database catalog identifiers only
 as current-run join keys. The normalized catalog keeps opaque SQL and its
@@ -92,6 +94,44 @@ The query and normalization seams follow the catalog-reading portions of the
 Drizzle's module generates source declarations; Qubu keeps the same SQLite
 metadata sources as normalized data and never evaluates database-provided SQL.
 
+## MySQL 8 complete catalog surface
+
+The MySQL reader accepts MySQL 8.0.16 and later within the MySQL 8 series. It
+rejects MariaDB and older MySQL versions instead of applying MySQL catalog
+rules to a different product or server version. It reads `INFORMATION_SCHEMA`
+rows for one selected database and retains database-provided SQL as tagged,
+unevaluated MySQL data.
+
+MySQL has typed complete records for views, routines and their parameters,
+triggers, partitions, collations used by selected tables or columns, and
+comments. View definitions come from `INFORMATION_SCHEMA.VIEWS`; each view's
+columns are joined back to the matching `COLUMNS` rows by physical table name,
+so the complete Snapshot v2 cross-reference points at the view's own column
+IDs. Missing view definitions or unresolved trigger, partition, or other
+object references become deferred records with diagnostics.
+
+Scheduled events are retained as `CatalogOpaqueObject` records. Their event
+metadata and definition remain opaque, and the reader emits an
+`unmodeled-object` warning. Snapshot v2 keeps these records in
+`opaqueObjects`; they are not treated as typed routines, triggers, or
+migration operations.
+
+The MySQL reader does not expose typed sequences or materialized views. A
+sequence-like or other non-base table row is retained as a deferred object
+when the catalog reports one. MySQL row-level security (RLS) policies,
+extension objects, and ownership are unsupported complete families. Definers on
+views, routines, triggers, and events remain dialect metadata; they do not
+become ownership records. The corresponding capability flags are false.
+
+The query and normalization layout follows the catalog-reading portions of the
+[Drizzle MySQL introspector](https://github.com/drizzle-team/drizzle-orm/blob/main/drizzle-kit/src/introspect-mysql.ts),
+while Qubu keeps the result as typed data instead of generating TypeScript
+declarations.
+
+Use `mapCatalogToCompleteSnapshot()` to retain these typed MySQL families and
+the opaque or deferred boundaries in Snapshot v2. Use `mapCatalogToSnapshot()`
+when a caller explicitly needs the existing table-only Snapshot v1.
+
 ## Snapshot v1 surface
 
 The mapper can emit these facts in canonical Snapshot v1:
@@ -125,8 +165,11 @@ Snapshot v1 objects:
   functional, full-text, or spatial index semantics.
 
 Use the complete catalog and Snapshot v2 mapper to retain supported PostgreSQL
-families. When a row cannot be normalized safely, the reader keeps a typed
-deferred or opaque record and emits a diagnostic instead of dropping it.
+and MySQL families. MySQL scheduled events stay opaque, and MySQL sequences,
+materialized views, row-level security (RLS) policies, extension objects, and
+ownership stay unsupported or deferred. When a row cannot be normalized safely, the reader
+keeps a typed deferred or opaque record and emits a diagnostic instead of
+dropping it.
 
 ## Upstream references
 
