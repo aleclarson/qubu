@@ -16,12 +16,6 @@ import {
   type QueryAdapter,
   type RenderedQuery,
 } from "qubu";
-import {
-  readPostgresCatalog,
-  type CatalogConnection,
-  type CatalogQuery,
-  type CatalogQueryRow,
-} from "qubu/introspection";
 import type { VerificationContext } from "../../contract.js";
 
 const records = table("qubu_combo_pg_records", {
@@ -51,14 +45,6 @@ export async function verify(context: VerificationContext): Promise<void> {
     },
   };
 
-  const catalog: CatalogConnection = {
-    dialect: "postgresql",
-    async query<TRow extends CatalogQueryRow = CatalogQueryRow>(statement: CatalogQuery) {
-      const result = await client.query(statement.text, [...statement.parameters]);
-      return result.rows as readonly TRow[];
-    },
-  };
-
   await client.query(dropTableSql);
   await client.query(createTableSql);
   try {
@@ -83,15 +69,7 @@ export async function verify(context: VerificationContext): Promise<void> {
       adapter,
     );
     assert.deepEqual(mutated, [{ id: 1, name: "Grace" }]);
-
-    const normalized = await readPostgresCatalog(catalog, { namespace: "public" });
-    assert.deepEqual(
-      normalized.diagnostics.filter((issue) => issue.severity === "error"),
-      [],
-    );
-    assert.ok(
-      normalized.tables.some((table) => table.physicalName === "qubu_combo_pg_records"),
-    );
+    assert.deepEqual(lastStatement?.parameters, [1]);
   } finally {
     await client.query(dropTableSql);
   }

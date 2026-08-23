@@ -15,8 +15,8 @@ jobs:
           path: qubu
       - uses: actions/checkout@v4
         with:
-          repository: aleclarson/qubu
-          ref: combos
+          repository: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           path: qubu/combos
       - uses: pnpm/action-setup@v4
         with:
@@ -49,8 +49,8 @@ jobs:
           path: qubu
       - uses: actions/checkout@v4
         with:
-          repository: aleclarson/qubu
-          ref: combos
+          repository: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           path: qubu/combos
       - uses: pnpm/action-setup@v4
         with:
@@ -111,8 +111,8 @@ jobs:
           path: qubu
       - uses: actions/checkout@v4
         with:
-          repository: aleclarson/qubu
-          ref: combos
+          repository: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
           path: qubu/combos
       - uses: pnpm/action-setup@v4
         with:

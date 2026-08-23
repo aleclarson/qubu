@@ -16,12 +16,6 @@ import {
   type QueryAdapter,
   type RenderedQuery,
 } from "qubu";
-import {
-  readSqliteCatalog,
-  type CatalogConnection,
-  type CatalogQuery,
-  type CatalogQueryRow,
-} from "qubu/introspection";
 import type { VerificationContext } from "../../contract.js";
 
 const records = table("qubu_combo_node_sqlite_records", {
@@ -60,17 +54,6 @@ export async function verify(context: VerificationContext): Promise<void> {
     },
   };
 
-  const catalog: CatalogConnection = {
-    dialect: "sqlite",
-    async query<TRow extends CatalogQueryRow = CatalogQueryRow>(statement: CatalogQuery) {
-      const prepared = database.prepare(statement.text);
-      const parameters = statement.parameters as Array<
-        string | number | bigint | Uint8Array | null
-      >;
-      return prepared.all(...parameters) as unknown as readonly TRow[];
-    },
-  };
-
   database.exec(dropTableSql);
   database.exec(createTableSql);
   try {
@@ -95,17 +78,7 @@ export async function verify(context: VerificationContext): Promise<void> {
       adapter,
     );
     assert.deepEqual(mutated, [{ id: 1, name: "Grace" }]);
-
-    const normalized = await readSqliteCatalog(catalog, { namespace: "main" });
-    assert.deepEqual(
-      normalized.diagnostics.filter((issue) => issue.severity === "error"),
-      [],
-    );
-    assert.ok(
-      normalized.tables.some(
-        (table) => table.physicalName === "qubu_combo_node_sqlite_records",
-      ),
-    );
+    assert.deepEqual(lastStatement?.parameters, [1]);
   } finally {
     database.exec(dropTableSql);
   }

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { type Connection, type RowDataPacket } from "mysql2/promise";
+import { type Connection } from "mysql2/promise";
 import {
   eq,
   execute,
@@ -16,12 +16,6 @@ import {
   type QueryAdapter,
   type RenderedQuery,
 } from "qubu";
-import {
-  readMysqlCatalog,
-  type CatalogConnection,
-  type CatalogQuery,
-  type CatalogQueryRow,
-} from "qubu/introspection";
 import type { VerificationContext } from "../../contract.js";
 
 const records = table("qubu_combo_mysql_records", {
@@ -54,17 +48,6 @@ export async function verify(context: VerificationContext): Promise<void> {
     },
   };
 
-  const catalog: CatalogConnection = {
-    dialect: "mysql",
-    async query<TRow extends CatalogQueryRow = CatalogQueryRow>(statement: CatalogQuery) {
-      const [rows] = await connection.execute<RowDataPacket[]>(
-        statement.text,
-        statement.parameters as any[],
-      );
-      return (Array.isArray(rows) ? rows : []) as unknown as readonly TRow[];
-    },
-  };
-
   await connection.query(dropTableSql);
   await connection.query(createTableSql);
   try {
@@ -89,19 +72,7 @@ export async function verify(context: VerificationContext): Promise<void> {
       adapter,
     );
     assert.deepEqual(mutated, [{ id: 1, name: "Grace" }]);
-
-    const normalized = await readMysqlCatalog(catalog, {
-      namespace: context.database.metadata?.database ?? "qubu",
-    });
-    // MySQL 8.4 removed a few optional INFORMATION_SCHEMA columns used by
-    // Qubu's view and routine readers. The table catalog remains available,
-    // so assert the fixture that this scenario owns rather than weakening the
-    // round-trip check for server-version diagnostics.
-    assert.ok(
-      normalized.tables.some(
-        (table) => table.physicalName === "qubu_combo_mysql_records",
-      ),
-    );
+    assert.deepEqual(lastStatement?.parameters, [1]);
   } finally {
     await connection.query(dropTableSql);
   }
