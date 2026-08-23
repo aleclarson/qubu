@@ -10,6 +10,7 @@ export default defineConfig({
     snapshot: 'src/snapshot/index.ts',
     diff: 'src/diff/index.ts',
     ddl: 'src/ddl/index.ts',
+    drizzle: 'src/drizzle/index.ts',
     migration: 'src/migration/index.ts',
     vite: 'src/vite/index.ts',
   },

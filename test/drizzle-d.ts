@@ -1,0 +1,117 @@
+import { drizzle as pgDrizzle } from 'drizzle-orm/node-postgres'
+import type { MySqlTable } from 'drizzle-orm/mysql-core'
+import type { PgTable } from 'drizzle-orm/pg-core'
+import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
+import {
+  toDrizzleSchema,
+  type DrizzleSchema,
+  type DrizzleTable,
+} from 'qubu/drizzle'
+import { expectTypeOf } from 'vitest'
+import {
+  column,
+  integer,
+  nativeColumn,
+  portableStorage,
+  schema,
+  table,
+  text,
+} from '../src/index.ts'
+
+type UserName = string & { readonly __brand: 'UserName' }
+
+const users = table('user_records', {
+  id: integer({ generated: true }),
+  name: text().$type<UserName>(),
+  nickname: text({ nullable: true }),
+  role: text({ default: 'member' }),
+})
+const appSchema = schema({ users })
+const postgres = toDrizzleSchema(appSchema, 'postgresql')
+const mysql = toDrizzleSchema(appSchema, 'mysql')
+const sqlite = toDrizzleSchema(appSchema, 'sqlite')
+
+type UserRow = {
+  id: number
+  name: UserName
+  nickname: string | null
+  role: string
+}
+type UserInsert = {
+  name: UserName
+  nickname: string | null
+  role?: string
+}
+
+expectTypeOf(postgres.users).toMatchTypeOf<PgTable>()
+expectTypeOf(mysql.users).toMatchTypeOf<MySqlTable>()
+expectTypeOf(sqlite.users).toMatchTypeOf<SQLiteTable>()
+expectTypeOf<typeof postgres.users.$inferSelect>().toEqualTypeOf<UserRow>()
+expectTypeOf<typeof postgres.users.$inferInsert>().toEqualTypeOf<UserInsert>()
+expectTypeOf<typeof mysql.users.$inferSelect>().toEqualTypeOf<UserRow>()
+expectTypeOf<typeof mysql.users.$inferInsert>().toEqualTypeOf<UserInsert>()
+expectTypeOf<typeof sqlite.users.$inferSelect>().toEqualTypeOf<UserRow>()
+expectTypeOf<typeof sqlite.users.$inferInsert>().toEqualTypeOf<UserInsert>()
+expectTypeOf(postgres).toEqualTypeOf<
+  DrizzleSchema<typeof appSchema, 'postgresql'>
+>()
+expectTypeOf(postgres.users).toEqualTypeOf<
+  DrizzleTable<typeof users, 'postgresql'>
+>()
+
+const db = pgDrizzle.mock({ schema: postgres })
+db.insert(postgres.users).values({
+  name: 'Ada' as UserName,
+  nickname: null,
+})
+
+db.update(postgres.users).set({ nickname: null, role: 'admin' })
+db.update(postgres.users).set({
+  // @ts-expect-error id is generated and cannot be updated.
+  id: 1,
+})
+db.update(postgres.users).set({
+  // @ts-expect-error $type() narrowing is retained by Drizzle writes.
+  name: 'Ada',
+})
+
+// Nullable Qubu columns remain required when they have no default.
+// @ts-expect-error nickname is required on insert.
+db.insert(postgres.users).values({ name: 'Ada' as UserName })
+
+// Generated Qubu columns stay unavailable to ordinary Drizzle inserts.
+db.insert(postgres.users).values({
+  // @ts-expect-error id is generated.
+  id: 1,
+  name: 'Ada' as UserName,
+  nickname: null,
+})
+
+const divergent = schema({
+  values: table('divergent_values', {
+    value: column<number, string, number>({
+      storage: portableStorage('integer'),
+    }),
+  }),
+})
+
+// Drizzle has one application value type per column.
+// @ts-expect-error divergent select, insert, and update types are not lossless.
+toDrizzleSchema(divergent, 'postgresql')
+
+const missingStorage = schema({
+  values: table('missing_storage', { value: column<number>() }),
+})
+
+// @ts-expect-error every converted column needs physical storage.
+toDrizzleSchema(missingStorage, 'postgresql')
+
+const mysqlNative = schema({
+  values: table('mysql_native', {
+    value: nativeColumn('mysql', 'VARCHAR(191)'),
+  }),
+})
+
+// @ts-expect-error native storage must belong to the selected dialect.
+toDrizzleSchema(mysqlNative, 'postgresql')
+toDrizzleSchema(mysqlNative, 'mysql')

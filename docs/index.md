@@ -20,6 +20,8 @@ define a table, build a `SELECT`, and inspect its SQL and parameters.
   subqueries, and set operations.
 - [Write mutations](guides/mutations.md) with typed `INSERT`, `UPDATE`, and
   `DELETE` statements.
+- [Use Qubu tables with Drizzle](guides/drizzle.md) while moving query call
+  sites without duplicating schema declarations.
 - [Extend Qubu](guides/extensions/overview.md) with a custom source, clause,
   dialect policy, or typed expression.
 - [Read JSON scalars](guides/json.md) from structured JSON paths.
