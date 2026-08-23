@@ -5,6 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest'
 import {
   eq,
   execute,
+  executeRows,
   fetchFirst,
   from,
   insertInto,
@@ -23,8 +24,11 @@ import {
 import { mysqlDialect } from '../../src/dialects/mysql.ts'
 import { postgresDialect } from '../../src/dialects/postgres.ts'
 import { sqliteDialect } from '../../src/dialects/sqlite.ts'
-import type { QueryAdapter } from '../../src/index.ts'
-import type { RenderedQuery } from '../../src/core/render.ts'
+import type {
+  ExecutionRequest,
+  ExecutionResult,
+  QueryAdapter,
+} from '../../src/index.ts'
 import type {
   CatalogConnection,
   CatalogDialect,
@@ -59,10 +63,9 @@ const records = table('qubu_e2e_records', {
 })
 
 interface E2eDriver {
-  query<TRow extends object = Record<string, unknown>>(
-    text: string,
-    parameters: readonly unknown[]
-  ): Promise<readonly TRow[]>
+  execute<TRow extends object = Record<string, unknown>>(
+    request: ExecutionRequest
+  ): Promise<ExecutionResult<TRow>>
   exec(text: string): Promise<void>
   close(): Promise<void>
 }
@@ -116,12 +119,17 @@ async function createDriver(dialect: LiveDialect): Promise<E2eDriver> {
     })
     await client.connect()
     return {
-      async query<TRow extends object>(
-        text: string,
-        parameters: readonly unknown[]
-      ) {
-        const result = await client.query(text, [...parameters])
-        return result.rows as readonly TRow[]
+      async execute<TRow extends object>(request: ExecutionRequest) {
+        request.signal?.throwIfAborted()
+        const result = await client.query(request.statement.text, [
+          ...request.statement.parameters,
+        ])
+        return {
+          rows: result.rows as unknown as readonly TRow[],
+          ...(isMutation(request) && result.rowCount !== null
+            ? { affectedRows: result.rowCount }
+            : {}),
+        }
       },
       async exec(text: string) {
         await client.query(text)
@@ -141,12 +149,22 @@ async function createDriver(dialect: LiveDialect): Promise<E2eDriver> {
       database: process.env.MYSQL_DATABASE ?? 'qubu',
     })
     return {
-      async query<TRow extends object>(
-        text: string,
-        parameters: readonly unknown[]
-      ) {
-        const [rows] = await connection.query(text, [...parameters])
-        return (Array.isArray(rows) ? rows : []) as unknown as readonly TRow[]
+      async execute<TRow extends object>(request: ExecutionRequest) {
+        request.signal?.throwIfAborted()
+        const [result] = await connection.query(request.statement.text, [
+          ...request.statement.parameters,
+        ])
+        if (Array.isArray(result)) {
+          return { rows: result as unknown as readonly TRow[] }
+        }
+        return {
+          rows: [] as readonly TRow[],
+          affectedRows: result.affectedRows,
+          changedRows: result.changedRows,
+          ...(request.queryKind === 'insert' && result.insertId !== 0
+            ? { insertId: result.insertId }
+            : {}),
+        }
       },
       async exec(text: string) {
         await connection.query(text)
@@ -159,19 +177,29 @@ async function createDriver(dialect: LiveDialect): Promise<E2eDriver> {
 
   const database = new DatabaseSync(':memory:')
   return {
-    async query<TRow extends object>(
-      text: string,
-      parameters: readonly unknown[]
-    ) {
-      const statement = database.prepare(text)
-      const bindParameters = parameters as unknown as Array<
+    async execute<TRow extends object>(request: ExecutionRequest) {
+      request.signal?.throwIfAborted()
+      const statement = database.prepare(request.statement.text)
+      const bindParameters = request.statement.parameters as unknown as Array<
         string | number | bigint | Uint8Array | null
       >
-      if (/^\s*(SELECT|WITH|PRAGMA)/i.test(text)) {
-        return statement.all(...bindParameters) as unknown as readonly TRow[]
+      if (!isMutation(request) || statement.columns().length > 0) {
+        const rows = statement.all(
+          ...bindParameters
+        ) as unknown as readonly TRow[]
+        return {
+          rows,
+          ...(isMutation(request) ? { affectedRows: rows.length } : {}),
+        }
       }
-      statement.run(...bindParameters)
-      return [] as readonly TRow[]
+      const result = statement.run(...bindParameters)
+      return {
+        rows: [] as readonly TRow[],
+        affectedRows: result.changes,
+        ...(request.queryKind === 'insert'
+          ? { insertId: result.lastInsertRowid }
+          : {}),
+      }
     },
     async exec(text: string) {
       database.exec(text)
@@ -194,16 +222,20 @@ async function createEnvironment(
   const driver = await createDriver(dialectName)
   const adapter: QueryAdapter = {
     dialect,
-    execute<TRow extends object>(statement: RenderedQuery) {
-      return driver.query<TRow>(statement.text, statement.parameters)
+    execute<TRow extends object>(request: ExecutionRequest) {
+      return driver.execute<TRow>(request)
     },
   }
   const catalog: CatalogConnection = {
     dialect: dialectName,
-    query<TRow extends CatalogQueryRow = CatalogQueryRow>(
+    async query<TRow extends CatalogQueryRow = CatalogQueryRow>(
       statement: CatalogQuery
     ) {
-      return driver.query<TRow>(statement.text, statement.parameters)
+      const result = await driver.execute<TRow>({
+        statement,
+        queryKind: 'select',
+      })
+      return result.rows
     },
   }
 
@@ -219,6 +251,14 @@ async function createEnvironment(
           ? 'qubu'
           : 'main',
   }
+}
+
+function isMutation(request: ExecutionRequest) {
+  return (
+    request.queryKind === 'insert' ||
+    request.queryKind === 'update' ||
+    request.queryKind === 'delete'
+  )
 }
 
 async function readCatalog(environment: E2eEnvironment) {
@@ -237,8 +277,8 @@ async function readCatalog(environment: E2eEnvironment) {
   })
 }
 
-async function seedAda(environment: E2eEnvironment) {
-  await execute(
+function seedAda(environment: E2eEnvironment) {
+  return execute(
     insertInto(
       records,
       values({
@@ -289,7 +329,7 @@ describe.skipIf(!selectedDialect)('live dialect E2E', () => {
       fetchFirst(1)
     )
 
-    await expect(execute(query, environment.adapter)).resolves.toEqual([
+    await expect(executeRows(query, environment.adapter)).resolves.toEqual([
       { id: 1, name: 'Ada', payloadName: 'Ada' },
     ])
   }, 30_000)
@@ -297,8 +337,8 @@ describe.skipIf(!selectedDialect)('live dialect E2E', () => {
   test('executes mutations and observes their results', async () => {
     if (!environment) throw new Error('E2E environment was not initialized')
 
-    await seedAda(environment)
-    await execute(
+    const insertion = await seedAda(environment)
+    const mutation = await execute(
       update(records, { name: 'Grace' }, where(eq(records.id, 1))),
       environment.adapter
     )
@@ -309,7 +349,10 @@ describe.skipIf(!selectedDialect)('live dialect E2E', () => {
       where(eq(records.id, 1))
     )
 
-    await expect(execute(query, environment.adapter)).resolves.toEqual([
+    expect(mutation.affectedRows).toBe(1)
+    if (dialectName === 'sqlite') expect(insertion.insertId).toBe(1)
+    if (dialectName === 'mysql') expect(mutation.changedRows).toBe(1)
+    await expect(executeRows(query, environment.adapter)).resolves.toEqual([
       { name: 'Grace' },
     ])
   }, 30_000)

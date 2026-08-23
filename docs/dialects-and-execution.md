@@ -82,35 +82,74 @@ does not re-export concrete dialect constructors.
 ## The adapter owns the driver
 
 Qubu does not open connections, bind values for a particular client, decode
-rows, or manage transactions. An adapter receives the rendered statement and
-returns application rows:
+rows, or manage transactions. An adapter receives an `ExecutionRequest` and
+returns an `ExecutionResult`:
 
 ```ts
-import { execute } from 'qubu'
+import { execute, executeRows } from 'qubu'
 import { postgresDialect } from 'qubu/postgres'
-import type { QueryAdapter } from 'qubu'
+import type { ExecutionRequest, ExecutionResult, QueryAdapter } from 'qubu'
 
-declare const client: {
-  query(
+declare const driver: {
+  query<TRow extends object>(
     text: string,
-    parameters: readonly unknown[]
-  ): Promise<{ rows: readonly object[] }>
+    parameters: readonly unknown[],
+    options: { signal?: AbortSignal }
+  ): Promise<{ rows: readonly TRow[]; rowCount: number | null }>
 }
 
 const adapter: QueryAdapter = {
   dialect: postgresDialect(),
-  async execute<TRow extends object>(statement) {
-    const result = await client.query(statement.text, statement.parameters)
-    return result.rows as readonly TRow[]
+  async execute<TRow extends object>(request: ExecutionRequest) {
+    const { statement, queryKind, signal } = request
+    const result = await driver.query<TRow>(
+      statement.text,
+      statement.parameters,
+      { signal }
+    )
+    return {
+      rows: result.rows,
+      ...(queryKind !== 'select' &&
+      queryKind !== 'set' &&
+      result.rowCount !== null
+        ? { affectedRows: result.rowCount }
+        : {}),
+    } satisfies ExecutionResult<TRow>
   },
 }
 
-const rows = await execute(query, adapter)
+const controller = new AbortController()
+const result = await execute(query, adapter, {
+  signal: controller.signal,
+})
+
+result.rows
+result.affectedRows
+
+const rows = await executeRows(readQuery, adapter)
 ```
 
-The adapter's `dialect` becomes the default for `execute()`. Pass a render
-option only when the execution call needs to override that policy. Driver error
-types and transaction behavior pass through the adapter boundary unchanged.
+Use `execute()` when a mutation needs more than returned rows. Use
+`executeRows()` for the row array alone. Both functions infer each row from the
+query projection.
+
+| Result field   | Type                         | Adapter contract                                                                      |
+| -------------- | ---------------------------- | ------------------------------------------------------------------------------------- |
+| `rows`         | `readonly TRow[]`            | Always present; use an empty array for a mutation without returned rows               |
+| `affectedRows` | `number \| bigint`           | Rows inserted, updated, or deleted when the driver reports an affected count          |
+| `changedRows`  | `number \| bigint`           | Rows whose stored values changed when the driver distinguishes them from matched rows |
+| `insertId`     | `string \| number \| bigint` | One insert identifier when the driver reports it                                      |
+
+The last three fields are optional. For example, an adapter can map PostgreSQL
+`rowCount`, MySQL `affectedRows`, `changedRows`, and `insertId`, or SQLite
+`changes` and `lastInsertRowid`. Omit a fact that the selected driver cannot
+report accurately. Qubu does not derive mutation metadata from returned rows.
+
+The adapter's `dialect` becomes the default for both execution functions. A
+`dialect` in the execution options overrides that rendering policy. Qubu
+passes `signal` and the query's `queryKind` to the adapter without changing
+them. The adapter decides whether and how its driver supports cancellation.
+Driver errors pass through unchanged.
 
 ```mermaid
 sequenceDiagram
@@ -119,14 +158,13 @@ sequenceDiagram
   participant Adapter as QueryAdapter
   participant Driver as Database driver
 
-  App->>Qubu: render(query, dialect)
-  Qubu-->>App: text + ordered parameters
-  App->>Adapter: execute(query, adapter)
-  Adapter->>Qubu: render with adapter.dialect
-  Qubu-->>Adapter: RenderedQuery
+  App->>Qubu: execute(query, adapter, options)
+  Qubu->>Qubu: render with selected dialect
+  Qubu->>Adapter: statement + queryKind + signal
   Adapter->>Driver: bind and execute
-  Driver-->>Adapter: driver rows or error
-  Adapter-->>App: typed application rows
+  Driver-->>Adapter: driver result or error
+  Adapter-->>Qubu: typed rows + optional mutation facts
+  Qubu-->>App: result envelope or rows
 ```
 
 ## Create a small custom dialect

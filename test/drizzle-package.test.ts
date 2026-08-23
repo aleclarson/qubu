@@ -4,8 +4,10 @@ import * as drizzle from 'qubu/drizzle'
 import buildConfig from '../tsdown.config.ts'
 
 type PackageManifest = {
-  exports: Record<string, string>
-  publishConfig: { exports: Record<string, string> }
+  exports: Record<string, string | { types: string }>
+  publishConfig: {
+    exports: Record<string, string | { types: string; import?: string }>
+  }
 }
 
 const manifest = JSON.parse(
@@ -53,10 +55,22 @@ test('publishes one build entry for each Drizzle dialect', () => {
     './drizzle/sqlite': './src/drizzle/sqlite.ts',
   })
   expect(manifest.publishConfig.exports).toMatchObject({
-    './drizzle': './dist/drizzle.mjs',
-    './drizzle/mysql': './dist/drizzle-mysql.mjs',
-    './drizzle/postgres': './dist/drizzle-postgres.mjs',
-    './drizzle/sqlite': './dist/drizzle-sqlite.mjs',
+    './drizzle': {
+      types: './dist/drizzle.d.mts',
+      import: './dist/drizzle.mjs',
+    },
+    './drizzle/mysql': {
+      types: './dist/drizzle-mysql.d.mts',
+      import: './dist/drizzle-mysql.mjs',
+    },
+    './drizzle/postgres': {
+      types: './dist/drizzle-postgres.d.mts',
+      import: './dist/drizzle-postgres.mjs',
+    },
+    './drizzle/sqlite': {
+      types: './dist/drizzle-sqlite.d.mts',
+      import: './dist/drizzle-sqlite.mjs',
+    },
   })
   expect(buildConfig.entry).toMatchObject({
     drizzle: 'src/drizzle/index.ts',

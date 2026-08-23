@@ -45,7 +45,7 @@ define a table, build a `SELECT`, and inspect its SQL and parameters.
 
 The same query value can be rendered for inspection or passed to an adapter for
 execution. The adapter, not the query builder, owns the database connection and
-driver-specific row handling.
+driver-specific row and mutation-result handling.
 
 ```mermaid
 flowchart LR
@@ -54,7 +54,7 @@ B --> C["Typed query"]
 C --> D["Dialect renderer"]
 D --> E["SQL text + ordered parameters"]
 E --> F["Driver-owned adapter"]
-F --> G["Application rows"]
+F --> G["Rows + optional mutation facts"]
 ```
 
 Values become bound parameters, and the active dialect quotes identifiers. Raw

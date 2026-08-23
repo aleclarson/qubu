@@ -88,6 +88,7 @@ select({ id: users.id }, from(users));`,
 test('exposes ambient Qubu value types', () => {
   const typedTable: typeof table = undefined as never
   const typedSelect: typeof select = undefined as never
+  const typedExecuteRows: typeof executeRows = undefined as never
   const typedJsonPath: typeof jsonPath = undefined as never
   const typedCheck: typeof check = undefined as never
   const typedForeignKey: typeof foreignKey = undefined as never
@@ -96,6 +97,7 @@ test('exposes ambient Qubu value types', () => {
 
   expectTypeOf(typedTable).toBeFunction()
   expectTypeOf(typedSelect).toBeFunction()
+  expectTypeOf(typedExecuteRows).toBeFunction()
   expectTypeOf(typedJsonPath).toBeFunction()
   expectTypeOf(typedCheck).toBeFunction()
   expectTypeOf(typedForeignKey).toBeFunction()

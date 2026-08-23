@@ -39,6 +39,7 @@ declare global {
   const eq: typeof import('qubu').eq
   const except: typeof import('qubu').except
   const execute: typeof import('qubu').execute
+  const executeRows: typeof import('qubu').executeRows
   const externalDefault: typeof import('qubu').externalDefault
   const externalGeneratedColumn: typeof import('qubu').externalGeneratedColumn
   const exists: typeof import('qubu').exists
@@ -279,6 +280,10 @@ declare global {
     TCapability extends
       import('qubu').DialectCapability = import('qubu').DialectCapability,
   > = import('qubu').RequiresCapabilityMeta<TCapability>
+  type ExecutionOptions = import('qubu').ExecutionOptions
+  type ExecutionRequest = import('qubu').ExecutionRequest
+  type ExecutionResult<TRow extends object = Record<string, unknown>> =
+    import('qubu').ExecutionResult<TRow>
   type QueryAdapter = import('qubu').QueryAdapter
   type RenderedQuery = import('qubu').RenderedQuery
   type MutationQuery<

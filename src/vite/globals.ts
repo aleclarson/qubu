@@ -39,6 +39,7 @@ export const qubuGlobals = [
   'eq',
   'except',
   'execute',
+  'executeRows',
   'externalDefault',
   'externalGeneratedColumn',
   'exists',
