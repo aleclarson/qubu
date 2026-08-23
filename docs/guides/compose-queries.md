@@ -74,7 +74,7 @@ so downstream text operations remain checked without redeclaring the field.
 `scalar()` turns a query with exactly one selected field into an expression:
 
 ```ts
-import { scalar, value } from 'qubu'
+import { from, scalar, select, value } from 'qubu'
 
 const firstId = select({ id: users.id }, from(users))
 const query = select(
@@ -101,7 +101,7 @@ Set operations preserve the left query's row shape. Both queries must select
 compatible rows:
 
 ```ts
-import { unionAll } from 'qubu'
+import { eq, from, select, unionAll, where } from 'qubu'
 
 const first = select({ id: users.id }, from(users))
 const second = select({ id: users.id }, from(users), where(eq(users.id, 7)))
@@ -118,22 +118,24 @@ are collected in traversal order.
 Build reusable pieces as ordinary values and pass them into the final query:
 
 ```ts
-import { desc, eq, orderBy, where } from 'qubu'
+import { desc, eq, from, orderBy, select, where } from 'qubu'
 
 const byId = where(eq(users.id, 7))
 const newest = orderBy(desc(users.id))
 
 const query = select(
   { id: users.id, name: users.name },
-  newest,
+  from(users),
   byId,
-  from(users)
+  newest
 )
 ```
 
 This makes it possible to share a predicate or projection without mutating a
 query object. The final `select()` call remains the place where source scope
-and result shape are checked.
+and result shape are checked. Qubu also accepts these independent values in
+another order, but SQL order is the canonical visual style for finished query
+code.
 
 ## Constrain a reusable fragment by required fields
 

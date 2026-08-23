@@ -16,18 +16,18 @@ contextual literals.
 
 Built-in helpers use portable storage descriptors:
 
-| Helper                     | Portable storage |
-| -------------------------- | ---------------- |
-| integer()                  | integer          |
-| numeric()                  | numeric          |
-| text()                     | text             |
-| boolean()                  | boolean          |
-| date()                     | date             |
-| timestamp() and dateTime() | timestamp        |
-| uuid()                     | uuid             |
-| json<T>()                  | json             |
-| bigint()                   | bigint           |
-| binary() and blob()        | binary           |
+| Helper      | Portable storage |
+| ----------- | ---------------- |
+| integer()   | integer          |
+| numeric()   | numeric          |
+| text()      | text             |
+| boolean()   | boolean          |
+| date()      | date             |
+| timestamp() | timestamp        |
+| uuid()      | uuid             |
+| json<T>()   | json             |
+| bigint()    | bigint           |
+| binary()    | binary           |
 
 Use a dialect-native descriptor when a column needs an exact vendor
 declaration:
@@ -52,7 +52,8 @@ can be rendered for checks, generated columns, indexes, and other declaration
 metadata:
 
 ```ts
-import { eq, renderSchemaSql, table, text } from 'qubu'
+import { eq, table, text } from 'qubu'
+import { renderSchemaSql } from 'qubu/schema'
 
 const accounts = table('accounts', { status: text() })
 
@@ -73,7 +74,7 @@ subqueries are rejected in every schema mode.
 An extension must opt into the schema contract with `defineSchemaExpression()`:
 
 ```ts
-import { defineSchemaExpression, renderSchemaSql } from 'qubu'
+import { defineSchemaExpression, renderSchemaSql } from 'qubu/schema'
 
 const currentDate = defineSchemaExpression('function', context => {
   context.append('CURRENT_DATE')

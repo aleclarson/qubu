@@ -38,7 +38,6 @@ complete metadata when schema tooling also needs the database fact:
 ```ts
 import {
   boolean,
-  defineSchemaExpression,
   generatedColumn,
   identityColumn,
   integer,
@@ -46,6 +45,7 @@ import {
   text,
   value,
 } from 'qubu'
+import { defineSchemaExpression } from 'qubu/schema'
 
 const currentTimestamp = defineSchemaExpression('function', context => {
   context.append('CURRENT_TIMESTAMP')

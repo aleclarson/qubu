@@ -102,8 +102,6 @@ const query = deleteFrom(
 )
 ```
 
-`deleteFrom()` is also exported as `removeFrom()`.
-
 ## Keep unrestricted writes explicit
 
 Both `UPDATE` and `DELETE` require a `WHERE` clause by default. If an operation
@@ -121,8 +119,9 @@ unrestricted operation is intended.
 
 ## Return typed rows
 
-`returning()` uses the same named object projection as `SELECT`. Use
-`{ ...all(table) }` when every table column should be returned. When present,
+`returning()` uses the same named object projection as `SELECT`. Reserve
+`{ ...all(table) }` for the intentional contract of returning every table
+column. When present,
 the mutation's `row` type is inferred from that projection, so an adapter can
 return the affected rows with the same shape as a read query. The projection's
 SQL semantic domains are retained too, so a returned query used by typed

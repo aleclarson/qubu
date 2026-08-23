@@ -90,16 +90,9 @@ Use `customSource()` for a table-valued function or another relation that
 definitions, and complete relation renderer:
 
 ```ts
-import {
-  customSource,
-  eq,
-  from,
-  identifier,
-  integer,
-  select,
-  text,
-  where,
-} from 'qubu'
+import { eq, from, integer, select, text, where } from 'qubu'
+import { identifier } from 'qubu/core'
+import { customSource } from 'qubu/schema'
 
 const entries = customSource({
   identity: {

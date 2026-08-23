@@ -8,7 +8,8 @@ Qubu extensions are ordinary fragments. A custom clause supplies a placement,
 render order, and renderer:
 
 ```ts
-import { customClause, from, render, select, table, text } from 'qubu'
+import { from, render, select, table, text } from 'qubu'
+import { customClause } from 'qubu/core'
 
 const users = table('users', { name: text() })
 
@@ -40,15 +41,9 @@ shape is known to the application but cannot be declared with `table()`. Its
 table, while `from()` or a join supplies the source to the query scope:
 
 ```ts
-import {
-  customSource,
-  from,
-  identifier,
-  integer,
-  render,
-  select,
-  text,
-} from 'qubu'
+import { from, integer, render, select, text } from 'qubu'
+import { identifier } from 'qubu/core'
+import { customSource } from 'qubu/schema'
 
 const rows = customSource({
   identity: { sourceKind: 'table-function', name: 'json_each', alias: 'row' },

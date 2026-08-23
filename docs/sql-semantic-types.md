@@ -20,18 +20,18 @@ different JavaScript output and write types for its driver.
 
 Schema helpers attach these portable semantic domains:
 
-| Helpers                     | SQL domain     | Portable capabilities               |
-| --------------------------- | -------------- | ----------------------------------- |
-| `text()`                    | `SqlText`      | text, equality, ordering            |
-| `uuid()`                    | `SqlUuid`      | equality                            |
-| `integer()`                 | `SqlInteger`   | numeric, equality, numeric ordering |
-| `numeric()`                 | `SqlDecimal`   | numeric, equality, numeric ordering |
-| `boolean()`                 | `SqlBoolean`   | equality                            |
-| `date()`                    | `SqlDate`      | equality, date ordering             |
-| `timestamp()`, `dateTime()` | `SqlTimestamp` | equality, timestamp ordering        |
-| `json<T>()`                 | `SqlJson<T>`   | no portable comparison capability   |
-| `bigint()`                  | `SqlBigInt`    | numeric, equality, numeric ordering |
-| `binary()`, `blob()`        | `SqlBinary`    | equality                            |
+| Helpers       | SQL domain     | Portable capabilities               |
+| ------------- | -------------- | ----------------------------------- |
+| `text()`      | `SqlText`      | text, equality, ordering            |
+| `uuid()`      | `SqlUuid`      | equality                            |
+| `integer()`   | `SqlInteger`   | numeric, equality, numeric ordering |
+| `numeric()`   | `SqlDecimal`   | numeric, equality, numeric ordering |
+| `boolean()`   | `SqlBoolean`   | equality                            |
+| `date()`      | `SqlDate`      | equality, date ordering             |
+| `timestamp()` | `SqlTimestamp` | equality, timestamp ordering        |
+| `json<T>()`   | `SqlJson<T>`   | no portable comparison capability   |
+| `bigint()`    | `SqlBigInt`    | numeric, equality, numeric ordering |
+| `binary()`    | `SqlBinary`    | equality                            |
 
 Capabilities describe portable operation families. `SqlTextLike` is accepted
 by text functions and pattern matching, `SqlNumericLike` by arithmetic and
@@ -40,10 +40,10 @@ and ordering groups allow related domains to interoperate: `SqlInteger` and
 `SqlDecimal` share the `numeric` group, for example.
 
 Specific result domains are still retained. `lower(textColumn)` produces
-`SqlText`, while `average(integerColumn)` produces `SqlDecimal`:
+`SqlText`, while `avg(integerColumn)` produces `SqlDecimal`:
 
 ```ts
-import { average, integer, lower, table, text } from 'qubu'
+import { avg, integer, lower, table, text } from 'qubu'
 import type { SqlTypeOf } from 'qubu'
 
 const metrics = table('metrics', {
@@ -55,7 +55,7 @@ const normalized = lower(metrics.label)
 type LowerDomain = SqlTypeOf<typeof normalized>
 // SqlText
 
-const mean = average(metrics.sampleCount)
+const mean = avg(metrics.sampleCount)
 type MeanDomain = SqlTypeOf<typeof mean>
 // SqlDecimal
 ```

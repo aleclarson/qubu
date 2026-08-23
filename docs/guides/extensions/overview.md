@@ -5,6 +5,12 @@
 Qubu extensions are values that render SQL and carry the metadata later
 composition needs. Choose the page that matches the thing you are adding:
 
+Ordinary query code stays on the `qubu` root entrypoint. Import fragment,
+dialect, and extension constructors from `qubu/core`; import custom sources and
+schema-expression constructors from `qubu/schema`. The [supported
+surface](../../reference/supported-surface.md) keeps the full entrypoint map in
+one place.
+
 | You need to add...                  | Read...                                       |
 | ----------------------------------- | --------------------------------------------- |
 | A custom relation or clause         | [Sources and clauses](sources-and-clauses.md) |

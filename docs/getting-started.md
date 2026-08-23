@@ -13,6 +13,11 @@ pnpm add qubu
 Import query-building functions from the package root. Qubu does not need a
 database connection to construct or render a query.
 
+The examples use the same order as the rendered statement: projection, `FROM`,
+then `WHERE`, ordering, grouping, and pagination. `select()` still accepts
+independent clauses in any order, which lets reusable values be composed, but
+keeping the final call in SQL order makes the query easy to scan and repair.
+
 ## Define a table
 
 Use `table()` once for each query-facing table. Column helpers describe the
@@ -33,9 +38,10 @@ nullable email column is inferred as `string | null` when selected.
 
 ## Build and render a query
 
-Pass a projection and independent clauses to `select()`. Clauses may be
-written in the order that reads best; Qubu renders them in SQL order.
-The example uses the `users` table from the previous section.
+Pass a named projection and the final clauses to `select()` in SQL order. Qubu
+also accepts independent clause values in another order when composition needs
+it, then renders the normalized statement in SQL order. The example uses the
+`users` table from the previous section.
 
 ```ts
 import { eq, from, render, select, where } from 'qubu'
@@ -45,8 +51,8 @@ const query = select(
     id: users.id,
     displayName: users.name,
   },
-  where(eq(users.id, 7)),
-  from(users)
+  from(users),
+  where(eq(users.id, 7))
 )
 
 const statement = render(query)

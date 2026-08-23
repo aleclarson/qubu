@@ -3,7 +3,9 @@
   "version": "0.2.1",
   "type": "module",
   "files": [
-    "dist"
+    "dist",
+    "docs",
+    "skills"
   ],
   "exports": {
     ".": "./src/index.ts",

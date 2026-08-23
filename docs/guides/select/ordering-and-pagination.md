@@ -39,11 +39,11 @@ import {
 
 const page = select(
   { id: users.id, name: users.name },
+  from(users),
+  where(eq(users.id, 7)),
   orderBy(desc(users.name)),
   offset(20),
-  fetchFirst(20),
-  where(eq(users.id, 7)),
-  from(users)
+  fetchFirst(20)
 )
 ```
 

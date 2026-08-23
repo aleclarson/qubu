@@ -8,7 +8,8 @@ identifiers, placeholders, or pagination:
 The examples assume a query has already been built.
 
 ```ts
-import { createDialect, render } from 'qubu'
+import { render } from 'qubu'
+import { createDialect } from 'qubu/core'
 
 const colonDialect = createDialect({
   name: 'colon',

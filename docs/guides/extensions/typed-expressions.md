@@ -7,8 +7,10 @@
 The examples use the `users` table from [Sources and clauses](sources-and-clauses.md).
 
 `fragment()`, `makeExpression()`, `parameter()`, `identifier()`, `syntax()`,
-`customClause()`, and `customSource()` are the public building blocks for
-extensions. Preserve the same metadata model that built-ins use:
+`customClause()`, and `customSource()` are public extension building blocks.
+Import fragment, dialect, and expression constructors from `qubu/core`; import
+custom source and schema metadata constructors from `qubu/schema`. Preserve the
+same metadata model that built-ins use:
 
 - use `RequiresSourceMeta<Source>` for every source that the expression reads;
 - use `ResultMeta<Output, NullableFrom, SqlType>` when the fragment exposes a
@@ -59,7 +61,7 @@ nullability comes from the operand and write flags have no cast meaning.
 Declare result domains at other extension boundaries too:
 
 ```ts
-import { typedCall, typedCast, typedValue, unsafeExpression } from 'qubu'
+import { typedCall, typedCast, typedValue, unsafeExpression } from 'qubu/core'
 import type { SqlText, SqlUuid } from 'qubu'
 
 const id = typedValue<SqlUuid, string>('108cb836-20d2-41b2-8c23-f0c94700aa7e')

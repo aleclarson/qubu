@@ -7,6 +7,11 @@ compose without a mutable query builder. TypeScript tracks selected row shapes,
 source scope, and nullability, while rendering returns SQL text and ordered
 parameters.
 
+The preferred source style names each projected field and writes the final
+`select()` clauses in SQL order. Clause values remain order-independent at
+runtime, so a reusable `where()` or `orderBy()` fragment can be built earlier
+and placed in that final call where it reads best.
+
 ## Start here
 
 If this is your first query, follow [Getting started](getting-started.md) to
@@ -33,6 +38,8 @@ define a table, build a `SELECT`, and inspect its SQL and parameters.
   safety diagnostics.
 - [Build migration plans](schema/migration-plans.md) as reviewed, deterministic
   data before a later DDL step.
+- [Emit approved DDL](schema/ddl-emission.md) with dialect preflight while
+  leaving connection and migration execution to the application.
 
 ## The Qubu pipeline
 
@@ -97,5 +104,7 @@ The [supported features](reference/supported-surface.md) page lists package
 entrypoints and boundaries. [Troubleshooting](troubleshooting.md) starts from
 common errors and points to the concept page behind each one.
 
-Qubu builds and renders SQL; it does not provide an ORM, migrations, connection
-pooling, transactions, or relationship loading.
+Qubu builds and renders query SQL, snapshots schema facts, compares snapshots,
+plans reviewed changes, and can emit deterministic DDL. It does not open a
+database connection, execute migrations, provide an ORM, manage connection
+pooling or transactions, or load relationships.

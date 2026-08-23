@@ -26,8 +26,9 @@ type Row = typeof query.row
 // { id: number; displayName: string }
 ```
 
-The projection key also names the SQL output column. `all(source)` expands to
-explicit named columns, so the SQL columns and inferred row keys stay aligned:
+The projection key also names the SQL output column. Use explicit fields for a
+shaped result. Reserve `all(source)` for a whole-source result contract. It
+expands to named columns, so the SQL columns and inferred row keys stay aligned:
 
 ```ts
 import { all, from, select, upper } from 'qubu'

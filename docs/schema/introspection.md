@@ -39,7 +39,7 @@ const connection: CatalogConnection = {
   dialect: 'sqlite',
   query(statement, options) {
     // Adapt this call to the driver used by the application.
-    return db.query(statement.text, statement.parameters, options)
+    return db.query(statement, options)
   },
 }
 ```
@@ -58,7 +58,10 @@ format:
 import { mapCatalogToSnapshot, readSqliteCatalog } from 'qubu/introspection'
 
 const catalog = await readSqliteCatalog(connection, { namespace: 'main' })
-const result = mapCatalogToSnapshot(catalog, { namespace: 'main' })
+const result = mapCatalogToSnapshot(catalog, {
+  namespace: 'main',
+  mode: 'strict',
+})
 
 if (!result.ok) {
   throw new Error(result.diagnostics.map(issue => issue.message).join('\n'))

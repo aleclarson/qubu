@@ -83,8 +83,9 @@ render(query)
 // parameters: [7, '%Ada%']
 ```
 
-The parameter array follows the placeholders in the rendered text, even when
-clauses were passed to `select()` in another order.
+The parameter array follows the placeholders in the rendered text. `select()`
+normalizes independent clause values, but keep the final call in SQL order in
+new code so source scope and repair hints are visible at a glance.
 
 ## Keep the boundary explicit
 

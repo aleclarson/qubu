@@ -27,14 +27,19 @@ render(query).text
 // SELECT "users"."id" AS "id", "users"."name" AS "name" FROM "users" WHERE ("users"."id" = ?)
 ```
 
-An object projection uses its keys as result names. `all(source)` returns the
-source's columns as a named projection object, so it can be spread alongside
-computed expressions:
+An object projection uses its keys as result names. Name the fields you intend
+to return in the usual case. Reserve `all(source)` for a result contract that
+intentionally returns every source column. It returns the source's columns as a
+named projection object, so it can still be spread alongside computed
+expressions:
 
 ```ts
 import { all, from, select, upper } from 'qubu'
 
-select({ ...all(users), normalizedName: upper(users.name) }, from(users))
+const query = select(
+  { ...all(users), normalizedName: upper(users.name) },
+  from(users)
+)
 ```
 
 `all(source)` expands to explicit named columns rather than emitting

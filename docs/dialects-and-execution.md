@@ -5,11 +5,13 @@
 ## Render once, choose a policy at the boundary
 
 `render()` returns a `RenderedQuery` with SQL text and raw parameter values. The
-default is `standardDialect()`:
+default renderer uses Qubu's standard SQL policy. Select a concrete dialect
+subpath when a driver needs another placeholder, identifier, pagination, or
+capability policy:
 
 | Dialect      | Import              | Identifiers   | Placeholders    | Pagination policy                     |
 | ------------ | ------------------- | ------------- | --------------- | ------------------------------------- |
-| Standard SQL | `standardDialect()` | double quotes | `?`             | `OFFSET ... ROWS FETCH ... ROWS ONLY` |
+| Standard SQL | `render(query)`     | double quotes | `?`             | `OFFSET ... ROWS FETCH ... ROWS ONLY` |
 | PostgreSQL   | `postgresDialect()` | double quotes | `$1`, `$2`, ... | `LIMIT ... OFFSET ...`; `ILIKE`       |
 | SQLite       | `sqliteDialect()`   | double quotes | `?`             | `LIMIT ... OFFSET ...`                |
 | MySQL        | `mysqlDialect()`    | backticks     | `?`             | `LIMIT ... OFFSET ...`                |
@@ -18,6 +20,9 @@ Construct the query without choosing a driver, then render it with the policy
 the adapter expects:
 
 ```ts
+import { render } from 'qubu'
+import { postgresDialect } from 'qubu/postgres'
+
 const standard = render(query)
 const postgres = render(query, postgresDialect())
 
@@ -35,6 +40,10 @@ capability requirement to the rendering boundary. PostgreSQL's `ilike()` is
 the first such feature:
 
 ```ts
+import { from, like, render, select, where } from 'qubu'
+import { ilike, postgresDialect } from 'qubu/postgres'
+import { sqliteDialect } from 'qubu/sqlite'
+
 const postgresQuery = select(
   { name: users.name },
   from(users),
@@ -50,6 +59,9 @@ received from an untyped integration. Use the portable operator when the
 query must render across dialects:
 
 ```ts
+import { from, like, render, select, where } from 'qubu'
+import { sqliteDialect } from 'qubu/sqlite'
+
 const portableQuery = select(
   { name: users.name },
   from(users),
@@ -64,8 +76,8 @@ Custom dialects that implement a supported capability advertise it through
 `createDialect({ capabilities: ['ilike'] })`. A dialect without that
 advertisement is rejected for capability-bearing fragments.
 
-Import `ilike` from `qubu/postgres` or the package root when the query requires
-PostgreSQL behavior.
+Import `ilike` and `postgresDialect` from `qubu/postgres`. The root entrypoint
+does not re-export concrete dialect constructors.
 
 ## The adapter owns the driver
 
@@ -74,7 +86,8 @@ rows, or manage transactions. An adapter receives the rendered statement and
 returns application rows:
 
 ```ts
-import { execute, postgresDialect } from 'qubu'
+import { execute } from 'qubu'
+import { postgresDialect } from 'qubu/postgres'
 import type { QueryAdapter } from 'qubu'
 
 declare const client: {
@@ -122,7 +135,8 @@ Use `createDialect()` when a driver needs a different policy but the query
 syntax stays portable:
 
 ```ts
-import { createDialect, render } from 'qubu'
+import { render } from 'qubu'
+import { createDialect } from 'qubu/core'
 
 const namedParameters = createDialect({
   name: 'named-parameters',

@@ -35,10 +35,11 @@ names, invalid namespaces, and collisions in generated names before returning
 the model. A failed registry construction throws `SchemaValidationError`; its
 diagnostics array contains every invalid path.
 
-The generated-name policy is versioned. `generatedTableName('userId')` returns
-user_id under policy version 1. Explicit names passed to `table()` remain
-unchanged. The policy gives snapshot encoders stable names without changing
-TypeScript source identity.
+The generated-name policy is versioned. Import `generatedTableName()` from
+`qubu/schema` when a schema tool needs to preview the policy. It returns
+`user_id` for `userId` under policy version 1. Explicit names passed to
+`table()` remain unchanged. The policy gives snapshot encoders stable names
+without changing TypeScript source identity.
 
 ## Map field names to SQL
 
