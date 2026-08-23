@@ -58,6 +58,43 @@ export interface QueryAdapter {
 
 export type QueryExecutor = QueryAdapter
 
+/** A query client with one application-owned adapter bound to every call. */
+export interface QubuClient<TAdapter extends QueryAdapter = QueryAdapter> {
+  /** The adapter supplied to {@link client}. */
+  readonly adapter: TAdapter
+  /** Execute a query and keep the adapter's structured mutation facts. */
+  execute<TRow extends object>(
+    query: Query<TRow, any, any, any>,
+    options?: ExecutionOptions
+  ): Promise<ExecutionResult<TRow>>
+  /** Execute a query and return only its decoded rows. */
+  rows<TRow extends object>(
+    query: Query<TRow, any, any, any>,
+    options?: ExecutionOptions
+  ): Promise<readonly TRow[]>
+}
+
+/** Bind an application-owned adapter once for repeated query execution. */
+export function client<TAdapter extends QueryAdapter>(
+  adapter: TAdapter
+): QubuClient<TAdapter> {
+  return Object.freeze({
+    adapter,
+    execute<TRow extends object>(
+      query: Query<TRow, any, any, any>,
+      options?: ExecutionOptions
+    ) {
+      return execute(query, adapter, options)
+    },
+    rows<TRow extends object>(
+      query: Query<TRow, any, any, any>,
+      options?: ExecutionOptions
+    ) {
+      return executeRows(query, adapter, options)
+    },
+  })
+}
+
 export interface DriverValueEncoder<TDriverValue = unknown> {
   /** Convert one Qubu parameter into the driver's bindable representation. */
   encode(value: unknown): TDriverValue

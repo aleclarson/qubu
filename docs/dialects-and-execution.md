@@ -86,7 +86,7 @@ rows, or manage transactions. An adapter receives an `ExecutionRequest` and
 returns an `ExecutionResult`:
 
 ```ts
-import { execute, executeRows } from 'qubu'
+import { client } from 'qubu'
 import { postgresDialect } from 'qubu/postgres'
 import type { ExecutionRequest, ExecutionResult, QueryAdapter } from 'qubu'
 
@@ -117,21 +117,41 @@ const adapter: QueryAdapter = {
     } satisfies ExecutionResult<TRow>
   },
 }
+```
+
+## Bind the adapter once
+
+Use `client()` when several calls share one adapter. The returned client keeps
+the adapter available as `db.adapter` and accepts the same execution options as
+the standalone functions:
+
+```ts
+const db = client(adapter)
 
 const controller = new AbortController()
-const result = await execute(query, adapter, {
+const result = await db.execute(query, {
   signal: controller.signal,
 })
 
 result.rows
 result.affectedRows
 
-const rows = await executeRows(readQuery, adapter)
+const rows = await db.rows(readQuery)
 ```
 
-Use `execute()` when a mutation needs more than returned rows. Use
-`executeRows()` for the row array alone. Both functions infer each row from the
-query projection.
+`db.execute()` returns the structured result. `db.rows()` returns only its row
+array. Both methods infer each row from the query projection. They do not make
+query values executable or transfer connection ownership to Qubu.
+
+The standalone functions remain useful when the adapter varies by call or a
+small module does not need a bound client:
+
+```ts
+import { execute, executeRows } from 'qubu'
+
+const result = await execute(query, adapter)
+const rows = await executeRows(readQuery, adapter)
+```
 
 | Result field   | Type                         | Adapter contract                                                                      |
 | -------------- | ---------------------------- | ------------------------------------------------------------------------------------- |
@@ -145,8 +165,8 @@ The last three fields are optional. For example, an adapter can map PostgreSQL
 `changes` and `lastInsertRowid`. Omit a fact that the selected driver cannot
 report accurately. Qubu does not derive mutation metadata from returned rows.
 
-The adapter's `dialect` becomes the default for both execution functions. A
-`dialect` in the execution options overrides that rendering policy. Qubu
+The adapter's `dialect` becomes the default for standalone and bound execution.
+A `dialect` in the execution options overrides that rendering policy. Qubu
 passes `signal` and the query's `queryKind` to the adapter without changing
 them. The adapter decides whether and how its driver supports cancellation.
 Driver errors pass through unchanged.
@@ -158,7 +178,7 @@ sequenceDiagram
   participant Adapter as QueryAdapter
   participant Driver as Database driver
 
-  App->>Qubu: execute(query, adapter, options)
+  App->>Qubu: db.execute(query, options)
   Qubu->>Qubu: render with selected dialect
   Qubu->>Adapter: statement + queryKind + signal
   Adapter->>Driver: bind and execute

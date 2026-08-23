@@ -95,6 +95,7 @@ test('auto-imports the SQL template tag', () => {
 })
 
 test('exposes ambient Qubu value types', () => {
+  const typedClient: typeof client = undefined as never
   const typedTable: typeof table = undefined as never
   const typedSelect: typeof select = undefined as never
   const typedExecuteRows: typeof executeRows = undefined as never
@@ -107,6 +108,7 @@ test('exposes ambient Qubu value types', () => {
   const ambientSqlTag: SqlTag = undefined as never
   const ambientTypedSqlTag: TypedSqlTag<string, SqlText> = undefined as never
 
+  expectTypeOf(typedClient).toBeFunction()
   expectTypeOf(typedTable).toBeFunction()
   expectTypeOf(typedSelect).toBeFunction()
   expectTypeOf(typedExecuteRows).toBeFunction()

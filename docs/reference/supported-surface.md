@@ -37,10 +37,11 @@ Snapshot dialect behavior is documented in the [PostgreSQL](postgres-snapshot.md
 ## Canonical query vocabulary
 
 Use the root names in new query code: `eq`, `ne`, `lt`, `lte`, `gt`, `gte`,
-`avg`, `min`, `max`, `fetchFirst`, `alias`, `render`, `execute`, `deleteFrom`,
-and `allowAll`. The package does not document competing aliases for these
-operations. Keep advanced fragment, dialect-construction, and schema-extension
-imports on `qubu/core` or `qubu/schema` as shown in the entrypoint table.
+`avg`, `min`, `max`, `fetchFirst`, `alias`, `render`, `client`, `execute`,
+`deleteFrom`, and `allowAll`. The package does not document competing aliases
+for these operations. Keep advanced fragment, dialect-construction, and
+schema-extension imports on `qubu/core` or `qubu/schema` as shown in the
+entrypoint table.
 
 ## Capability map
 
@@ -52,7 +53,7 @@ imports on `qubu/core` or `qubu/schema` as shown in the entrypoint table.
 | SQL type metadata  | Portable domains and capabilities, physical column storage descriptors, `SqlTypeOf`, projected SQL type maps, `SourceLike` and `TableLike` field constraints, contextual literals, typed extension values, calls, and casts, plus a permissive `SqlUnknown` fallback                                                                                                         |
 | Write queries      | `INSERT` values, defaults, and selects; `UPDATE`; `DELETE`; typed assignments; `RETURNING`; and explicit unrestricted-write opt-in                                                                                                                                                                                                                                           |
 | Rendering          | Standard, PostgreSQL, SQLite, MySQL, and user-created policies for identifiers, placeholders, pagination, JSON, logical cast targets, and schema literals                                                                                                                                                                                                                    |
-| Execution boundary | `QueryAdapter`, structured `ExecutionResult` values from `execute()`, and row-only results from `executeRows()`                                                                                                                                                                                                                                                              |
+| Execution boundary | `QueryAdapter`, bound `QubuClient` values from `client()`, structured results from `execute()` or `db.execute()`, and row-only results from `executeRows()` or `db.rows()`                                                                                                                                                                                                   |
 | Snapshots          | Pure Snapshot v1 and v2 creation, canonical encoding and strict decoding, immutable data, diagnostics, and content digests                                                                                                                                                                                                                                                   |
 | Introspection      | PostgreSQL, SQLite, and MySQL catalog readers for one selected namespace, normalized catalog data, structured diagnostics, and strict or explicit lossy snapshot mapping                                                                                                                                                                                                     |
 | Snapshot diffing   | Pure Snapshot v1 and v2 comparison, explicit rename evidence, non-authoritative suggestions, and safety diagnostics                                                                                                                                                                                                                                                          |
@@ -65,17 +66,17 @@ imports on `qubu/core` or `qubu/schema` as shown in the entrypoint table.
 ## Ownership boundary
 
 Snapshot creation, diffing, migration planning, and DDL emission are pure.
-`execute()` and catalog readers can reach a driver only through interfaces the
-application provides. Qubu can emit DDL, but it never applies that DDL to a
-database.
+`execute()`, clients, and catalog readers can reach a driver only through
+interfaces the application provides. Qubu can emit DDL, but it never applies
+that DDL to a database.
 
-| Boundary                 | Qubu side                                                                                                                            | Application side                                                                                                                                                               |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Query rendering          | Builds a typed query and renders SQL text with ordered raw parameter values                                                          | Keeps the runtime database schema aligned with query definitions and validates any dynamic syntax passed to an unsafe helper                                                   |
-| Query execution          | Passes the rendered statement, query kind, and optional abort signal to `QueryAdapter`; returns `ExecutionResult` or rows            | Owns the adapter, driver, connections, pools, transactions, retries, parameter encoding, row decoding, cancellation behavior, driver error translation, and database lifecycle |
-| Catalog introspection    | Selects fixed parameterized catalog queries, normalizes rows, and maps catalog data to snapshots                                     | Supplies `CatalogConnection`, credentials, already-decoded catalog rows, logging, and connection lifecycle                                                                     |
-| Schema source generation | Prints deterministic TypeScript from complete, non-lossy Snapshot v1 introspection without writing files                             | Owns generated-file writes, replacement policy, hand-edit merging, and CLI integration                                                                                         |
-| Schema changes           | Creates snapshots, compares them, builds deterministic migration plans, and emits DDL from approved plans with preflight diagnostics | Reviews decisions, executes or rolls back statements, acquires locks, manages transactions and migration journals, and owns database lifecycle                                 |
+| Boundary                 | Qubu side                                                                                                                                                                  | Application side                                                                                                                                                               |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Query rendering          | Builds a typed query and renders SQL text with ordered raw parameter values                                                                                                | Keeps the runtime database schema aligned with query definitions and validates any dynamic syntax passed to an unsafe helper                                                   |
+| Query execution          | Binds an adapter with `client()` when requested; passes the rendered statement, query kind, and optional abort signal to `QueryAdapter`; returns `ExecutionResult` or rows | Owns the adapter, driver, connections, pools, transactions, retries, parameter encoding, row decoding, cancellation behavior, driver error translation, and database lifecycle |
+| Catalog introspection    | Selects fixed parameterized catalog queries, normalizes rows, and maps catalog data to snapshots                                                                           | Supplies `CatalogConnection`, credentials, already-decoded catalog rows, logging, and connection lifecycle                                                                     |
+| Schema source generation | Prints deterministic TypeScript from complete, non-lossy Snapshot v1 introspection without writing files                                                                   | Owns generated-file writes, replacement policy, hand-edit merging, and CLI integration                                                                                         |
+| Schema changes           | Creates snapshots, compares them, builds deterministic migration plans, and emits DDL from approved plans with preflight diagnostics                                       | Reviews decisions, executes or rolls back statements, acquires locks, manages transactions and migration journals, and owns database lifecycle                                 |
 
 Start with [Dialects and execution](../dialects-and-execution.md) for the query
 adapter contract. The schema path is documented in [Canonical schema

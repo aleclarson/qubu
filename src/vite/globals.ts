@@ -21,6 +21,7 @@ export const qubuGlobals = [
   'caseWhen',
   'cast',
   'check',
+  'client',
   'coalesce',
   'column',
   'concat',

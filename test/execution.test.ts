@@ -1,5 +1,6 @@
 import { expect, expectTypeOf, test } from 'vitest'
 import {
+  client,
   eq,
   execute,
   executeRows,
@@ -85,4 +86,31 @@ test('returns mutation facts and unwraps rows on request', async () => {
     'insert',
   ])
   expectTypeOf(rows).toEqualTypeOf<readonly { id: number }[]>()
+})
+
+test('binds one adapter for structured and row-only execution', async () => {
+  const requests: ExecutionRequest[] = []
+  const adapter: QueryAdapter = {
+    dialect: standardDialect(),
+    async execute<TRow extends object>(request: ExecutionRequest) {
+      requests.push(request)
+      return {
+        rows: [{ id: 7 }] as unknown as readonly TRow[],
+        affectedRows: 1,
+      }
+    },
+  }
+  const db = client(adapter)
+  const query = select({ id: users.id }, from(users), where(eq(users.id, 7)))
+
+  const result = await db.execute(query, { dialect: postgresDialect() })
+  const rows = await db.rows(query)
+
+  expect(db.adapter).toBe(adapter)
+  expect(result).toEqual({ rows: [{ id: 7 }], affectedRows: 1 })
+  expect(rows).toEqual([{ id: 7 }])
+  expect(requests.map(request => request.statement.text)).toEqual([
+    'SELECT "users"."id" AS "id" FROM "users" WHERE ("users"."id" = $1)',
+    'SELECT "users"."id" AS "id" FROM "users" WHERE ("users"."id" = ?)',
+  ])
 })

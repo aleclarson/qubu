@@ -122,15 +122,16 @@ unrestricted operation is intended.
 `returning()` uses the same named object projection as `SELECT`. Reserve
 `{ ...all(table) }` for the intentional contract of returning every table
 column. When present, the mutation's `row` type is inferred from that projection, so
-`(await execute(query, adapter)).rows` has the same shape as a read query. The
-projection's SQL semantic domains are retained too, so a returned query used
-by typed composition does not collapse UUID, text, numeric, or other known
-fields to their JavaScript types alone.
+`(await db.execute(query)).rows` has the same shape as a read query when `db`
+comes from `client(adapter)`. The projection's SQL semantic domains are
+retained too, so a returned query used by typed composition does not collapse
+UUID, text, numeric, or other known fields to their JavaScript types alone.
 
-`execute()` also returns optional `affectedRows`, `changedRows`, and `insertId`
-facts supplied by the adapter. Use `executeRows()` when only the returned rows
-matter. The [execution guide](../dialects-and-execution.md) defines which
-driver facts belong in each field.
+`db.execute()` and the standalone `execute()` function also return optional
+`affectedRows`, `changedRows`, and `insertId` facts supplied by the adapter. Use
+`db.rows()` or `executeRows()` when only the returned rows matter. The
+[execution guide](../dialects-and-execution.md) defines which driver facts
+belong in each field.
 
 See [Column behavior and write types](../schema/columns-and-writes.md)
 for custom output, insert, and update types, then [Dialects and execution](../dialects-and-execution.md)

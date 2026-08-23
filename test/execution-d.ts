@@ -1,5 +1,6 @@
 import { expectTypeOf } from 'vitest'
 import {
+  client,
   execute,
   executeRows,
   from,
@@ -10,6 +11,7 @@ import {
   type ExecutionRequest,
   type ExecutionResult,
   type QueryAdapter,
+  type QubuClient,
 } from '../src/index.ts'
 import { standardDialect } from '../src/dialects/standard.ts'
 
@@ -40,6 +42,19 @@ expectTypeOf(executeRows(query, adapter, options)).toEqualTypeOf<
 expectTypeOf(executeRows(adapter, query)).toEqualTypeOf<
   Promise<readonly { id: number }[]>
 >()
+
+const db = client(adapter)
+expectTypeOf(db).toEqualTypeOf<QubuClient<QueryAdapter>>()
+expectTypeOf(db.adapter).toEqualTypeOf<QueryAdapter>()
+expectTypeOf(db.execute(query, options)).toEqualTypeOf<
+  Promise<ExecutionResult<{ id: number }>>
+>()
+expectTypeOf(db.rows(query)).toEqualTypeOf<Promise<readonly { id: number }[]>>()
+
+const specializedAdapter = { ...adapter, name: 'application' as const }
+expectTypeOf(
+  client(specializedAdapter).adapter.name
+).toEqualTypeOf<'application'>()
 
 declare const result: ExecutionResult<{ id: number }>
 expectTypeOf(result.rows).toEqualTypeOf<readonly { id: number }[]>()

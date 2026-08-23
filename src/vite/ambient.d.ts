@@ -21,6 +21,7 @@ declare global {
   const caseWhen: typeof import('qubu').caseWhen
   const cast: typeof import('qubu').cast
   const check: typeof import('qubu').check
+  const client: typeof import('qubu').client
   const coalesce: typeof import('qubu').coalesce
   const column: typeof import('qubu').column
   const concat: typeof import('qubu').concat
@@ -295,6 +296,9 @@ declare global {
   type ExecutionRequest = import('qubu').ExecutionRequest
   type ExecutionResult<TRow extends object = Record<string, unknown>> =
     import('qubu').ExecutionResult<TRow>
+  type QubuClient<
+    TAdapter extends import('qubu').QueryAdapter = import('qubu').QueryAdapter,
+  > = import('qubu').QubuClient<TAdapter>
   type QueryAdapter = import('qubu').QueryAdapter
   type RenderedQuery = import('qubu').RenderedQuery
   type MutationQuery<
