@@ -1,37 +1,37 @@
 # Supported features
 
-> Choose a package entrypoint and see which work Qubu handles.
+> Choose a public package entrypoint, check what Qubu handles, and keep database work on the application side of each adapter.
 
 ## Package entrypoints
 
-| Import               | Use it for                                                                                                                                          |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `qubu`               | Ordinary table definitions and query authoring, named projections, expressions, mutations, rendering, execution adapters, and consumer-facing types |
-| `qubu/core`          | Fragment and rendering primitives, dialect construction, SQL types, and extension constructors                                                      |
-| `qubu/schema`        | Advanced schema metadata, storage/constraint/source models, and schema-expression extensions                                                        |
-| `qubu/postgres`      | PostgreSQL dialect helpers such as `postgresDialect()` and `ilike()`                                                                                |
-| `qubu/sqlite`        | The SQLite dialect policy                                                                                                                           |
-| `qubu/mysql`         | The MySQL dialect policy                                                                                                                            |
-| `qubu/snapshot`      | Canonical schema v1/v2 traversal, encoding, strict decoding, diagnostics, and content digests                                                       |
-| `qubu/diff`          | Canonical Snapshot v1/v2 comparison, explicit rename hints, suggestions, and safety diagnostics                                                     |
-| `qubu/drizzle`       | Shared Drizzle conversion errors and dialect types                                                                                                  |
-| `qubu/drizzle/*`     | Typed runtime Drizzle tables from separate `postgres`, `mysql`, and `sqlite` modules                                                                |
-| `qubu/migration`     | Dialect-neutral migration plans with dependencies, safety decisions, preconditions, and custom SQL                                                  |
-| `qubu/ddl`           | Deterministic DDL emission from an approved migration plan and schema dialect                                                                       |
-| `qubu/introspection` | User-owned catalog readers and normalized catalog-to-Snapshot mapping                                                                               |
-| `qubu/vite`          | The optional `qubu()` Vite compiler hint                                                                                                            |
-| `qubu/globals`       | Opt-in ambient declarations for directive-bearing modules                                                                                           |
-| `qubu/package.json`  | The installed package metadata used by tooling and the Qubu agent skill                                                                             |
+| Import                  | Kind             | Use it for                                                                                               |
+| ----------------------- | ---------------- | -------------------------------------------------------------------------------------------------------- |
+| `qubu`                  | Runtime          | Ordinary query and schema definitions, reads, writes, SQL templates, rendering, and execution contracts  |
+| `qubu/core`             | Runtime          | Fragment and rendering primitives, dialect construction, SQL types, and extension constructors           |
+| `qubu/ddl`              | Runtime          | DDL preflight and deterministic PostgreSQL, SQLite, or MySQL emission from a migration plan              |
+| `qubu/diff`             | Runtime          | Canonical Snapshot v1 or v2 comparison, rename hints, suggestions, and safety diagnostics                |
+| `qubu/drizzle`          | Runtime          | Shared Drizzle conversion errors and dialect types                                                       |
+| `qubu/introspection`    | Runtime          | Catalog readers, normalized catalogs, and mapping to Snapshot v1 or v2                                   |
+| `qubu/migration`        | Runtime          | Pure migration planning with dependencies, decisions, preconditions, and explicit custom SQL             |
+| `qubu/mysql`            | Runtime          | The MySQL query dialect policy                                                                           |
+| `qubu/postgres`         | Runtime          | PostgreSQL query dialect helpers such as `postgresDialect()` and `ilike()`                               |
+| `qubu/schema`           | Runtime          | Advanced schema metadata, storage and constraint models, source models, and schema-expression extensions |
+| `qubu/snapshot`         | Runtime          | Canonical Snapshot v1 and v2 traversal, encoding, decoding, diagnostics, and digests                     |
+| `qubu/sqlite`           | Runtime          | The SQLite query dialect policy                                                                          |
+| `qubu/vite`             | Runtime          | The optional `qubu()` Vite compiler hint                                                                 |
+| `qubu/package.json`     | JSON             | The published package manifest                                                                           |
+| `qubu/drizzle/mysql`    | Runtime          | Runtime conversion from Qubu schemas to MySQL Drizzle tables                                             |
+| `qubu/drizzle/postgres` | Runtime          | Runtime conversion from Qubu schemas to PostgreSQL Drizzle tables                                        |
+| `qubu/drizzle/sqlite`   | Runtime          | Runtime conversion from Qubu schemas to SQLite Drizzle tables                                            |
+| `qubu/globals`          | TypeScript types | Opt-in ambient declarations for directive-bearing modules                                                |
 
-Dialect helpers are also re-exported from `qubu`, but subpath imports make the
-database-specific dependency visible where that is useful.
+The package validator confirms 16 runtime entrypoints, 17 type entrypoints,
+`qubu/package.json` as JSON, and `qubu/globals` as type-only. Concrete dialect
+constructors live on their database subpaths. The root renderer uses Qubu's
+standard SQL policy by default.
 
-The PostgreSQL snapshot adapter and its support limits are listed in the
-[PostgreSQL snapshot matrix](postgres-snapshot.md).
-The SQLite snapshot adapter and its support limits are listed in the
-[SQLite snapshot matrix](sqlite-snapshot.md).
-The MySQL snapshot adapter and its support limits are listed in the
-[MySQL snapshot matrix](mysql-snapshot.md).
+Snapshot dialect behavior is documented in the [PostgreSQL](postgres-snapshot.md),
+[SQLite](sqlite-snapshot.md), and [MySQL](mysql-snapshot.md) support matrices.
 
 ## Canonical query vocabulary
 
@@ -47,45 +47,54 @@ imports on `qubu/core` or `qubu/schema` as shown in the entrypoint table.
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Schema values      | `table`, immutable `schema` registries with namespaces, portable and dialect-native column storage descriptors, canonical default and generated-column metadata, identity descriptors, named primary, candidate-key, nullable unique, foreign-key, and check constraints, physical object names, included-column indexes, typed dialect extensions, and typed column helpers |
 | Read queries       | Named projections, spreadable source columns, aliases, joins, typed custom and LATERAL `FROM` sources, correlated subqueries, `WHERE`, grouping with declared-key proofs, `HAVING`, ordering, window expressions, distinctness, pagination, CTEs, subqueries, and set operations                                                                                             |
-| Expressions        | Comparison, boolean, arithmetic, null, range, membership, aggregate, window, string, JSON scalar reads, definition-backed and raw cast, case, parameterized SQL templates, custom expressions, and branded deterministic schema expressions                                                                                                                                  |
-| SQL type metadata  | Portable domains and capabilities, physical column storage descriptors, `SqlTypeOf`, projected SQL type maps, `SourceLike`/`TableLike` field constraints, contextual literals, typed extension values/calls/casts, and permissive `SqlUnknown` fallback                                                                                                                      |
-| Write queries      | `INSERT` values/defaults/select, `UPDATE`, `DELETE`, typed assignments, `RETURNING`, and explicit unrestricted-write opt-in                                                                                                                                                                                                                                                  |
-| Rendering          | Standard, PostgreSQL, SQLite, MySQL, and user-created identifier, placeholder, pagination, JSON, logical cast-target, and schema-literal policies                                                                                                                                                                                                                            |
-| Execution boundary | Generic `QueryAdapter`, structured `execute()` results, and row-only `executeRows()`; connection and driver behavior remain external                                                                                                                                                                                                                                         |
-| Build tooling      | Optional Vite directive transform with matching TypeScript ambient declarations, plus the opt-in snapshot, diff, migration, DDL, and dialect-specific Drizzle integration entrypoints                                                                                                                                                                                        |
-| Introspection      | Optional PostgreSQL, SQLite, and MySQL catalog readers for one selected namespace, structured diagnostics, and strict or explicit lossy Snapshot v1 mapping                                                                                                                                                                                                                  |
+| Expressions        | Comparison, boolean, arithmetic, null, range, membership, aggregate, window, string, JSON scalar reads, definition-backed and raw casts, cases, parameterized SQL templates, custom expressions, and branded deterministic schema expressions                                                                                                                                |
+| SQL type metadata  | Portable domains and capabilities, physical column storage descriptors, `SqlTypeOf`, projected SQL type maps, `SourceLike` and `TableLike` field constraints, contextual literals, typed extension values, calls, and casts, plus a permissive `SqlUnknown` fallback                                                                                                         |
+| Write queries      | `INSERT` values, defaults, and selects; `UPDATE`; `DELETE`; typed assignments; `RETURNING`; and explicit unrestricted-write opt-in                                                                                                                                                                                                                                           |
+| Rendering          | Standard, PostgreSQL, SQLite, MySQL, and user-created policies for identifiers, placeholders, pagination, JSON, logical cast targets, and schema literals                                                                                                                                                                                                                    |
+| Execution boundary | `QueryAdapter`, structured `ExecutionResult` values from `execute()`, and row-only results from `executeRows()`                                                                                                                                                                                                                                                              |
+| Snapshots          | Pure Snapshot v1 and v2 creation, canonical encoding and strict decoding, immutable data, diagnostics, and content digests                                                                                                                                                                                                                                                   |
+| Introspection      | PostgreSQL, SQLite, and MySQL catalog readers for one selected namespace, normalized catalog data, structured diagnostics, and strict or explicit lossy snapshot mapping                                                                                                                                                                                                     |
+| Snapshot diffing   | Pure Snapshot v1 and v2 comparison, explicit rename evidence, non-authoritative suggestions, and safety diagnostics                                                                                                                                                                                                                                                          |
+| Migration planning | Pure, dialect-neutral plans with stable ordering, dependency edges, preconditions, explicit review decisions, and tagged custom SQL                                                                                                                                                                                                                                          |
+| DDL emission       | Preflight plus deterministic PostgreSQL, SQLite, and MySQL statements from an approved `MigrationPlan` and matching `SchemaDialect`                                                                                                                                                                                                                                          |
+| Build tooling      | The optional Vite directive transform and its matching TypeScript ambient declarations                                                                                                                                                                                                                                                                                       |
+| Drizzle conversion | Optional, dialect-specific runtime conversion from Qubu schema registries to Drizzle tables                                                                                                                                                                                                                                                                                  |
 
-## Safety boundaries
+## Ownership boundary
+
+Snapshot creation, diffing, migration planning, and DDL emission are pure.
+`execute()` and catalog readers can reach a driver only through interfaces the
+application provides. Qubu can emit DDL, but it never applies that DDL to a
+database.
+
+| Boundary              | Qubu side                                                                                                                            | Application side                                                                                                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Query rendering       | Builds a typed query and renders SQL text with ordered raw parameter values                                                          | Keeps the runtime database schema aligned with query definitions and validates any dynamic syntax passed to an unsafe helper                                                   |
+| Query execution       | Passes the rendered statement, query kind, and optional abort signal to `QueryAdapter`; returns `ExecutionResult` or rows            | Owns the adapter, driver, connections, pools, transactions, retries, parameter encoding, row decoding, cancellation behavior, driver error translation, and database lifecycle |
+| Catalog introspection | Selects fixed parameterized catalog queries, normalizes rows, and maps catalog data to snapshots                                     | Supplies `CatalogConnection`, credentials, already-decoded catalog rows, logging, and connection lifecycle                                                                     |
+| Schema changes        | Creates snapshots, compares them, builds deterministic migration plans, and emits DDL from approved plans with preflight diagnostics | Reviews decisions, executes or rolls back statements, acquires locks, manages transactions and migration journals, and owns database lifecycle                                 |
+
+Start with [Dialects and execution](../dialects-and-execution.md) for the query
+adapter contract. The schema path is documented in [Canonical schema
+snapshots](../schema/snapshots.md), [Snapshot diffing](../schema/diff.md),
+[Migration plans](../schema/migration-plans.md), and [DDL
+emission](../schema/ddl-emission.md).
+
+## SQL safety boundaries
 
 Qubu binds values through the render context and quotes identifiers through the
 active dialect. `UPDATE` and `DELETE` require a `WHERE` clause unless the caller
 passes `allowAll()`.
 
-Use raw syntax through explicit unsafe helpers. They are not a sanitizer and
-do not make interpolated values safe. Use
-`context.parameter()` in custom renderers and keep driver encoding in the
-adapter.
+The `sql` tag treats static template text as trusted SQL syntax. Ordinary
+substitutions become parameters, and fragment substitutions compose through the
+active renderer. Dynamic identifiers and syntax remain explicit through
+`identifier()` and unsafe helpers. Those helpers are not sanitizers. Validate
+dynamic syntax against an application-owned allowlist before it reaches an
+unsafe helper.
 
 SQL semantic types provide compile-time portable capability and compatibility
-checks. They do not validate migrations, verify runtime schema state, or model
-every dialect's implicit coercions. Database catalog reading is available
-through the separate `qubu/introspection` entrypoint. Custom and untyped
-extensions default to permissive `SqlUnknown`; use declared domains when an
-extension should participate in stricter checks.
-
-## Boundary
-
-Qubu owns query construction, type propagation, SQL rendering, optional
-read-only catalog normalization, pure snapshot comparison, migration-plan
-data, and deterministic DDL emission from approved plans. It does not own:
-
-- database connections, pooling, retries, or transactions;
-- driver-specific parameter encoding or row decoding;
-- migration execution, migration history, or database lifecycle;
-- dialect-specific index storage options;
-- ORM identity maps, relationship loading, or change tracking; or
-- hidden execution triggered by building a query value.
-
-When you need one of those concerns, pass the rendered query through an
-application-owned adapter or another library. Start with [Dialects and
-execution](../dialects-and-execution.md).
+checks. They do not prove the runtime schema state or model every dialect's
+implicit coercions. Custom and untyped extensions default to permissive
+`SqlUnknown`; declare a domain when an extension should participate in stricter
+checks.

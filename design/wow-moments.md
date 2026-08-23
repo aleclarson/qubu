@@ -52,7 +52,7 @@ children; for example, `sequence()` retains source requirements without
 pretending that its arbitrary SQL text has a new result type:
 
 ```ts
-import { sequence, syntax } from 'qubu'
+import { sequence, syntax } from 'qubu/core'
 import type { RequiresOf } from 'qubu'
 
 const reusable = sequence([users.name, syntax('COLLATE "C"')], ' ')
@@ -148,7 +148,10 @@ ORDER BY "users"."name" DESC
 Dialect differences stay at the rendering boundary. Query construction does not fork when the placeholder syntax changes.
 
 ```ts
-const standardSql = render(query, standardDialect())
+import { render } from 'qubu'
+import { postgresDialect } from 'qubu/postgres'
+
+const standardSql = render(query)
 const postgresSql = render(query, postgresDialect())
 
 standardSql.text // ... WHERE ("users"."id" = ?)
@@ -162,6 +165,8 @@ postgresSql.text // ... WHERE ("users"."id" = $1)
 A custom clause can participate in the same composition model as built-ins.
 
 ```ts
+import { customClause } from 'qubu/core'
+
 const fetchWithTies = customClause({
   name: 'fetch-with-ties',
   order: 100,

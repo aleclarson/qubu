@@ -12,8 +12,8 @@ import {
   table,
   text,
   where,
-  withDialectCapability,
 } from 'qubu'
+import { withDialectCapability } from 'qubu/core'
 import type {
   CapabilitiesOf,
   ColumnDependency,

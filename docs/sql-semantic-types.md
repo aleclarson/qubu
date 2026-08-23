@@ -134,8 +134,8 @@ for custom domains, functions, values, casts, and raw expressions.
 ## Static metadata is not database proof
 
 SQL semantic domains affect TypeScript only. A definition used explicitly as a
-cast target also contributes a logical or named runtime target, but Qubu does
-not inspect the database, validate migrations, select a wire encoding, or
+cast target also contributes a logical or named runtime target. Those domains
+do not inspect the database, prove a migration safe, select a wire encoding, or
 verify that the rendered type name exists. The application remains responsible
 for keeping table definitions aligned with the database, and the driver
 adapter remains responsible for encoding parameters and decoding rows.

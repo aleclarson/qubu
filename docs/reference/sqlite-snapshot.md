@@ -47,6 +47,7 @@ if (!result.ok) {
 }
 ```
 
-The adapter does not connect to SQLite, inspect `sqlite_master`, or generate
-DDL. It only produces deterministic data for the strict `qubu/snapshot`
-decoder and later schema tooling.
+The adapter does not connect to SQLite, inspect `sqlite_master`, or emit DDL.
+It produces deterministic data for the strict `qubu/snapshot` decoder. The
+package-wide [ownership map](supported-surface.md#ownership-boundary) shows
+the separate schema and application boundaries.

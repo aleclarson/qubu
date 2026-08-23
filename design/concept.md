@@ -1,6 +1,9 @@
-# qubu fundamentals
+# Qubu fundamentals
 
-qubu is a functional-first, type-safe SQL `SELECT` builder for TypeScript. The core targets standard SQL; PostgreSQL and other database differences are explicit dialect or adapter extensions.
+Qubu is a functional-first, type-aware SQL builder for TypeScript. The root
+entrypoint builds typed reads and writes, while optional entrypoints provide
+introspection and pure schema tooling. The core targets standard SQL;
+database-specific behavior stays in explicit dialect or adapter extensions.
 
 ## The central abstraction
 
@@ -113,7 +116,13 @@ This is not dialect erasure: portable syntax is the default, and divergence is v
 
 ## Safety boundary
 
-Values are parameters. Identifiers are quoted by the dialect. `unsafe` primitives are explicit and are the caller’s responsibility. Type-level checks focus on high-value mistakes—wrong field names, missing sources, aliases, nullability, and result shapes—rather than attempting to encode every SQL grammar rule.
+Values are parameters. Identifiers are quoted by the dialect. The `sql` tag
+treats static template text as trusted syntax, binds ordinary substitutions,
+and composes fragment substitutions through the active renderer. Dynamic
+syntax and runtime identifiers remain behind explicit unsafe or identifier
+helpers. Type-level checks focus on wrong field names, missing sources,
+aliases, nullability, and result shapes. They do not attempt to encode every
+SQL grammar rule.
 
 The first-party schema helpers cover common application values: `timestamp`
 and `dateTime` expose `Date`, `uuid` exposes `string`, `json<T>()` lets the
@@ -130,4 +139,14 @@ omits it from inserts and updates, and `nullable: true` permits explicit
 
 ## Scope boundary
 
-The project owns query construction and rendering. It does not own ORM behavior, migrations, relationship loading, connection lifecycle, or hidden execution. Those concerns can consume the rendered query through separate adapters once the `SELECT` model is stable.
+The project owns query construction and rendering, snapshot serialization and
+diffing, pure migration planning, and DDL emission. `execute()` passes a
+rendered statement, query kind, and optional abort signal to an
+application-owned adapter, then returns its `ExecutionResult` unchanged.
+Catalog readers likewise use an application-owned connection interface.
+
+Qubu does not own migration execution, ORM behavior, relationship loading,
+connections, pools, transactions, retries, parameter encoding or row decoding,
+driver error translation, or database lifecycle. The public [ownership
+map](../docs/reference/supported-surface.md#ownership-boundary) defines each
+handoff.

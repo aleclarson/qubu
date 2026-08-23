@@ -4,8 +4,9 @@
 
 Database introspection is an optional capability exported from
 `qubu/introspection`. It discovers database facts. It does not recreate the
-TypeScript declarations that originally produced a schema, and it does not
-plan or execute migrations.
+TypeScript declarations that originally produced a schema. Planning and DDL
+emission use the separate `qubu/migration` and `qubu/ddl` entrypoints;
+migration execution remains application-owned.
 
 ## The pipeline
 
@@ -17,7 +18,6 @@ flowchart LR
   B --> C[Normalized catalog]
   C --> D[Pure snapshot mapper]
   D --> E[Canonical snapshot]
-  E -. later .-> F[Snapshot diffing or migration planning]
 ```
 
 The reader owns catalog SQL and dialect-specific row normalization. The
@@ -109,8 +109,8 @@ expression, identity, constraint, foreign key, or index cannot be represented
 soundly, mapping returns diagnostics and no snapshot.
 
 Lossy mode is explicit. It may return a snapshot with warnings, but the result
-is marked lossy. Future migration planning should reject lossy output unless
-the caller explicitly handles the omitted behavior.
+is marked lossy. Migration planning blocks lossy facts unless the caller
+explicitly handles the omitted behavior.
 
 Only unambiguous literal defaults become snapshot literals. Other defaults,
 generated expressions, checks, predicates, and expression index terms remain
@@ -186,15 +186,17 @@ input.
 
 ## What comes next
 
-The canonical snapshot is the handoff to future tooling:
+The canonical snapshot is the handoff to Qubu's pure schema pipeline:
 
 - diffing compares canonical snapshots;
 - rename resolution consumes previous/current snapshots and explicit hints;
 - migration planning consumes semantic diff operations;
-- DDL adapters consume plans and dialect capabilities.
+- DDL emitters consume approved plans and dialect capabilities.
 
 None of those layers opens a database connection or changes how introspection
-represents catalog facts.
+represents catalog facts. DDL emission produces statements; it does not apply
+them. The [ownership map](../reference/supported-surface.md#ownership-boundary)
+keeps this handoff separate from application-owned migration execution.
 
 See the [introspection support matrix](../reference/introspection-support.md)
 for version baselines and dialect-specific limits. Snapshot serialization

@@ -39,15 +39,15 @@ define a table, build a `SELECT`, and inspect its SQL and parameters.
 - [Compare snapshots](schema/diff.md) with explicit rename hints and reviewable
   safety diagnostics.
 - [Build migration plans](schema/migration-plans.md) as reviewed, deterministic
-  data before a later DDL step.
-- [Emit approved DDL](schema/ddl-emission.md) with dialect preflight while
-  leaving connection and migration execution to the application.
+  data before DDL emission.
+- [Emit DDL](schema/ddl-emission.md) from an approved migration plan without
+  handing Qubu a database connection.
 
-## The Qubu pipeline
+## The query pipeline
 
 The same query value can be rendered for inspection or passed to an adapter for
-execution. The adapter, not the query builder, owns the database connection and
-driver-specific row and mutation-result handling.
+execution. The application-owned adapter handles the driver, database
+connection, and driver-specific row and mutation-result details.
 
 ```mermaid
 flowchart LR
@@ -55,7 +55,7 @@ A["Tables and columns"] --> B["Expressions and clauses"]
 B --> C["Typed query"]
 C --> D["Dialect renderer"]
 D --> E["SQL text + ordered parameters"]
-E --> F["Driver-owned adapter"]
+E --> F["Application-owned adapter"]
 F --> G["Rows + optional mutation facts"]
 ```
 
@@ -71,7 +71,7 @@ needs to preserve a fact across composition:
 | Model                   | Start with                                          | Covers                                                                              |
 | ----------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | Query model             | [Source scope](query-model/source-scope.md)         | Source identity, result shapes, fragments, metadata, and query composition          |
-| Schema model            | [Tables and names](schema/tables-and-names.md)      | Tables, write types, constraints, storage, schema SQL, and snapshots                |
+| Schema model            | [Tables and names](schema/tables-and-names.md)      | Tables, snapshots, diffs, migration plans, and DDL emission                         |
 | Database introspection  | [Database introspection](schema/introspection.md)   | Catalog readers, Snapshot v1 mapping, identities, diagnostics, and support limits   |
 | Rendering and execution | [Dialects and execution](dialects-and-execution.md) | Placeholder and identifier policies, capabilities, adapters, and raw-SQL boundaries |
 | SQL semantic types      | [SQL semantic types](sql-semantic-types.md)         | Application types, SQL domains, nullability, and compatible operations              |
@@ -102,11 +102,7 @@ render(query)
 The inferred row is `{ id: number; name: string }`. The value `7` stays out
 of the SQL text and appears in the `parameters` array in placeholder order.
 
-The [supported features](reference/supported-surface.md) page lists package
-entrypoints and boundaries. [Troubleshooting](troubleshooting.md) starts from
-common errors and points to the concept page behind each one.
-
-Qubu builds and renders query SQL, snapshots schema facts, compares snapshots,
-plans reviewed changes, and can emit deterministic DDL. It does not open a
-database connection, execute migrations, provide an ORM, manage connection
-pooling or transactions, or load relationships.
+The [supported features](reference/supported-surface.md) page is the canonical
+package-entrypoint and ownership map. Qubu emits DDL, but the application owns
+migration execution and database lifecycle. [Troubleshooting](troubleshooting.md)
+starts from common errors and points to the concept page behind each one.

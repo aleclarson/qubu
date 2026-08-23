@@ -42,6 +42,16 @@ The core layers are:
 5. queries that assemble a projection and clauses; and
 6. dialect policies that render the final syntax.
 
+## Database boundary
+
+Optional schema entrypoints follow the same value-first rule. Snapshot
+serialization, snapshot diffing, migration planning, and DDL emission are pure
+transformations. Catalog readers use a caller-supplied connection interface,
+and query execution uses a caller-supplied adapter. Qubu owns DDL emission, but
+the application owns migration execution and database lifecycle. The public
+[ownership map](../docs/reference/supported-surface.md#ownership-boundary)
+defines the handoffs.
+
 ## Extension filter
 
 Before adding a core feature, ask:
@@ -58,6 +68,9 @@ operator registry or privileged central query object.
 ## Explicit non-goals
 
 - ORM relationship management, lazy loading, change tracking, or identity maps.
-- Schema migrations and database lifecycle management.
-- Hidden execution, connection ownership, or transaction orchestration.
+- Migration execution, migration journals, rollback orchestration, or database
+  lifecycle management.
+- Driver selection, connections, pools, transactions, retries, parameter
+  encoding, row decoding, or driver error translation.
+- Hidden database I/O while constructing, diffing, planning, or emitting SQL.
 - Hiding meaningful dialect differences behind a lowest-common-denominator API.

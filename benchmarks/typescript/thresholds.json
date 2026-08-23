@@ -2,11 +2,11 @@
   "typescriptVersion": "5.9.3",
   "metrics": {
     "Types": {
-      "baseline": 6170,
+      "baseline": 6301,
       "limit": 7500
     },
     "Instantiations": {
-      "baseline": 33137,
+      "baseline": 33610,
       "limit": 40000
     }
   }

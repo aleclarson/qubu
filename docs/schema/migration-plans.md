@@ -70,7 +70,7 @@ the stable topological ordering. `encodeMigrationPlan()` emits canonical JSON;
 `decodeMigrationPlan()` and `validateMigrationPlan()` reject unknown fields,
 future versions, malformed operations, missing edges, and dependency cycles.
 
-The plan is a handoff to a later DDL boundary. It is not an execution result,
-transaction journal, retry record, or connection-owned migration runner.
-
-Use [`qubu/ddl`](./ddl-emission.md) after the plan is reviewed and approved.
+After review and approval, pass the plan to
+[`qubu/ddl`](./ddl-emission.md). DDL emission remains separate from
+application-owned migration execution in the package-wide [ownership
+map](../reference/supported-surface.md#ownership-boundary).

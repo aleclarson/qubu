@@ -7,7 +7,8 @@
     "moduleResolution": "Bundler",
     "baseUrl": "../..",
     "paths": {
-      "qubu": ["./dist/index.d.mts"]
+      "qubu": ["./dist/index.d.mts"],
+      "qubu/core": ["./dist/core.d.mts"]
     },
     "noEmit": true,
     "noUnusedLocals": true,

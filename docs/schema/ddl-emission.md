@@ -22,8 +22,9 @@ for (const statement of result.statements) {
 }
 ```
 
-`statements` is the stable handoff for an executor. Each statement carries its
-operation ID, topological position, SQL text, and an ordered parameter list.
+`statements` is the stable handoff for an application-owned executor. Each
+statement carries its operation ID, topological position, SQL text, and an
+ordered parameter list.
 Schema literals and expressions are parameter-free by contract. `sql` joins
 the statements with a newline and adds a semicolon for migration-file writers.
 

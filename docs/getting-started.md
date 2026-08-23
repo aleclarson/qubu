@@ -79,7 +79,7 @@ type UserRow = typeof query.row
 > [!NOTE]
 > Rendering produces a statement; it does not execute it. Keep the
 > `RenderedQuery` value for logging or testing. Use `execute()` or
-> `executeRows()` with a [driver-owned adapter](dialects-and-execution.md) to
+> `executeRows()` with an [application-owned adapter](dialects-and-execution.md) to
 > run the query.
 
 ## Next steps

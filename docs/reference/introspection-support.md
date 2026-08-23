@@ -4,8 +4,10 @@
 
 The optional `qubu/introspection` entrypoint reads one selected database
 namespace through a user-owned `CatalogConnection`. It returns normalized
-catalog data and can map that data to canonical Snapshot v1. It does not own a
-driver, connection lifecycle, migration planner, or DDL generator.
+catalog data and can map that data to canonical Snapshot v1 or v2. The
+application owns the driver and connection lifecycle. Snapshot diffing,
+migration planning, and DDL emission are separate Qubu capabilities; see the
+[ownership map](supported-surface.md#ownership-boundary).
 
 ## Version and namespace baseline
 

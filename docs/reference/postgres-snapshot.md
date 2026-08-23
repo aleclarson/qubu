@@ -36,9 +36,10 @@ snapshot metadata and `unsafeSchemaSql()` use `postgresql` consistently.
 | Indexes             | Ordered terms, expressions, predicates, included columns, uniqueness, and candidate-key evidence are retained. PostgreSQL method, concurrency, operator class, and storage-parameter extensions are encoded under `dialect`. |
 | Names               | Table, column, constraint, and index names are checked against PostgreSQL's 63-byte identifier limit. Relation names are checked for collisions across tables and indexes.                                                   |
 
-The adapter does not connect to PostgreSQL and does not generate DDL. It only
-produces deterministic data for the `qubu/snapshot` decoder and later schema
-tooling.
+The adapter does not connect to PostgreSQL or emit DDL. It produces
+deterministic data for the `qubu/snapshot` decoder. The package-wide
+[ownership map](supported-surface.md#ownership-boundary) shows the separate
+schema and application boundaries.
 
 ## Diagnostics
 
