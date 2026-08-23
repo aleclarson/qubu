@@ -14,6 +14,8 @@ import {
   where,
   type ExecutionRequest,
   type QueryAdapter,
+  type TransactionOptions,
+  type TransactionalQueryAdapter,
 } from '../src/index.ts'
 import { postgresDialect } from '../src/dialects/postgres.ts'
 import { standardDialect } from '../src/dialects/standard.ts'
@@ -113,4 +115,83 @@ test('binds one adapter for structured and row-only execution', async () => {
     'SELECT "users"."id" AS "id" FROM "users" WHERE ("users"."id" = $1)',
     'SELECT "users"."id" AS "id" FROM "users" WHERE ("users"."id" = ?)',
   ])
+})
+
+test('binds a transaction-scoped client to the adapter transaction', async () => {
+  const events: string[] = []
+  const controller = new AbortController()
+  const query = select({ id: users.id }, from(users), where(eq(users.id, 7)))
+  const transactionAdapter: QueryAdapter = {
+    dialect: standardDialect(),
+    async execute<TRow extends object>(request: ExecutionRequest) {
+      events.push(`execute:${request.queryKind}`)
+      return { rows: [{ id: 7 }] as unknown as readonly TRow[] }
+    },
+  }
+  const adapter: TransactionalQueryAdapter = {
+    dialect: standardDialect(),
+    async execute<TRow extends object>(): Promise<{ rows: readonly TRow[] }> {
+      throw new Error('The root adapter should not execute inside this test.')
+    },
+    async transaction<T>(
+      callback: (adapter: QueryAdapter) => Promise<T>,
+      options?: TransactionOptions
+    ) {
+      expect(options?.signal).toBe(controller.signal)
+      events.push('begin')
+      const result = await callback(transactionAdapter)
+      events.push('commit')
+      return result
+    },
+  }
+
+  const result = await qubu(adapter).transaction(
+    async transaction => {
+      expect(transaction.adapter).toBe(transactionAdapter)
+      expect('transaction' in transaction).toBe(false)
+      await expect(transaction.rows(query)).resolves.toEqual([{ id: 7 }])
+      return 'committed'
+    },
+    { signal: controller.signal }
+  )
+
+  expect(result).toBe('committed')
+  expect(events).toEqual(['begin', 'execute:select', 'commit'])
+})
+
+test('preserves a rejected transaction callback through the adapter', async () => {
+  const events: string[] = []
+  const failure = new Error('transaction callback failed')
+  const transactionAdapter: QueryAdapter = {
+    dialect: standardDialect(),
+    async execute<TRow extends object>() {
+      return { rows: [] as readonly TRow[] }
+    },
+  }
+  const adapter: TransactionalQueryAdapter = {
+    dialect: standardDialect(),
+    async execute<TRow extends object>(): Promise<{ rows: readonly TRow[] }> {
+      throw new Error('The root adapter should not execute inside this test.')
+    },
+    async transaction<T>(callback: (adapter: QueryAdapter) => Promise<T>) {
+      events.push('begin')
+      try {
+        const result = await callback(transactionAdapter)
+        events.push('commit')
+        return result
+      } catch (error) {
+        events.push('rollback')
+        throw error
+      } finally {
+        events.push('release')
+      }
+    },
+  }
+
+  await expect(
+    qubu(adapter).transaction(async () => {
+      throw failure
+    })
+  ).rejects.toBe(failure)
+  expect(events).toEqual(['begin', 'rollback', 'release'])
 })

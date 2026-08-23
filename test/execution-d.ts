@@ -10,8 +10,12 @@ import {
   type ExecutionOptions,
   type ExecutionRequest,
   type ExecutionResult,
+  type QubuTransaction,
   type QueryAdapter,
   type QubuClient,
+  type QubuTransactionalClient,
+  type TransactionOptions,
+  type TransactionalQueryAdapter,
 } from '../src/index.ts'
 import { standardDialect } from '../src/dialects/standard.ts'
 
@@ -50,6 +54,41 @@ expectTypeOf(db.execute(query, options)).toEqualTypeOf<
   Promise<ExecutionResult<{ id: number }>>
 >()
 expectTypeOf(db.rows(query)).toEqualTypeOf<Promise<readonly { id: number }[]>>()
+
+const transactionalAdapter: TransactionalQueryAdapter = {
+  dialect: standardDialect(),
+  async execute<TRow extends object>(_request: ExecutionRequest) {
+    return { rows: [] as readonly TRow[] }
+  },
+  async transaction<T>(
+    callback: (adapter: QueryAdapter) => Promise<T>,
+    _options?: TransactionOptions
+  ) {
+    return callback(transactionalAdapter)
+  },
+}
+
+const transactionalDb = qubu(transactionalAdapter)
+expectTypeOf(transactionalDb).toEqualTypeOf<
+  QubuTransactionalClient<TransactionalQueryAdapter>
+>()
+expectTypeOf(
+  transactionalDb.transaction(async transaction => {
+    expectTypeOf(transaction).toEqualTypeOf<QubuTransaction>()
+    expectTypeOf(transaction.execute(query)).toEqualTypeOf<
+      Promise<ExecutionResult<{ id: number }>>
+    >()
+    expectTypeOf(transaction.rows(query)).toEqualTypeOf<
+      Promise<readonly { id: number }[]>
+    >()
+    // @ts-expect-error Transaction-scoped clients cannot start nested transactions.
+    transaction.transaction(query)
+    return 1
+  })
+).toEqualTypeOf<Promise<number>>()
+
+// @ts-expect-error A plain QueryAdapter does not provide transaction orchestration.
+db.transaction(async () => 1)
 
 const specializedAdapter = { ...adapter, name: 'application' as const }
 expectTypeOf(

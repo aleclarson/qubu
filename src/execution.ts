@@ -12,6 +12,12 @@ export interface ExecutionOptions extends RenderOptions {
   readonly signal?: AbortSignal
 }
 
+/** Controls the lifecycle of one adapter-owned transaction. */
+export interface TransactionOptions {
+  /** Passed to the adapter for transaction begin, commit, and rollback. */
+  readonly signal?: AbortSignal
+}
+
 /** One rendered statement and the controls passed to an application adapter. */
 export interface ExecutionRequest {
   /** SQL text and raw application parameters produced by Qubu's renderer. */
@@ -58,6 +64,18 @@ export interface QueryAdapter {
 
 export type QueryExecutor = QueryAdapter
 
+/**
+ * An adapter that can pin one driver connection for a callback transaction.
+ * The callback receives an adapter scoped to that transaction. Qubu does not
+ * issue transaction SQL or manage the driver's connection lifecycle.
+ */
+export interface TransactionalQueryAdapter extends QueryAdapter {
+  transaction<T>(
+    callback: (adapter: QueryAdapter) => Promise<T>,
+    options?: TransactionOptions
+  ): Promise<T>
+}
+
 /** A query client with one application-owned adapter bound to every call. */
 export interface QubuClient<TAdapter extends QueryAdapter = QueryAdapter> {
   /** The adapter supplied to {@link qubu}. */
@@ -74,8 +92,50 @@ export interface QubuClient<TAdapter extends QueryAdapter = QueryAdapter> {
   ): Promise<readonly TRow[]>
 }
 
+/** The client available inside a transaction callback. */
+export type QubuTransaction = QubuClient<QueryAdapter>
+
+/** A bound client whose adapter supports transaction-scoped execution. */
+export interface QubuTransactionalClient<
+  TAdapter extends TransactionalQueryAdapter = TransactionalQueryAdapter,
+> extends QubuClient<TAdapter> {
+  /** Run several queries on one adapter-owned transaction. */
+  transaction<T>(
+    callback: (transaction: QubuTransaction) => Promise<T>,
+    options?: TransactionOptions
+  ): Promise<T>
+}
+
 /** Bind an application-owned adapter once for repeated query execution. */
+export function qubu<TAdapter extends TransactionalQueryAdapter>(
+  adapter: TAdapter
+): QubuTransactionalClient<TAdapter>
 export function qubu<TAdapter extends QueryAdapter>(
+  adapter: TAdapter
+): QubuClient<TAdapter>
+export function qubu<TAdapter extends QueryAdapter>(
+  adapter: TAdapter
+):
+  | QubuClient<TAdapter>
+  | QubuTransactionalClient<TAdapter & TransactionalQueryAdapter> {
+  const client = createClient(adapter)
+  if (!isTransactionalQueryAdapter(adapter)) return client
+
+  return Object.freeze({
+    ...client,
+    transaction<T>(
+      callback: (transaction: QubuTransaction) => Promise<T>,
+      options?: TransactionOptions
+    ) {
+      return adapter.transaction(
+        async transactionAdapter => callback(createClient(transactionAdapter)),
+        options
+      )
+    },
+  }) as QubuTransactionalClient<TAdapter & TransactionalQueryAdapter>
+}
+
+function createClient<TAdapter extends QueryAdapter>(
   adapter: TAdapter
 ): QubuClient<TAdapter> {
   return Object.freeze({
@@ -93,6 +153,15 @@ export function qubu<TAdapter extends QueryAdapter>(
       return executeRows(query, adapter, options)
     },
   })
+}
+
+function isTransactionalQueryAdapter(
+  adapter: QueryAdapter
+): adapter is TransactionalQueryAdapter {
+  return (
+    typeof (adapter as Partial<TransactionalQueryAdapter>).transaction ===
+    'function'
+  )
 }
 
 export interface DriverValueEncoder<TDriverValue = unknown> {

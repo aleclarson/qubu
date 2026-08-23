@@ -81,9 +81,10 @@ does not re-export concrete dialect constructors.
 
 ## The adapter owns the driver
 
-Qubu does not open connections, bind values for a particular client, decode
-rows, or manage transactions. An adapter receives an `ExecutionRequest` and
-returns an `ExecutionResult`:
+Qubu does not open connections, bind values for a particular client, or decode
+rows. An adapter receives an `ExecutionRequest` and returns an
+`ExecutionResult`. A `TransactionalQueryAdapter` can also pin one driver
+connection for a callback transaction:
 
 ```ts
 import { qubu } from 'qubu'
@@ -142,6 +143,37 @@ const rows = await db.rows(readQuery)
 `db.execute()` returns the structured result. `db.rows()` returns only its row
 array. Both methods infer each row from the query projection. They do not make
 query values executable or transfer connection ownership to Qubu.
+
+## Run a transaction
+
+Use a transactional adapter when several queries must share one commit or
+rollback boundary:
+
+```ts
+import { qubu } from 'qubu'
+import type { TransactionalQueryAdapter } from 'qubu'
+
+declare const transactionalAdapter: TransactionalQueryAdapter
+const transactionalDb = qubu(transactionalAdapter)
+
+const result = await transactionalDb.transaction(async transaction => {
+  await transaction.execute(firstMutation)
+  await transaction.execute(secondMutation)
+  return transaction.rows(readQuery)
+})
+```
+
+The adapter owns the driver lifecycle. It acquires and pins one connection,
+begins the transaction, invokes the callback, commits after it resolves, rolls
+back after it rejects, and releases the connection in every case. Qubu only
+creates the scoped client and passes the callback result through. It never
+emits `BEGIN`, `COMMIT`, or `ROLLBACK` itself.
+
+The transaction client exposes `execute()` and `rows()` but no public
+`transaction()` method, so nested transactions are not part of this contract.
+Use adapter-specific savepoints when a driver needs nested partial rollback.
+`TransactionOptions.signal` is passed to the adapter. Isolation levels and
+other driver-specific settings remain adapter-specific.
 
 The standalone functions remain useful when the adapter varies by call or a
 small module does not need a bound client:

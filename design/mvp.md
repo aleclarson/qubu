@@ -19,8 +19,8 @@
 - Parameterized SQL templates whose static text is trusted syntax, whose
   ordinary substitutions become parameters, and whose fragment substitutions
   retain renderer metadata.
-- A driver-neutral adapter boundary with structured execution results and an
-  opt-in Vite compiler hint.
+- A driver-neutral adapter boundary with structured execution results, an
+  opt-in transaction-scoped client, and an opt-in Vite compiler hint.
 - Pure snapshot serialization, snapshot diffing, migration planning, and DDL
   emission, plus catalog introspection through an application-owned connection
   interface.
@@ -58,4 +58,4 @@ unchanged.
   vendor-specific syntax.
 - Streaming.
 - Migration execution, ORM behavior, relationship loading, connection
-  lifecycle, and transaction orchestration.
+  lifecycle, and driver-specific transaction configuration.

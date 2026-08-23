@@ -144,9 +144,11 @@ diffing, pure migration planning, and DDL emission. `execute()` passes a
 rendered statement, query kind, and optional abort signal to an
 application-owned adapter, then returns its `ExecutionResult` unchanged.
 Catalog readers likewise use an application-owned connection interface.
+Transactional clients scope typed callback execution through an adapter-owned
+transaction.
 
 Qubu does not own migration execution, ORM behavior, relationship loading,
-connections, pools, transactions, retries, parameter encoding or row decoding,
-driver error translation, or database lifecycle. The public [ownership
-map](../docs/reference/supported-surface.md#ownership-boundary) defines each
-handoff.
+connections, pools, transaction configuration or connection lifecycle, retries,
+parameter encoding or row decoding, driver error translation, or database
+lifecycle. The public [ownership map](../docs/reference/supported-surface.md#ownership-boundary)
+defines each handoff.

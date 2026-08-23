@@ -9,8 +9,12 @@ export type {
   ExecutionRequest,
   ExecutionResult,
   QubuClient,
+  QubuTransaction,
+  QubuTransactionalClient,
   QueryAdapter,
   QueryExecutor,
+  TransactionOptions,
+  TransactionalQueryAdapter,
 } from './execution.ts'
 export { render } from './core/render.ts'
 export type { RenderedQuery, RenderOptions } from './core/render.ts'
