@@ -2,7 +2,7 @@
 // authoring. Fragment internals, dialect construction, and schema metadata
 // live behind `qubu/core` and `qubu/schema`.
 
-export { client, execute, executeRows } from './execution.ts'
+export { execute, executeRows, qubu } from './execution.ts'
 export type {
   DriverValueEncoder,
   ExecutionOptions,

@@ -60,7 +60,7 @@ export type QueryExecutor = QueryAdapter
 
 /** A query client with one application-owned adapter bound to every call. */
 export interface QubuClient<TAdapter extends QueryAdapter = QueryAdapter> {
-  /** The adapter supplied to {@link client}. */
+  /** The adapter supplied to {@link qubu}. */
   readonly adapter: TAdapter
   /** Execute a query and keep the adapter's structured mutation facts. */
   execute<TRow extends object>(
@@ -75,7 +75,7 @@ export interface QubuClient<TAdapter extends QueryAdapter = QueryAdapter> {
 }
 
 /** Bind an application-owned adapter once for repeated query execution. */
-export function client<TAdapter extends QueryAdapter>(
+export function qubu<TAdapter extends QueryAdapter>(
   adapter: TAdapter
 ): QubuClient<TAdapter> {
   return Object.freeze({

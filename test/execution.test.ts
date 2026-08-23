@@ -1,12 +1,12 @@
 import { expect, expectTypeOf, test } from 'vitest'
 import {
-  client,
   eq,
   execute,
   executeRows,
   from,
   insertInto,
   integer,
+  qubu,
   returning,
   select,
   table,
@@ -100,7 +100,7 @@ test('binds one adapter for structured and row-only execution', async () => {
       }
     },
   }
-  const db = client(adapter)
+  const db = qubu(adapter)
   const query = select({ id: users.id }, from(users), where(eq(users.id, 7)))
 
   const result = await db.execute(query, { dialect: postgresDialect() })

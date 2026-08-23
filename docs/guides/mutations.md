@@ -123,7 +123,7 @@ unrestricted operation is intended.
 `{ ...all(table) }` for the intentional contract of returning every table
 column. When present, the mutation's `row` type is inferred from that projection, so
 `(await db.execute(query)).rows` has the same shape as a read query when `db`
-comes from `client(adapter)`. The projection's SQL semantic domains are
+comes from `qubu(adapter)`. The projection's SQL semantic domains are
 retained too, so a returned query used by typed composition does not collapse
 UUID, text, numeric, or other known fields to their JavaScript types alone.
 

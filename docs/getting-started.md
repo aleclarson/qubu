@@ -79,7 +79,7 @@ type UserRow = typeof query.row
 > [!NOTE]
 > Rendering produces a statement; it does not execute it. Keep the
 > `RenderedQuery` value for logging or testing. Bind an
-> [application-owned adapter](dialects-and-execution.md) with `client()`, or use
+> [application-owned adapter](dialects-and-execution.md) with `qubu()`, or use
 > `execute()` and `executeRows()` directly, to run the query.
 
 ## Next steps

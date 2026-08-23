@@ -1,6 +1,6 @@
 import { expect, expectTypeOf, test } from 'vitest'
 import * as runtime from '../src/index.ts'
-import { qubu } from 'qubu/vite'
+import { qubu as qubuPlugin } from 'qubu/vite'
 import { qubuGlobals } from '../src/vite/globals.ts'
 
 test('keeps the global catalog aligned with runtime exports', () => {
@@ -9,7 +9,7 @@ test('keeps the global catalog aligned with runtime exports', () => {
 })
 
 test('injects only referenced Qubu globals after the directive prologue', () => {
-  const plugin = qubu()
+  const plugin = qubuPlugin()
   const result = plugin.transform(
     `"use strict";
 "use qubu";
@@ -30,7 +30,7 @@ const query = select({ id: users.id }, from(users), where(eq(users.id, 42)));`
 })
 
 test('executes a transformed directive module through the injected runtime imports', () => {
-  const plugin = qubu()
+  const plugin = qubuPlugin()
   const result = plugin.transform(
     `"use qubu";
 const users = table('users', { id: integer(), name: text() });
@@ -57,7 +57,7 @@ const rendered = render(query);`,
 })
 
 test('ignores strings, comments, and member properties', () => {
-  const plugin = qubu()
+  const plugin = qubuPlugin()
   const result = plugin.transform(
     `"use qubu";
 const text = "select(table)";
@@ -70,7 +70,7 @@ object.select;`,
 })
 
 test('does not duplicate names already bound by an import', () => {
-  const plugin = qubu()
+  const plugin = qubuPlugin()
   const result = plugin.transform(
     `"use qubu";
 import { select } from 'qubu';
@@ -86,7 +86,7 @@ select({ id: users.id }, from(users));`,
 })
 
 test('auto-imports the SQL template tag', () => {
-  const result = qubu().transform(
+  const result = qubuPlugin().transform(
     '"use qubu"; const predicate = sql`id = ${42}`;',
     '/workspace/query.ts'
   )
@@ -95,7 +95,7 @@ test('auto-imports the SQL template tag', () => {
 })
 
 test('exposes ambient Qubu value types', () => {
-  const typedClient: typeof client = undefined as never
+  const typedQubu: typeof qubu = undefined as never
   const typedTable: typeof table = undefined as never
   const typedSelect: typeof select = undefined as never
   const typedExecuteRows: typeof executeRows = undefined as never
@@ -108,7 +108,7 @@ test('exposes ambient Qubu value types', () => {
   const ambientSqlTag: SqlTag = undefined as never
   const ambientTypedSqlTag: TypedSqlTag<string, SqlText> = undefined as never
 
-  expectTypeOf(typedClient).toBeFunction()
+  expectTypeOf(typedQubu).toBeFunction()
   expectTypeOf(typedTable).toBeFunction()
   expectTypeOf(typedSelect).toBeFunction()
   expectTypeOf(typedExecuteRows).toBeFunction()
@@ -123,7 +123,7 @@ test('exposes ambient Qubu value types', () => {
 })
 
 test('supports filters and ignores non-script modules', () => {
-  const plugin = qubu({ include: id => id.includes('/src/') })
+  const plugin = qubuPlugin({ include: id => id.includes('/src/') })
   const source = `"use qubu"; select({ value: value(1) });`
 
   expect(plugin.transform(source, '/workspace/src/query.ts')).not.toBeNull()

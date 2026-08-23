@@ -86,7 +86,7 @@ rows, or manage transactions. An adapter receives an `ExecutionRequest` and
 returns an `ExecutionResult`:
 
 ```ts
-import { client } from 'qubu'
+import { qubu } from 'qubu'
 import { postgresDialect } from 'qubu/postgres'
 import type { ExecutionRequest, ExecutionResult, QueryAdapter } from 'qubu'
 
@@ -121,12 +121,12 @@ const adapter: QueryAdapter = {
 
 ## Bind the adapter once
 
-Use `client()` when several calls share one adapter. The returned client keeps
+Use `qubu()` when several calls share one adapter. The returned client keeps
 the adapter available as `db.adapter` and accepts the same execution options as
 the standalone functions:
 
 ```ts
-const db = client(adapter)
+const db = qubu(adapter)
 
 const controller = new AbortController()
 const result = await db.execute(query, {

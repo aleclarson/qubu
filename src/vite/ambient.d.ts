@@ -21,7 +21,6 @@ declare global {
   const caseWhen: typeof import('qubu').caseWhen
   const cast: typeof import('qubu').cast
   const check: typeof import('qubu').check
-  const client: typeof import('qubu').client
   const coalesce: typeof import('qubu').coalesce
   const column: typeof import('qubu').column
   const concat: typeof import('qubu').concat
@@ -104,6 +103,7 @@ declare global {
   const over: typeof import('qubu').over
   const portableStorage: typeof import('qubu').portableStorage
   const primaryKey: typeof import('qubu').primaryKey
+  const qubu: typeof import('qubu').qubu
   const references: typeof import('qubu').references
   const render: typeof import('qubu').render
   const rank: typeof import('qubu').rank

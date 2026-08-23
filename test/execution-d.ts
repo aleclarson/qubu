@@ -1,10 +1,10 @@
 import { expectTypeOf } from 'vitest'
 import {
-  client,
   execute,
   executeRows,
   from,
   integer,
+  qubu,
   select,
   table,
   type ExecutionOptions,
@@ -43,7 +43,7 @@ expectTypeOf(executeRows(adapter, query)).toEqualTypeOf<
   Promise<readonly { id: number }[]>
 >()
 
-const db = client(adapter)
+const db = qubu(adapter)
 expectTypeOf(db).toEqualTypeOf<QubuClient<QueryAdapter>>()
 expectTypeOf(db.adapter).toEqualTypeOf<QueryAdapter>()
 expectTypeOf(db.execute(query, options)).toEqualTypeOf<
@@ -53,7 +53,7 @@ expectTypeOf(db.rows(query)).toEqualTypeOf<Promise<readonly { id: number }[]>>()
 
 const specializedAdapter = { ...adapter, name: 'application' as const }
 expectTypeOf(
-  client(specializedAdapter).adapter.name
+  qubu(specializedAdapter).adapter.name
 ).toEqualTypeOf<'application'>()
 
 declare const result: ExecutionResult<{ id: number }>
