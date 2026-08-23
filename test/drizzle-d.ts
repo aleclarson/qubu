@@ -48,9 +48,9 @@ type UserInsert = {
   role?: string
 }
 
-expectTypeOf(postgres.users).toMatchTypeOf<PgTable>()
-expectTypeOf(mysql.users).toMatchTypeOf<MySqlTable>()
-expectTypeOf(sqlite.users).toMatchTypeOf<SQLiteTable>()
+expectTypeOf(postgres.users).toExtend<PgTable>()
+expectTypeOf(mysql.users).toExtend<MySqlTable>()
+expectTypeOf(sqlite.users).toExtend<SQLiteTable>()
 expectTypeOf<typeof postgres.users.$inferSelect>().toEqualTypeOf<UserRow>()
 expectTypeOf<typeof postgres.users.$inferInsert>().toEqualTypeOf<UserInsert>()
 expectTypeOf<typeof mysql.users.$inferSelect>().toEqualTypeOf<UserRow>()
