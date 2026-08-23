@@ -38,6 +38,12 @@ export {
   type ProvisionerFactory,
   type ProvisionRequest,
 } from "./provisioners.js";
+export {
+  nodeMysqlProvisioner,
+  nodePostgresProvisioner,
+  nodeProvisioners,
+  nodeSqliteProvisioner,
+} from "./node-provisioners.js";
 export * from "./launchers/index.js";
 export {
   runCombo,

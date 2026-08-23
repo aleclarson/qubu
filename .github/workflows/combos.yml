@@ -9,15 +9,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          repository: aleclarson/qubu
+          ref: main
+          path: qubu
+      - uses: actions/checkout@v4
+        with:
+          repository: aleclarson/qubu
+          ref: combos
+          path: qubu/combos
       - uses: pnpm/action-setup@v4
         with:
           version: 11.21.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
+          cache-dependency-path: |
+            qubu/pnpm-lock.yaml
+            qubu/combos/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+        working-directory: qubu
+      - run: pnpm install --frozen-lockfile
+        working-directory: qubu/combos
       - run: pnpm check
+        working-directory: qubu/combos
 
   select:
     needs: checks
@@ -27,36 +43,100 @@ jobs:
       has_verified: ${{ steps.matrix.outputs.has_verified }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          repository: aleclarson/qubu
+          ref: main
+          path: qubu
+      - uses: actions/checkout@v4
+        with:
+          repository: aleclarson/qubu
+          ref: combos
+          path: qubu/combos
       - uses: pnpm/action-setup@v4
         with:
           version: 11.21.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
+          cache-dependency-path: |
+            qubu/pnpm-lock.yaml
+            qubu/combos/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+        working-directory: qubu
+      - run: pnpm install --frozen-lockfile
+        working-directory: qubu/combos
       - id: matrix
         run: pnpm run ci:matrix -- --github-output "$GITHUB_OUTPUT"
+        working-directory: qubu/combos
 
   verified:
     needs: select
     if: needs.select.outputs.has_verified == 'true'
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: mysql
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.select.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          repository: aleclarson/qubu
+          ref: main
+          path: qubu
+      - uses: actions/checkout@v4
+        with:
+          repository: aleclarson/qubu
+          ref: combos
+          path: qubu/combos
       - uses: pnpm/action-setup@v4
         with:
           version: 11.21.0
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
+          cache-dependency-path: |
+            qubu/pnpm-lock.yaml
+            qubu/combos/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+        working-directory: qubu
+      - run: pnpm install --frozen-lockfile
+        working-directory: qubu/combos
       - name: Run selected scenario
         run: >-
           pnpm run combo:run --
           --adapter "${{ matrix.adapter }}"
           --environment "${{ matrix.environment }}"
+        working-directory: qubu/combos
+        env:
+          POSTGRES_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          MYSQL_HOST: 127.0.0.1
+          MYSQL_PORT: 3306
+          MYSQL_USER: root
+          MYSQL_PASSWORD: root

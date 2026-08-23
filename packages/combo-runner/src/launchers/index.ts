@@ -13,4 +13,9 @@ export {
 } from "./cloudflare-workers.js";
 export { createDenoLauncher, denoLauncher } from "./deno.js";
 export { browserLauncher, createBrowserLauncher } from "./browser.js";
-export { createNodeLauncher, nodeLauncher } from "./node.js";
+export {
+  createNodeLauncher,
+  nodeLauncher,
+  nodeScenarioLoader,
+  resolveNodeScenario,
+} from "./node.js";

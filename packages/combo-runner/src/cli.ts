@@ -6,7 +6,6 @@ import {
   type AdapterId,
   type EnvironmentId,
 } from "./catalog.js";
-import { createUnavailableProvisioner } from "./provisioners.js";
 import {
   browserLauncher,
   bunLauncher,
@@ -14,6 +13,7 @@ import {
   denoLauncher,
   nodeLauncher,
 } from "./launchers/index.js";
+import { nodeProvisioners } from "./node-provisioners.js";
 import { runCombo, selectCiMatrix } from "./runner.js";
 
 function usage(): never {
@@ -107,20 +107,7 @@ async function runCommand(args: readonly string[]): Promise<void> {
         "cloudflare-workers": cloudflareWorkersLauncher,
         browser: browserLauncher,
       },
-      provisioners: {
-        sqlite: createUnavailableProvisioner(
-          "sqlite",
-          "the runtime-specific SQLite setup is added with its scenario",
-        ),
-        postgresql: createUnavailableProvisioner(
-          "postgresql",
-          "the runtime-specific PostgreSQL setup is added with its scenario",
-        ),
-        mysql: createUnavailableProvisioner(
-          "mysql",
-          "the runtime-specific MySQL setup is added with its scenario",
-        ),
-      },
+      provisioners: nodeProvisioners,
     },
   );
 }

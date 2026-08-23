@@ -15,8 +15,9 @@ pnpm install
 pnpm check
 ```
 
-`pnpm check` typechecks the TypeScript workspace, runs the deterministic runner
-tests, and checks that `docs/catalog.md` matches the registry renderer.
+`pnpm check` builds the linked Qubu checkout, typechecks the TypeScript
+workspace, runs the deterministic runner tests, and checks that
+`docs/catalog.md` matches the registry renderer.
 
 Use these commands while adding a scenario:
 
@@ -25,7 +26,17 @@ pnpm catalog:generate
 pnpm ci:matrix
 ```
 
-The CI matrix is empty until a cell is `verified` and points at a scenario
-module. A verified module exports one async `verify(context)` function. It
-prepares its own schema and data and uses the connection supplied by the
-runner. The provisioner owns the isolated database lifetime.
+The current CI matrix runs the three Node.js scenarios. A verified module
+exports one async `verify(context)` function. It prepares its own schema and
+data and uses the connection supplied by the runner. The provisioner owns the
+isolated database lifetime.
+
+The combo checkout expects the parent Qubu checkout at `..`. Its package
+dependency is `qubu: link:../../..` from `packages/combo-runner`, so local
+checks build the parent package before compiling scenarios. CI checks out
+`aleclarson/qubu` at `qubu` and the `combos` branch at `qubu/combos`.
+
+The Node launcher resolves `./scenarios/...` paths from the compiled package
+root. Bun, Deno, Workers, and browser launchers use the same
+`RuntimeLauncher` and `ScenarioLoader` seam and will receive native module
+loaders when their scenarios land.

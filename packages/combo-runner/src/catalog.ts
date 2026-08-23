@@ -25,18 +25,18 @@ export const COMBO_STATUSES = [
 export type ComboStatus = (typeof COMBO_STATUSES)[number];
 
 /**
- * These IDs include the runtime qualification in the name. That keeps an
- * adapter that has different entry points per runtime from being mistaken for
- * one portable package.
+ * These IDs name the adapter and database engine, not the runtime where the
+ * adapter was first verified. A runtime is an explicit dimension in every
+ * combo cell.
  */
 export const ADAPTER_IDS = [
-  "node-sqlite",
-  "pg-node",
-  "mysql2-promise-node",
-  "bun-sqlite",
-  "postgresjs-deno",
-  "d1-workers",
-  "pglite-browser",
+  "node-sqlite/sqlite",
+  "pg/postgresql",
+  "mysql2-promise/mysql",
+  "bun-sql/sqlite",
+  "postgresjs/postgresql",
+  "cloudflare-d1/sqlite",
+  "pglite/postgresql",
 ] as const;
 
 export type AdapterId = (typeof ADAPTER_IDS)[number];
@@ -110,7 +110,7 @@ export const ENVIRONMENTS = [
 
 export const ADAPTER_VARIANTS = [
   {
-    id: "node-sqlite",
+    id: "node-sqlite/sqlite",
     label: "node:sqlite",
     packageName: "node:sqlite",
     engine: "sqlite",
@@ -118,7 +118,7 @@ export const ADAPTER_VARIANTS = [
     notes: "Node's built-in SQLite client.",
   },
   {
-    id: "pg-node",
+    id: "pg/postgresql",
     label: "pg",
     packageName: "pg",
     engine: "postgresql",
@@ -126,7 +126,7 @@ export const ADAPTER_VARIANTS = [
     notes: "The Node.js PostgreSQL client.",
   },
   {
-    id: "mysql2-promise-node",
+    id: "mysql2-promise/mysql",
     label: "mysql2/promise",
     packageName: "mysql2/promise",
     engine: "mysql",
@@ -134,23 +134,23 @@ export const ADAPTER_VARIANTS = [
     notes: "The promise-based mysql2 client.",
   },
   {
-    id: "bun-sqlite",
+    id: "bun-sql/sqlite",
     label: "Bun.SQL/SQLite",
-    packageName: "bun:sqlite",
+    packageName: "bun",
     engine: "sqlite",
     declaredEnvironment: "bun",
     notes: "Bun's SQL interface backed by SQLite.",
   },
   {
-    id: "postgresjs-deno",
+    id: "postgresjs/postgresql",
     label: "postgres.js",
-    packageName: "postgresjs",
+    packageName: "postgres",
     engine: "postgresql",
     declaredEnvironment: "deno",
     notes: "postgres.js loaded in its Deno entry point.",
   },
   {
-    id: "d1-workers",
+    id: "cloudflare-d1/sqlite",
     label: "D1 binding",
     packageName: "cloudflare:d1",
     engine: "sqlite",
@@ -158,7 +158,7 @@ export const ADAPTER_VARIANTS = [
     notes: "The D1 binding supplied by a local Wrangler Worker.",
   },
   {
-    id: "pglite-browser",
+    id: "pglite/postgresql",
     label: "PGlite",
     packageName: "@electric-sql/pglite",
     engine: "postgresql",
@@ -174,56 +174,56 @@ type ComboStatusTable = {
 };
 
 /*
- * The target cell for each adapter is deliberately not-yet-written here.
- * Follow-up commits add a scenario and change that one cell to verified. The
+ * The first three Node targets have live scenarios in this commit. The
+ * remaining declared-runtime targets are pending for later commits. The
  * experimental cells identify plausible cross-runtime experiments, while the
- * incompatible cells are combinations that cannot receive this engine-
- * qualified adapter entry point.
+ * incompatible cells are combinations that cannot receive this adapter entry
+ * point.
  */
 export const COMBO_STATUS_BY_ADAPTER = {
-  "node-sqlite": {
-    node: "not-yet-written",
+  "node-sqlite/sqlite": {
+    node: "verified",
     bun: "experimental",
     deno: "experimental",
     "cloudflare-workers": "incompatible",
     browser: "incompatible",
   },
-  "pg-node": {
-    node: "not-yet-written",
+  "pg/postgresql": {
+    node: "verified",
+    bun: "experimental",
+    deno: "experimental",
+    "cloudflare-workers": "experimental",
+    browser: "incompatible",
+  },
+  "mysql2-promise/mysql": {
+    node: "verified",
     bun: "experimental",
     deno: "experimental",
     "cloudflare-workers": "incompatible",
     browser: "incompatible",
   },
-  "mysql2-promise-node": {
-    node: "not-yet-written",
-    bun: "experimental",
-    deno: "experimental",
-    "cloudflare-workers": "incompatible",
-    browser: "incompatible",
-  },
-  "bun-sqlite": {
+  "bun-sql/sqlite": {
     node: "incompatible",
     bun: "not-yet-written",
     deno: "incompatible",
     "cloudflare-workers": "incompatible",
     browser: "incompatible",
   },
-  "postgresjs-deno": {
+  "postgresjs/postgresql": {
     node: "experimental",
     bun: "experimental",
     deno: "not-yet-written",
     "cloudflare-workers": "experimental",
     browser: "incompatible",
   },
-  "d1-workers": {
+  "cloudflare-d1/sqlite": {
     node: "incompatible",
     bun: "incompatible",
     deno: "incompatible",
     "cloudflare-workers": "not-yet-written",
     browser: "incompatible",
   },
-  "pglite-browser": {
+  "pglite/postgresql": {
     node: "experimental",
     bun: "experimental",
     deno: "experimental",
@@ -231,6 +231,12 @@ export const COMBO_STATUS_BY_ADAPTER = {
     browser: "not-yet-written",
   },
 } as const satisfies ComboStatusTable;
+
+const SCENARIO_BY_COMBO: Readonly<Partial<Record<ComboKey, string>>> = {
+  "node-sqlite/sqlite/node": "./scenarios/node/node-sqlite.js",
+  "pg/postgresql/node": "./scenarios/node/pg.js",
+  "mysql2-promise/mysql/node": "./scenarios/node/mysql2-promise.js",
+};
 
 /** Join a variant and environment into the registry's stable key. */
 export function comboKey(adapter: AdapterId, environment: EnvironmentId): ComboKey {
@@ -245,6 +251,7 @@ function makeComboCells(): readonly ComboCell[] {
       environment: environment.id,
       engine: adapter.engine,
       status: COMBO_STATUS_BY_ADAPTER[adapter.id][environment.id],
+      scenario: SCENARIO_BY_COMBO[comboKey(adapter.id, environment.id)],
     })),
   );
 }
@@ -297,6 +304,11 @@ export function defineRegistry(
 
   const seenKeys = new Set<ComboKey>();
   for (const cell of registry.combos) {
+    if (cell.key !== comboKey(cell.adapter, cell.environment)) {
+      throw new Error(
+        `Combo cell key does not match its adapter and environment: ${cell.key}`,
+      );
+    }
     if (!expectedKeys.has(cell.key)) {
       throw new Error(`Combo cell is not in the registry matrix: ${cell.key}`);
     }

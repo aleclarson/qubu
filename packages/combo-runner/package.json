@@ -9,8 +9,16 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "pnpm --dir ../../.. build && tsc -p tsconfig.json",
+    "typecheck": "pnpm --dir ../../.. build && tsc -p tsconfig.json --noEmit",
     "test": "pnpm run build && node --test dist/*.test.js"
+  },
+  "dependencies": {
+    "mysql2": "^3.23.4",
+    "pg": "^8.23.0",
+    "qubu": "link:../../.."
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1"
   }
 }

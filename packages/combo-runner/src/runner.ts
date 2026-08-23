@@ -3,6 +3,7 @@ import {
   findCombo,
   type AdapterId,
   type ComboCell,
+  type ComboKey,
   type ComboRegistry,
   type DatabaseEngine,
   type EnvironmentId,
@@ -18,7 +19,8 @@ export interface ComboSelector {
 export interface RunnerDependencies {
   readonly registry?: ComboRegistry;
   readonly launchers: Readonly<Partial<Record<EnvironmentId, RuntimeLauncher>>>;
-  readonly provisioners: Readonly<Partial<Record<DatabaseEngine, DatabaseProvisioner>>>;
+  /** Provisioners are selected by the full combo, not only its engine. */
+  readonly provisioners: Readonly<Partial<Record<ComboKey, DatabaseProvisioner>>>;
 }
 
 export interface RunOptions {
@@ -87,11 +89,16 @@ function requireLauncher(
 
 function requireProvisioner(
   dependencies: RunnerDependencies,
-  engine: DatabaseEngine,
+  combo: ComboCell,
 ): DatabaseProvisioner {
-  const provisioner = dependencies.provisioners[engine];
+  const provisioner = dependencies.provisioners[combo.key];
   if (!provisioner) {
-    throw new Error(`No ${engine} database provisioner is configured.`);
+    throw new Error(`No database provisioner is configured for ${combo.key}.`);
+  }
+  if (provisioner.engine !== combo.engine) {
+    throw new Error(
+      `Provisioner engine mismatch for ${combo.key}: expected ${combo.engine}, got ${provisioner.engine}.`,
+    );
   }
   return provisioner;
 }
@@ -111,7 +118,7 @@ export async function runCombo(
   }
 
   const launcher = requireLauncher(dependencies, combo.environment);
-  const provisioner = requireProvisioner(dependencies, combo.engine);
+  const provisioner = requireProvisioner(dependencies, combo);
   const runId = options.runId ?? makeRunId(combo);
   const request: ProvisionRequest = {
     combo,

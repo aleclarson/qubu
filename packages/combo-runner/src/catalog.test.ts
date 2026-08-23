@@ -25,25 +25,60 @@ test("catalog covers every adapter and environment exactly once", () => {
   }
 });
 
-test("planned target cells remain unwritten until scenarios exist", () => {
+test("Node target cells are verified and later targets remain unwritten", () => {
   const targetCells = [
-    ["node-sqlite", "node"],
-    ["pg-node", "node"],
-    ["mysql2-promise-node", "node"],
-    ["bun-sqlite", "bun"],
-    ["postgresjs-deno", "deno"],
-    ["d1-workers", "cloudflare-workers"],
-    ["pglite-browser", "browser"],
+    ["node-sqlite/sqlite", "node", "verified"],
+    ["pg/postgresql", "node", "verified"],
+    ["mysql2-promise/mysql", "node", "verified"],
+    ["bun-sql/sqlite", "bun", "not-yet-written"],
+    ["postgresjs/postgresql", "deno", "not-yet-written"],
+    ["cloudflare-d1/sqlite", "cloudflare-workers", "not-yet-written"],
+    ["pglite/postgresql", "browser", "not-yet-written"],
   ] as const;
 
-  for (const [adapter, environment] of targetCells) {
-    assert.equal(findCombo(comboRegistry, adapter, environment).status, "not-yet-written");
+  for (const [adapter, environment, status] of targetCells) {
+    const combo = findCombo(comboRegistry, adapter, environment);
+    assert.equal(combo.status, status);
+    if (status === "verified") {
+      assert.match(combo.scenario ?? "", /^\.\/scenarios\/node\/.+\.js$/);
+    }
   }
-  assert.equal(statusCounts().verified, 0);
+  assert.equal(statusCounts().verified, 3);
 });
 
 test("CI selection contains only verified scenarios", () => {
-  assert.deepEqual(selectCiMatrix(), []);
+  assert.deepEqual(
+    selectCiMatrix().map(({ key, adapter, environment, engine, scenario }) => ({
+      key,
+      adapter,
+      environment,
+      engine,
+      scenario,
+    })),
+    [
+      {
+        key: "node-sqlite/sqlite/node",
+        adapter: "node-sqlite/sqlite",
+        environment: "node",
+        engine: "sqlite",
+        scenario: "./scenarios/node/node-sqlite.js",
+      },
+      {
+        key: "pg/postgresql/node",
+        adapter: "pg/postgresql",
+        environment: "node",
+        engine: "postgresql",
+        scenario: "./scenarios/node/pg.js",
+      },
+      {
+        key: "mysql2-promise/mysql/node",
+        adapter: "mysql2-promise/mysql",
+        environment: "node",
+        engine: "mysql",
+        scenario: "./scenarios/node/mysql2-promise.js",
+      },
+    ],
+  );
 });
 
 test("catalog rendering includes all status classes and matrix dimensions", () => {
