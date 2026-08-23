@@ -9,7 +9,11 @@ import {
 } from '../core/fragment.ts'
 import type { AnySqlType, SqlUnknown } from '../core/sql-types.ts'
 import { identifier } from '../core/primitives/identifier.ts'
-import { makeSchemaExpression, type SchemaExpression } from './types.ts'
+import {
+  makeSchemaExpression,
+  type Expression,
+  type SchemaExpression,
+} from './types.ts'
 
 export interface ColumnReference<
   TFieldName extends string = string,

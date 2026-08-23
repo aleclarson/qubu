@@ -18,19 +18,16 @@ import {
   groupBy,
   gt,
   having,
-  ilike,
   insertInto,
   integer,
   leftJoin,
   offset,
   orderBy,
   over,
-  postgresDialect,
   render,
   returning,
   rowNumber,
   select,
-  sqliteDialect,
   sum,
   table,
   text,
@@ -40,6 +37,8 @@ import {
   withCte,
   type RenderedQuery,
 } from 'qubu'
+import { ilike, postgresDialect } from 'qubu/postgres'
+import { sqliteDialect } from 'qubu/sqlite'
 
 // Schema definitions are both SQL sources and the source of Qubu's types.
 const users = table('users', {
@@ -67,10 +66,10 @@ const userPage = select(
     displayName: users.name,
     email: users.email,
   },
-  interestingUsers,
-  fetchFirst(10),
   from(users),
+  interestingUsers,
   alphabetical,
+  fetchFirst(10),
   offset(20)
 )
 
