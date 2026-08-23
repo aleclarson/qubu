@@ -12,7 +12,8 @@
 | `qubu/mysql`         | The MySQL dialect policy                                                                            |
 | `qubu/snapshot`      | Canonical schema v1 traversal, encoding, strict decoding, diagnostics, and content digests          |
 | `qubu/diff`          | Canonical Snapshot v1/v2 comparison, explicit rename hints, suggestions, and safety diagnostics     |
-| `qubu/drizzle`       | Typed runtime Drizzle tables for PostgreSQL, MySQL, and SQLite                                      |
+| `qubu/drizzle`       | Shared Drizzle conversion errors and dialect types                                                  |
+| `qubu/drizzle/*`     | Typed runtime Drizzle tables from separate `postgres`, `mysql`, and `sqlite` modules                |
 | `qubu/migration`     | Dialect-neutral migration plans with dependencies, safety decisions, preconditions, and custom SQL  |
 | `qubu/introspection` | User-owned catalog readers and normalized catalog-to-Snapshot v1 mapping                            |
 | `qubu/vite`          | The optional `qubu()` Vite compiler hint                                                            |
@@ -39,7 +40,7 @@ The MySQL snapshot adapter and its support limits are listed in the
 | Write queries      | `INSERT` values/defaults/select, `UPDATE`, `DELETE`, typed assignments, `RETURNING`, and explicit unrestricted-write opt-in                                                                                                                                                                                                                                                  |
 | Rendering          | Standard, PostgreSQL, SQLite, MySQL, and user-created identifier, placeholder, pagination, JSON, logical cast-target, and schema-literal policies                                                                                                                                                                                                                            |
 | Execution boundary | Generic `QueryAdapter` plus `execute()`; connection and driver behavior remain external                                                                                                                                                                                                                                                                                      |
-| Build tooling      | Optional Vite directive transform with matching TypeScript ambient declarations, plus the opt-in `qubu/snapshot`, `qubu/diff`, `qubu/migration`, and `qubu/drizzle` integration entrypoints                                                                                                                                                                                  |
+| Build tooling      | Optional Vite directive transform with matching TypeScript ambient declarations, plus the opt-in snapshot, diff, migration, and dialect-specific Drizzle integration entrypoints                                                                                                                                                                                             |
 | Introspection      | Optional PostgreSQL, SQLite, and MySQL catalog readers for one selected namespace, structured diagnostics, and strict or explicit lossy Snapshot v1 mapping                                                                                                                                                                                                                  |
 
 ## Safety boundaries

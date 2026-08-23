@@ -5,8 +5,8 @@
 
 ## Install the optional integration
 
-Install Drizzle next to Qubu. The `qubu/drizzle` entrypoint has an optional peer
-dependency on Drizzle, so importing the rest of Qubu does not load the ORM.
+Install Drizzle next to Qubu. The Drizzle entrypoints use an optional peer
+dependency, so importing the rest of Qubu does not load the ORM.
 
 ```bash
 pnpm add qubu drizzle-orm
@@ -17,12 +17,12 @@ the current 0.x line.
 
 ## Convert the schema
 
-Declare tables and the root registry with Qubu, then pass the registry and its
-database dialect to `toDrizzleSchema()`:
+Declare tables and the root registry with Qubu, then import the converter for
+your database:
 
 ```ts
 import { integer, schema, table, text } from 'qubu'
-import { toDrizzleSchema } from 'qubu/drizzle'
+import { toPostgresDrizzleSchema } from 'qubu/drizzle/postgres'
 
 const users = table('user_records', {
   id: integer({ generated: true }),
@@ -31,8 +31,20 @@ const users = table('user_records', {
 })
 
 const appSchema = schema({ users }, { namespace: 'app' })
-const drizzleTables = toDrizzleSchema(appSchema, 'postgresql')
+const drizzleTables = toPostgresDrizzleSchema(appSchema)
 ```
+
+The import path selects the dialect. Each module imports only its matching
+Drizzle core package:
+
+| Database   | Import                  | Converter                   |
+| ---------- | ----------------------- | --------------------------- |
+| PostgreSQL | `qubu/drizzle/postgres` | `toPostgresDrizzleSchema()` |
+| MySQL      | `qubu/drizzle/mysql`    | `toMysqlDrizzleSchema()`    |
+| SQLite     | `qubu/drizzle/sqlite`   | `toSqliteDrizzleSchema()`   |
+
+`qubu/drizzle` exports the shared conversion error and dialect types. It does
+not import a dialect core or provide a universal runtime converter.
 
 `drizzleTables.users` is a real Drizzle `PgTable`. The logical `users` key,
 physical `user_records` name, `app` namespace, field keys, and physical column
@@ -75,26 +87,26 @@ make nullable fields optional.
 Drizzle has one application value type per column. Qubu can instead declare
 different select, insert, and update types with
 `column<Output, Insert, Update>()`. That declaration has no lossless Drizzle
-equivalent, so `toDrizzleSchema()` rejects it at compile time. Built-in Qubu
-columns and `$type()` narrowing use one value type and convert without an
+equivalent, so each dialect converter rejects it at compile time. Built-in
+Qubu columns and `$type()` narrowing use one value type and convert without an
 override.
 
 ## Runtime metadata
 
-The adapter selects Drizzle's PostgreSQL, MySQL, or SQLite builders from the
-Qubu storage descriptor. It also transfers concrete defaults, generated
-expressions, common primary and unique constraints, checks, foreign keys, and
-indexes. Native storage must belong to the selected dialect:
+Each dialect adapter maps Qubu storage descriptors to its own Drizzle builders.
+It also transfers concrete defaults, generated expressions, common primary and
+unique constraints, checks, foreign keys, and indexes. Native storage must
+belong to the selected dialect:
 
 ```ts
 import { nativeColumn, schema, table } from 'qubu'
-import { toDrizzleSchema } from 'qubu/drizzle'
+import { toPostgresDrizzleSchema } from 'qubu/drizzle/postgres'
 
 const records = table('records', {
   handle: nativeColumn('postgresql', 'CITEXT'),
 })
 
-const tables = toDrizzleSchema(schema({ records }), 'postgresql')
+const tables = toPostgresDrizzleSchema(schema({ records }))
 ```
 
 Conversion first runs Qubu's snapshot validation for the selected dialect.

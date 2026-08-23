@@ -3,10 +3,15 @@ import type { MySqlTable } from 'drizzle-orm/mysql-core'
 import type { PgTable } from 'drizzle-orm/pg-core'
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
 import {
-  toDrizzleSchema,
-  type DrizzleSchema,
-  type DrizzleTable,
-} from 'qubu/drizzle'
+  toMysqlDrizzleSchema,
+  type MysqlDrizzleSchema,
+} from 'qubu/drizzle/mysql'
+import {
+  toPostgresDrizzleSchema,
+  type PostgresDrizzleSchema,
+  type PostgresDrizzleTable,
+} from 'qubu/drizzle/postgres'
+import { toSqliteDrizzleSchema } from 'qubu/drizzle/sqlite'
 import { expectTypeOf } from 'vitest'
 import {
   column,
@@ -27,9 +32,9 @@ const users = table('user_records', {
   role: text({ default: 'member' }),
 })
 const appSchema = schema({ users })
-const postgres = toDrizzleSchema(appSchema, 'postgresql')
-const mysql = toDrizzleSchema(appSchema, 'mysql')
-const sqlite = toDrizzleSchema(appSchema, 'sqlite')
+const postgres = toPostgresDrizzleSchema(appSchema)
+const mysql = toMysqlDrizzleSchema(appSchema)
+const sqlite = toSqliteDrizzleSchema(appSchema)
 
 type UserRow = {
   id: number
@@ -52,12 +57,9 @@ expectTypeOf<typeof mysql.users.$inferSelect>().toEqualTypeOf<UserRow>()
 expectTypeOf<typeof mysql.users.$inferInsert>().toEqualTypeOf<UserInsert>()
 expectTypeOf<typeof sqlite.users.$inferSelect>().toEqualTypeOf<UserRow>()
 expectTypeOf<typeof sqlite.users.$inferInsert>().toEqualTypeOf<UserInsert>()
-expectTypeOf(postgres).toEqualTypeOf<
-  DrizzleSchema<typeof appSchema, 'postgresql'>
->()
-expectTypeOf(postgres.users).toEqualTypeOf<
-  DrizzleTable<typeof users, 'postgresql'>
->()
+expectTypeOf(postgres).toEqualTypeOf<PostgresDrizzleSchema<typeof appSchema>>()
+expectTypeOf(postgres.users).toEqualTypeOf<PostgresDrizzleTable<typeof users>>()
+expectTypeOf(mysql).toEqualTypeOf<MysqlDrizzleSchema<typeof appSchema>>()
 
 const db = pgDrizzle.mock({ schema: postgres })
 db.insert(postgres.users).values({
@@ -97,14 +99,14 @@ const divergent = schema({
 
 // Drizzle has one application value type per column.
 // @ts-expect-error divergent select, insert, and update types are not lossless.
-toDrizzleSchema(divergent, 'postgresql')
+toPostgresDrizzleSchema(divergent)
 
 const missingStorage = schema({
   values: table('missing_storage', { value: column<number>() }),
 })
 
 // @ts-expect-error every converted column needs physical storage.
-toDrizzleSchema(missingStorage, 'postgresql')
+toPostgresDrizzleSchema(missingStorage)
 
 const mysqlNative = schema({
   values: table('mysql_native', {
@@ -113,5 +115,5 @@ const mysqlNative = schema({
 })
 
 // @ts-expect-error native storage must belong to the selected dialect.
-toDrizzleSchema(mysqlNative, 'postgresql')
-toDrizzleSchema(mysqlNative, 'mysql')
+toPostgresDrizzleSchema(mysqlNative)
+toMysqlDrizzleSchema(mysqlNative)

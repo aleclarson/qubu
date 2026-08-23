@@ -4,7 +4,10 @@ import { getTableConfig as getMysqlTableConfig } from 'drizzle-orm/mysql-core'
 import { getTableConfig as getPgTableConfig } from 'drizzle-orm/pg-core'
 import { getTableConfig as getSqliteTableConfig } from 'drizzle-orm/sqlite-core'
 import { expect, test } from 'vitest'
-import { DrizzleSchemaConversionError, toDrizzleSchema } from 'qubu/drizzle'
+import { DrizzleSchemaConversionError } from 'qubu/drizzle'
+import { toMysqlDrizzleSchema } from 'qubu/drizzle/mysql'
+import { toPostgresDrizzleSchema } from 'qubu/drizzle/postgres'
+import { toSqliteDrizzleSchema } from 'qubu/drizzle/sqlite'
 import {
   bigint,
   binary,
@@ -45,9 +48,9 @@ const portable = table('portable_values', {
 
 test('builds dialect columns with Qubu physical storage and driver mappings', () => {
   const appSchema = schema({ portable })
-  const postgres = toDrizzleSchema(appSchema, 'postgresql')
-  const mysql = toDrizzleSchema(appSchema, 'mysql')
-  const sqlite = toDrizzleSchema(appSchema, 'sqlite')
+  const postgres = toPostgresDrizzleSchema(appSchema)
+  const mysql = toMysqlDrizzleSchema(appSchema)
+  const sqlite = toSqliteDrizzleSchema(appSchema)
 
   expect(
     getPgTableConfig(postgres.portable).columns.map(column =>
@@ -116,9 +119,8 @@ test('preserves logical keys, SQL names, namespaces, and Drizzle query behavior'
     displayName: text(),
     nickname: text({ nullable: true }),
   })
-  const converted = toDrizzleSchema(
-    schema({ users }, { namespace: 'app' }),
-    'postgresql'
+  const converted = toPostgresDrizzleSchema(
+    schema({ users }, { namespace: 'app' })
   )
   const config = getPgTableConfig(converted.users)
 
@@ -198,10 +200,7 @@ test('materializes defaults, generated columns, constraints, and indexes', () =>
     })
   )
 
-  const converted = toDrizzleSchema(
-    schema({ memberships, accounts }),
-    'postgresql'
-  )
+  const converted = toPostgresDrizzleSchema(schema({ memberships, accounts }))
   const accountConfig = getPgTableConfig(converted.accounts)
   const membershipConfig = getPgTableConfig(converted.memberships)
 
@@ -237,7 +236,7 @@ test('uses SQLite inline primary-key metadata for autoincrement identities', () 
       indexes: {},
     })
   )
-  const converted = toDrizzleSchema(schema({ records }), 'sqlite')
+  const converted = toSqliteDrizzleSchema(schema({ records }))
   const config = getSqliteTableConfig(converted.records)
 
   expect(converted.records.id.primary).toBe(true)
@@ -253,7 +252,7 @@ test('reports storage and Drizzle metadata that cannot be converted', () => {
     values: table('missing_storage', { value: column<number>() }),
   })
 
-  expect(() => toDrizzleSchema(missingStorage as never, 'postgresql')).toThrow(
+  expect(() => toPostgresDrizzleSchema(missingStorage as never)).toThrow(
     DrizzleSchemaConversionError
   )
 
@@ -264,7 +263,7 @@ test('reports storage and Drizzle metadata that cannot be converted', () => {
     indexes: {},
   }))
 
-  expect(() => toDrizzleSchema(schema({ deferred }), 'postgresql')).toThrow(
+  expect(() => toPostgresDrizzleSchema(schema({ deferred }))).toThrow(
     /cannot represent deferred constraint/
   )
 })

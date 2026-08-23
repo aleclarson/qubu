@@ -18,6 +18,9 @@
     "./sqlite": "./src/dialects/sqlite.ts",
     "./vite": "./src/vite/index.ts",
     "./package.json": "./package.json",
+    "./drizzle/mysql": "./src/drizzle/mysql.ts",
+    "./drizzle/postgres": "./src/drizzle/postgres.ts",
+    "./drizzle/sqlite": "./src/drizzle/sqlite.ts",
     "./globals": "./src/vite/ambient.d.ts"
   },
   "prettier": "@alloc/prettier-config",
@@ -77,6 +80,9 @@
       "./sqlite": "./dist/sqlite.mjs",
       "./vite": "./dist/vite.mjs",
       "./package.json": "./package.json",
+      "./drizzle/mysql": "./dist/drizzle-mysql.mjs",
+      "./drizzle/postgres": "./dist/drizzle-postgres.mjs",
+      "./drizzle/sqlite": "./dist/drizzle-sqlite.mjs",
       "./globals": "./dist/vite/ambient.d.ts"
     }
   }

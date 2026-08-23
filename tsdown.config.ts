@@ -11,6 +11,9 @@ export default defineConfig({
     diff: 'src/diff/index.ts',
     ddl: 'src/ddl/index.ts',
     drizzle: 'src/drizzle/index.ts',
+    'drizzle-mysql': 'src/drizzle/mysql.ts',
+    'drizzle-postgres': 'src/drizzle/postgres.ts',
+    'drizzle-sqlite': 'src/drizzle/sqlite.ts',
     migration: 'src/migration/index.ts',
     vite: 'src/vite/index.ts',
   },
@@ -25,6 +28,11 @@ export default defineConfig({
   exports: {
     devExports: true,
     customExports(exports, { isPublish }) {
+      for (const dialect of ['mysql', 'postgres', 'sqlite']) {
+        const flatPath = `./drizzle-${dialect}`
+        exports[`./drizzle/${dialect}`] = exports[flatPath]
+        delete exports[flatPath]
+      }
       exports['./globals'] = isPublish
         ? './dist/vite/ambient.d.ts'
         : './src/vite/ambient.d.ts'
