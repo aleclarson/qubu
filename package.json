@@ -1,0 +1,20 @@
+{
+  "name": "@qubu/combos",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.21.0",
+  "scripts": {
+    "build": "pnpm --filter @qubu/combo-runner build",
+    "typecheck": "pnpm --filter @qubu/combo-runner typecheck",
+    "test": "pnpm --filter @qubu/combo-runner test",
+    "catalog:generate": "pnpm --filter @qubu/combo-runner build && node packages/combo-runner/dist/cli.js catalog --write docs/catalog.md",
+    "catalog:check": "pnpm --filter @qubu/combo-runner build && node packages/combo-runner/dist/cli.js catalog --check docs/catalog.md",
+    "ci:matrix": "pnpm --filter @qubu/combo-runner build && node packages/combo-runner/dist/cli.js ci-matrix",
+    "combo:run": "pnpm --filter @qubu/combo-runner build && node packages/combo-runner/dist/cli.js run",
+    "check": "pnpm typecheck && pnpm test && pnpm catalog:check"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "typescript": "^5.9.2"
+  }
+}
