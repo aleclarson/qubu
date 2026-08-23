@@ -9,7 +9,9 @@
   Deno, Cloudflare Workers, or a browser. Track the complete candidate matrix;
   each pair must be `verified`, `experimental`, `incompatible`, or
   `not-yet-written`.
-- Authored scenarios may be illustrative rather than standalone executable
-  projects. A shared runner may import the scenario modules. `verified`
-  scenarios require CI coverage, while `experimental` scenarios do not.
+- Scenario modules may choose their own use cases and exported shapes; they do
+  not need to share a canonical demonstration. `experimental` scenarios may be
+  illustrative rather than executable. To mark a scenario `verified`, a shared
+  CI runner must import it in its declared environment and complete a real
+  database round trip.
 - Read [.agents/rules/TESTING.md](.agents/rules/TESTING.md) before adding or changing tests. It defines the test-layer boundaries and the scope of live dialect tests.
