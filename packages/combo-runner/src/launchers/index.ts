@@ -13,9 +13,14 @@ export { bunLauncher, createBunLauncher } from "./bun.js";
 export {
   cloudflareWorkersLauncher,
   createCloudflareWorkersLauncher,
+  type CloudflareWorkersLauncherOptions,
 } from "./cloudflare-workers.js";
 export { createDenoLauncher, denoLauncher } from "./deno.js";
-export { browserLauncher, createBrowserLauncher } from "./browser.js";
+export {
+  browserLauncher,
+  createBrowserLauncher,
+  type BrowserLauncherOptions,
+} from "./browser.js";
 export {
   createNodeLauncher,
   nodeLauncher,

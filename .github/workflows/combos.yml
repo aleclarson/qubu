@@ -136,6 +136,10 @@ jobs:
         working-directory: qubu
       - run: pnpm install --frozen-lockfile
         working-directory: qubu/combos
+      - name: Install Chromium
+        if: matrix.environment == 'browser'
+        run: pnpm exec playwright install --with-deps chromium
+        working-directory: qubu/combos/packages/combo-runner
       - name: Run selected scenario
         run: >-
           pnpm run combo:run --

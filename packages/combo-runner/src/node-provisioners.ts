@@ -230,6 +230,29 @@ export const nodePostgresProvisioner = createDisposableProvisioner(
 
 export const nodeMysqlProvisioner = createDisposableProvisioner("mysql", createMysqlResource);
 
+/**
+ * Workers and browser runtimes create their database in their own isolate.
+ * The runner still gives each run a disposable resource and invokes its
+ * cleanup hook after the environment launcher returns.
+ */
+export const cloudflareWorkersD1Provisioner = createDisposableProvisioner(
+  "sqlite",
+  async () => ({
+    connection: undefined,
+    metadata: { binding: "QUBU_COMBO_DB" },
+    async close() {},
+  }),
+);
+
+export const browserPgliteProvisioner = createDisposableProvisioner(
+  "postgresql",
+  async () => ({
+    connection: undefined,
+    metadata: { dataDir: "memory://" },
+    async close() {},
+  }),
+);
+
 /** The Node scenarios have independent provisioners even when engines match. */
 export const nodeProvisioners: Readonly<Partial<Record<ComboKey, DatabaseProvisioner>>> = {
   "node-sqlite/sqlite/node": nodeSqliteProvisioner,
@@ -242,4 +265,6 @@ export const comboProvisioners: Readonly<Partial<Record<ComboKey, DatabaseProvis
   ...nodeProvisioners,
   "bun-sql/sqlite/bun": bunSqliteProvisioner,
   "postgresjs/postgresql/deno": nodePostgresProvisioner,
+  "cloudflare-d1/sqlite/cloudflare-workers": cloudflareWorkersD1Provisioner,
+  "pglite/postgresql/browser": browserPgliteProvisioner,
 };

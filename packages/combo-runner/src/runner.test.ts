@@ -3,8 +3,13 @@ import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import type { ChildProcess } from "node:child_process";
+import { access, mkdtemp } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { defineRegistry, type ComboRegistry } from "./catalog.js";
 import { createDisposableProvisioner } from "./provisioners.js";
+import { createBrowserLauncher } from "./launchers/browser.js";
+import { createCloudflareWorkersLauncher } from "./launchers/cloudflare-workers.js";
 import { resolveNodeScenario } from "./launchers/node.js";
 import {
   createNativeRuntimeLauncher,
@@ -12,6 +17,7 @@ import {
 } from "./launchers/runtime.js";
 import { runCombo } from "./runner.js";
 import type { VerificationContext } from "./contract.js";
+import type { LaunchRequest } from "./launchers/runtime.js";
 
 const verifiedRegistry: ComboRegistry = defineRegistry({
   adapters: [
@@ -251,4 +257,189 @@ test("native launcher sends only a JSON-safe locator to the runtime worker", asy
   assert.equal(payload.database.connectionString, "sqlite:///tmp/qubu-test.sqlite");
   assert.equal("connection" in payload.database, false);
   assert.match(payload.scenario, /\/scenarios\/bun\/bun-sql\.js$/);
+});
+
+function environmentRequest(environment: "browser" | "cloudflare-workers"): LaunchRequest {
+  return {
+    combo: {
+      key:
+        environment === "browser"
+          ? "pglite/postgresql/browser"
+          : "cloudflare-d1/sqlite/cloudflare-workers",
+      adapter: environment === "browser" ? "pglite/postgresql" : "cloudflare-d1/sqlite",
+      environment,
+      engine: environment === "browser" ? "postgresql" : "sqlite",
+      status: "verified" as const,
+      scenario:
+        environment === "browser"
+          ? "./scenarios/browser/pglite.js"
+          : "./scenarios/cloudflare-workers/d1.js",
+    },
+    scenario:
+      environment === "browser"
+        ? "./scenarios/browser/pglite.js"
+        : "./scenarios/cloudflare-workers/d1.js",
+    database: {
+      engine: environment === "browser" ? ("postgresql" as const) : ("sqlite" as const),
+      connection: undefined,
+      async dispose() {},
+    },
+  };
+}
+
+test("Workers launcher tears down Wrangler and temporary D1 state after success", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "qubu-workers-test-"));
+  let killed = false;
+  const child = new EventEmitter() as EventEmitter & Partial<ChildProcess>;
+  child.stdout = new PassThrough();
+  child.stderr = new PassThrough();
+  Object.assign(child, { killed: false, exitCode: null });
+  child.kill = (() => {
+    killed = true;
+    Object.assign(child, { killed: true, exitCode: 0 });
+    child.emit("close", 0, null);
+    return true;
+  }) as ChildProcess["kill"];
+  const responses = [
+    new Response("ok", { status: 200 }),
+    new Response(JSON.stringify({ ok: true }), { status: 200 }),
+  ];
+  const launcher = createCloudflareWorkersLauncher({
+    createTempDirectory: async () => directory,
+    allocatePort: async () => 43123,
+    buildWorker: async (_request, path) => join(path, "worker.mjs"),
+    spawnProcess: (() => child) as unknown as typeof import("node:child_process").spawn,
+    fetchImpl: async () => responses.shift() ?? new Response("unexpected", { status: 500 }),
+  });
+
+  await launcher.launch(environmentRequest("cloudflare-workers"));
+
+  assert.equal(killed, true);
+  await assert.rejects(access(directory));
+});
+
+test("Workers launcher propagates an HTTP failure and still cleans up", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "qubu-workers-failure-test-"));
+  const child = new EventEmitter() as EventEmitter & Partial<ChildProcess>;
+  child.stdout = new PassThrough();
+  child.stderr = new PassThrough();
+  Object.assign(child, { killed: false, exitCode: null });
+  child.kill = (() => {
+    Object.assign(child, { killed: true, exitCode: 0 });
+    child.emit("close", 0, null);
+    return true;
+  }) as ChildProcess["kill"];
+  const launcher = createCloudflareWorkersLauncher({
+    createTempDirectory: async () => directory,
+    allocatePort: async () => 43124,
+    buildWorker: async (_request, path) => join(path, "worker.mjs"),
+    spawnProcess: (() => child) as unknown as typeof import("node:child_process").spawn,
+    fetchImpl: async (url) =>
+      url.toString().endsWith("/health")
+        ? new Response("ok", { status: 200 })
+        : new Response("worker assertion failed", { status: 500 }),
+  });
+
+  await assert.rejects(
+    launcher.launch(environmentRequest("cloudflare-workers")),
+    /worker assertion failed/,
+  );
+  await assert.rejects(access(directory));
+});
+
+test("Workers launcher cancels a running Wrangler process and cleans up", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "qubu-workers-cancel-test-"));
+  const controller = new AbortController();
+  let killed = false;
+  const child = new EventEmitter() as EventEmitter & Partial<ChildProcess>;
+  child.stdout = new PassThrough();
+  child.stderr = new PassThrough();
+  Object.assign(child, { killed: false, exitCode: null });
+  child.kill = (() => {
+    killed = true;
+    Object.assign(child, { killed: true, exitCode: 0 });
+    child.emit("close", 0, null);
+    return true;
+  }) as ChildProcess["kill"];
+  const launcher = createCloudflareWorkersLauncher({
+    createTempDirectory: async () => directory,
+    allocatePort: async () => 43126,
+    buildWorker: async (_request, path) => join(path, "worker.mjs"),
+    spawnProcess: (() => child) as unknown as typeof import("node:child_process").spawn,
+    fetchImpl: async (url) => {
+      if (url.toString().endsWith("/health")) {
+        controller.abort(new Error("cancelled while running"));
+      }
+      return new Response("not ready", { status: 503 });
+    },
+  });
+
+  await assert.rejects(
+    launcher.launch({ ...environmentRequest("cloudflare-workers"), signal: controller.signal }),
+    /cancelled while running/,
+  );
+  assert.equal(killed, true);
+  await assert.rejects(access(directory));
+});
+
+test("browser launcher closes page, browser, server, and artifacts after failure", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "qubu-browser-test-"));
+  let pageClosed = false;
+  let browserClosed = false;
+  const launcher = createBrowserLauncher({
+    createTempDirectory: async () => directory,
+    allocatePort: async () => 43125,
+    buildBrowser: async (_request, path) => join(path, "bundle.js"),
+    launchBrowser: async () => ({
+      async newPage() {
+        return {
+          async goto() {},
+          async evaluate() {
+            throw new Error("browser assertion failed");
+          },
+          async close() {
+            pageClosed = true;
+          },
+        };
+      },
+      async close() {
+        browserClosed = true;
+      },
+    }),
+  });
+
+  await assert.rejects(
+    launcher.launch(environmentRequest("browser")),
+    /browser assertion failed/,
+  );
+  assert.equal(pageClosed, true);
+  assert.equal(browserClosed, true);
+  await assert.rejects(access(directory));
+});
+
+test("environment launchers reject an already-aborted run before allocating resources", async () => {
+  const controller = new AbortController();
+  controller.abort(new Error("cancelled before launch"));
+  let workersTempCreated = false;
+  let browserTempCreated = false;
+  await assert.rejects(
+    createCloudflareWorkersLauncher({
+      createTempDirectory: async () => {
+        workersTempCreated = true;
+        return mkdtemp(join(tmpdir(), "qubu-workers-abort-test-"));
+      },
+    }).launch({ ...environmentRequest("cloudflare-workers"), signal: controller.signal }),
+    /cancelled before launch/,
+  );
+  await assert.rejects(
+    createBrowserLauncher({
+      createTempDirectory: async () => {
+        browserTempCreated = true;
+        return mkdtemp(join(tmpdir(), "qubu-browser-abort-test-"));
+      },
+    }).launch({ ...environmentRequest("browser"), signal: controller.signal }),
+    /cancelled before launch/,
+  );
+  assert.equal(workersTempCreated, false);
+  assert.equal(browserTempCreated, false);
 });

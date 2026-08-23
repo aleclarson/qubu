@@ -125,10 +125,9 @@ ${matrixTable(registry)}
 
 ## Verification targets
 
-The three Node.js targets plus Bun and Deno have live scenarios. The Workers
-and browser targets stay pending for their native-runtime commit. Incompatible
-and experimental cells stay in the complete matrix so a new scenario requires
-an explicit status change.
+The three Node.js targets plus Bun, Deno, Workers, and browser have live
+scenarios. Incompatible and experimental cells stay in the complete matrix so
+a new scenario requires an explicit status change.
 
 ${verificationTargets(registry)}
 
@@ -147,8 +146,8 @@ Regenerate this page after a registry edit:
 pnpm catalog:generate
 \`\`\`
 
-Print the JSON matrix that CI will execute. This commit selects five scenarios,
-including Bun and Deno:
+Print the JSON matrix that CI will execute. This commit selects seven
+scenarios, including the local Workers and browser runtimes:
 
 \`\`\`bash
 pnpm ci:matrix
@@ -165,7 +164,9 @@ provisioner in the CI runtime.
 
 The Node launcher imports a scenario in-process. Bun and Deno launch a
 compiled worker in the native runtime and pass it a JSON-safe connection
-locator. Workers and browser launchers keep the same contract for a later
-bundler-backed commit.
+locator. The Workers launcher bundles a Worker entry, starts Wrangler in local
+mode with a temporary D1 binding, and invokes its \`/run\` endpoint. The browser
+launcher serves a temporary bundle and PGlite WASM assets to headless
+Chromium, then runs the scenario in page context.
 `;
 }

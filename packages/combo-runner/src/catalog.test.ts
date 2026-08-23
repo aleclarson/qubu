@@ -25,25 +25,28 @@ test("catalog covers every adapter and environment exactly once", () => {
   }
 });
 
-test("verified targets have scenarios and later targets remain unwritten", () => {
+test("verified targets have scenario modules", () => {
   const targetCells = [
     ["node-sqlite/sqlite", "node", "verified"],
     ["pg/postgresql", "node", "verified"],
     ["mysql2-promise/mysql", "node", "verified"],
     ["bun-sql/sqlite", "bun", "verified"],
     ["postgresjs/postgresql", "deno", "verified"],
-    ["cloudflare-d1/sqlite", "cloudflare-workers", "not-yet-written"],
-    ["pglite/postgresql", "browser", "not-yet-written"],
+    ["cloudflare-d1/sqlite", "cloudflare-workers", "verified"],
+    ["pglite/postgresql", "browser", "verified"],
   ] as const;
 
   for (const [adapter, environment, status] of targetCells) {
     const combo = findCombo(comboRegistry, adapter, environment);
     assert.equal(combo.status, status);
     if (status === "verified") {
-      assert.match(combo.scenario ?? "", /^\.\/scenarios\/(node|bun|deno)\/.+\.js$/);
+      assert.match(
+        combo.scenario ?? "",
+        /^\.\/scenarios\/(node|bun|deno|cloudflare-workers|browser)\/.+\.js$/,
+      );
     }
   }
-  assert.equal(statusCounts().verified, 5);
+  assert.equal(statusCounts().verified, 7);
 });
 
 test("CI selection contains only verified scenarios", () => {
@@ -90,6 +93,20 @@ test("CI selection contains only verified scenarios", () => {
         environment: "deno",
         engine: "postgresql",
         scenario: "./scenarios/deno/postgresjs.js",
+      },
+      {
+        key: "cloudflare-d1/sqlite/cloudflare-workers",
+        adapter: "cloudflare-d1/sqlite",
+        environment: "cloudflare-workers",
+        engine: "sqlite",
+        scenario: "./scenarios/cloudflare-workers/d1.js",
+      },
+      {
+        key: "pglite/postgresql/browser",
+        adapter: "pglite/postgresql",
+        environment: "browser",
+        engine: "postgresql",
+        scenario: "./scenarios/browser/pglite.js",
       },
     ],
   );

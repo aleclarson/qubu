@@ -40,6 +40,8 @@ export {
 } from "./provisioners.js";
 export {
   bunSqliteProvisioner,
+  browserPgliteProvisioner,
+  cloudflareWorkersD1Provisioner,
   comboProvisioners,
   nodeMysqlProvisioner,
   nodePostgresProvisioner,
