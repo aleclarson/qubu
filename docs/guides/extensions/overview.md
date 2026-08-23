@@ -16,6 +16,7 @@ one place.
 | A custom relation or clause         | [Sources and clauses](sources-and-clauses.md) |
 | A dialect-specific rendering policy | [A dialect policy](dialects.md)               |
 | A typed expression or SQL domain    | [Typed expressions](typed-expressions.md)     |
+| Parameterized trusted SQL syntax    | [SQL templates](../sql-templates.md)          |
 | Syntax Qubu does not model          | [Unsafe syntax](unsafe-syntax.md)             |
 
 Use `context.parameter()` for runtime values. Use the typed forms when a

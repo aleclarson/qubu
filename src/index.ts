@@ -97,6 +97,8 @@ export type {
 
 export { cast } from './expressions/cast.ts'
 export { caseWhen } from './expressions/case.ts'
+export { sql } from './expressions/sql.ts'
+export type { SqlFragment, SqlTag, TypedSqlTag } from './expressions/sql.ts'
 export {
   call,
   coalesce,

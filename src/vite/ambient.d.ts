@@ -113,6 +113,7 @@ declare global {
   const schema: typeof import('qubu').schema
   const schemaCall: typeof import('qubu').schemaCall
   const select: typeof import('qubu').select
+  const sql: typeof import('qubu').sql
   const subtract: typeof import('qubu').subtract
   const sum: typeof import('qubu').sum
   const table: typeof import('qubu').table
@@ -254,6 +255,16 @@ declare global {
   type SqlJson<TValue = unknown> = import('qubu').SqlJson<TValue>
   type SqlBigInt = import('qubu').SqlBigInt
   type SqlBinary = import('qubu').SqlBinary
+  type SqlFragment<
+    TOutput = unknown,
+    TSqlType extends import('qubu').AnySqlType = import('qubu').SqlUnknown,
+    TChild extends import('qubu').AnyFragment = never,
+  > = import('qubu').SqlFragment<TOutput, TSqlType, TChild>
+  type SqlTag = import('qubu').SqlTag
+  type TypedSqlTag<
+    TOutput,
+    TSqlType extends import('qubu').AnySqlType = import('qubu').SqlUnknown,
+  > = import('qubu').TypedSqlTag<TOutput, TSqlType>
   type SqlTypeSatisfies<TActual, TConstraint> = import('qubu').SqlTypeSatisfies<
     TActual,
     TConstraint

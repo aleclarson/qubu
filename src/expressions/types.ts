@@ -28,6 +28,7 @@ export type ExpressionKind =
   | 'column'
   | 'function'
   | 'operator'
+  | 'sql'
   | 'subquery'
   | 'unsafe'
 

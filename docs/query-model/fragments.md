@@ -87,6 +87,12 @@ The parameter array follows the placeholders in the rendered text. `select()`
 normalizes independent clause values, but keep the final call in SQL order in
 new code so source scope and repair hints are visible at a glance.
 
+The public [`sql` template tag](../guides/sql-templates.md) uses the same
+renderer. Ordinary substitutions call `context.parameter()`, while expression,
+query, and fragment substitutions call back into the active render context.
+The tag therefore keeps placeholder numbering, dialect behavior, and inherited
+metadata in one composition path.
+
 ## Keep the boundary explicit
 
 Qubu tracks source scope, result shape, nullability, cardinality, and portable

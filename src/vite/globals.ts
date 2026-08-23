@@ -113,6 +113,7 @@ export const qubuGlobals = [
   'schema',
   'schemaCall',
   'select',
+  'sql',
   'subtract',
   'sum',
   'table',

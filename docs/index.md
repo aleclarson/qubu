@@ -23,6 +23,8 @@ define a table, build a `SELECT`, and inspect its SQL and parameters.
   predicates, ordering, and grouping.
 - [Compose queries](guides/compose-queries.md) with CTEs, derived tables,
   subqueries, and set operations.
+- [Compose SQL templates](guides/sql-templates.md) for trusted syntax with
+  bound values and metadata-preserving fragment substitutions.
 - [Write mutations](guides/mutations.md) with typed `INSERT`, `UPDATE`, and
   `DELETE` statements.
 - [Use Qubu tables with Drizzle](guides/drizzle.md) while moving query call
