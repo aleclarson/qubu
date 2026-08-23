@@ -24,10 +24,12 @@ import {
   type ColumnHasDefault,
   type ColumnInsertInput,
   type ColumnIsGenerated,
+  type ColumnIsNullable,
   type ColumnOutput,
   type ColumnSqlType,
   type ColumnUpdateInput,
 } from './column.ts'
+import type { DeclaredColumnNullability } from './column-nullability.ts'
 import type {
   CheckConstraint,
   ForeignKeyConstraint,
@@ -99,14 +101,14 @@ export type TableIdentity<TName extends string> = {
   readonly tableName: TName
 }
 
-export type TableColumns<
-  TDefinitions extends TableDefinitions,
-  TIdentity,
-> = SourceColumns<
-  TableRow<TDefinitions>,
-  TIdentity,
-  TableSqlTypes<TDefinitions>
->
+export type TableColumns<TDefinitions extends TableDefinitions, TIdentity> = {
+  readonly [K in keyof TDefinitions]: SourceColumns<
+    TableRow<TDefinitions>,
+    TIdentity,
+    TableSqlTypes<TDefinitions>
+  >[K] &
+    DeclaredColumnNullability<ColumnIsNullable<TDefinitions[K]>>
+}
 
 export type Table<
   TName extends string = string,

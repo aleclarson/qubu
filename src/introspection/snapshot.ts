@@ -1,4 +1,5 @@
 import { assertSchemaSnapshot } from '../snapshot/decode.ts'
+import { sqliteStorageAffinity } from '../snapshot/sqlite.ts'
 import type {
   SchemaSnapshot,
   SnapshotCheckConstraint,
@@ -192,6 +193,9 @@ function mapColumn(
     kind: 'native',
     dialect,
     type: column.storage.nativeType,
+    ...(dialect === 'sqlite'
+      ? { affinity: sqliteStorageAffinity(column.storage.nativeType) }
+      : {}),
   }
   return {
     id: resolveId(
@@ -203,11 +207,8 @@ function mapColumn(
     ),
     physicalName: column.physicalName,
     nullable: column.nullable,
-    hasDefault:
-      defaultValue !== undefined ||
-      generated !== undefined ||
-      identity !== undefined,
-    generated: generated !== undefined,
+    hasDefault: defaultValue !== undefined,
+    generated: generated !== undefined || identity !== undefined,
     storage,
     default: defaultValue,
     generatedColumn: generated,
@@ -392,7 +393,6 @@ function mapIndex(
   const candidateKey =
     index.unique &&
     index.predicate === undefined &&
-    includedColumns === undefined &&
     index.terms.every(
       term =>
         term.kind === 'column' &&

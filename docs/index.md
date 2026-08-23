@@ -36,6 +36,8 @@ define a table, build a `SELECT`, and inspect its SQL and parameters.
   should opt into named imports through a directive.
 - [Inspect an existing database](schema/introspection.md) through the optional
   user-owned catalog boundary.
+- [Generate a schema module](schema/code-generation.md) from one complete,
+  non-lossy Snapshot v1 introspection result.
 - [Compare snapshots](schema/diff.md) with explicit rename hints and reviewable
   safety diagnostics.
 - [Build migration plans](schema/migration-plans.md) as reviewed, deterministic
@@ -68,13 +70,14 @@ that unchecked syntax enters the query.
 Use these pages when a guide leaves a rule unexplained or when an extension
 needs to preserve a fact across composition:
 
-| Model                   | Start with                                          | Covers                                                                              |
-| ----------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Query model             | [Source scope](query-model/source-scope.md)         | Source identity, result shapes, fragments, metadata, and query composition          |
-| Schema model            | [Tables and names](schema/tables-and-names.md)      | Tables, snapshots, diffs, migration plans, and DDL emission                         |
-| Database introspection  | [Database introspection](schema/introspection.md)   | Catalog readers, Snapshot v1 mapping, identities, diagnostics, and support limits   |
-| Rendering and execution | [Dialects and execution](dialects-and-execution.md) | Placeholder and identifier policies, capabilities, adapters, and raw-SQL boundaries |
-| SQL semantic types      | [SQL semantic types](sql-semantic-types.md)         | Application types, SQL domains, nullability, and compatible operations              |
+| Model                    | Start with                                          | Covers                                                                              |
+| ------------------------ | --------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Query model              | [Source scope](query-model/source-scope.md)         | Source identity, result shapes, fragments, metadata, and query composition          |
+| Schema model             | [Tables and names](schema/tables-and-names.md)      | Tables, snapshots, diffs, migration plans, and DDL emission                         |
+| Database introspection   | [Database introspection](schema/introspection.md)   | Catalog readers, Snapshot v1 mapping, identities, diagnostics, and support limits   |
+| Schema source generation | [Generate a schema](schema/code-generation.md)      | Machine-owned TypeScript, identity handoff, controlled mappings, and v1 exclusions  |
+| Rendering and execution  | [Dialects and execution](dialects-and-execution.md) | Placeholder and identifier policies, capabilities, adapters, and raw-SQL boundaries |
+| SQL semantic types       | [SQL semantic types](sql-semantic-types.md)         | Application types, SQL domains, nullability, and compatible operations              |
 
 ## A small example
 

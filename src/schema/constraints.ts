@@ -19,6 +19,7 @@ import {
   type ColumnReference,
 } from '../expressions/column.ts'
 import { unsafeSchemaSql } from './expressions.ts'
+import type { DeclaredColumnNullabilityOf } from './column-nullability.ts'
 import type {
   SchemaDialectExtension,
   SchemaDialectName,
@@ -416,8 +417,18 @@ type ColumnSource<TColumn> =
     ? TSource
     : never
 
-type InvalidKeyColumn<TColumn, TSource> = TColumn extends AnyKeyColumn
+type IsNullableKeyColumn<TColumn> = [
+  DeclaredColumnNullabilityOf<TColumn>,
+] extends [never]
   ? null extends OutputOf<TColumn>
+    ? true
+    : false
+  : true extends DeclaredColumnNullabilityOf<TColumn>
+    ? true
+    : false
+
+type InvalidKeyColumn<TColumn, TSource> = TColumn extends AnyKeyColumn
+  ? IsNullableKeyColumn<TColumn> extends true
     ? TColumn
     : DependenciesOf<TColumn> extends ColumnDependency<TSource, string>
       ? never

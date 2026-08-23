@@ -2210,6 +2210,21 @@ function column(
           options: identityOptionValues ?? {},
         }
       : undefined
+  const generated: CatalogColumn['generated'] =
+    (generatedValue === 's' || generatedValue === 'v') && defaultExpression
+      ? {
+          kind: 'generated',
+          mode: generatedValue === 's' ? 'stored' : 'virtual',
+          expression: sql(defaultExpression, namespace, table, physicalName),
+        }
+      : undefined
+  const ordinaryDefault: CatalogColumn['default'] =
+    defaultExpression && !identity && !generated
+      ? {
+          kind: 'expression',
+          expression: sql(defaultExpression, namespace, table, physicalName),
+        }
+      : undefined
   return {
     kind: 'column',
     id: stableId(physicalName),
@@ -2218,21 +2233,8 @@ function column(
     ordinalPosition: number(row.ordinal_position) ?? 0,
     nullable: boolean(row.nullable),
     storage: { nativeType: text(row.native_type) ?? 'unknown' },
-    default:
-      defaultExpression && !identity
-        ? {
-            kind: 'expression',
-            expression: sql(defaultExpression, namespace, table, physicalName),
-          }
-        : undefined,
-    generated:
-      generatedValue === 's' && defaultExpression
-        ? {
-            kind: 'generated',
-            mode: 'stored',
-            expression: sql(defaultExpression, namespace, table, physicalName),
-          }
-        : undefined,
+    ...(ordinaryDefault ? { default: ordinaryDefault } : {}),
+    ...(generated ? { generated } : {}),
     identity,
     reference: reference(
       'column',

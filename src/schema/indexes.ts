@@ -12,6 +12,7 @@ import type {
   SchemaObjectIdentity,
   SchemaObjectNameOptions,
 } from './metadata.ts'
+import type { DeclaredColumnNullabilityOf } from './column-nullability.ts'
 import { dialectMismatchDiagnostic, freezeSchemaMetadata } from './metadata.ts'
 
 export type IndexTerm = AnyExpression | OrderTerm<any>
@@ -65,10 +66,20 @@ export interface IndexOptions<
 type IndexTermExpression<TTerm> =
   TTerm extends OrderTerm<any> ? TTerm['expression'] : TTerm
 
+type IsNullableIndexColumn<TColumn> = [
+  DeclaredColumnNullabilityOf<TColumn>,
+] extends [never]
+  ? null extends OutputOf<TColumn>
+    ? true
+    : false
+  : true extends DeclaredColumnNullabilityOf<TColumn>
+    ? true
+    : false
+
 type IsEligibleColumn<TTerm> =
   IndexTermExpression<TTerm> extends infer TExpression
     ? TExpression extends ColumnReference<string, any>
-      ? null extends OutputOf<TExpression>
+      ? IsNullableIndexColumn<TExpression> extends true
         ? false
         : true
       : false

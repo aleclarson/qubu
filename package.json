@@ -9,6 +9,7 @@
   ],
   "exports": {
     ".": "./src/index.ts",
+    "./codegen": "./src/codegen/index.ts",
     "./core": "./src/core/index.ts",
     "./ddl": "./src/ddl/index.ts",
     "./diff": "./src/diff/index.ts",
@@ -83,6 +84,10 @@
       ".": {
         "types": "./dist/index.d.mts",
         "import": "./dist/index.mjs"
+      },
+      "./codegen": {
+        "types": "./dist/codegen.d.mts",
+        "import": "./dist/codegen.mjs"
       },
       "./core": {
         "types": "./dist/core.d.mts",

@@ -8,6 +8,7 @@
 | ----------------------- | ---------------- | -------------------------------------------------------------------------------------------------------- |
 | `qubu`                  | Runtime          | Ordinary query and schema definitions, reads, writes, SQL templates, rendering, and execution contracts  |
 | `qubu/core`             | Runtime          | Fragment and rendering primitives, dialect construction, SQL types, and extension constructors           |
+| `qubu/codegen`          | Runtime          | Deterministic machine-owned TypeScript schemas from complete, non-lossy introspection                    |
 | `qubu/ddl`              | Runtime          | DDL preflight and deterministic PostgreSQL, SQLite, or MySQL emission from a migration plan              |
 | `qubu/diff`             | Runtime          | Canonical Snapshot v1 or v2 comparison, rename hints, suggestions, and safety diagnostics                |
 | `qubu/drizzle`          | Runtime          | Shared Drizzle conversion errors and dialect types                                                       |
@@ -25,7 +26,7 @@
 | `qubu/drizzle/sqlite`   | Runtime          | Runtime conversion from Qubu schemas to SQLite Drizzle tables                                            |
 | `qubu/globals`          | TypeScript types | Opt-in ambient declarations for directive-bearing modules                                                |
 
-The package validator confirms 16 runtime entrypoints, 17 type entrypoints,
+The package validator confirms 17 runtime entrypoints, 18 type entrypoints,
 `qubu/package.json` as JSON, and `qubu/globals` as type-only. Concrete dialect
 constructors live on their database subpaths. The root renderer uses Qubu's
 standard SQL policy by default.
@@ -59,6 +60,7 @@ imports on `qubu/core` or `qubu/schema` as shown in the entrypoint table.
 | DDL emission       | Preflight plus deterministic PostgreSQL, SQLite, and MySQL statements from an approved `MigrationPlan` and matching `SchemaDialect`                                                                                                                                                                                                                                          |
 | Build tooling      | The optional Vite directive transform and its matching TypeScript ambient declarations                                                                                                                                                                                                                                                                                       |
 | Drizzle conversion | Optional, dialect-specific runtime conversion from Qubu schema registries to Drizzle tables                                                                                                                                                                                                                                                                                  |
+| Source generation  | Pure Snapshot v1 table source printing, deterministic camelCase IDs, exact physical metadata, controlled type mappings, and structured failure diagnostics                                                                                                                                                                                                                   |
 
 ## Ownership boundary
 
@@ -67,12 +69,13 @@ Snapshot creation, diffing, migration planning, and DDL emission are pure.
 application provides. Qubu can emit DDL, but it never applies that DDL to a
 database.
 
-| Boundary              | Qubu side                                                                                                                            | Application side                                                                                                                                                               |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Query rendering       | Builds a typed query and renders SQL text with ordered raw parameter values                                                          | Keeps the runtime database schema aligned with query definitions and validates any dynamic syntax passed to an unsafe helper                                                   |
-| Query execution       | Passes the rendered statement, query kind, and optional abort signal to `QueryAdapter`; returns `ExecutionResult` or rows            | Owns the adapter, driver, connections, pools, transactions, retries, parameter encoding, row decoding, cancellation behavior, driver error translation, and database lifecycle |
-| Catalog introspection | Selects fixed parameterized catalog queries, normalizes rows, and maps catalog data to snapshots                                     | Supplies `CatalogConnection`, credentials, already-decoded catalog rows, logging, and connection lifecycle                                                                     |
-| Schema changes        | Creates snapshots, compares them, builds deterministic migration plans, and emits DDL from approved plans with preflight diagnostics | Reviews decisions, executes or rolls back statements, acquires locks, manages transactions and migration journals, and owns database lifecycle                                 |
+| Boundary                 | Qubu side                                                                                                                            | Application side                                                                                                                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Query rendering          | Builds a typed query and renders SQL text with ordered raw parameter values                                                          | Keeps the runtime database schema aligned with query definitions and validates any dynamic syntax passed to an unsafe helper                                                   |
+| Query execution          | Passes the rendered statement, query kind, and optional abort signal to `QueryAdapter`; returns `ExecutionResult` or rows            | Owns the adapter, driver, connections, pools, transactions, retries, parameter encoding, row decoding, cancellation behavior, driver error translation, and database lifecycle |
+| Catalog introspection    | Selects fixed parameterized catalog queries, normalizes rows, and maps catalog data to snapshots                                     | Supplies `CatalogConnection`, credentials, already-decoded catalog rows, logging, and connection lifecycle                                                                     |
+| Schema source generation | Prints deterministic TypeScript from complete, non-lossy Snapshot v1 introspection without writing files                             | Owns generated-file writes, replacement policy, hand-edit merging, and CLI integration                                                                                         |
+| Schema changes           | Creates snapshots, compares them, builds deterministic migration plans, and emits DDL from approved plans with preflight diagnostics | Reviews decisions, executes or rolls back statements, acquires locks, manages transactions and migration journals, and owns database lifecycle                                 |
 
 Start with [Dialects and execution](../dialects-and-execution.md) for the query
 adapter contract. The schema path is documented in [Canonical schema

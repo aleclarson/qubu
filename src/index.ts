@@ -202,6 +202,8 @@ export {
   identityColumn,
 } from './schema/column-behavior.ts'
 export {
+  catalogCheck,
+  catalogForeignKey,
   check,
   foreignKey,
   primaryKey,
@@ -210,10 +212,12 @@ export {
   uniqueConstraint,
 } from './schema/constraints.ts'
 export { schema } from './schema/registry.ts'
+export { unsafeSchemaSql } from './schema/expressions.ts'
 export { table } from './schema/table.ts'
 export type {
   AnyTable,
   Table,
+  TableColumns,
   TableDefinitions,
   TableIdentity,
   TableInsertInput,
@@ -230,6 +234,7 @@ export type {
   ColumnInsertInput,
   ColumnIsGenerated,
   ColumnOnUpdateOf,
+  ColumnOptions,
   ColumnOutput,
   ColumnSqlType,
   ColumnStorage,
@@ -238,6 +243,7 @@ export type {
   ColumnStorageKindOf,
   ColumnStorageOf,
   ColumnStorageTypeOf,
+  ColumnUpdateInput,
   NativeColumnStorage,
   PortableColumnStorage,
 } from './schema/column.ts'
@@ -290,6 +296,8 @@ export type {
 } from './schema/column-behavior.ts'
 export type {
   AnyKeyColumn,
+  CatalogCheckExpression,
+  CatalogCheckSql,
   CheckConstraint,
   CheckConstraintOptions,
   ConstraintDialectExtension,
@@ -402,6 +410,7 @@ export {
   order,
   orderBy,
 } from './query/clauses/order-by.ts'
+export type { OrderTerm } from './query/clauses/order-by.ts'
 export { fetchFirst, fetchNext, offset } from './query/clauses/pagination.ts'
 export { where } from './query/clauses/where.ts'
 export { cte, withCte } from './query/clauses/with.ts'

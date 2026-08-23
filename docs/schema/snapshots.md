@@ -86,3 +86,8 @@ layer. Diffing can compare either snapshot version. Resolved diffs feed
 migration plans, and approved plans feed DDL emission. The package-wide
 [ownership map](../reference/supported-surface.md#ownership-boundary) keeps
 those pure steps separate from application-owned database execution.
+
+The optional [schema source generator](code-generation.md) consumes a complete,
+non-lossy introspection result and makes its generated schema the next identity
+baseline. It does not replace snapshot serialization or generate Snapshot v2
+object families.

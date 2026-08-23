@@ -5,6 +5,7 @@ export default defineConfig({
     index: 'src/index.ts',
     core: 'src/core/index.ts',
     schema: 'src/schema/index.ts',
+    codegen: 'src/codegen/index.ts',
     introspection: 'src/introspection/index.ts',
     postgres: 'src/dialects/postgres.ts',
     sqlite: 'src/dialects/sqlite.ts',

@@ -81,6 +81,28 @@ test('materializes relational IDs and physical names without changing legacy sha
   expect(Object.isFrozen(codeIndex.includedColumns)).toBe(true)
 })
 
+test('keeps included columns outside unique candidate-key terms', () => {
+  const records = table(
+    'included_candidate_records',
+    { id: integer(), payload: text({ nullable: true }) },
+    records => ({
+      constraints: {},
+      indexes: {
+        identity: index([records.id], {
+          unique: true,
+          include: [records.payload],
+        }),
+      },
+    })
+  )
+
+  expect(records.indexes.identity).toMatchObject({
+    candidateKey: true,
+    terms: [records.id],
+    includedColumns: [records.payload],
+  })
+})
+
 test('retains complete foreign-key options and validates target dialects', () => {
   const accounts = table('accounts', { id: integer() }, accounts => ({
     constraints: { accountsPrimary: primaryKey(accounts.id) },

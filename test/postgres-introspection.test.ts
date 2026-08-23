@@ -117,6 +117,16 @@ const completeRows = {
       attgenerated: '',
       default_expression: null,
     },
+    {
+      table_oid: '10',
+      ordinal_position: 4,
+      physical_name: 'search_name',
+      nullable: false,
+      native_type: 'text',
+      attidentity: '',
+      attgenerated: 'v',
+      default_expression: "upper('ACCOUNTS')",
+    },
   ],
   'FROM pg_constraint con': [
     {
@@ -225,7 +235,16 @@ test('normalizes PostgreSQL relations, columns, defaults, generated columns, and
       physicalName: 'display_name',
       generated: expect.objectContaining({ mode: 'stored' }),
     }),
+    expect.objectContaining({
+      physicalName: 'search_name',
+      generated: expect.objectContaining({ mode: 'virtual' }),
+    }),
   ])
+  for (const physicalName of ['display_name', 'search_name']) {
+    expect(
+      columns.find(column => column.physicalName === physicalName)
+    ).not.toHaveProperty('default')
+  }
   expect(catalog.deferredObjects).toEqual([
     expect.objectContaining({
       objectKind: 'view',

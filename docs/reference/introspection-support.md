@@ -95,6 +95,8 @@ The query and normalization seams follow the catalog-reading portions of the
 [Drizzle SQLite introspector](https://github.com/drizzle-team/drizzle-orm/blob/main/drizzle-kit/src/introspect-sqlite.ts).
 Drizzle's module generates source declarations; Qubu keeps the same SQLite
 metadata sources as normalized data and never evaluates database-provided SQL.
+The optional [source generator](../schema/code-generation.md) consumes the
+strict Snapshot v1 result through a separate controlled printer.
 
 ## MySQL 8 complete catalog surface
 
@@ -182,9 +184,10 @@ keeping Qubu's output data-only:
 - [Drizzle SQLite introspector](https://github.com/drizzle-team/drizzle-orm/blob/main/drizzle-kit/src/introspect-sqlite.ts)
 - [Drizzle MySQL introspector](https://github.com/drizzle-team/drizzle-orm/blob/main/drizzle-kit/src/introspect-mysql.ts)
 
-Those modules generate TypeScript declarations. Qubu instead keeps catalog
-normalization separate from Snapshot v1 mapping so future diffing and planning
-do not depend on source-code generation.
+Those modules generate TypeScript declarations as part of their workflows.
+Qubu keeps catalog normalization, Snapshot v1 mapping, and optional source
+generation as separate pure boundaries, so diffing and planning do not depend
+on source generation.
 
 See [Database introspection](../schema/introspection.md) for the connection
 adapter example, identity rules, diagnostics, and the later diff/planning

@@ -132,6 +132,54 @@ test('maps falsy defaults and native storage without dropping values', () => {
   ])
 })
 
+test('maps default, generated, and identity write flags independently', () => {
+  const result = mapCatalogToSnapshot(
+    catalog([
+      column('defaulted', 'defaulted', 1, {
+        default: { kind: 'literal', value: 1 },
+      }),
+      column('generated_value', 'generated_value', 2, {
+        generated: {
+          kind: 'generated',
+          expression: sql('defaulted + 1'),
+          mode: 'stored',
+        },
+      }),
+      column('identity_id', 'identity_id', 3, {
+        identity: {
+          kind: 'identity',
+          generation: 'by-default',
+          options: {},
+        },
+      }),
+    ]),
+    { namespace: 'public' }
+  )
+
+  expect(result.ok).toBe(true)
+  if (!result.ok) return
+  expect(result.snapshot.tables[0]?.columns).toEqual([
+    expect.objectContaining({
+      id: 'defaulted',
+      hasDefault: true,
+      generated: false,
+      default: { kind: 'literal', value: { kind: 'number', value: '1' } },
+    }),
+    expect.objectContaining({
+      id: 'generated_value',
+      hasDefault: false,
+      generated: true,
+      generatedColumn: expect.objectContaining({ mode: 'stored' }),
+    }),
+    expect.objectContaining({
+      id: 'identity_id',
+      hasDefault: false,
+      generated: true,
+      identity: { kind: 'identity', generation: 'by-default' },
+    }),
+  ])
+})
+
 test('carries table and column identities from a previous snapshot', () => {
   const initial = mapCatalogToSnapshot(
     catalog([column('account_id', 'account_id', 1)]),
@@ -176,6 +224,7 @@ test('maps constraints and ordered index terms to Snapshot v1', () => {
       terms: [
         { kind: 'column', column: 'email', position: 1, direction: 'DESC' },
       ],
+      includedColumns: ['id'],
     },
   ]
   const result = mapCatalogToSnapshot(
@@ -198,6 +247,8 @@ test('maps constraints and ordered index terms to Snapshot v1', () => {
   expect(result.snapshot.tables[0]?.indexes).toEqual([
     expect.objectContaining({
       unique: true,
+      candidateKey: true,
+      includedColumns: ['id'],
       terms: [
         {
           kind: 'order',

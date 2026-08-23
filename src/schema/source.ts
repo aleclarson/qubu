@@ -92,8 +92,11 @@ export type SourceIdentity<T> =
 export type SourceRow<T> =
   T extends Source<any, infer TRow, any, any, any> ? TRow : never
 /** Extract the field-to-SQL-domain map retained by a source. */
-export type SourceSqlTypeMap<T> =
-  T extends Source<any, infer TRow, any, infer TSqlTypes, any>
+export type SourceSqlTypeMap<T> = T extends {
+  readonly definitions: infer TDefinitions extends TableDefinitions
+}
+  ? import('./table.ts').TableSqlTypes<TDefinitions>
+  : T extends Source<any, infer TRow, any, infer TSqlTypes, any>
     ? TSqlTypes & SourceSqlTypes<TRow>
     : never
 /** Structured schema constraints declared for a source. */

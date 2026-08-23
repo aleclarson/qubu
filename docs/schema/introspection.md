@@ -3,10 +3,12 @@
 > Read one existing database namespace into explainable catalog data and an optional canonical Snapshot v1 or complete Snapshot v2 without giving Qubu ownership of the connection.
 
 Database introspection is an optional capability exported from
-`qubu/introspection`. It discovers database facts. It does not recreate the
-TypeScript declarations that originally produced a schema. Planning and DDL
-emission use the separate `qubu/migration` and `qubu/ddl` entrypoints;
-migration execution remains application-owned.
+`qubu/introspection`. It discovers database facts; it does not recreate the
+original TypeScript declarations. Planning and DDL emission use the separate
+`qubu/migration` and `qubu/ddl` entrypoints, while migration execution remains
+application-owned. The separate
+`qubu/codegen` entrypoint can create a new machine-owned schema module from a
+complete Snapshot v1 result.
 
 ## The pipeline
 
@@ -18,6 +20,8 @@ flowchart LR
   B --> C[Normalized catalog]
   C --> D[Pure snapshot mapper]
   D --> E[Canonical snapshot]
+  E -. later .-> F[Snapshot diffing or migration planning]
+  E -. optional .-> G[Generated TypeScript schema]
 ```
 
 The reader owns catalog SQL and dialect-specific row normalization. The
@@ -69,6 +73,11 @@ if (!result.ok) {
 
 result.snapshot.tables // canonical Snapshot v1 data
 ```
+
+Pass the successful result itself—not a detached or edited snapshot—to
+`generateSchemaSource()` when a replaceable TypeScript schema is needed. See
+[Generate a schema from introspection](code-generation.md) for that workflow
+and its identity handoff.
 
 Readers may expose additional typed object families through the normalized
 catalog. Use `createCompleteIntrospectionCatalog()` to materialize and freeze
@@ -164,8 +173,9 @@ these families as unsupported.
 
 The query and normalization layout follows the catalog-reading portions of the
 [Drizzle MySQL introspector](https://github.com/drizzle-team/drizzle-orm/blob/main/drizzle-kit/src/introspect-mysql.ts).
-Qubu keeps that metadata as normalized typed data and does not generate
-TypeScript declarations or evaluate database-provided SQL.
+The reader keeps that metadata as normalized typed data and never evaluates
+database-provided SQL. Optional source generation remains a later, pure step
+with a controlled literal printer.
 
 Use `mapCatalogToCompleteSnapshot()` for the typed MySQL families and its
 opaque or deferred boundaries. Use `mapCatalogToSnapshot()` when the caller
@@ -191,7 +201,8 @@ The canonical snapshot is the handoff to Qubu's pure schema pipeline:
 - diffing compares canonical snapshots;
 - rename resolution consumes previous/current snapshots and explicit hints;
 - migration planning consumes semantic diff operations;
-- DDL emitters consume approved plans and dialect capabilities.
+- DDL emitters consume approved plans and dialect capabilities;
+- source generation creates a new machine-owned Snapshot v1 schema baseline.
 
 None of those layers opens a database connection or changes how introspection
 represents catalog facts. DDL emission produces statements; it does not apply
