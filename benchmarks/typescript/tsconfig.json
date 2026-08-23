@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "lib": ["ESNext"],
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "baseUrl": "../..",
+    "paths": {
+      "qubu": ["./dist/index.d.mts"]
+    },
+    "noEmit": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "skipLibCheck": true,
+    "types": []
+  },
+  "files": ["./core-query-composition.ts", "./sql-template-composition.ts"]
+}

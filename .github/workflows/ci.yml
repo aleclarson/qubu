@@ -48,6 +48,9 @@ jobs:
       - name: Build
         run: pnpm run --if-present build
 
+      - name: Check TypeScript performance
+        run: pnpm run test:type-performance -- --check-built
+
   dialect-e2e:
     name: Dialect E2E (${{ matrix.dialect }})
     runs-on: ubuntu-latest

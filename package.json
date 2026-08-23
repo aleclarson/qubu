@@ -69,6 +69,7 @@
     "playground": "bun run ./playground/playground.ts",
     "test": "vitest",
     "test:e2e": "vitest --run test/e2e/dialects.test.ts",
+    "test:type-performance": "node ./scripts/test-type-performance.mjs",
     "diff-check": "vitest --run test/diff.test.ts test/migration.test.ts",
     "test:bun": "node ./scripts/test-package.mjs --runtime=bun",
     "test:package": "node ./scripts/test-package.mjs",
