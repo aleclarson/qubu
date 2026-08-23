@@ -11,7 +11,9 @@
   `not-yet-written`.
 - Scenario modules may choose their own use cases and exported shapes; they do
   not need to share a canonical demonstration. `experimental` scenarios may be
-  illustrative rather than executable. To mark a scenario `verified`, a shared
-  CI runner must import it in its declared environment and complete a real
-  database round trip.
+  illustrative rather than executable. Every `verified` module must export one
+  async verification function for the shared CI runner; its remaining exports
+  stay freeform. The runner must import the module in its declared environment
+  and complete a real database round trip. The runner provisions and tears down
+  an isolated database, while the scenario prepares its own schema and data.
 - Read [.agents/rules/TESTING.md](.agents/rules/TESTING.md) before adding or changing tests. It defines the test-layer boundaries and the scope of live dialect tests.
