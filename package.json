@@ -25,7 +25,9 @@
     "./drizzle/mysql": "./src/drizzle/mysql.ts",
     "./drizzle/postgres": "./src/drizzle/postgres.ts",
     "./drizzle/sqlite": "./src/drizzle/sqlite.ts",
-    "./globals": "./src/vite/ambient.d.ts"
+    "./globals": {
+      "types": "./src/vite/ambient.d.ts"
+    }
   },
   "prettier": "@alloc/prettier-config",
   "devDependencies": {
@@ -61,35 +63,90 @@
   },
   "scripts": {
     "build": "tsdown",
+    "check:package": "node ./scripts/test-package.mjs --check-built",
+    "prepack": "pnpm run build && pnpm run check:package",
+    "prepublishOnly": "pnpm run test:package",
     "playground": "bun run ./playground/playground.ts",
     "test": "vitest",
     "test:e2e": "vitest --run test/e2e/dialects.test.ts",
     "diff-check": "vitest --run test/diff.test.ts test/migration.test.ts",
-    "test:bun": "bun test ./src/bun/test",
+    "test:bun": "node ./scripts/test-package.mjs --runtime=bun",
+    "test:package": "node ./scripts/test-package.mjs",
+    "test:package:node": "node ./scripts/test-package.mjs --runtime=node",
     "typecheck": "vitest --typecheck --run",
     "typecheck:playground": "tsc --project ./playground/tsconfig.json",
     "lint": "prettier --check . && npm run typecheck"
   },
   "publishConfig": {
     "exports": {
-      ".": "./dist/index.mjs",
-      "./core": "./dist/core.mjs",
-      "./ddl": "./dist/ddl.mjs",
-      "./diff": "./dist/diff.mjs",
-      "./drizzle": "./dist/drizzle.mjs",
-      "./introspection": "./dist/introspection.mjs",
-      "./migration": "./dist/migration.mjs",
-      "./mysql": "./dist/mysql.mjs",
-      "./postgres": "./dist/postgres.mjs",
-      "./schema": "./dist/schema.mjs",
-      "./snapshot": "./dist/snapshot.mjs",
-      "./sqlite": "./dist/sqlite.mjs",
-      "./vite": "./dist/vite.mjs",
+      ".": {
+        "types": "./dist/index.d.mts",
+        "import": "./dist/index.mjs"
+      },
+      "./core": {
+        "types": "./dist/core.d.mts",
+        "import": "./dist/core.mjs"
+      },
+      "./ddl": {
+        "types": "./dist/ddl.d.mts",
+        "import": "./dist/ddl.mjs"
+      },
+      "./diff": {
+        "types": "./dist/diff.d.mts",
+        "import": "./dist/diff.mjs"
+      },
+      "./drizzle": {
+        "types": "./dist/drizzle.d.mts",
+        "import": "./dist/drizzle.mjs"
+      },
+      "./introspection": {
+        "types": "./dist/introspection.d.mts",
+        "import": "./dist/introspection.mjs"
+      },
+      "./migration": {
+        "types": "./dist/migration.d.mts",
+        "import": "./dist/migration.mjs"
+      },
+      "./mysql": {
+        "types": "./dist/mysql.d.mts",
+        "import": "./dist/mysql.mjs"
+      },
+      "./postgres": {
+        "types": "./dist/postgres.d.mts",
+        "import": "./dist/postgres.mjs"
+      },
+      "./schema": {
+        "types": "./dist/schema.d.mts",
+        "import": "./dist/schema.mjs"
+      },
+      "./snapshot": {
+        "types": "./dist/snapshot.d.mts",
+        "import": "./dist/snapshot.mjs"
+      },
+      "./sqlite": {
+        "types": "./dist/sqlite.d.mts",
+        "import": "./dist/sqlite.mjs"
+      },
+      "./vite": {
+        "types": "./dist/vite.d.mts",
+        "import": "./dist/vite.mjs"
+      },
       "./package.json": "./package.json",
-      "./drizzle/mysql": "./dist/drizzle-mysql.mjs",
-      "./drizzle/postgres": "./dist/drizzle-postgres.mjs",
-      "./drizzle/sqlite": "./dist/drizzle-sqlite.mjs",
-      "./globals": "./dist/vite/ambient.d.ts"
+      "./drizzle/mysql": {
+        "types": "./dist/drizzle-mysql.d.mts",
+        "import": "./dist/drizzle-mysql.mjs"
+      },
+      "./drizzle/postgres": {
+        "types": "./dist/drizzle-postgres.d.mts",
+        "import": "./dist/drizzle-postgres.mjs"
+      },
+      "./drizzle/sqlite": {
+        "types": "./dist/drizzle-sqlite.d.mts",
+        "import": "./dist/drizzle-sqlite.mjs"
+      },
+      "./globals": {
+        "types": "./dist/vite/ambient.d.ts"
+      }
     }
   }
 }

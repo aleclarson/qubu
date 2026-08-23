@@ -35,9 +35,22 @@ export default defineConfig({
         exports[`./drizzle/${dialect}`] = exports[flatPath]
         delete exports[flatPath]
       }
-      exports['./globals'] = isPublish
-        ? './dist/vite/ambient.d.ts'
-        : './src/vite/ambient.d.ts'
+
+      if (isPublish) {
+        for (const [subpath, target] of Object.entries(exports)) {
+          if (typeof target !== 'string' || !target.endsWith('.mjs')) continue
+          exports[subpath] = {
+            types: target.replace(/\.mjs$/, '.d.mts'),
+            import: target,
+          }
+        }
+      }
+
+      exports['./globals'] = {
+        types: isPublish
+          ? './dist/vite/ambient.d.ts'
+          : './src/vite/ambient.d.ts',
+      }
       return exports
     },
   },

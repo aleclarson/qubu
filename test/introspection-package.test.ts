@@ -8,8 +8,10 @@ import * as snapshot from 'qubu/snapshot'
 import buildConfig from '../tsdown.config.ts'
 
 type PackageManifest = {
-  exports: Record<string, string>
-  publishConfig: { exports: Record<string, string> }
+  exports: Record<string, string | { types: string }>
+  publishConfig: {
+    exports: Record<string, string | { types: string; import?: string }>
+  }
 }
 
 const manifest = JSON.parse(
@@ -42,11 +44,26 @@ test('keeps source and publish exports aligned with the build entry', () => {
     './introspection': './src/introspection/index.ts',
   })
   expect(manifest.publishConfig.exports).toMatchObject({
-    '.': './dist/index.mjs',
-    './core': './dist/core.mjs',
-    './schema': './dist/schema.mjs',
-    './snapshot': './dist/snapshot.mjs',
-    './introspection': './dist/introspection.mjs',
+    '.': {
+      types: './dist/index.d.mts',
+      import: './dist/index.mjs',
+    },
+    './core': {
+      types: './dist/core.d.mts',
+      import: './dist/core.mjs',
+    },
+    './schema': {
+      types: './dist/schema.d.mts',
+      import: './dist/schema.mjs',
+    },
+    './snapshot': {
+      types: './dist/snapshot.d.mts',
+      import: './dist/snapshot.mjs',
+    },
+    './introspection': {
+      types: './dist/introspection.d.mts',
+      import: './dist/introspection.mjs',
+    },
   })
   expect(buildConfig.entry).toMatchObject({
     core: 'src/core/index.ts',
