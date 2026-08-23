@@ -1,9 +1,10 @@
 - Qubu is pre-alpha. Avoid backwards-compatibility work; prefer hard breaks with no legacy shims.
-- The adapter × environment combo-scenario library belongs in a separate
-  repository mounted here as a Git submodule. Edit the library through its
-  submodule checkout in this workspace; do not copy its files into the Qubu
-  repository. The submodule may import or link directly to this Qubu checkout
-  and does not need to work as a standalone repository.
+- The adapter × environment combo-scenario library lives on this repository's
+  orphan `combos` branch and is mounted here at `combos/` as a Git submodule.
+  Edit the library through that submodule checkout in this workspace; do not
+  copy its files into Qubu's main branch. The submodule may import or link
+  directly to this Qubu checkout and does not need to work as a standalone
+  repository.
 - A combo pairs a database-client integration that implements Qubu's
   driver-facing boundaries with an execution environment such as Node.js, Bun,
   Deno, Cloudflare Workers, or a browser. Track the complete candidate matrix;

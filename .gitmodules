@@ -1,0 +1,4 @@
+[submodule "combos"]
+	path = combos
+	url = https://github.com/aleclarson/qubu
+	branch = combos
