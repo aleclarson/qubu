@@ -16,11 +16,11 @@ import {
   text,
   unique,
   uniqueConstraint,
-  unsafeSchemaSql,
   value,
   eq,
   gt,
 } from '../src/index.ts'
+import { unsafeSchemaSql } from '../src/schema/index.ts'
 import { postgresDialect } from '../src/dialects/postgres.ts'
 import {
   createPostgresSchemaSnapshot,

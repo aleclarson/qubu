@@ -1,11 +1,6 @@
 import { expectTypeOf } from 'vitest'
-import {
-  defineSchemaExpression,
-  generatedColumn,
-  identityColumn,
-  integer,
-  text,
-} from '../src/index.ts'
+import { generatedColumn, identityColumn, integer, text } from '../src/index.ts'
+import { defineSchemaExpression } from '../src/schema/index.ts'
 import type {
   ColumnDefaultOf,
   ColumnGeneratedOf,

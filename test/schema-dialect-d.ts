@@ -1,11 +1,10 @@
 import { expectTypeOf } from 'vitest'
-import {
-  createDialect,
-  createSchemaDialect,
-  postgresDialect,
-} from '../src/index.ts'
+import { createDialect } from '../src/core/index.ts'
+import { postgresDialect } from '../src/dialects/postgres.ts'
+import { createSchemaDialect } from '../src/schema/index.ts'
 import { postgresSchemaDialect } from '../src/snapshot/index.ts'
-import type { Dialect, SchemaDialect } from '../src/index.ts'
+import type { Dialect } from '../src/core/index.ts'
+import type { SchemaDialect } from '../src/schema/index.ts'
 
 const queryDialect = postgresDialect()
 const schemaDialect = createSchemaDialect(queryDialect, { version: 1 })

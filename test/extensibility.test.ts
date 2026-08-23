@@ -1,25 +1,26 @@
 import { expect, expectTypeOf, test } from 'vitest'
 import {
-  createDialect,
-  customClause,
   fetchFirst,
   from,
-  ilike,
   like,
-  makeExpression,
-  mysqlDialect,
   offset,
-  postgresDialect,
   render,
   select,
-  sequence,
-  sqliteDialect,
-  syntax,
   table,
   text,
-  unsafeExpression,
   where,
 } from '../src/index.ts'
+import {
+  createDialect,
+  customClause,
+  makeExpression,
+  sequence,
+  syntax,
+  unsafeExpression,
+} from '../src/core/index.ts'
+import { ilike, postgresDialect } from '../src/dialects/postgres.ts'
+import { mysqlDialect } from '../src/dialects/mysql.ts'
+import { sqliteDialect } from '../src/dialects/sqlite.ts'
 import type {
   RequiresOf,
   RequiresSourceMeta,

@@ -29,6 +29,7 @@ import type { VisibleDependenciesOf } from '../../core/fragment.ts'
 import type { Query } from '../types.ts'
 import type { Omit, SelectPart } from '../omit.ts'
 import type { UnknownSourceSqlTypes } from '../../schema/source.ts'
+import type { QueryTypeValidation } from '../errors.ts'
 
 export interface SelectQuery<
   TRow extends object = Record<string, unknown>,
@@ -116,9 +117,12 @@ export type ScopeValidation<
   TClauses extends readonly AnySelectClause[],
 > = [MissingScope<TSelection, TClauses>] extends [never]
   ? unknown
-  : {
-      readonly __missing_sources__: MissingScope<TSelection, TClauses>
-    }
+  : QueryTypeValidation<
+      'missing-source',
+      'select.scope',
+      'Add a FROM, JOIN, or correlate() clause that provides the referenced source.',
+      MissingScope<TSelection, TClauses>
+    >
 
 type GroupingRuleClause = HavingClause<any> | OrderByClause<any>
 
@@ -305,7 +309,10 @@ export type GroupingValidation<
   RequiresGrouping<TSelection, TClauses> extends true
     ? [GroupingFailures<TSelection, TClauses>] extends [never]
       ? unknown
-      : {
-          readonly __invalid_grouping__: GroupingFailures<TSelection, TClauses>
-        }
+      : QueryTypeValidation<
+          'invalid-grouping',
+          'select.grouping',
+          'Group every visible dependency or project it through an aggregate.',
+          GroupingFailures<TSelection, TClauses>
+        >
     : unknown

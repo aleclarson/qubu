@@ -2,7 +2,6 @@ import { expect, test } from 'vitest'
 import {
   and,
   check,
-  defineSchemaExpression,
   foreignKey,
   generatedColumn,
   index,
@@ -13,9 +12,9 @@ import {
   text,
   unique,
   uniqueConstraint,
-  unsafeSchemaSql,
   value,
 } from '../src/index.ts'
+import { defineSchemaExpression, unsafeSchemaSql } from '../src/schema/index.ts'
 import {
   createSchemaSnapshot,
   decodeSchemaSnapshot,

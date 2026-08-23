@@ -1,6 +1,5 @@
 import { expect, test } from 'vitest'
 import {
-  customClause,
   eq,
   from,
   integer,
@@ -10,6 +9,7 @@ import {
   render,
   where,
 } from '../src/index.ts'
+import { customClause } from '../src/core/index.ts'
 
 const users = table('users', {
   id: integer(),

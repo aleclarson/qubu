@@ -19,6 +19,7 @@ import {
   type SqlOrderValidation,
 } from '../shared.ts'
 import type { ExpressionSqlType } from '../../types.ts'
+import { queryValidationError } from '../../../query/errors.ts'
 
 type ComparisonResult<TLeft, R, TOperator extends string> = ResultExpression<
   boolean,
@@ -78,9 +79,13 @@ export function comparison<
       operator !== 'IS DISTINCT FROM' &&
       operator !== 'IS NOT DISTINCT FROM'
     ) {
-      throw new TypeError(
-        `Cannot compare NULL with ${operator}; use isNull(), isNotNull(), or a distinctness predicate`
-      )
+      throw queryValidationError({
+        code: 'invalid-comparison',
+        context: 'expression.comparison.null',
+        path: ['comparison', operator],
+        message: `Cannot compare NULL with ${operator}; use isNull(), isNotNull(), or a distinctness predicate`,
+        hint: 'Use isNull(), isNotNull(), or a distinctness predicate for NULL comparisons.',
+      })
     }
   }
 
@@ -94,7 +99,7 @@ export function comparison<
   }) as ComparisonResult<TLeft, R, TOperator>
 }
 
-export function equal<
+export function eq<
   T,
   TLeft extends ExpressionWithOutput<T>,
   R extends Operand<NoInfer<T>>,
@@ -102,9 +107,7 @@ export function equal<
   return comparison('=', left, right)
 }
 
-export const eq = equal
-
-export function notEqual<
+export function ne<
   T,
   TLeft extends ExpressionWithOutput<T>,
   R extends Operand<NoInfer<T>>,
@@ -112,43 +115,33 @@ export function notEqual<
   return comparison('<>', left, right)
 }
 
-export const ne = notEqual
-
-export function lessThan<
+export function lt<
   TLeft extends AnyExpression,
   R extends Operand<Exclude<ExpressionOutput<TLeft>, null>>,
 >(left: TLeft & ComparisonValidation<TLeft, R, '<'>, right: R) {
   return comparison('<', left, right)
 }
 
-export const lt = lessThan
-
-export function lessThanOrEqual<
+export function lte<
   TLeft extends AnyExpression,
   R extends Operand<Exclude<ExpressionOutput<TLeft>, null>>,
 >(left: TLeft & ComparisonValidation<TLeft, R, '<='>, right: R) {
   return comparison('<=', left, right)
 }
 
-export const lte = lessThanOrEqual
-
-export function greaterThan<
+export function gt<
   TLeft extends AnyExpression,
   R extends Operand<Exclude<ExpressionOutput<TLeft>, null>>,
 >(left: TLeft & ComparisonValidation<TLeft, R, '>'>, right: R) {
   return comparison('>', left, right)
 }
 
-export const gt = greaterThan
-
-export function greaterThanOrEqual<
+export function gte<
   TLeft extends AnyExpression,
   R extends Operand<Exclude<ExpressionOutput<TLeft>, null>>,
 >(left: TLeft & ComparisonValidation<TLeft, R, '>='>, right: R) {
   return comparison('>=', left, right)
 }
-
-export const gte = greaterThanOrEqual
 
 export function like<
   TLeft extends ExpressionWithOutput<string>,

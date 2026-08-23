@@ -88,7 +88,7 @@ export function sum<T, TExpression extends ExpressionWithOutput<T>>(
   >
 }
 
-export function average<T, TExpression extends ExpressionWithOutput<T>>(
+export function avg<T, TExpression extends ExpressionWithOutput<T>>(
   expression: TExpression &
     SqlCapabilityValidation<ExpressionSqlType<TExpression>, SqlNumericLike>
 ) {
@@ -104,9 +104,7 @@ export function average<T, TExpression extends ExpressionWithOutput<T>>(
   >
 }
 
-export const avg = average
-
-export function minimum<T, TExpression extends ExpressionWithOutput<T>>(
+export function min<T, TExpression extends ExpressionWithOutput<T>>(
   expression: TExpression &
     SqlCapabilityValidation<ExpressionSqlType<TExpression>, SqlOrderable>
 ) {
@@ -125,9 +123,7 @@ export function minimum<T, TExpression extends ExpressionWithOutput<T>>(
   >
 }
 
-export const min = minimum
-
-export function maximum<T, TExpression extends ExpressionWithOutput<T>>(
+export function max<T, TExpression extends ExpressionWithOutput<T>>(
   expression: TExpression &
     SqlCapabilityValidation<ExpressionSqlType<TExpression>, SqlOrderable>
 ) {
@@ -145,5 +141,3 @@ export function maximum<T, TExpression extends ExpressionWithOutput<T>>(
     ExpressionSqlType<TExpression>
   >
 }
-
-export const max = maximum

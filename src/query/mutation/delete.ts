@@ -56,5 +56,3 @@ export function deleteFrom<
     MutationSqlTypes<TClauses>
   >
 }
-
-export const removeFrom = deleteFrom

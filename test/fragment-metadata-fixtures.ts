@@ -1,26 +1,28 @@
 import {
   caseWhen,
   coalesce,
-  commaSeparated,
   count,
   countDistinct,
   eq,
-  expressionFragment,
   from,
   groupBy,
   isNotNull,
   isNull,
-  keyword,
   leftJoin,
-  parenthesize,
   select,
-  sequence,
-  syntax,
   table,
   text,
   upper,
   value,
 } from '../src/index.ts'
+import {
+  commaSeparated,
+  expressionFragment,
+  keyword,
+  parenthesize,
+  sequence,
+  syntax,
+} from '../src/core/index.ts'
 
 export const users = table('users', {
   id: text(),

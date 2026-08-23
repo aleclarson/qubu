@@ -1,28 +1,18 @@
 import { expect, expectTypeOf, test } from 'vitest'
+import { and, count, gt, lower, table, text, value } from '../src/index.ts'
+import type { SchemaExpressionMode } from '../src/schema/index.ts'
+import { createDialect, makeExpression } from '../src/core/index.ts'
 import {
-  and,
-  count,
-  createDialect,
   defineSchemaExpression,
-  gt,
-  lower,
-  postgresDialect,
   renderSchemaExpression,
   renderSchemaSql,
   schemaExpression,
-  table,
-  text,
   unsafeSchemaSql,
-  value,
-} from '../src/index.ts'
-import type {
-  AnySchemaExpression,
-  SchemaExpression,
-  SchemaExpressionMode,
-} from '../src/index.ts'
+} from '../src/schema/index.ts'
 import { integer } from '../src/index.ts'
-import { makeExpression } from '../src/index.ts'
 import type { ResultMeta } from '../src/index.ts'
+import type { AnySchemaExpression, SchemaExpression } from '../src/index.ts'
+import { postgresDialect } from '../src/dialects/postgres.ts'
 
 const users = table('schema_expression_users', {
   age: integer(),

@@ -1,7 +1,5 @@
 import {
-  createDialect,
   from,
-  ilike,
   like,
   alias,
   select,
@@ -10,6 +8,8 @@ import {
   unionAll,
   where,
 } from '../src/index.ts'
+import { createDialect } from '../src/core/index.ts'
+import { ilike } from '../src/dialects/postgres.ts'
 
 export const users = table('users', { name: text() })
 

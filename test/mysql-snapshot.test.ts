@@ -1,7 +1,6 @@
 import { expect, test } from 'vitest'
 import {
   check,
-  defineSchemaExpression,
   desc,
   foreignKey,
   generatedColumn,
@@ -9,7 +8,6 @@ import {
   identityColumn,
   index,
   integer,
-  mysqlDialect,
   nativeColumn,
   primaryKey,
   references,
@@ -18,9 +16,10 @@ import {
   text,
   timestamp,
   uniqueConstraint,
-  unsafeSchemaSql,
   value,
 } from '../src/index.ts'
+import { mysqlDialect } from '../src/dialects/mysql.ts'
+import { defineSchemaExpression, unsafeSchemaSql } from '../src/schema/index.ts'
 import {
   createMysqlSchemaSnapshot,
   createSchemaSnapshot,

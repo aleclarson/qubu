@@ -26,7 +26,6 @@ import {
   orderBy,
   offset,
   or,
-  postgresDialect,
   render,
   select,
   table,
@@ -35,6 +34,7 @@ import {
   value,
   where,
 } from '../src/index.ts'
+import { postgresDialect } from '../src/dialects/postgres.ts'
 
 const users = table('users', {
   id: integer(),

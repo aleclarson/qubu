@@ -52,8 +52,6 @@ export async function execute<TRow extends object>(
   return adapter.execute<TRow>(statement)
 }
 
-export const executeQuery = execute
-
 function isQuery(
   value: Query<any, any, any, any> | QueryAdapter
 ): value is Query<any, any, any, any> {

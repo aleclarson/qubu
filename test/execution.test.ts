@@ -6,12 +6,12 @@ import {
   integer,
   render,
   select,
-  standardDialect,
   table,
   where,
   type RenderedQuery,
   type QueryAdapter,
 } from '../src/index.ts'
+import { standardDialect } from '../src/dialects/standard.ts'
 
 const users = table('users', { id: integer() })
 

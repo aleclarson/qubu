@@ -15,10 +15,10 @@ import {
   table,
   text,
   uniqueConstraint,
-  unsafeSchemaSql,
   value,
   eq,
 } from '../src/index.ts'
+import { unsafeSchemaSql } from '../src/schema/index.ts'
 import {
   createSqliteSchemaSnapshot,
   decodeSchemaSnapshot,

@@ -1,6 +1,5 @@
 import { expectTypeOf } from 'vitest'
 import {
-  defineSchemaExpression,
   identityColumn,
   integer,
   schema,
@@ -9,6 +8,7 @@ import {
   type ColumnOnUpdateOf,
   type MysqlIdentityExtension,
 } from '../src/index.ts'
+import { defineSchemaExpression } from '../src/schema/index.ts'
 import {
   createMysqlSchemaSnapshot,
   createSchemaSnapshot,

@@ -11,6 +11,7 @@ import {
   type AnyExpression,
   type SchemaExpression,
 } from './types.ts'
+import { queryValidationError } from '../query/errors.ts'
 
 /** One safely encoded object key or zero-based array index in a JSON path. */
 export type JsonPathSegment = string | number
@@ -34,14 +35,18 @@ export interface JsonPath<
 export function jsonPath<const TSegments extends readonly JsonPathSegment[]>(
   ...segments: TSegments
 ): JsonPath<TSegments> {
-  for (const segment of segments) {
+  for (const [index, segment] of segments.entries()) {
     if (
       typeof segment === 'number' &&
       (!Number.isSafeInteger(segment) || segment < 0)
     ) {
-      throw new TypeError(
-        'JSON path indexes must be non-negative safe integers'
-      )
+      throw queryValidationError({
+        code: 'invalid-json-path',
+        context: 'expression.json-path',
+        path: ['jsonPath', index],
+        message: 'JSON path indexes must be non-negative safe integers',
+        hint: 'Use a non-negative safe integer for each JSON array index.',
+      })
     }
   }
 

@@ -2,7 +2,7 @@ import {
   add,
   all,
   alias,
-  average,
+  avg,
   bigint,
   binary,
   between,
@@ -13,7 +13,6 @@ import {
   coalesce,
   column,
   concat,
-  customSource,
   date,
   eq,
   from,
@@ -24,26 +23,29 @@ import {
   like,
   lower,
   lt,
-  minimum,
+  min,
   nullable,
   numeric,
   order,
   scalar,
   select,
   sum,
-  syntax,
   table,
   text,
   timestamp,
-  typedCall,
-  typedCast,
-  typedValue,
-  unsafeExpression,
   union,
   uuid,
   value,
   where,
 } from '../src/index.ts'
+import {
+  syntax,
+  typedCall,
+  typedCast,
+  typedValue,
+  unsafeExpression,
+} from '../src/core/index.ts'
+import { customSource } from '../src/schema/index.ts'
 import type {
   SqlBigInt,
   SqlBinary,
@@ -181,7 +183,7 @@ byTextId(records, 'uuid')
 byTextId(nullableTextIds, 'nullable')
 
 const added = add(records.count, 1)
-const averaged = average(records.count)
+const averaged = avg(records.count)
 const lowered = lower(records.label)
 const predicate = eq(records.id, '108cb836-20d2-41b2-8c23-f0c94700aa7e')
 const conditional = caseWhen(predicate, records.label, 'missing')
@@ -379,7 +381,7 @@ inQuery(
 sum(records.label)
 
 // @ts-expect-error UUID is not portably orderable.
-minimum(records.id)
+min(records.id)
 
 // @ts-expect-error UUID is not portably orderable.
 order(records.id)

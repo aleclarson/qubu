@@ -1,10 +1,8 @@
 import {
   count,
-  customSource,
   eq,
   from,
   groupBy,
-  identifier,
   integer,
   leftJoin,
   select,
@@ -12,6 +10,8 @@ import {
   text,
   where,
 } from '../src/index.ts'
+import { identifier } from '../src/core/index.ts'
+import { customSource } from '../src/schema/index.ts'
 
 export const users = table('users', {
   id: integer(),

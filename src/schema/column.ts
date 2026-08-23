@@ -1009,9 +1009,6 @@ export function nativeColumn(
   })
 }
 
-/** Alias for integrations that call dialect-owned columns "dialect columns". */
-export const dialectColumn = nativeColumn
-
 export function nullable<
   TOutput,
   TNullable extends boolean,
@@ -1132,9 +1129,6 @@ export function timestamp<const TOptions extends BuiltInColumnOptions = {}>(
   )
 }
 
-/** Alias for timestamp columns whose application name emphasizes date-time. */
-export const dateTime = timestamp
-
 export function uuid<const TOptions extends BuiltInColumnOptions = {}>(
   options?: TOptions
 ) {
@@ -1183,6 +1177,3 @@ export function binary<const TOptions extends BuiltInColumnOptions = {}>(
     'binary'
   )
 }
-
-/** Common driver-neutral name for a binary/blob column. */
-export const blob = binary

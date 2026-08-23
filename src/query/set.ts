@@ -2,6 +2,7 @@ import { parenthesize } from '../core/fragment.ts'
 import type { CapabilityMetadataOf } from '../core/fragment.ts'
 import type { Query, QuerySqlTypeMap } from './types.ts'
 import type { SqlEqualityCompatible } from '../core/sql-types.ts'
+import type { QueryTypeValidation } from './errors.ts'
 
 export type SetOperator = 'UNION' | 'UNION ALL' | 'INTERSECT' | 'EXCEPT'
 
@@ -20,12 +21,12 @@ type SetSqlValidation<TLeft, TRight> = [
   SetSqlCompatibilityFailures<TLeft, TRight>,
 ] extends [never]
   ? unknown
-  : {
-      readonly __incompatible_set_sql_domains__: SetSqlCompatibilityFailures<
-        TLeft,
-        TRight
-      >
-    }
+  : QueryTypeValidation<
+      'incompatible-set-domain',
+      'set-operation.columns',
+      'Make corresponding set-operation fields use compatible SQL domains.',
+      SetSqlCompatibilityFailures<TLeft, TRight>
+    >
 
 export function setOperation<
   TRow extends object,

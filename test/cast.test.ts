@@ -2,17 +2,17 @@ import { expect, test } from 'vitest'
 import {
   cast,
   column,
-  createDialect,
   from,
-  mysqlDialect,
   numeric,
   render,
   select,
-  sqliteDialect,
   table,
   text,
   uuid,
 } from '../src/index.ts'
+import { createDialect } from '../src/core/index.ts'
+import { mysqlDialect } from '../src/dialects/mysql.ts'
+import { sqliteDialect } from '../src/dialects/sqlite.ts'
 import type { SqlSemanticType, SqlTextLike } from '../src/index.ts'
 
 const records = table('records', { id: uuid() })

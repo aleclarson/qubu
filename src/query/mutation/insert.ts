@@ -17,6 +17,7 @@ import {
   type MutationScopeValidation,
   type MutationSqlTypes,
 } from './types.ts'
+import { queryValidationError, type QueryTypeValidation } from '../errors.ts'
 
 export interface ValuesSource<
   TRows extends readonly object[] = readonly object[],
@@ -59,9 +60,6 @@ export function insertSelect<
   })
 }
 
-export const fromSelect = insertSelect
-export const insertFrom = insertSelect
-
 export type InsertSource =
   | ValuesSource<any>
   | DefaultValuesSource
@@ -80,13 +78,18 @@ type InvalidInsertRow<TTable extends AnyTable, TRow> =
   TRow extends InsertRow<TTable>
     ? Exclude<keyof TRow, keyof InsertRow<TTable>> extends never
       ? unknown
-      : {
-          readonly __unknown_insert_columns__: Exclude<
-            keyof TRow,
-            keyof InsertRow<TTable>
-          >
-        }
-    : { readonly __invalid_insert_row__: TRow }
+      : QueryTypeValidation<
+          'invalid-insert',
+          'insert.values.columns',
+          'Use only columns declared by the insert table.',
+          Exclude<keyof TRow, keyof InsertRow<TTable>>
+        >
+    : QueryTypeValidation<
+        'invalid-insert',
+        'insert.values.row',
+        'Provide values matching the insert table columns.',
+        TRow
+      >
 
 type ValidInsertSource<TTable extends AnyTable, TSource extends InsertSource> =
   TSource extends ValuesSource<infer TRows>
@@ -107,7 +110,23 @@ type ValidInsertSource<TTable extends AnyTable, TSource extends InsertSource> =
           }[keyof TTable['definitions']]
         > extends never
         ? unknown
-        : { readonly __default_values_require_defaults__: never }
+        : QueryTypeValidation<
+            'invalid-insert',
+            'insert.default-values',
+            'Provide values for required columns or define defaults for them.',
+            Exclude<
+              keyof TTable['definitions'],
+              {
+                [K in keyof TTable['definitions']]-?: ColumnIsGenerated<
+                  TTable['definitions'][K]
+                > extends true
+                  ? K
+                  : TTable['definitions'][K] extends { hasDefault: true }
+                    ? K
+                    : never
+              }[keyof TTable['definitions']]
+            >
+          >
       : TSource extends InsertSelectSource<any, infer TColumns>
         ? Exclude<TColumns[number], keyof TTable['definitions']> extends never
           ? Exclude<
@@ -123,13 +142,29 @@ type ValidInsertSource<TTable extends AnyTable, TSource extends InsertSource> =
               TColumns[number]
             > extends never
             ? unknown
-            : { readonly __required_insert_select_columns__: never }
-          : {
-              readonly __unknown_insert_select_columns__: Exclude<
-                TColumns[number],
-                keyof TTable['definitions']
+            : QueryTypeValidation<
+                'invalid-insert',
+                'insert.select.columns',
+                'Include every required insert column in the target list.',
+                Exclude<
+                  {
+                    [K in keyof TTable['definitions']]-?: ColumnIsGenerated<
+                      TTable['definitions'][K]
+                    > extends true
+                      ? never
+                      : ColumnHasDefault<TTable['definitions'][K]> extends true
+                        ? never
+                        : K
+                  }[keyof TTable['definitions']],
+                  TColumns[number]
+                >
               >
-            }
+          : QueryTypeValidation<
+              'invalid-insert',
+              'insert.select.columns',
+              'Use only columns declared by the insert table.',
+              Exclude<TColumns[number], keyof TTable['definitions']>
+            >
         : never
 
 export function insertInto<
@@ -226,10 +261,22 @@ function validateInsert(table: AnyTable, source: InsertSource) {
     const firstSet = new Set(firstColumns)
     for (const columnName of firstColumns) {
       if (!definitions[columnName]) {
-        throw new Error(`Unknown insert column "${columnName}"`)
+        throw queryValidationError({
+          code: 'invalid-insert',
+          context: 'insert.values.columns',
+          path: ['values', columnName],
+          message: `Unknown insert column "${columnName}"`,
+          hint: 'Use only columns declared by the insert table.',
+        })
       }
       if (definitions[columnName].generated) {
-        throw new Error(`Generated column "${columnName}" cannot be inserted`)
+        throw queryValidationError({
+          code: 'invalid-insert',
+          context: 'insert.values.columns',
+          path: ['values', columnName],
+          message: `Generated column "${columnName}" cannot be inserted`,
+          hint: 'Omit generated columns from the insert values.',
+        })
       }
     }
     for (const row of source.rows) {
@@ -238,43 +285,89 @@ function validateInsert(table: AnyTable, source: InsertSource) {
         columns.length !== firstColumns.length ||
         columns.some(columnName => !firstSet.has(columnName))
       ) {
-        throw new Error('All INSERT values rows must use the same columns')
+        throw queryValidationError({
+          code: 'invalid-insert',
+          context: 'insert.values.rows',
+          path: ['values', 'rows'],
+          message: 'All INSERT values rows must use the same columns',
+          hint: 'Use one identical column set for every values row.',
+        })
       }
     }
     for (const [columnName, definition] of Object.entries(definitions)) {
       if (definition.generated || definition.hasDefault) continue
       if (!firstSet.has(columnName)) {
-        throw new Error(`Required insert column "${columnName}" is missing`)
+        throw queryValidationError({
+          code: 'invalid-insert',
+          context: 'insert.values.columns',
+          path: ['values', columnName],
+          message: `Required insert column "${columnName}" is missing`,
+          hint: 'Provide the column value or define a default for it.',
+        })
       }
     }
   } else if (source.insertKind === 'default-values') {
     for (const [columnName, definition] of Object.entries(definitions)) {
       if (!definition.generated && !definition.hasDefault) {
-        throw new Error(
-          `DEFAULT VALUES requires column "${columnName}" to have a default`
-        )
+        throw queryValidationError({
+          code: 'invalid-insert',
+          context: 'insert.default-values',
+          path: ['defaultValues', columnName],
+          message: `DEFAULT VALUES requires column "${columnName}" to have a default`,
+          hint: 'Provide values for required columns or define defaults for them.',
+        })
       }
     }
   } else {
     if (source.columns.length === 0) {
-      throw new Error('INSERT ... SELECT requires at least one target column')
+      throw queryValidationError({
+        code: 'invalid-insert',
+        context: 'insert.select.columns',
+        path: ['insertSelect', 'columns'],
+        message: 'INSERT ... SELECT requires at least one target column',
+        hint: 'List the target columns receiving the SELECT result.',
+      })
     }
     const seen = new Set<string>()
     for (const columnName of source.columns) {
       if (seen.has(columnName))
-        throw new Error(`Duplicate insert column "${columnName}"`)
+        throw queryValidationError({
+          code: 'duplicate-clause',
+          context: 'insert.select.columns',
+          path: ['insertSelect', 'columns', columnName],
+          message: `Duplicate insert column "${columnName}"`,
+          hint: 'List each insert target column once.',
+        })
       seen.add(columnName)
       if (!definitions[columnName]) {
-        throw new Error(`Unknown insert column "${columnName}"`)
+        throw queryValidationError({
+          code: 'invalid-insert',
+          context: 'insert.select.columns',
+          path: ['insertSelect', 'columns', columnName],
+          message: `Unknown insert column "${columnName}"`,
+          hint: 'Use only columns declared by the insert table.',
+        })
       }
       if (definitions[columnName].generated) {
-        throw new Error(`Generated column "${columnName}" cannot be inserted`)
+        throw queryValidationError({
+          code: 'invalid-insert',
+          context: 'insert.select.columns',
+          path: ['insertSelect', 'columns', columnName],
+          message: `Generated column "${columnName}" cannot be inserted`,
+          hint: 'Omit generated columns from the insert target list.',
+        })
       }
     }
     for (const [columnName, definition] of Object.entries(definitions)) {
       if (definition.generated || definition.hasDefault) continue
       if (!seen.has(columnName)) {
-        throw new Error(`Required insert column "${columnName}" is missing`)
+        throw queryValidationError({
+          code: 'invalid-insert',
+          context: 'insert.select.columns',
+          path: ['insertSelect', 'columns', columnName],
+          message: `Required insert column "${columnName}" is missing`,
+          hint: 'Include every required insert column in the target list.',
+        })
       }
     }
   }

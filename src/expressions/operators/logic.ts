@@ -5,6 +5,7 @@ import { omit, type Omit } from '../../query/omit.ts'
 import type { SqlBoolean } from '../../core/sql-types.ts'
 import type { NullabilityOf } from '../../core/fragment.ts'
 import type { ExpressionSqlType } from '../types.ts'
+import { queryValidationError } from '../../query/errors.ts'
 
 type BooleanOperand = BooleanExpression<any> | Omit
 type PresentConditions<TConditions extends readonly BooleanOperand[]> = Exclude<
@@ -39,7 +40,13 @@ function composeConditions<const TConditions extends readonly BooleanOperand[]>(
   name: string
 ): BooleanComposition<TConditions> {
   if (conditions.length === 0) {
-    throw new Error(`${name}() requires at least one condition`)
+    throw queryValidationError({
+      code: 'invalid-boolean-expression',
+      context: `expression.${name}`,
+      path: [name],
+      message: `${name}() requires at least one condition`,
+      hint: `Pass at least one condition to ${name}(), or use omit for a conditional predicate.`,
+    })
   }
 
   const presentConditions = conditions.filter(

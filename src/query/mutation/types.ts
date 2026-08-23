@@ -13,6 +13,8 @@ import type {
   ReturningSqlTypes,
 } from './returning.ts'
 import type { UnknownSourceSqlTypes } from '../../schema/source.ts'
+import type { QueryTypeValidation } from '../errors.ts'
+import { queryValidationError } from '../errors.ts'
 
 export type MutationKind = 'insert' | 'update' | 'delete'
 
@@ -57,9 +59,6 @@ export function allowAll(): AllowAllClause {
   })
 }
 
-export const allowUnrestricted = allowAll
-export const unsafeMutation = allowAll
-
 export type MutationConditionClause = WhereClause<any>
 export type MutationClause =
   | MutationConditionClause
@@ -71,9 +70,11 @@ export type MutationSafetyValidation<TClauses extends readonly unknown[]> =
     TClauses[number],
     MutationConditionClause | AllowAllClause
   > extends never
-    ? {
-        readonly __requires_where_or_allowAll__: never
-      }
+    ? QueryTypeValidation<
+        'unsafe-mutation',
+        'mutation.safety',
+        'Add where(...) or allowAll() explicitly.'
+      >
     : unknown
 
 export function validateMutationClauses(
@@ -86,25 +87,49 @@ export function validateMutationClauses(
 
   for (const clause of clauses) {
     if (clause.clauseKind === 'where') {
-      if (whereSeen) throw new Error(`${kind} accepts only one WHERE clause`)
+      if (whereSeen) {
+        throw queryValidationError({
+          code: 'duplicate-clause',
+          context: `mutation.${kind.toLowerCase()}.clauses`,
+          path: ['clauses', 'where'],
+          message: `${kind} accepts only one WHERE clause`,
+          hint: 'Compose repeated conditions with and() or or().',
+        })
+      }
       whereSeen = true
     } else if (clause.clauseKind === 'returning') {
       if (returningSeen) {
-        throw new Error(`${kind} accepts only one RETURNING clause`)
+        throw queryValidationError({
+          code: 'duplicate-clause',
+          context: `mutation.${kind.toLowerCase()}.clauses`,
+          path: ['clauses', 'returning'],
+          message: `${kind} accepts only one RETURNING clause`,
+          hint: 'Use one returning() clause containing the complete projection.',
+        })
       }
       returningSeen = true
     } else if (clause.clauseKind === 'allow-all') {
       if (allowAllSeen) {
-        throw new Error(`${kind} accepts only one allowAll() marker`)
+        throw queryValidationError({
+          code: 'duplicate-clause',
+          context: `mutation.${kind.toLowerCase()}.clauses`,
+          path: ['clauses', 'allowAll'],
+          message: `${kind} accepts only one allowAll() marker`,
+          hint: 'Keep one allowAll() marker when the mutation is intentionally unrestricted.',
+        })
       }
       allowAllSeen = true
     }
   }
 
   if (!whereSeen && !allowAllSeen) {
-    throw new Error(
-      `${kind} requires a WHERE clause; use allowAll() to opt into an unrestricted mutation`
-    )
+    throw queryValidationError({
+      code: 'unsafe-mutation',
+      context: `mutation.${kind.toLowerCase()}.safety`,
+      path: ['clauses'],
+      message: `${kind} requires a WHERE clause; use allowAll() to opt into an unrestricted mutation`,
+      hint: 'Add where(...) to target rows, or add allowAll() to make the unrestricted intent explicit.',
+    })
   }
 }
 
@@ -129,12 +154,12 @@ export type MutationScopeValidation<
   never,
 ]
   ? unknown
-  : {
-      readonly __missing_sources__: Exclude<
-        RequiresOf<TClauses[number]>,
-        SourceIdentity<TSource>
-      >
-    }
+  : QueryTypeValidation<
+      'missing-source',
+      'mutation.scope',
+      'Use clauses that reference the mutation table or an explicitly correlated source.',
+      Exclude<RequiresOf<TClauses[number]>, SourceIdentity<TSource>>
+    >
 
 export function hasReturningClause(
   clauses: readonly unknown[]

@@ -14,6 +14,7 @@ import type {
 } from '../../core/sql-types.ts'
 import { asValue, isValueExpression, type ValueExpression } from '../value.ts'
 import type { AnyExpression, ExpressionWithOutput } from '../types.ts'
+import type { QueryTypeValidation } from '../../query/errors.ts'
 
 export type Operand<T> = T | ExpressionWithOutput<T>
 
@@ -25,19 +26,34 @@ export type OperandSqlType<T, TContext extends AnySqlType> =
 export type SqlCapabilityValidation<TActual, TCapability> =
   SqlTypeSatisfies<TActual, TCapability> extends true
     ? unknown
-    : { readonly __invalid_sql_domain__: TActual }
+    : QueryTypeValidation<
+        'incompatible-sql-domain',
+        'expression.sql-domain',
+        'Use an expression with the required SQL domain.',
+        TActual
+      >
 
 /** Type-level validation that two known SQL domains can test equality. */
 export type SqlEqualityValidation<TLeft, TRight> =
   SqlEqualityCompatible<TLeft, TRight> extends true
     ? unknown
-    : { readonly __incompatible_sql_equality__: readonly [TLeft, TRight] }
+    : QueryTypeValidation<
+        'incompatible-sql-equality',
+        'comparison.operands',
+        'Use operands from the same SQL equality group.',
+        readonly [TLeft, TRight]
+      >
 
 /** Type-level validation that two known SQL domains share an ordering group. */
 export type SqlOrderValidation<TLeft, TRight> =
   SqlOrderCompatible<TLeft, TRight> extends true
     ? unknown
-    : { readonly __incompatible_sql_order__: readonly [TLeft, TRight] }
+    : QueryTypeValidation<
+        'incompatible-sql-order',
+        'comparison.operands',
+        'Use operands from the same SQL ordering group.',
+        readonly [TLeft, TRight]
+      >
 
 export type OperandRequires<T> = T extends Fragment<any> ? RequiresOf<T> : never
 

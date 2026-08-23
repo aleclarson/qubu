@@ -1,18 +1,15 @@
 import { expect, expectTypeOf, test } from 'vitest'
-import {
-  createDialect,
-  createSchemaDialect,
-  postgresDialect,
-  renderSchemaExpression,
-  sqliteDialect,
-  unsafeSchemaSql,
-  value,
-} from '../src/index.ts'
+import { value } from '../src/index.ts'
+import { createDialect } from '../src/core/index.ts'
+import { postgresDialect } from '../src/dialects/postgres.ts'
+import { sqliteDialect } from '../src/dialects/sqlite.ts'
+import { createSchemaDialect } from '../src/schema/index.ts'
+import { renderSchemaExpression, unsafeSchemaSql } from '../src/schema/index.ts'
 import {
   postgresSchemaDialect,
   postgresSnapshotAdapter,
 } from '../src/snapshot/index.ts'
-import type { Dialect } from '../src/index.ts'
+import type { Dialect } from '../src/core/index.ts'
 
 test('inherits query identifier, placeholder, and capability policy', () => {
   const queryDialect = postgresDialect()

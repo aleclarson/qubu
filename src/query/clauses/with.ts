@@ -115,5 +115,3 @@ export function withCte<const TCtes extends readonly AnyCteSource[]>(
     { clauseKind: 'with' as const, ctes }
   ) as WithClause<TMetadata>
 }
-
-export const withQueries = withCte

@@ -1,12 +1,9 @@
-import type { CapabilitiesOf, Dialect, JsonPath } from '../src/index.ts'
-import {
-  createDialect,
-  jsonPath,
-  mysqlDialect,
-  postgresDialect,
-  render,
-  sqliteDialect,
-} from '../src/index.ts'
+import type { CapabilitiesOf, JsonPath } from '../src/index.ts'
+import { jsonPath, render } from '../src/index.ts'
+import { createDialect, type Dialect } from '../src/core/index.ts'
+import { mysqlDialect } from '../src/dialects/mysql.ts'
+import { postgresDialect } from '../src/dialects/postgres.ts'
+import { sqliteDialect } from '../src/dialects/sqlite.ts'
 import { query } from './json-fixtures.ts'
 
 type Equal<TLeft, TRight> = [TLeft] extends [TRight]

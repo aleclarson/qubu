@@ -7,6 +7,7 @@ import type { RenderContext, RequiresOf } from '../../core/fragment.ts'
 import type { SourceIdentity } from '../../schema/source.ts'
 import type { AnyTable, TableUpdateInput } from '../../schema/table.ts'
 import { omit, type Omit } from '../omit.ts'
+import { queryValidationError, type QueryTypeValidation } from '../errors.ts'
 import {
   createMutation,
   type MutationClause,
@@ -34,13 +35,18 @@ type InvalidUpdateAssignments<TTable extends AnyTable, TAssignments> =
   TAssignments extends UpdateAssignments<TTable>
     ? Exclude<keyof TAssignments, keyof UpdateAssignments<TTable>> extends never
       ? unknown
-      : {
-          readonly __unknown_update_columns__: Exclude<
-            keyof TAssignments,
-            keyof UpdateAssignments<TTable>
-          >
-        }
-    : { readonly __invalid_update_assignments__: TAssignments }
+      : QueryTypeValidation<
+          'invalid-update',
+          'update.assignments',
+          'Use only columns declared by the update table.',
+          Exclude<keyof TAssignments, keyof UpdateAssignments<TTable>>
+        >
+    : QueryTypeValidation<
+        'invalid-update',
+        'update.assignments',
+        'Provide values or expressions matching the update table columns.',
+        TAssignments
+      >
 
 type AssignmentScopeValidation<TTable extends AnyTable, TAssignments> = [
   Exclude<
@@ -51,14 +57,17 @@ type AssignmentScopeValidation<TTable extends AnyTable, TAssignments> = [
   >,
 ] extends [never]
   ? unknown
-  : {
-      readonly __missing_sources__: Exclude<
+  : QueryTypeValidation<
+      'missing-source',
+      'update.assignments',
+      'Use expressions scoped to the update table.',
+      Exclude<
         RequiresOf<
           TAssignments extends object ? TAssignments[keyof TAssignments] : never
         >,
         SourceIdentity<TTable>
       >
-    }
+    >
 
 export function update<
   const TTable extends AnyTable,
@@ -139,13 +148,33 @@ function validateUpdate(table: AnyTable, assignments: object) {
     ([, value]) => value !== omit
   )
   if (entries.length === 0)
-    throw new Error('UPDATE requires at least one assignment')
+    throw queryValidationError({
+      code: 'invalid-update',
+      context: 'update.assignments',
+      path: ['assignments'],
+      message: 'UPDATE requires at least one assignment',
+      hint: 'Provide at least one writable column, or remove the update.',
+    })
 
   for (const [columnName] of entries) {
     const definition = definitions[columnName]
-    if (!definition) throw new Error(`Unknown update column "${columnName}"`)
+    if (!definition) {
+      throw queryValidationError({
+        code: 'invalid-update',
+        context: 'update.assignments',
+        path: ['assignments', columnName],
+        message: `Unknown update column "${columnName}"`,
+        hint: 'Use a column declared by the update table.',
+      })
+    }
     if (definition.generated) {
-      throw new Error(`Generated column "${columnName}" cannot be updated`)
+      throw queryValidationError({
+        code: 'invalid-update',
+        context: 'update.assignments',
+        path: ['assignments', columnName],
+        message: `Generated column "${columnName}" cannot be updated`,
+        hint: 'Remove the generated column from the assignments.',
+      })
     }
   }
 

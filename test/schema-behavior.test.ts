@@ -1,8 +1,6 @@
 import { expect, test } from 'vitest'
 import {
-  ColumnBehaviorError,
   column,
-  defineSchemaExpression,
   externalDefault,
   externalGeneratedColumn,
   generatedColumn,
@@ -11,6 +9,10 @@ import {
   text,
   value,
 } from '../src/index.ts'
+import {
+  ColumnBehaviorError,
+  defineSchemaExpression,
+} from '../src/schema/index.ts'
 
 test('normalizes complete defaults and generated behavior without rendering SQL', () => {
   const expression = defineSchemaExpression('function', context => {

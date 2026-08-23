@@ -4,6 +4,3 @@ import { fragment, type Fragment } from '../fragment.ts'
 export function syntax(value: string): Fragment<never> {
   return fragment(context => context.append(value))
 }
-
-/** Emit a deliberately unchecked fragment supplied by the caller. */
-export const unsafe = syntax

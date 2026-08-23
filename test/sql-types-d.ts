@@ -4,18 +4,18 @@ import {
   binary,
   boolean,
   column,
-  customSource,
   date,
   integer,
   json,
   nullable,
   numeric,
   table,
-  syntax,
   text,
   timestamp,
   uuid,
 } from '../src/index.ts'
+import { syntax } from '../src/core/index.ts'
+import { customSource } from '../src/schema/index.ts'
 import type {
   ColumnSqlType,
   FieldLike,

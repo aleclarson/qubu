@@ -9,16 +9,13 @@ declare global {
   const alias: typeof import('qubu').alias
   const all: typeof import('qubu').all
   const allowAll: typeof import('qubu').allowAll
-  const allowUnrestricted: typeof import('qubu').allowUnrestricted
   const and: typeof import('qubu').and
   const asc: typeof import('qubu').asc
   const asValue: typeof import('qubu').asValue
   const avg: typeof import('qubu').avg
-  const average: typeof import('qubu').average
   const bigint: typeof import('qubu').bigint
-  const binary: typeof import('qubu').binary
-  const blob: typeof import('qubu').blob
   const between: typeof import('qubu').between
+  const binary: typeof import('qubu').binary
   const boolean: typeof import('qubu').boolean
   const call: typeof import('qubu').call
   const caseWhen: typeof import('qubu').caseWhen
@@ -26,55 +23,41 @@ declare global {
   const check: typeof import('qubu').check
   const coalesce: typeof import('qubu').coalesce
   const column: typeof import('qubu').column
-  const commaSeparated: typeof import('qubu').commaSeparated
   const concat: typeof import('qubu').concat
   const count: typeof import('qubu').count
   const countDistinct: typeof import('qubu').countDistinct
   const correlate: typeof import('qubu').correlate
-  const createDialect: typeof import('qubu').createDialect
   const crossJoin: typeof import('qubu').crossJoin
   const cte: typeof import('qubu').cte
-  const customClause: typeof import('qubu').customClause
   const date: typeof import('qubu').date
-  const dateTime: typeof import('qubu').dateTime
-  const dialectColumn: typeof import('qubu').dialectColumn
+  const denseRank: typeof import('qubu').denseRank
   const defaultValues: typeof import('qubu').defaultValues
   const deleteFrom: typeof import('qubu').deleteFrom
   const desc: typeof import('qubu').desc
   const distinct: typeof import('qubu').distinct
   const divide: typeof import('qubu').divide
   const eq: typeof import('qubu').eq
-  const equal: typeof import('qubu').equal
   const except: typeof import('qubu').except
   const execute: typeof import('qubu').execute
-  const executeQuery: typeof import('qubu').executeQuery
   const externalDefault: typeof import('qubu').externalDefault
   const externalGeneratedColumn: typeof import('qubu').externalGeneratedColumn
   const exists: typeof import('qubu').exists
   const fetchFirst: typeof import('qubu').fetchFirst
   const fetchNext: typeof import('qubu').fetchNext
-  const fragment: typeof import('qubu').fragment
   const foreignKey: typeof import('qubu').foreignKey
   const from: typeof import('qubu').from
-  const fromSelect: typeof import('qubu').fromSelect
   const fullJoin: typeof import('qubu').fullJoin
   const groupBy: typeof import('qubu').groupBy
   const generatedColumn: typeof import('qubu').generatedColumn
-  const greaterThan: typeof import('qubu').greaterThan
-  const greaterThanOrEqual: typeof import('qubu').greaterThanOrEqual
   const gt: typeof import('qubu').gt
   const gte: typeof import('qubu').gte
   const having: typeof import('qubu').having
-  const identifier: typeof import('qubu').identifier
-  const ilike: typeof import('qubu').ilike
   const identityColumn: typeof import('qubu').identityColumn
   const inList: typeof import('qubu').inList
   const inQuery: typeof import('qubu').inQuery
-  const inSelect: typeof import('qubu').inSelect
   const index: typeof import('qubu').index
   const innerJoin: typeof import('qubu').innerJoin
   const integer: typeof import('qubu').integer
-  const insertFrom: typeof import('qubu').insertFrom
   const insertInto: typeof import('qubu').insertInto
   const insertSelect: typeof import('qubu').insertSelect
   const intersect: typeof import('qubu').intersect
@@ -89,19 +72,14 @@ declare global {
   const jsonNumber: typeof import('qubu').jsonNumber
   const jsonPath: typeof import('qubu').jsonPath
   const jsonText: typeof import('qubu').jsonText
-  const keyword: typeof import('qubu').keyword
   const leftJoin: typeof import('qubu').leftJoin
   const lateral: typeof import('qubu').lateral
   const like: typeof import('qubu').like
-  const limit: typeof import('qubu').limit
   const lower: typeof import('qubu').lower
   const lt: typeof import('qubu').lt
   const lte: typeof import('qubu').lte
-  const makeExpression: typeof import('qubu').makeExpression
   const max: typeof import('qubu').max
-  const maximum: typeof import('qubu').maximum
   const min: typeof import('qubu').min
-  const minimum: typeof import('qubu').minimum
   const modulo: typeof import('qubu').modulo
   const multiply: typeof import('qubu').multiply
   const naturalJoin: typeof import('qubu').naturalJoin
@@ -109,7 +87,6 @@ declare global {
   const nativeStorage: typeof import('qubu').nativeStorage
   const ne: typeof import('qubu').ne
   const not: typeof import('qubu').not
-  const notEqual: typeof import('qubu').notEqual
   const notExists: typeof import('qubu').notExists
   const notIn: typeof import('qubu').notIn
   const notLike: typeof import('qubu').notLike
@@ -122,44 +99,34 @@ declare global {
   const or: typeof import('qubu').or
   const order: typeof import('qubu').order
   const orderBy: typeof import('qubu').orderBy
-  const parameter: typeof import('qubu').parameter
-  const parenthesize: typeof import('qubu').parenthesize
-  const postgresDialect: typeof import('qubu').postgresDialect
+  const over: typeof import('qubu').over
   const portableStorage: typeof import('qubu').portableStorage
   const primaryKey: typeof import('qubu').primaryKey
-  const qualifiedIdentifier: typeof import('qubu').qualifiedIdentifier
   const references: typeof import('qubu').references
   const render: typeof import('qubu').render
+  const rank: typeof import('qubu').rank
   const rightJoin: typeof import('qubu').rightJoin
   const returning: typeof import('qubu').returning
-  const routineName: typeof import('qubu').routineName
+  const rowNumber: typeof import('qubu').rowNumber
   const scalar: typeof import('qubu').scalar
+  const schema: typeof import('qubu').schema
+  const schemaCall: typeof import('qubu').schemaCall
   const select: typeof import('qubu').select
-  const sequence: typeof import('qubu').sequence
-  const standardDialect: typeof import('qubu').standardDialect
   const subtract: typeof import('qubu').subtract
   const sum: typeof import('qubu').sum
-  const syntax: typeof import('qubu').syntax
   const table: typeof import('qubu').table
   const text: typeof import('qubu').text
   const timestamp: typeof import('qubu').timestamp
-  const toSql: typeof import('qubu').toSql
   const union: typeof import('qubu').union
   const unionAll: typeof import('qubu').unionAll
   const unique: typeof import('qubu').unique
-  const unsafe: typeof import('qubu').unsafe
-  const unsafeExpression: typeof import('qubu').unsafeExpression
-  const unsafeMutation: typeof import('qubu').unsafeMutation
   const update: typeof import('qubu').update
   const upper: typeof import('qubu').upper
   const value: typeof import('qubu').value
   const values: typeof import('qubu').values
   const where: typeof import('qubu').where
   const withCte: typeof import('qubu').withCte
-  const withQueries: typeof import('qubu').withQueries
-  const mysqlDialect: typeof import('qubu').mysqlDialect
-  const removeFrom: typeof import('qubu').removeFrom
-  const sqliteDialect: typeof import('qubu').sqliteDialect
+  const uuid: typeof import('qubu').uuid
 
   type ColumnDefinition<
     TOutput = unknown,
@@ -207,23 +174,17 @@ declare global {
   type IdentityDescriptor = import('qubu').IdentityDescriptor
   type MysqlIdentityExtension = import('qubu').MysqlIdentityExtension
   type ColumnStorage = import('qubu').ColumnStorage
-  type PortableStorageType = import('qubu').PortableStorageType
-  type PortableColumnStorage<
-    TType extends
-      import('qubu').PortableStorageType = import('qubu').PortableStorageType,
-  > = import('qubu').PortableColumnStorage<TType>
+  type PortableColumnStorage = import('qubu').PortableColumnStorage
   type NativeColumnStorage<
     TDialect extends string = string,
     TDeclaration extends string = string,
   > = import('qubu').NativeColumnStorage<TDialect, TDeclaration>
   type ColumnStorageOf<T> = import('qubu').ColumnStorageOf<T>
-  type ColumnStorageType<T> = import('qubu').ColumnStorageType<T>
   type ColumnStorageTypeOf<T> = import('qubu').ColumnStorageTypeOf<T>
   type ColumnStorageDialectOf<T> = import('qubu').ColumnStorageDialectOf<T>
   type ColumnStorageDeclarationOf<T> =
     import('qubu').ColumnStorageDeclarationOf<T>
   type ColumnStorageKindOf<T> = import('qubu').ColumnStorageKindOf<T>
-  type StorageOf<T> = import('qubu').StorageOf<T>
   type ColumnReference<
     TName extends string = string,
     TMetadata = never,
@@ -250,10 +211,11 @@ declare global {
   type Fragment<TMetadata = any> = import('qubu').Fragment<TMetadata>
   type FragmentMeta = import('qubu').FragmentMeta
   type JsonPath<
-    TSegments extends
-      readonly import('qubu').JsonPathSegment[] = readonly import('qubu').JsonPathSegment[],
+    TSegments extends readonly (string | number)[] = readonly (
+      | string
+      | number
+    )[],
   > = import('qubu').JsonPath<TSegments>
-  type JsonPathSegment = import('qubu').JsonPathSegment
   type JsonScalarKind = import('qubu').JsonScalarKind
   type QueryCardinality = import('qubu').QueryCardinality
   type CardinalityMeta<
@@ -340,8 +302,9 @@ declare global {
     TIdentity = unknown,
     TRow extends object = Record<string, unknown>,
     TMetadata = never,
-    TSqlTypes extends
-      import('qubu').SourceSqlTypes<TRow> = import('qubu').UnknownSourceSqlTypes<TRow>,
+    TSqlTypes extends {
+      readonly [K in keyof TRow]: import('qubu').AnySqlType
+    } = { readonly [K in keyof TRow]: import('qubu').SqlUnknown },
     TConstraints extends import('qubu').SourceConstraintsRecord = {},
   > = import('qubu').Source<TIdentity, TRow, TMetadata, TSqlTypes, TConstraints>
   type SourceConstraint = import('qubu').SourceConstraint
@@ -354,8 +317,6 @@ declare global {
   type SchemaObjectIdentity = import('qubu').SchemaObjectIdentity
   type SchemaObjectNameOptions = import('qubu').SchemaObjectNameOptions
   type SchemaMetadataDiagnostic = import('qubu').SchemaMetadataDiagnostic
-  type SchemaMetadataValidationError =
-    import('qubu').SchemaMetadataValidationError
   type ConstraintDialectExtension = import('qubu').ConstraintDialectExtension
   type PostgresConstraintExtension = import('qubu').PostgresConstraintExtension
   type SqliteConstraintExtension = import('qubu').SqliteConstraintExtension
@@ -447,17 +408,6 @@ declare global {
     TConstraints extends import('qubu').SourceConstraintsRecord = {},
     TIndexes extends import('qubu').SourceIndexesRecord = {},
   > = import('qubu').Table<TName, TDefinitions, TConstraints, TIndexes>
-  type TableMetadataCallback<
-    TName extends string,
-    TDefinitions extends import('qubu').TableDefinitions,
-    TConstraints extends import('qubu').SourceConstraintsRecord,
-    TIndexes extends import('qubu').SourceIndexesRecord,
-  > = import('qubu').TableMetadataCallback<
-    TName,
-    TDefinitions,
-    TConstraints,
-    TIndexes
-  >
 }
 
 export {}

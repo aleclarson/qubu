@@ -1,17 +1,10 @@
 import { expectTypeOf } from 'vitest'
-import {
-  gt,
-  integer,
-  makeExpression,
-  renderSchemaExpression,
-  schemaExpression,
-  table,
-} from '../src/index.ts'
-import type {
-  AnySchemaExpression,
-  ResultMeta,
-  SchemaExpression,
-} from '../src/index.ts'
+import { gt, integer, table } from '../src/index.ts'
+import type { ResultMeta } from '../src/index.ts'
+import { makeExpression } from '../src/core/index.ts'
+import { schemaExpression } from '../src/schema/index.ts'
+import type { AnySchemaExpression, SchemaExpression } from '../src/index.ts'
+import { renderSchemaExpression } from '../src/schema/index.ts'
 
 const records = table('schema_expression_types', { value: integer() })
 const builtIn = gt(records.value, 0)

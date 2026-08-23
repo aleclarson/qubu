@@ -9,13 +9,9 @@ import {
   createSchemaSnapshot,
   encodeSchemaSnapshot,
 } from '../src/snapshot/index.ts'
-import {
-  createDialect,
-  createSchemaDialect,
-  schema,
-  table,
-  text,
-} from '../src/index.ts'
+import { schema, table, text } from '../src/index.ts'
+import { createDialect } from '../src/core/index.ts'
+import { createSchemaDialect } from '../src/schema/index.ts'
 
 const records = table('records', { name: text() })
 const model = createSchemaSnapshot(schema({ records }))

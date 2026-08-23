@@ -7,13 +7,13 @@ import {
   integer,
   primaryKey,
   references,
-  SchemaMetadataValidationError,
   table,
   text,
   uniqueConstraint,
-  validateConstraintDialect,
-  validateIndexDialect,
 } from '../src/index.ts'
+import { SchemaMetadataValidationError } from '../src/schema/metadata.ts'
+import { validateConstraintDialect } from '../src/schema/constraints.ts'
+import { validateIndexDialect } from '../src/schema/indexes.ts'
 
 test('materializes relational IDs and physical names without changing legacy shape', () => {
   const accounts = table(

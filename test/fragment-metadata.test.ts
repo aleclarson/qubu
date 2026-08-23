@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest'
-import { parenthesize, render, sequence, syntax } from '../src/index.ts'
+import { render } from '../src/index.ts'
+import { parenthesize, sequence, syntax } from '../src/core/index.ts'
 import { users } from './fragment-metadata-fixtures.ts'
 
 test('renders metadata-preserving composition without changing SQL output', () => {

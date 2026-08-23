@@ -9,7 +9,6 @@ import {
   eq,
   foreignKey,
   from,
-  generatedTableName,
   integer,
   index,
   json,
@@ -17,8 +16,6 @@ import {
   primaryKey,
   render,
   schema,
-  schemaNamingPolicyVersion,
-  SchemaValidationError,
   references,
   select,
   table,
@@ -28,6 +25,11 @@ import {
   unique,
   value,
 } from '../src/index.ts'
+import {
+  generatedTableName,
+  schemaNamingPolicyVersion,
+  SchemaValidationError,
+} from '../src/schema/registry.ts'
 import type { TableInsertInput, TableUpdateInput } from '../src/index.ts'
 
 test('registers tables by stable logical IDs without changing query identity', () => {

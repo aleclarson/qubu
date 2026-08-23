@@ -5,12 +5,10 @@ import type {
   MetadataOf,
   RequiresCapabilityMeta,
 } from '../src/index.ts'
-import {
-  createDialect,
-  postgresDialect,
-  render,
-  sqliteDialect,
-} from '../src/index.ts'
+import { render } from '../src/index.ts'
+import { createDialect } from '../src/core/index.ts'
+import { postgresDialect } from '../src/dialects/postgres.ts'
+import { sqliteDialect } from '../src/dialects/sqlite.ts'
 import {
   namedPostgresDialect,
   queryFromCapabilityAlias,

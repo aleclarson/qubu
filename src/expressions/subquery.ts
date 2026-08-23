@@ -7,6 +7,7 @@ import {
 } from '../core/fragment.ts'
 import type { AnyQuery, QueryRow, QuerySqlTypeMap } from '../query/types.ts'
 import { makeExpression, type Expression } from './types.ts'
+import { queryValidationError } from '../query/errors.ts'
 
 export type SingleColumn<Row extends object> = keyof Row extends infer TKey
   ? TKey extends keyof Row
@@ -33,9 +34,13 @@ export function scalar<TQuery extends AnyQuery>(
   'subquery'
 > {
   if (Object.keys(query.row).length !== 1) {
-    throw new Error(
-      'scalar() requires a query with exactly one selected column'
-    )
+    throw queryValidationError({
+      code: 'invalid-subquery',
+      context: 'expression.scalar.query',
+      path: ['scalar', 'query', 'row'],
+      message: 'scalar() requires a query with exactly one selected column',
+      hint: 'Select exactly one named field before wrapping the query in scalar().',
+    })
   }
 
   return makeExpression<

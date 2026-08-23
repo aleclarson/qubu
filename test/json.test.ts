@@ -1,7 +1,6 @@
 import { expect, expectTypeOf, test } from 'vitest'
 import { DatabaseSync } from 'node:sqlite'
 import {
-  createDialect,
   from,
   json,
   jsonBoolean,
@@ -9,14 +8,15 @@ import {
   jsonNumber,
   jsonPath,
   jsonText,
-  mysqlDialect,
-  postgresDialect,
   render,
   select,
-  sqliteDialect,
   table,
 } from '../src/index.ts'
-import type { Dialect } from '../src/index.ts'
+import { createDialect } from '../src/core/index.ts'
+import { mysqlDialect } from '../src/dialects/mysql.ts'
+import { postgresDialect } from '../src/dialects/postgres.ts'
+import { sqliteDialect } from '../src/dialects/sqlite.ts'
+import type { Dialect } from '../src/core/index.ts'
 
 const events = table('events', {
   payload: json<{

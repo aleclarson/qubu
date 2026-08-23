@@ -1,6 +1,8 @@
 import { expect, expectTypeOf, test } from 'vitest'
-import { postgresDialect, render, sqliteDialect } from '../src/index.ts'
-import type { Dialect } from '../src/index.ts'
+import { render } from '../src/index.ts'
+import { postgresDialect } from '../src/dialects/postgres.ts'
+import { sqliteDialect } from '../src/dialects/sqlite.ts'
+import type { Dialect } from '../src/core/index.ts'
 import {
   namedPostgresDialect,
   portableQuery,

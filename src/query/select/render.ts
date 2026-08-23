@@ -3,6 +3,7 @@ import { identifier } from '../../core/primitives/identifier.ts'
 import { snakeCaseIdentifier } from '../../core/naming.ts'
 import { isExpression } from '../../expressions/types.ts'
 import { omit } from '../omit.ts'
+import { queryValidationError } from '../errors.ts'
 import type { Selection } from '../selection.ts'
 
 export function renderSelection(selection: Selection, context: RenderContext) {
@@ -10,12 +11,25 @@ export function renderSelection(selection: Selection, context: RenderContext) {
   const entries = Object.entries(selection).filter(
     ([, expression]) => expression !== omit
   )
-  if (entries.length === 0)
-    throw new Error('select() requires at least one field')
+  if (entries.length === 0) {
+    throw queryValidationError({
+      code: 'invalid-selection',
+      context: 'select.projection',
+      path: ['selection'],
+      message: 'select() requires at least one field',
+      hint: 'Pass a named projection object with at least one expression.',
+    })
+  }
   entries.forEach(([name, expression], index) => {
     if (index > 0) context.append(', ')
     if (!isExpression(expression)) {
-      throw new TypeError(`Selection field "${name}" must be an expression`)
+      throw queryValidationError({
+        code: 'invalid-selection',
+        context: 'select.projection',
+        path: ['selection', name],
+        message: `Selection field "${name}" must be an expression`,
+        hint: 'Use a Qubu expression such as table.column, value(), or a function.',
+      })
     }
 
     const outputName =
@@ -37,6 +51,12 @@ export function selectionRow(selection: Selection): Record<string, unknown> {
 
 function assertNamedSelection(selection: Selection) {
   if (Array.isArray(selection)) {
-    throw new TypeError('Selection must be a named object projection')
+    throw queryValidationError({
+      code: 'invalid-selection',
+      context: 'select.projection',
+      path: ['selection'],
+      message: 'Selection must be a named object projection',
+      hint: 'Pass { fieldName: expression } to select().',
+    })
   }
 }

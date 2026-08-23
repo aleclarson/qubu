@@ -1,6 +1,7 @@
 import { standardDialect } from '../dialects/standard.ts'
 import type { Dialect, DialectCapability } from './dialect.ts'
 import type { AnyFragment, CapabilitiesOf, RenderContext } from './fragment.ts'
+import type { QueryTypeValidation } from '../query/errors.ts'
 
 type DefaultDialectCapability = 'json'
 
@@ -27,12 +28,12 @@ export type RenderCapabilityValidation<
   TCapabilities extends DialectCapability,
 > = [MissingCapabilities<TQuery, TCapabilities>] extends [never]
   ? unknown
-  : {
-      readonly __missing_dialect_capabilities__: MissingCapabilities<
-        TQuery,
-        TCapabilities
-      >
-    }
+  : QueryTypeValidation<
+      'missing-dialect-capability',
+      'render.dialect',
+      'Provide a dialect that supports every capability required by the query.',
+      MissingCapabilities<TQuery, TCapabilities>
+    >
 
 export function render<TQuery extends AnyFragment>(
   query: TQuery & RenderCapabilityValidation<TQuery, DefaultDialectCapability>
@@ -88,8 +89,6 @@ export function render(
     parameters: Object.freeze(parameters.slice()),
   })
 }
-
-export const toSql = render
 
 function isDialect(value: RenderOptions | Dialect): value is Dialect {
   return 'placeholder' in value && 'quoteIdentifier' in value

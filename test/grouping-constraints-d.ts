@@ -2,12 +2,10 @@ import {
   alias,
   count,
   cte,
-  customSource,
   eq,
   from,
   groupBy,
   having,
-  identifier,
   integer,
   index,
   leftJoin,
@@ -21,6 +19,8 @@ import {
   value,
   withCte,
 } from '../src/index.ts'
+import { identifier } from '../src/core/index.ts'
+import { customSource } from '../src/schema/index.ts'
 
 const users = table(
   'users',

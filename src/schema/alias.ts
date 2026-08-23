@@ -142,8 +142,6 @@ export function alias(sourceOrQuery: unknown, name: string): unknown {
   return source
 }
 
-export const as = alias
-
 export type LateralIdentity<TAlias extends string> = {
   readonly sourceKind: 'lateral'
   readonly alias: TAlias

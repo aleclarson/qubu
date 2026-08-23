@@ -12,17 +12,17 @@ import {
   json,
   jsonPath,
   jsonText,
-  mysqlDialect,
   orderBy,
-  postgresDialect,
   select,
-  sqliteDialect,
   table,
   text,
   update,
   values,
   where,
 } from '../../src/index.ts'
+import { mysqlDialect } from '../../src/dialects/mysql.ts'
+import { postgresDialect } from '../../src/dialects/postgres.ts'
+import { sqliteDialect } from '../../src/dialects/sqlite.ts'
 import type { QueryAdapter } from '../../src/index.ts'
 import type { RenderedQuery } from '../../src/core/render.ts'
 import type {

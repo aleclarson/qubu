@@ -7,8 +7,8 @@ import {
   text,
   update,
   upper,
-  withDialectCapability,
 } from '../src/index.ts'
+import { withDialectCapability } from '../src/core/index.ts'
 
 const users = table('users', {
   id: integer({ generated: true }),

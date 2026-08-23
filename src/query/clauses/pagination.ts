@@ -1,6 +1,7 @@
 import type { RenderContext } from '../../core/fragment.ts'
 import type { PaginationPart } from '../../core/dialect.ts'
 import { createClause, type SelectClause } from './types.ts'
+import { queryValidationError } from '../errors.ts'
 
 export interface OffsetClause extends SelectClause<never> {
   readonly clauseKind: 'offset'
@@ -41,7 +42,13 @@ export function renderPagination(
 
 export function offset(rows: number): OffsetClause {
   if (!Number.isInteger(rows) || rows < 0) {
-    throw new RangeError('offset() requires a non-negative integer')
+    throw queryValidationError({
+      code: 'invalid-pagination',
+      context: 'select.pagination.offset',
+      path: ['offset'],
+      message: 'offset() requires a non-negative integer',
+      hint: 'Pass a non-negative integer row count.',
+    })
   }
 
   return Object.assign(
@@ -66,7 +73,13 @@ function fetchRows<const TRows extends number>(
   rows: TRows
 ): FetchClause<TRows> {
   if (!Number.isInteger(rows) || rows < 0) {
-    throw new RangeError('fetch rows require a non-negative integer')
+    throw queryValidationError({
+      code: 'invalid-pagination',
+      context: `select.pagination.fetch${direction === 'FIRST' ? 'First' : 'Next'}`,
+      path: ['fetch', direction],
+      message: 'fetch rows require a non-negative integer',
+      hint: 'Pass a non-negative integer row count.',
+    })
   }
 
   return Object.assign(
@@ -90,5 +103,3 @@ export function fetchFirst<const TRows extends number>(rows: TRows) {
 export function fetchNext<const TRows extends number>(rows: TRows) {
   return fetchRows('NEXT', rows)
 }
-
-export const limit = fetchFirst
