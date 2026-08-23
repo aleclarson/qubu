@@ -8,13 +8,20 @@ import type {
   ResultMeta,
 } from '../core/fragment.ts'
 import type { AnySqlType, SqlBoolean, SqlUnknown } from '../core/sql-types.ts'
-import type { AnyExpression, Expression } from '../expressions/types.ts'
 import type {
-  ColumnDependency,
-  ColumnReference,
+  AnyExpression,
+  Expression,
+  SchemaExpression,
+} from '../expressions/types.ts'
+import {
+  isColumnReference,
+  type ColumnDependency,
+  type ColumnReference,
 } from '../expressions/column.ts'
+import { unsafeSchemaSql } from './expressions.ts'
 import type {
   SchemaDialectExtension,
+  SchemaDialectName,
   SchemaObjectIdentity,
   SchemaObjectNameOptions,
 } from './metadata.ts'
@@ -197,6 +204,16 @@ export interface CheckConstraintOptions<
   readonly initially?: ConstraintTiming
 }
 
+/** Dialect tag and parameter-free SQL needed to reconstruct a catalog check. */
+export interface CatalogCheckSql<
+  TDialect extends SchemaDialectName = SchemaDialectName,
+> {
+  /** Catalog dialect that supplied the check expression. */
+  readonly dialect: TDialect
+  /** Opaque SQL text recovered from the catalog. */
+  readonly sql: string
+}
+
 /** Options for a foreign-key declaration. */
 export interface ForeignKeyOptions<
   TExtension extends ConstraintDialectExtension | undefined =
@@ -280,6 +297,20 @@ export interface CheckConstraint<
   readonly dialect?: ConstraintDialectExtension
   readonly deferrable?: boolean
   readonly initially?: ConstraintTiming
+}
+
+/**
+ * Opaque catalog SQL whose check-constraint origin proves a boolean SQL
+ * semantic type. The expression remains dialect-tagged and parameter-free.
+ */
+export interface CatalogCheckExpression<
+  TDialect extends SchemaDialectName = SchemaDialectName,
+> extends SchemaExpression<
+    ResultMeta<boolean, never, SqlBoolean> | ExpressionMeta<never>,
+    'unsafe'
+  > {
+  readonly schemaSqlDialect: TDialect
+  readonly schemaSql: string
 }
 
 /** Structured schema metadata carried by sources that declare constraints. */
@@ -462,6 +493,48 @@ type ForeignKeyColumnsValidation<
     ? unknown
     : never
 
+type IsUnresolvedSqlDomain<TSqlType> = TSqlType extends SqlUnknown
+  ? true
+  : TSqlType extends AnySqlType
+    ? string extends TSqlType['sqlType']
+      ? true
+      : false
+    : true
+
+type CatalogSqlDomainCompatible<TLeft, TRight> = true extends
+  | IsUnresolvedSqlDomain<SqlTypeOf<TLeft>>
+  | IsUnresolvedSqlDomain<SqlTypeOf<TRight>>
+  ? true
+  : SameSqlDomain<TLeft, TRight>
+
+type CatalogForeignKeyColumnsValidation<
+  TLocal extends readonly AnyKeyColumn[],
+  TTarget extends readonly AnyKeyColumn[],
+> = TLocal extends readonly [infer TLocalHead, ...infer TLocalTail]
+  ? TTarget extends readonly [infer TTargetHead, ...infer TTargetTail]
+    ? TLocalHead extends AnyKeyColumn
+      ? TTargetHead extends AnyKeyColumn
+        ? CatalogSqlDomainCompatible<TLocalHead, TTargetHead> extends true
+          ? CatalogForeignKeyColumnsValidation<
+              Extract<TLocalTail, readonly AnyKeyColumn[]>,
+              Extract<TTargetTail, readonly AnyKeyColumn[]>
+            >
+          : never
+        : never
+      : never
+    : never
+  : TTarget extends readonly []
+    ? unknown
+    : never
+
+type CheckExpressionValidation<TExpression> = [SqlTypeOf<TExpression>] extends [
+  never,
+]
+  ? never
+  : SqlTypeOf<TExpression> extends SqlBoolean
+    ? unknown
+    : never
+
 /** Declare a primary key, including a composite primary key. */
 export function primaryKey<
   const TColumns extends readonly [AnyKeyColumn, ...AnyKeyColumn[]],
@@ -595,13 +668,50 @@ export function foreignKey<
   ) as ForeignKeyConstraint<TColumns, TTarget>
 }
 
+/**
+ * Reconstruct a foreign key proved by database catalog metadata.
+ *
+ * @remarks
+ * Use this helper for generated or introspection-owned declarations when one
+ * or both native SQL domains are unresolved. It accepts unresolved domains,
+ * but still rejects known domain mismatches, unequal tuple arity, and local
+ * columns from different sources. The enclosing `table()` declaration
+ * continues to verify target-column ownership and candidate-key metadata.
+ * Resolved targets also receive runtime shape, ownership, and arity checks.
+ * The returned value serializes as an ordinary foreign-key constraint.
+ */
+export function catalogForeignKey<
+  const TColumns extends readonly [AnyKeyColumn, ...AnyKeyColumn[]],
+  const TTarget extends ForeignKeyTargetInput,
+  const TOptions extends ForeignKeyOptions = {},
+>(
+  columns: TColumns & SameSourceColumnsValidation<NoInfer<TColumns>>,
+  target: TTarget &
+    (ResolvedTarget<TTarget> extends ForeignKeyTarget<any, infer TTargetColumns>
+      ? CatalogForeignKeyColumnsValidation<TColumns, TTargetColumns>
+      : never),
+  options?: TOptions
+): ForeignKeyConstraint<TColumns, TTarget> {
+  assertCatalogForeignKeyColumns(columns, 'local')
+  const validatedTarget = validateCatalogForeignKeyTargetInput(
+    target,
+    columns.length
+  ) as TTarget
+
+  return freezeConstraint(
+    'foreign-key',
+    columns,
+    options,
+    validatedTarget
+  ) as ForeignKeyConstraint<TColumns, TTarget>
+}
+
 /** Declare a boolean table invariant. */
 export function check<
   const TExpression extends Expression<any, any>,
   const TOptions extends CheckConstraintOptions = {},
 >(
-  expression: TExpression &
-    (SqlTypeOf<TExpression> extends SqlBoolean ? unknown : never),
+  expression: TExpression & CheckExpressionValidation<TExpression>,
   options?: TOptions
 ): CheckConstraint<TExpression> {
   return freezeConstraint(
@@ -610,6 +720,121 @@ export function check<
     options,
     expression
   ) as CheckConstraint<TExpression>
+}
+
+/**
+ * Reconstruct a boolean check from opaque SQL recovered from a database
+ * catalog.
+ *
+ * @remarks
+ * This helper records catalog origin as a narrow type-level proof. It
+ * gives the opaque expression the {@link SqlBoolean} semantic type without
+ * changing the ordinary {@link check} contract. Qubu does not parse or infer
+ * dependencies from the SQL. It preserves the text apart from normalizing
+ * line endings and retains the dialect tag in serialized schema metadata.
+ */
+export function catalogCheck<
+  const TDialect extends SchemaDialectName,
+  const TOptions extends CheckConstraintOptions = {},
+>(
+  input: CatalogCheckSql<TDialect>,
+  options?: TOptions
+): CheckConstraint<CatalogCheckExpression<TDialect>> {
+  assertCatalogCheckSql(input)
+  const expression = unsafeSchemaSql(
+    input.dialect,
+    input.sql
+  ) as CatalogCheckExpression<TDialect>
+
+  return freezeConstraint(
+    'check',
+    undefined,
+    options,
+    expression
+  ) as CheckConstraint<CatalogCheckExpression<TDialect>>
+}
+
+function assertCatalogCheckSql(
+  value: unknown
+): asserts value is CatalogCheckSql {
+  if (typeof value !== 'object' || value === null) {
+    throw new TypeError('catalogCheck() requires dialect-tagged SQL data')
+  }
+
+  const input = value as Partial<CatalogCheckSql>
+  if (
+    input.dialect !== 'postgresql' &&
+    input.dialect !== 'sqlite' &&
+    input.dialect !== 'mysql'
+  ) {
+    throw new TypeError(
+      `catalogCheck() requires a supported catalog dialect, received "${String(input.dialect)}"`
+    )
+  }
+  if (typeof input.sql !== 'string' || input.sql.trim().length === 0) {
+    throw new TypeError('catalogCheck() requires non-empty SQL text')
+  }
+}
+
+function assertCatalogForeignKeyColumns(
+  value: unknown,
+  side: 'local' | 'target'
+): asserts value is readonly [AnyKeyColumn, ...AnyKeyColumn[]] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new TypeError(
+      `catalogForeignKey() requires at least one ${side} column`
+    )
+  }
+  if (!value.every(isColumnReference)) {
+    throw new TypeError(
+      `catalogForeignKey() requires ${side} columns to be column references`
+    )
+  }
+}
+
+function validateCatalogForeignKeyTargetInput(
+  value: ForeignKeyTargetInput,
+  localArity: number
+): ForeignKeyTargetInput {
+  return typeof value === 'function'
+    ? () => validateCatalogForeignKeyTarget(value(), localArity)
+    : validateCatalogForeignKeyTarget(value, localArity)
+}
+
+function validateCatalogForeignKeyTarget(
+  value: unknown,
+  localArity: number
+): ForeignKeyTarget {
+  if (typeof value !== 'object' || value === null) {
+    throw new TypeError('catalogForeignKey() requires a foreign-key target')
+  }
+
+  const target = value as Partial<ForeignKeyTarget>
+  assertCatalogForeignKeyColumns(target.columns, 'target')
+  if (target.columns.length !== localArity) {
+    throw new TypeError(
+      `catalogForeignKey() column arity differs: ${localArity} local and ${target.columns.length} target`
+    )
+  }
+
+  const table = target.table as Partial<TableLike<any>> | undefined
+  if (
+    typeof table !== 'object' ||
+    table === null ||
+    typeof table.columns !== 'object' ||
+    table.columns === null
+  ) {
+    throw new TypeError('catalogForeignKey() target must reference a table')
+  }
+  for (const column of target.columns) {
+    if (table.columns[column.fieldName] !== column) {
+      throw new TypeError(
+        `catalogForeignKey() target column "${column.fieldName}" does not belong to its table`
+      )
+    }
+  }
+
+  return target as ForeignKeyTarget
 }
 
 function freezeConstraint(
