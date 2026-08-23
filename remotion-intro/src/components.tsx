@@ -127,8 +127,12 @@ export const CodeWindow = ({
   title?: string;
   style?: CSSProperties;
   codeStyle?: CSSProperties;
-}) => (
-  <div
+}) => {
+  const {width, height} = useVideoConfig();
+  const portrait = height > width;
+  const dotSize = portrait ? 19 : 13;
+
+  return <div
     style={{
       borderRadius: 28,
       background: '#171A1C',
@@ -140,21 +144,21 @@ export const CodeWindow = ({
   >
     <div
       style={{
-        height: 62,
+        height: portrait ? 82 : 62,
         display: 'flex',
         alignItems: 'center',
         borderBottom: '1px solid #303437',
-        padding: '0 24px',
-        gap: 10,
+        padding: portrait ? '0 30px' : '0 24px',
+        gap: portrait ? 14 : 10,
         color: '#969B9E',
         fontFamily: 'monospace',
-        fontSize: 17,
+        fontSize: portrait ? 23 : 17,
       }}
     >
-      <span style={{width: 13, height: 13, borderRadius: 20, background: colors.coral}} />
-      <span style={{width: 13, height: 13, borderRadius: 20, background: '#F7C95E'}} />
-      <span style={{width: 13, height: 13, borderRadius: 20, background: colors.mint}} />
-      <span style={{marginLeft: 16}}>{title}</span>
+      <span style={{width: dotSize, height: dotSize, borderRadius: 20, background: colors.coral}} />
+      <span style={{width: dotSize, height: dotSize, borderRadius: 20, background: '#F7C95E'}} />
+      <span style={{width: dotSize, height: dotSize, borderRadius: 20, background: colors.mint}} />
+      <span style={{marginLeft: portrait ? 20 : 16}}>{title}</span>
     </div>
     <div
       style={{
@@ -168,8 +172,8 @@ export const CodeWindow = ({
     >
       {children}
     </div>
-  </div>
-);
+  </div>;
+};
 
 export const Token = ({children, tone = 'plain'}: {children: ReactNode; tone?: 'plain' | 'blue' | 'mint' | 'coral'}) => (
   <span
