@@ -281,7 +281,6 @@ function completeConnection() {
           view_definition: 'SELECT id AS view_id, label FROM orders',
           check_option: 'CASCADED',
           is_updatable: 'YES',
-          algorithm: 'MERGE',
           security_type: 'INVOKER',
           definer: 'app@localhost',
         },
@@ -326,7 +325,6 @@ function completeConnection() {
           parameter_name: null,
           data_type: 'decimal',
           dtd_identifier: 'decimal(10,2)',
-          parameter_default: null,
         },
         {
           routine_name: 'calculate_total',
@@ -335,7 +333,6 @@ function completeConnection() {
           parameter_name: 'amount',
           data_type: 'decimal',
           dtd_identifier: 'decimal(10,2)',
-          parameter_default: '0',
         },
         {
           routine_name: 'calculate_total',
@@ -344,7 +341,6 @@ function completeConnection() {
           parameter_name: 'tax',
           data_type: 'decimal',
           dtd_identifier: 'decimal(10,2)',
-          parameter_default: '0.2',
         },
         {
           routine_name: 'archive_orders',
@@ -353,7 +349,6 @@ function completeConnection() {
           parameter_name: 'order_id',
           data_type: 'bigint',
           dtd_identifier: 'bigint',
-          parameter_default: null,
         },
       ]
     if (statement.text === mysqlTriggersQuery)
@@ -498,9 +493,6 @@ test('reads MySQL version gates, native columns, defaults, generated columns, an
       ],
       checkOption: 'cascaded',
       securityInvoker: true,
-      dialect: expect.objectContaining({
-        data: expect.objectContaining({ algorithm: 'MERGE' }),
-      }),
     }),
   ])
   expect(catalog.deferredObjects).toEqual([
@@ -589,12 +581,10 @@ test('normalizes complete MySQL object families, retains boundaries, and maps Sn
           expect.objectContaining({
             name: 'amount',
             mode: 'in',
-            default: { kind: 'literal', value: 0 },
           }),
           expect.objectContaining({
             name: 'tax',
             mode: 'in',
-            default: { kind: 'literal', value: 0.2 },
           }),
         ],
         body: expect.objectContaining({ text: 'RETURN amount + tax' }),

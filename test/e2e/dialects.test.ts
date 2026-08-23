@@ -78,34 +78,40 @@ interface E2eEnvironment {
   readonly namespace: string
 }
 
-const schemaSql: Record<LiveDialect, string> = {
-  postgresql: `
+const schemaSql: Record<LiveDialect, readonly string[]> = {
+  postgresql: [
+    `
     CREATE TABLE qubu_e2e_records (
       id INTEGER PRIMARY KEY,
       name TEXT NOT NULL,
       payload JSONB NOT NULL,
       CONSTRAINT qubu_e2e_records_name_check CHECK (char_length(name) > 0)
-    );
-    CREATE INDEX qubu_e2e_records_name_idx ON qubu_e2e_records (name);
+    )
   `,
-  sqlite: `
+    'CREATE INDEX qubu_e2e_records_name_idx ON qubu_e2e_records (name)',
+  ],
+  sqlite: [
+    `
     CREATE TABLE qubu_e2e_records (
       id INTEGER PRIMARY KEY,
       name TEXT NOT NULL,
       payload TEXT NOT NULL,
       CONSTRAINT qubu_e2e_records_name_check CHECK (length(name) > 0)
-    );
-    CREATE INDEX qubu_e2e_records_name_idx ON qubu_e2e_records (name);
+    )
   `,
-  mysql: `
+    'CREATE INDEX qubu_e2e_records_name_idx ON qubu_e2e_records (name)',
+  ],
+  mysql: [
+    `
     CREATE TABLE qubu_e2e_records (
       id INTEGER PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
       payload JSON NOT NULL,
       CONSTRAINT qubu_e2e_records_name_check CHECK (CHAR_LENGTH(name) > 0)
-    );
-    CREATE INDEX qubu_e2e_records_name_idx ON qubu_e2e_records (name);
+    )
   `,
+    'CREATE INDEX qubu_e2e_records_name_idx ON qubu_e2e_records (name)',
+  ],
 }
 
 const dropSql = 'DROP TABLE IF EXISTS qubu_e2e_records'
@@ -298,7 +304,9 @@ describe.skipIf(!selectedDialect)('live dialect E2E', () => {
   beforeAll(async () => {
     environment = await createEnvironment(dialectName)
     await environment.driver.exec(dropSql)
-    await environment.driver.exec(schemaSql[dialectName])
+    for (const statement of schemaSql[dialectName]) {
+      await environment.driver.exec(statement)
+    }
   }, 30_000)
 
   beforeEach(async () => {

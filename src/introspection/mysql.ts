@@ -26,7 +26,6 @@ import type {
   CatalogTable,
   CatalogTrigger,
   CatalogUniqueConstraint,
-  CatalogValueFact,
   CatalogView,
   IntrospectionCatalog,
   IntrospectionOptions,
@@ -99,8 +98,7 @@ export const mysqlStatisticsQuery = `
 export const mysqlViewsQuery = `
   SELECT TABLE_NAME AS table_name, VIEW_DEFINITION AS view_definition,
          CHECK_OPTION AS check_option, IS_UPDATABLE AS is_updatable,
-         ALGORITHM AS algorithm, SECURITY_TYPE AS security_type,
-         DEFINER AS definer
+         SECURITY_TYPE AS security_type, DEFINER AS definer
   FROM INFORMATION_SCHEMA.VIEWS
   WHERE TABLE_SCHEMA = ?
   ORDER BY TABLE_NAME
@@ -126,8 +124,7 @@ export const mysqlRoutinesQuery = `
 export const mysqlRoutineParametersQuery = `
   SELECT SPECIFIC_NAME AS routine_name, ORDINAL_POSITION AS ordinal_position,
          PARAMETER_MODE AS parameter_mode, PARAMETER_NAME AS parameter_name,
-         DATA_TYPE AS data_type, DTD_IDENTIFIER AS dtd_identifier,
-         PARAMETER_DEFAULT AS parameter_default
+         DATA_TYPE AS data_type, DTD_IDENTIFIER AS dtd_identifier
   FROM INFORMATION_SCHEMA.PARAMETERS
   WHERE SPECIFIC_SCHEMA = ?
   ORDER BY SPECIFIC_NAME, ORDINAL_POSITION
@@ -745,7 +742,6 @@ interface MySqlViewRow extends CatalogQueryRow {
   readonly view_definition?: unknown
   readonly check_option?: unknown
   readonly is_updatable?: unknown
-  readonly algorithm?: unknown
   readonly security_type?: unknown
   readonly definer?: unknown
 }
@@ -772,7 +768,6 @@ interface MySqlRoutineParameterRow extends CatalogQueryRow {
   readonly parameter_name?: unknown
   readonly data_type?: unknown
   readonly dtd_identifier?: unknown
-  readonly parameter_default?: unknown
 }
 
 interface MySqlTriggerRow extends CatalogQueryRow {
@@ -1295,9 +1290,6 @@ function viewObject(
       reference: physicalReference,
     },
     dialect: mysqlExtension({
-      ...(text(viewRow?.algorithm) === undefined
-        ? {}
-        : { algorithm: text(viewRow?.algorithm)! }),
       ...(text(viewRow?.is_updatable) === undefined
         ? {}
         : { isUpdatable: text(viewRow?.is_updatable)! }),
@@ -1330,7 +1322,7 @@ function routineObject(
         (number(left.ordinal_position) ?? 0) -
         (number(right.ordinal_position) ?? 0)
     )
-    .map(parameter => routineParameter(parameter, namespace, physicalName))
+    .map(routineParameter)
   const definition = text(row.routine_definition)
   const returnType = text(row.data_type)
   const routine: CatalogRoutine = {
@@ -1403,36 +1395,15 @@ function routineObject(
 }
 
 function routineParameter(
-  row: MySqlRoutineParameterRow,
-  namespace: string,
-  routineName: string
+  row: MySqlRoutineParameterRow
 ): CatalogRoutineParameter {
   const parameterName = text(row.parameter_name)
-  const defaultText = text(row.parameter_default)
-  const owner = {
-    kind: 'routine' as const,
-    physicalName: routineName,
-    reference: reference(
-      'routine',
-      routineName,
-      namespace,
-      'INFORMATION_SCHEMA.ROUTINES',
-      'ROUTINE_NAME'
-    ),
-  }
-  const defaultValue = valueFact(
-    defaultText,
-    text(row.data_type),
-    namespace,
-    owner
-  )
   return {
     ...(parameterName === undefined ? {} : { name: parameterName }),
     ...(routineParameterMode(row.parameter_mode) === undefined
       ? {}
       : { mode: routineParameterMode(row.parameter_mode) }),
     storage: storage(row.data_type, row.dtd_identifier),
-    ...(defaultValue === undefined ? {} : { default: defaultValue }),
     ordinalPosition: number(row.ordinal_position) ?? 0,
   }
 }
@@ -1796,25 +1767,6 @@ function mysqlExtension(
 
 function storage(dataType: unknown, declaration: unknown): CatalogStorageType {
   return { nativeType: text(declaration) ?? text(dataType) ?? 'unknown' }
-}
-
-function valueFact(
-  value: string | undefined,
-  dataType: string | undefined,
-  namespace: string,
-  owner: {
-    readonly kind: CatalogReference['kind']
-    readonly physicalName: string
-    readonly reference?: CatalogReference
-  }
-): CatalogValueFact | undefined {
-  if (value === undefined) return undefined
-  const scalar = literal(value, dataType)
-  if (scalar !== undefined) return { kind: 'literal', value: scalar }
-  return {
-    kind: 'expression',
-    expression: sql(value, namespace, owner, owner.physicalName),
-  }
 }
 
 function normalizeCheckOption(

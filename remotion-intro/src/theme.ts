@@ -7,6 +7,6 @@ export const colors = {
   coral: '#FF745E',
   white: '#FFFDF8',
   muted: '#77776F',
-};
+}
 
-export const shadow = '0 24px 80px rgba(21, 23, 22, 0.14)';
+export const shadow = '0 24px 80px rgba(21, 23, 22, 0.14)'

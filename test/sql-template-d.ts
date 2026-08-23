@@ -1,10 +1,4 @@
-import {
-  from,
-  groupBy,
-  render,
-  select,
-  sql,
-} from '../src/index.ts'
+import { from, groupBy, render, select, sql } from '../src/index.ts'
 import { postgresDialect } from '../src/dialects/postgres.ts'
 import { sqliteDialect } from '../src/dialects/sqlite.ts'
 import type {
