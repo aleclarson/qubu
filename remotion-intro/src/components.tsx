@@ -121,10 +121,12 @@ export const CodeWindow = ({
   children,
   title = 'query.ts',
   style,
+  codeStyle,
 }: {
   children: ReactNode;
   title?: string;
   style?: CSSProperties;
+  codeStyle?: CSSProperties;
 }) => (
   <div
     style={{
@@ -161,6 +163,7 @@ export const CodeWindow = ({
         fontSize: 24,
         lineHeight: 1.55,
         whiteSpace: 'pre-wrap',
+        ...codeStyle,
       }}
     >
       {children}

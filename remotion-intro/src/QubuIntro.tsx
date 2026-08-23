@@ -47,14 +47,15 @@ const QueryScene = () => {
     <>  name: text(),</>,
     <>{'}'})</>,
     <></>,
-    <><Token tone="blue">const</Token> query = select({'{'}</>,
-    <>  id: users.id, name: users.name,</>,
-    <>{'}'}, from(users),</>,
-    <>  where(eq(users.id, <Token tone="mint">42</Token>)))</>,
+    <><Token tone="blue">const</Token> query = select(</>,
+    <>  {'{'} id: users.id, name: users.name {'}'},</>,
+    <>  from(users),</>,
+    <>  where(eq(users.id, <Token tone="mint">42</Token>)),</>,
+    <>)</>,
   ];
   return (
     <Shell dark>
-      <div style={{display: 'grid', gridTemplateColumns: portrait ? '1fr' : '0.75fr 1.25fr', gap: portrait ? 70 : 100, alignItems: 'center', height: '100%'}}>
+      <div style={{display: 'grid', gridTemplateColumns: portrait ? '1fr' : '0.75fr 1.25fr', gridAutoRows: portrait ? 'max-content' : undefined, alignContent: portrait ? 'center' : undefined, gap: portrait ? 64 : 100, alignItems: 'center', height: '100%'}}>
         <Pop delay={4}>
           <Eyebrow>01 · Values compose</Eyebrow>
           <BigText style={{fontSize: portrait ? 82 : 86, marginTop: 30}}>A query is a value.</BigText>
@@ -63,7 +64,10 @@ const QueryScene = () => {
           </div>
         </Pop>
         <Pop delay={12}>
-          <CodeWindow style={{width: '100%'}}>
+          <CodeWindow
+            style={{width: '100%'}}
+            codeStyle={portrait ? {fontSize: 29, lineHeight: 1.42, padding: '34px 38px 42px'} : undefined}
+          >
             {lines.map((line, index) => {
               const visible = enter(frame, 18 + index * 5);
               return <div key={index} style={{opacity: visible, transform: `translateX(${(1 - visible) * 24}px)`}}>{line || '\u00a0'}</div>;
