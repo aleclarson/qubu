@@ -13,7 +13,7 @@ import {
   denoLauncher,
   nodeLauncher,
 } from "./launchers/index.js";
-import { nodeProvisioners } from "./node-provisioners.js";
+import { comboProvisioners } from "./node-provisioners.js";
 import { runCombo, selectCiMatrix } from "./runner.js";
 
 function usage(): never {
@@ -107,7 +107,7 @@ async function runCommand(args: readonly string[]): Promise<void> {
         "cloudflare-workers": cloudflareWorkersLauncher,
         browser: browserLauncher,
       },
-      provisioners: nodeProvisioners,
+      provisioners: comboProvisioners,
     },
   );
 }

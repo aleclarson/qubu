@@ -1,8 +1,13 @@
-import type { RuntimeLauncher, ScenarioLoader } from "./runtime.js";
-import { createRuntimeLauncher } from "./runtime.js";
+import type { RuntimeLauncher, NativeRuntimeLauncherOptions } from "./runtime.js";
+import { createNativeRuntimeLauncher } from "./runtime.js";
 
-export function createBunLauncher(loader?: ScenarioLoader): RuntimeLauncher {
-  return createRuntimeLauncher("bun", loader);
+export function createBunLauncher(
+  options: NativeRuntimeLauncherOptions = {},
+): RuntimeLauncher {
+  return createNativeRuntimeLauncher("bun", {
+    ...options,
+    command: options.command ?? process.env.QUBU_BUN_BIN ?? "bun",
+  });
 }
 
 export const bunLauncher = createBunLauncher();

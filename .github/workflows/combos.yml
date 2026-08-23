@@ -124,6 +124,14 @@ jobs:
           cache-dependency-path: |
             qubu/pnpm-lock.yaml
             qubu/combos/pnpm-lock.yaml
+      - uses: oven-sh/setup-bun@v2
+        if: matrix.environment == 'bun'
+        with:
+          bun-version: 1.3.14
+      - uses: denoland/setup-deno@v2
+        if: matrix.environment == 'deno'
+        with:
+          deno-version: v2.9.5
       - run: pnpm install --frozen-lockfile
         working-directory: qubu
       - run: pnpm install --frozen-lockfile

@@ -174,8 +174,9 @@ type ComboStatusTable = {
 };
 
 /*
- * The first three Node targets have live scenarios in this commit. The
- * remaining declared-runtime targets are pending for later commits. The
+ * The first three Node targets plus the Bun and Deno targets have live
+ * scenarios in this commit. The remaining declared-runtime targets are
+ * pending for later commits. The
  * experimental cells identify plausible cross-runtime experiments, while the
  * incompatible cells are combinations that cannot receive this adapter entry
  * point.
@@ -204,7 +205,7 @@ export const COMBO_STATUS_BY_ADAPTER = {
   },
   "bun-sql/sqlite": {
     node: "incompatible",
-    bun: "not-yet-written",
+    bun: "verified",
     deno: "incompatible",
     "cloudflare-workers": "incompatible",
     browser: "incompatible",
@@ -212,7 +213,7 @@ export const COMBO_STATUS_BY_ADAPTER = {
   "postgresjs/postgresql": {
     node: "experimental",
     bun: "experimental",
-    deno: "not-yet-written",
+    deno: "verified",
     "cloudflare-workers": "experimental",
     browser: "incompatible",
   },
@@ -236,6 +237,8 @@ const SCENARIO_BY_COMBO: Readonly<Partial<Record<ComboKey, string>>> = {
   "node-sqlite/sqlite/node": "./scenarios/node/node-sqlite.js",
   "pg/postgresql/node": "./scenarios/node/pg.js",
   "mysql2-promise/mysql/node": "./scenarios/node/mysql2-promise.js",
+  "bun-sql/sqlite/bun": "./scenarios/bun/bun-sql.js",
+  "postgresjs/postgresql/deno": "./scenarios/deno/postgresjs.js",
 };
 
 /** Join a variant and environment into the registry's stable key. */

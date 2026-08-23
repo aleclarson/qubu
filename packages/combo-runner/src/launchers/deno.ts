@@ -1,8 +1,21 @@
-import type { RuntimeLauncher, ScenarioLoader } from "./runtime.js";
-import { createRuntimeLauncher } from "./runtime.js";
+import type { NativeRuntimeLauncherOptions, RuntimeLauncher } from "./runtime.js";
+import { createNativeRuntimeLauncher } from "./runtime.js";
 
-export function createDenoLauncher(loader?: ScenarioLoader): RuntimeLauncher {
-  return createRuntimeLauncher("deno", loader);
+export function createDenoLauncher(
+  options: NativeRuntimeLauncherOptions = {},
+): RuntimeLauncher {
+  return createNativeRuntimeLauncher("deno", {
+    ...options,
+    command: options.command ?? process.env.QUBU_DENO_BIN ?? "deno",
+    commandArguments: options.commandArguments ?? [
+      "run",
+      "--no-check",
+      "--allow-net",
+      "--allow-read",
+      "--allow-env",
+      "--node-modules-dir=manual",
+    ],
+  });
 }
 
 export const denoLauncher = createDenoLauncher();

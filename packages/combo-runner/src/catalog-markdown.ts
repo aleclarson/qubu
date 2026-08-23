@@ -125,10 +125,10 @@ ${matrixTable(registry)}
 
 ## Verification targets
 
-The three Node.js targets have live scenarios. The four remaining targets stay
-pending for their native-runtime commits. Incompatible and experimental cells
-stay in the complete matrix so a new scenario requires an explicit status
-change.
+The three Node.js targets plus Bun and Deno have live scenarios. The Workers
+and browser targets stay pending for their native-runtime commit. Incompatible
+and experimental cells stay in the complete matrix so a new scenario requires
+an explicit status change.
 
 ${verificationTargets(registry)}
 
@@ -147,8 +147,8 @@ Regenerate this page after a registry edit:
 pnpm catalog:generate
 \`\`\`
 
-Print the JSON matrix that CI will execute. This commit selects the three Node
-scenarios:
+Print the JSON matrix that CI will execute. This commit selects five scenarios,
+including Bun and Deno:
 
 \`\`\`bash
 pnpm ci:matrix
@@ -163,9 +163,9 @@ clean up scenario-owned objects. Then add its module specifier to the target
 cell, change that cell to \`verified\`, and provide the matching launcher and
 provisioner in the CI runtime.
 
-The Node launcher resolves a scenario path relative to the compiled package
-root. Other launchers keep the same \`RuntimeLauncher\` and injected
-\`ScenarioLoader\` contracts, so a native runtime or bundler can supply its own
-module import in a later commit.
+The Node launcher imports a scenario in-process. Bun and Deno launch a
+compiled worker in the native runtime and pass it a JSON-safe connection
+locator. Workers and browser launchers keep the same contract for a later
+bundler-backed commit.
 `;
 }

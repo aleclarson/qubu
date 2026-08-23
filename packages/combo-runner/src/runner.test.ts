@@ -1,9 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
+import type { ChildProcess } from "node:child_process";
 import { defineRegistry, type ComboRegistry } from "./catalog.js";
 import { createDisposableProvisioner } from "./provisioners.js";
 import { resolveNodeScenario } from "./launchers/node.js";
-import { createRuntimeLauncher } from "./launchers/runtime.js";
+import {
+  createNativeRuntimeLauncher,
+  createRuntimeLauncher,
+} from "./launchers/runtime.js";
 import { runCombo } from "./runner.js";
 import type { VerificationContext } from "./contract.js";
 
@@ -165,10 +171,84 @@ test("runner selects a provisioner by combo key", async () => {
   assert.deepEqual(events, ["second", "dispose:second"]);
 });
 
+test("runner disposes a resource when an abort arrives after provisioning", async () => {
+  const controller = new AbortController();
+  const events: string[] = [];
+  const provisioner = createDisposableProvisioner("sqlite", async () => {
+    controller.abort(new Error("stop native child"));
+    return {
+      connection: "owned",
+      async close() {
+        events.push("dispose");
+      },
+    };
+  });
+
+  await assert.rejects(
+    runCombo(
+      { adapter: "node-sqlite/sqlite", environment: "node" },
+      {
+        registry: verifiedRegistry,
+        launchers: { node: createRuntimeLauncher("node", async () => ({})) },
+        provisioners: { "node-sqlite/sqlite/node": provisioner },
+      },
+      { signal: controller.signal },
+    ),
+    /stop native child/,
+  );
+  assert.deepEqual(events, ["dispose"]);
+});
+
 test("Node scenario paths resolve from the compiled package root", () => {
   const resolved = resolveNodeScenario("./scenarios/node/pg.js");
   assert.equal(
     String(resolved),
     new URL("./scenarios/node/pg.js", import.meta.url).href,
   );
+});
+
+test("native launcher sends only a JSON-safe locator to the runtime worker", async () => {
+  const calls: { command: string; args: readonly string[] }[] = [];
+  const fakeSpawn = ((command: string, args: readonly string[]) => {
+    calls.push({ command, args });
+    const child = new EventEmitter() as EventEmitter & Partial<ChildProcess>;
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    queueMicrotask(() => child.emit("close", 0, null));
+    return child as ChildProcess;
+  }) as unknown as typeof import("node:child_process").spawn;
+  const launcher = createNativeRuntimeLauncher("bun", {
+    command: "bun-test",
+    worker: new URL("./native-worker.js", import.meta.url),
+    spawnProcess: fakeSpawn,
+  });
+
+  await launcher.launch({
+    combo: {
+      key: "bun-sql/sqlite/bun",
+      adapter: "bun-sql/sqlite",
+      environment: "bun",
+      engine: "sqlite",
+      status: "verified",
+      scenario: "./scenarios/bun/bun-sql.js",
+    },
+    scenario: "./scenarios/bun/bun-sql.js",
+    database: {
+      engine: "sqlite",
+      connection: { notSerializable: true },
+      connectionString: "sqlite:///tmp/qubu-test.sqlite",
+      metadata: { database: "/tmp/qubu-test.sqlite" },
+      async dispose() {},
+    },
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]?.command, "bun-test");
+  const payload = JSON.parse(calls[0]?.args.at(-1) ?? "null") as {
+    readonly database: { readonly connectionString?: string; readonly connection?: unknown };
+    readonly scenario: string;
+  };
+  assert.equal(payload.database.connectionString, "sqlite:///tmp/qubu-test.sqlite");
+  assert.equal("connection" in payload.database, false);
+  assert.match(payload.scenario, /\/scenarios\/bun\/bun-sql\.js$/);
 });

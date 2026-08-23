@@ -39,6 +39,8 @@ export {
   type ProvisionRequest,
 } from "./provisioners.js";
 export {
+  bunSqliteProvisioner,
+  comboProvisioners,
   nodeMysqlProvisioner,
   nodePostgresProvisioner,
   nodeProvisioners,

@@ -26,10 +26,11 @@ pnpm catalog:generate
 pnpm ci:matrix
 ```
 
-The current CI matrix runs the three Node.js scenarios. A verified module
-exports one async `verify(context)` function. It prepares its own schema and
-data and uses the connection supplied by the runner. The provisioner owns the
-isolated database lifetime.
+The current CI matrix runs five scenarios. A verified module exports one async
+`verify(context)` function. It prepares its own schema and data and uses the
+connection supplied by the runner. Native Bun and Deno scenarios open the
+runner-supplied connection string inside their child runtime. The provisioner
+owns the isolated database lifetime.
 
 The combo checkout expects the parent Qubu checkout at `..`. Its package
 dependency is `qubu: link:../../..` from `packages/combo-runner`, so local
@@ -37,6 +38,7 @@ checks build the parent package before compiling scenarios. CI checks out
 `aleclarson/qubu` at `qubu` and the `combos` branch at `qubu/combos`.
 
 The Node launcher resolves `./scenarios/...` paths from the compiled package
-root. Bun, Deno, Workers, and browser launchers use the same
-`RuntimeLauncher` and `ScenarioLoader` seam and will receive native module
+root and imports them in-process. Bun and Deno launch a compiled worker in the
+declared runtime through a JSON context protocol. Workers and browser
+launchers use the same `RuntimeLauncher` seam and will receive bundler-backed
 loaders when their scenarios land.

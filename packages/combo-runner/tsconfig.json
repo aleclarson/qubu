@@ -2,6 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "baseUrl": ".",
+    "types": ["node", "bun"],
     "paths": {
       "qubu": ["../../../dist/index.d.mts"],
       "qubu/introspection": ["../../../dist/introspection.d.mts"]

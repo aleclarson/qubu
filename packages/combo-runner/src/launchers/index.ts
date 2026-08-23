@@ -1,8 +1,11 @@
 export {
+  createNativeRuntimeLauncher,
   createRuntimeLauncher,
   dynamicImport,
   type LaunchRequest,
   type ModuleSpecifier,
+  type NativeLaunchPayload,
+  type NativeRuntimeLauncherOptions,
   type RuntimeLauncher,
   type ScenarioLoader,
 } from "./runtime.js";

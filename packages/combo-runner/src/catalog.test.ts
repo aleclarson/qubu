@@ -25,13 +25,13 @@ test("catalog covers every adapter and environment exactly once", () => {
   }
 });
 
-test("Node target cells are verified and later targets remain unwritten", () => {
+test("verified targets have scenarios and later targets remain unwritten", () => {
   const targetCells = [
     ["node-sqlite/sqlite", "node", "verified"],
     ["pg/postgresql", "node", "verified"],
     ["mysql2-promise/mysql", "node", "verified"],
-    ["bun-sql/sqlite", "bun", "not-yet-written"],
-    ["postgresjs/postgresql", "deno", "not-yet-written"],
+    ["bun-sql/sqlite", "bun", "verified"],
+    ["postgresjs/postgresql", "deno", "verified"],
     ["cloudflare-d1/sqlite", "cloudflare-workers", "not-yet-written"],
     ["pglite/postgresql", "browser", "not-yet-written"],
   ] as const;
@@ -40,10 +40,10 @@ test("Node target cells are verified and later targets remain unwritten", () => 
     const combo = findCombo(comboRegistry, adapter, environment);
     assert.equal(combo.status, status);
     if (status === "verified") {
-      assert.match(combo.scenario ?? "", /^\.\/scenarios\/node\/.+\.js$/);
+      assert.match(combo.scenario ?? "", /^\.\/scenarios\/(node|bun|deno)\/.+\.js$/);
     }
   }
-  assert.equal(statusCounts().verified, 3);
+  assert.equal(statusCounts().verified, 5);
 });
 
 test("CI selection contains only verified scenarios", () => {
@@ -76,6 +76,20 @@ test("CI selection contains only verified scenarios", () => {
         environment: "node",
         engine: "mysql",
         scenario: "./scenarios/node/mysql2-promise.js",
+      },
+      {
+        key: "bun-sql/sqlite/bun",
+        adapter: "bun-sql/sqlite",
+        environment: "bun",
+        engine: "sqlite",
+        scenario: "./scenarios/bun/bun-sql.js",
+      },
+      {
+        key: "postgresjs/postgresql/deno",
+        adapter: "postgresjs/postgresql",
+        environment: "deno",
+        engine: "postgresql",
+        scenario: "./scenarios/deno/postgresjs.js",
       },
     ],
   );

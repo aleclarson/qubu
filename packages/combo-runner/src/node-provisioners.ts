@@ -1,5 +1,8 @@
 import { DatabaseSync } from "node:sqlite";
+import { mkdtemp, rm } from "node:fs/promises";
+import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { tmpdir } from "node:os";
 import { Client } from "pg";
 import mysql, { type Connection } from "mysql2/promise";
 import type { ComboKey } from "./catalog.js";
@@ -197,6 +200,29 @@ export const nodeSqliteProvisioner = createDisposableProvisioner(
   },
 );
 
+/** A runner-owned SQLite file that a Bun child process can open natively. */
+export const bunSqliteProvisioner = createDisposableProvisioner(
+  "sqlite",
+  async (request) => {
+    if (request.signal?.aborted) {
+      throw request.signal.reason ?? new Error("Bun SQLite provisioning was aborted.");
+    }
+    const directory = await mkdtemp(join(tmpdir(), "qubu-combo-bun-"));
+    const filename = join(directory, "database.sqlite");
+    let cleaned = false;
+    return {
+      connection: undefined,
+      connectionString: `sqlite://${filename}`,
+      metadata: { database: filename },
+      async close() {
+        if (cleaned) return;
+        cleaned = true;
+        await rm(directory, { recursive: true, force: true });
+      },
+    };
+  },
+);
+
 export const nodePostgresProvisioner = createDisposableProvisioner(
   "postgresql",
   createPostgresResource,
@@ -209,4 +235,11 @@ export const nodeProvisioners: Readonly<Partial<Record<ComboKey, DatabaseProvisi
   "node-sqlite/sqlite/node": nodeSqliteProvisioner,
   "pg/postgresql/node": nodePostgresProvisioner,
   "mysql2-promise/mysql/node": nodeMysqlProvisioner,
+};
+
+/** Provisioners for every verified cell currently supported by this branch. */
+export const comboProvisioners: Readonly<Partial<Record<ComboKey, DatabaseProvisioner>>> = {
+  ...nodeProvisioners,
+  "bun-sql/sqlite/bun": bunSqliteProvisioner,
+  "postgresjs/postgresql/deno": nodePostgresProvisioner,
 };

@@ -120,6 +120,9 @@ export async function runCombo(
   const launcher = requireLauncher(dependencies, combo.environment);
   const provisioner = requireProvisioner(dependencies, combo);
   const runId = options.runId ?? makeRunId(combo);
+  if (options.signal?.aborted) {
+    throw options.signal.reason ?? new Error(`Combo ${combo.key} was aborted.`);
+  }
   const request: ProvisionRequest = {
     combo,
     runId,
@@ -130,6 +133,9 @@ export async function runCombo(
 
   try {
     database = await provisioner.provision(request);
+    if (options.signal?.aborted) {
+      throw options.signal.reason ?? new Error(`Combo ${combo.key} was aborted.`);
+    }
     const launchRequest: LaunchRequest = {
       combo,
       database,
