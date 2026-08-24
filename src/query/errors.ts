@@ -9,6 +9,7 @@ export type QueryValidationErrorCode =
   | 'invalid-comparison'
   | 'invalid-boolean-expression'
   | 'invalid-pagination'
+  | 'invalid-row-lock'
   | 'invalid-json-path'
   | 'missing-source'
   | 'invalid-grouping'

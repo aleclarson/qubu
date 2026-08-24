@@ -2,6 +2,7 @@ import type { DistinctClause } from './clauses/distinct.ts'
 import type { HavingClause } from './clauses/having.ts'
 import type { OrderByClause } from './clauses/order-by.ts'
 import type { FetchClause, OffsetClause } from './clauses/pagination.ts'
+import type { RowLockClause } from './clauses/row-lock.ts'
 import type { WhereClause } from './clauses/where.ts'
 import type { AnySelectClause } from './clauses/types.ts'
 import type { QueryTypeValidation } from './errors.ts'
@@ -17,6 +18,7 @@ export type OmittableSelectClause =
   | OrderByClause<any>
   | OffsetClause
   | FetchClause
+  | RowLockClause
   | WhereClause<any>
 
 export type SelectPart = AnySelectClause | Omit

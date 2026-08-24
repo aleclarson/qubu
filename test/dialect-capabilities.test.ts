@@ -21,7 +21,7 @@ test('renders a capability-bearing query with a supporting dialect', () => {
   })
 
   expectTypeOf(postgresDialect()).toMatchTypeOf<
-    Dialect<'ilike' | 'json' | 'on-conflict'>
+    Dialect<'ilike' | 'json' | 'on-conflict' | 'row-locking'>
   >()
 })
 

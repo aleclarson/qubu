@@ -1,6 +1,31 @@
-import { createDialect, type PaginationPart } from '../core/dialect.ts'
+import {
+  createDialect,
+  type DialectRowLocking,
+  type PaginationPart,
+  type RowLockMode,
+  type RowLockWaitPolicy,
+} from '../core/dialect.ts'
 import type { RenderContext } from '../core/fragment.ts'
+import { queryValidationError } from '../query/errors.ts'
 import { mysqlJson } from './json.ts'
+
+const mysqlRowLocking: DialectRowLocking = {
+  render(context, mode: RowLockMode, wait: RowLockWaitPolicy) {
+    if (mode !== 'update' && mode !== 'share') {
+      throw queryValidationError({
+        code: 'invalid-row-lock',
+        context: 'dialect.mysql.row-lock',
+        path: ['rowLock', 'mode'],
+        message: `MySQL does not support the "${mode}" row-lock mode`,
+        hint: 'Use update or share with the MySQL dialect.',
+      })
+    }
+
+    context.append(mode === 'update' ? 'FOR UPDATE' : 'FOR SHARE')
+    if (wait === 'nowait') context.append(' NOWAIT')
+    if (wait === 'skip-locked') context.append(' SKIP LOCKED')
+  },
+}
 
 function renderMySqlPagination(
   context: RenderContext,
@@ -24,7 +49,9 @@ export function mysqlDialect() {
     quoteIdentifier: identifier => `\`${identifier.replaceAll('`', '``')}\``,
     placeholder: () => '?',
     pagination: { render: renderMySqlPagination },
+    rowLocking: mysqlRowLocking,
     json: mysqlJson,
+    capabilities: ['row-locking'],
     castTypes: {
       integer: 'SIGNED',
       text: 'CHAR',

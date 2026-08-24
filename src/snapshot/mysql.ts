@@ -70,9 +70,8 @@ const mysqlStorageTypes: Readonly<Record<PortableStorageType, string>> =
   })
 
 /** MySQL's query dialect plus its schema metadata behavior. */
-export const mysqlSchemaDialect: SchemaDialect<'json'> = createSchemaDialect(
-  mysqlDialect(),
-  {
+export const mysqlSchemaDialect: SchemaDialect<'json' | 'row-locking'> =
+  createSchemaDialect(mysqlDialect(), {
     version: schemaSnapshotDialectVersion,
     validate: validateMysqlSchema,
     encodeStorage(storage: ColumnStorage, context: SnapshotStorageContext) {
@@ -90,14 +89,14 @@ export const mysqlSchemaDialect: SchemaDialect<'json'> = createSchemaDialect(
     ) {
       return encodeMysqlExtension(extension, context.dialect)
     },
-  }
-)
+  })
 
 /** Snapshot adapter retaining the historical adapter-shaped entry point. */
-export const mysqlSnapshotAdapter: SchemaSnapshotAdapter<'json'> =
-  Object.freeze({
-    dialect: mysqlSchemaDialect,
-  })
+export const mysqlSnapshotAdapter: SchemaSnapshotAdapter<
+  'json' | 'row-locking'
+> = Object.freeze({
+  dialect: mysqlSchemaDialect,
+})
 
 /** Create a canonical MySQL schema snapshot. */
 export function createMysqlSchemaSnapshot<TSchema extends Schema<any>>(

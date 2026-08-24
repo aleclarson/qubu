@@ -1,4 +1,10 @@
-import { createDialect, type PaginationPart } from '../core/dialect.ts'
+import {
+  createDialect,
+  type DialectRowLocking,
+  type PaginationPart,
+  type RowLockMode,
+  type RowLockWaitPolicy,
+} from '../core/dialect.ts'
 import type { RenderContext } from '../core/fragment.ts'
 import {
   comparison,
@@ -10,6 +16,21 @@ import {
   type ExpressionWithOutput,
 } from '../expressions/types.ts'
 import { postgresJson } from './json.ts'
+
+const postgresRowLockModeSql: Record<RowLockMode, string> = {
+  update: 'UPDATE',
+  'no-key-update': 'NO KEY UPDATE',
+  share: 'SHARE',
+  'key-share': 'KEY SHARE',
+}
+
+const postgresRowLocking: DialectRowLocking = {
+  render(context, mode: RowLockMode, wait: RowLockWaitPolicy) {
+    context.append(`FOR ${postgresRowLockModeSql[mode]}`)
+    if (wait === 'nowait') context.append(' NOWAIT')
+    if (wait === 'skip-locked') context.append(' SKIP LOCKED')
+  },
+}
 
 const postgresPagination = {
   render(context: RenderContext, parts: readonly PaginationPart[]) {
@@ -36,8 +57,9 @@ export function postgresDialect() {
     name: 'postgresql',
     placeholder: position => `$${position}`,
     pagination: postgresPagination,
+    rowLocking: postgresRowLocking,
     castTypes: { binary: 'BYTEA' },
-    capabilities: ['ilike', 'on-conflict'],
+    capabilities: ['ilike', 'on-conflict', 'row-locking'],
     json: postgresJson,
   })
 }

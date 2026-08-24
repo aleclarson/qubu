@@ -10,6 +10,7 @@ import type {
 } from '../../core/fragment.ts'
 import type { DistinctClause } from '../clauses/distinct.ts'
 import type { AnyPaginationClause, FetchClause } from '../clauses/pagination.ts'
+import type { RowLockClause } from '../clauses/row-lock.ts'
 import type { GroupByClause } from '../clauses/group-by.ts'
 import type { HavingClause } from '../clauses/having.ts'
 import type {
@@ -40,7 +41,11 @@ export interface SelectQuery<
   readonly queryKind: 'select'
 }
 
-type ExactlyOneSafeClause = DistinctClause | OrderByClause<any> | WithClause
+type ExactlyOneSafeClause =
+  | DistinctClause
+  | OrderByClause<any>
+  | RowLockClause
+  | WithClause
 
 type AtMostOneClause = FetchClause<0 | 1>
 

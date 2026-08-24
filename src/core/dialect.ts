@@ -1,7 +1,7 @@
 import type { AnyFragment, RenderContext } from './fragment.ts'
 
 /** Capabilities whose syntax must be explicitly supported by a dialect. */
-export type DialectCapability = 'ilike' | 'json' | 'on-conflict'
+export type DialectCapability = 'ilike' | 'json' | 'on-conflict' | 'row-locking'
 
 /**
  * Optional dialect hook used by schema expressions when a JavaScript value
@@ -81,6 +81,19 @@ export interface DialectPagination {
   ) => void
 }
 
+export type RowLockMode = 'update' | 'no-key-update' | 'share' | 'key-share'
+
+export type RowLockWaitPolicy = 'default' | 'nowait' | 'skip-locked'
+
+export interface DialectRowLocking {
+  /** Render a dialect-supported row-locking clause. */
+  readonly render: (
+    context: RenderContext,
+    mode: RowLockMode,
+    wait: RowLockWaitPolicy
+  ) => void
+}
+
 export interface Dialect<
   TCapabilities extends DialectCapability = DialectCapability,
 > {
@@ -88,6 +101,8 @@ export interface Dialect<
   quoteIdentifier(identifier: string): string
   placeholder(position: number): string
   readonly pagination?: DialectPagination
+  /** Rendering policy for the typed SELECT row-locking clause. */
+  readonly rowLocking?: DialectRowLocking
   /** Rendering policy for Qubu's portable JSON operations. */
   readonly json?: DialectJson
   /** Overrides for the standard spelling of logical CAST targets. */
@@ -106,6 +121,8 @@ export interface DialectOptions<
   readonly quoteIdentifier?: (identifier: string) => string
   readonly placeholder: (position: number) => string
   readonly pagination?: DialectPagination
+  /** Rendering policy for the typed SELECT row-locking clause. */
+  readonly rowLocking?: DialectRowLocking
   readonly json?: TJson
   /** Overrides for the standard spelling of logical CAST targets. */
   readonly castTypes?: DialectCastTypes
@@ -161,6 +178,7 @@ export function createDialect(
     quoteIdentifier: options.quoteIdentifier ?? quoteIdentifier,
     placeholder: options.placeholder,
     pagination: options.pagination,
+    rowLocking: options.rowLocking,
     json: options.json,
     castTypes: options.castTypes
       ? Object.freeze({ ...options.castTypes })

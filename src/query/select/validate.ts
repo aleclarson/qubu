@@ -11,6 +11,7 @@ export function validateClauses(clauses: readonly AnySelectClause[]) {
     'order-by',
     'offset',
     'fetch',
+    'row-lock',
   ])
   const seen = new Set<string>()
 
@@ -22,7 +23,9 @@ export function validateClauses(clauses: readonly AnySelectClause[]) {
           ? 'Compose repeated conditions with and() or or().'
           : clause.clauseKind === 'order-by'
             ? 'Combine terms in one orderBy() call.'
-            : 'Keep one clause of this kind.'
+            : clause.clauseKind === 'row-lock'
+              ? 'Combine the mode and wait policy in one rowLock() call.'
+              : 'Keep one clause of this kind.'
       throw queryValidationError({
         code: 'duplicate-clause',
         context: 'select.clauses',

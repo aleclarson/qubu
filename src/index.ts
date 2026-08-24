@@ -91,12 +91,15 @@ export type {
   DialectJson,
   DialectOptions,
   DialectPagination,
+  DialectRowLocking,
   JsonScalarKind,
   NamedCastTarget,
   PaginationKind,
   PaginationPart,
   PortableCastTarget,
   PortableCastType,
+  RowLockMode,
+  RowLockWaitPolicy,
   SchemaLiteralRenderer,
 } from './core/dialect.ts'
 
@@ -417,6 +420,8 @@ export {
 } from './query/clauses/order-by.ts'
 export type { OrderTerm } from './query/clauses/order-by.ts'
 export { fetchFirst, fetchNext, offset } from './query/clauses/pagination.ts'
+export { rowLock } from './query/clauses/row-lock.ts'
+export type { RowLockClause, RowLockOptions } from './query/clauses/row-lock.ts'
 export { where } from './query/clauses/where.ts'
 export { cte, withCte } from './query/clauses/with.ts'
 export type { CteSource, WithClause } from './query/clauses/with.ts'

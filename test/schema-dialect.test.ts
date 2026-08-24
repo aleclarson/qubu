@@ -22,7 +22,7 @@ test('inherits query identifier, placeholder, and capability policy', () => {
   expect(schemaDialect.json).toBe(queryDialect.json)
   expect(schemaDialect.castTypes).toBe(queryDialect.castTypes)
   expectTypeOf(schemaDialect).toMatchTypeOf<
-    Dialect<'ilike' | 'json' | 'on-conflict'>
+    Dialect<'ilike' | 'json' | 'on-conflict' | 'row-locking'>
   >()
 })
 
