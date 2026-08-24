@@ -2,15 +2,27 @@
 // authoring. Fragment internals, dialect construction, and schema metadata
 // live behind `qubu/core` and `qubu/schema`.
 
-export { execute, executeRows, qubu, stream } from './execution.ts'
+export { execute, executeRows, explain, qubu, stream } from './execution.ts'
 export type {
   DriverValueEncoder,
   ExecutionOptions,
   ExecutionRequest,
   ExecutionResult,
+  ExplainableQueryAdapter,
+  ExplainMutationOptions,
+  ExplainOptions,
+  ExplainOptionsFor,
+  ExplainPlanRow,
+  ExplainReadOptions,
+  ExplainRequest,
+  ExplainResult,
   QubuClient,
+  QubuExplainableClient,
+  QubuExplainableStreamingTransactionalClient,
+  QubuExplainableTransactionalClient,
   QubuTransaction,
   QubuStreamingClient,
+  QubuStreamingExplainableClient,
   QubuStreamingTransaction,
   QubuStreamingTransactionalClient,
   QubuTransactionalClient,
@@ -94,10 +106,13 @@ export type {
   Dialect,
   DialectCapability,
   DialectCastTypes,
+  DialectExplain,
   DialectJson,
   DialectOptions,
   DialectPagination,
   DialectRowLocking,
+  ExplainFormat,
+  ExplainRenderOptions,
   JsonScalarKind,
   NamedCastTarget,
   PaginationKind,

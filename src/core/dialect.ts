@@ -1,4 +1,5 @@
 import type { AnyFragment, RenderContext } from './fragment.ts'
+import type { QueryKind } from '../query/types.ts'
 
 /** Capabilities whose syntax must be explicitly supported by a dialect. */
 export type DialectCapability = 'ilike' | 'json' | 'on-conflict' | 'row-locking'
@@ -94,6 +95,36 @@ export interface DialectRowLocking {
   ) => void
 }
 
+/** Output modes accepted by first-party EXPLAIN policies. */
+export type ExplainFormat =
+  | 'text'
+  | 'json'
+  | 'xml'
+  | 'yaml'
+  | 'tree'
+  | 'traditional'
+  | 'query-plan'
+  | 'bytecode'
+
+/** Dialect-independent EXPLAIN switches passed to a dialect policy. */
+export interface ExplainRenderOptions {
+  readonly analyze?: boolean
+  readonly verbose?: boolean
+  readonly buffers?: boolean
+  readonly format?: ExplainFormat
+  /** SQLite's high-level query-plan mode when true, bytecode when false. */
+  readonly queryPlan?: boolean
+}
+
+/** Dialect policy for wrapping one rendered query in EXPLAIN syntax. */
+export interface DialectExplain {
+  readonly render: (
+    statement: string,
+    queryKind: QueryKind,
+    options: ExplainRenderOptions
+  ) => string
+}
+
 export interface Dialect<
   TCapabilities extends DialectCapability = DialectCapability,
 > {
@@ -109,6 +140,8 @@ export interface Dialect<
   readonly castTypes?: DialectCastTypes
   /** Optional SQL literal policy used by deterministic schema expressions. */
   readonly renderSchemaLiteral?: SchemaLiteralRenderer
+  /** Optional policy for dialect-specific EXPLAIN syntax and options. */
+  readonly explain?: DialectExplain
   /** Capabilities advertised by this dialect at the rendering boundary. */
   readonly capabilities?: readonly TCapabilities[]
 }
@@ -128,6 +161,8 @@ export interface DialectOptions<
   readonly castTypes?: DialectCastTypes
   /** Optional SQL literal policy used by deterministic schema expressions. */
   readonly renderSchemaLiteral?: SchemaLiteralRenderer
+  /** Optional policy for dialect-specific EXPLAIN syntax and options. */
+  readonly explain?: DialectExplain
   readonly capabilities?: readonly TCapabilities[]
 }
 
@@ -184,6 +219,7 @@ export function createDialect(
       ? Object.freeze({ ...options.castTypes })
       : undefined,
     renderSchemaLiteral: options.renderSchemaLiteral,
+    explain: options.explain,
     capabilities: Object.freeze([
       ...(options.capabilities ?? []),
       ...(options.json ? (['json'] as const) : []),

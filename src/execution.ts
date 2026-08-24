@@ -1,4 +1,4 @@
-import type { Dialect } from './core/dialect.ts'
+import type { Dialect, ExplainRenderOptions } from './core/dialect.ts'
 import {
   render,
   type RenderedQuery,
@@ -18,6 +18,26 @@ export interface ExecutionOptions extends RenderOptions {
   readonly signal?: AbortSignal
 }
 
+/** Rendering, EXPLAIN, and cancellation options for plan requests. */
+export interface ExplainOptions extends RenderOptions, ExplainRenderOptions {
+  /** Passed to the application adapter for drivers that support cancellation. */
+  readonly signal?: AbortSignal
+}
+
+/** EXPLAIN options accepted for SELECT and set-operation queries. */
+export type ExplainReadOptions = ExplainOptions
+
+/** EXPLAIN options for mutations, which never run with analysis enabled. */
+export type ExplainMutationOptions = Omit<ExplainOptions, 'analyze'> & {
+  readonly analyze?: never
+}
+
+/** Select read-only or plan-only EXPLAIN options from the query kind. */
+export type ExplainOptionsFor<TQuery extends Query<any, any, any, any>> =
+  TQuery['queryKind'] extends 'select' | 'set'
+    ? ExplainReadOptions
+    : ExplainMutationOptions
+
 /** Controls the lifecycle of one adapter-owned transaction. */
 export interface TransactionOptions {
   /** Passed to the adapter for transaction begin, commit, and rollback. */
@@ -33,6 +53,9 @@ export interface ExecutionRequest {
   /** Present when the caller supplied an abort signal to {@link execute} or {@link stream}. */
   readonly signal?: AbortSignal
 }
+
+/** One rendered EXPLAIN statement and the controls passed to an adapter. */
+export interface ExplainRequest extends ExecutionRequest {}
 
 /**
  * Driver-neutral rows and optional mutation facts returned by an adapter.
@@ -53,6 +76,14 @@ export interface ExecutionResult<
   readonly insertId?: string | number | bigint
 }
 
+/** Adapter-decoded vendor plan rows returned by an EXPLAIN request. */
+export interface ExplainResult<
+  TPlanRow extends object = Record<string, unknown>,
+> {
+  /** Opaque plan rows in the shape selected by the application adapter. */
+  readonly rows: readonly TPlanRow[]
+}
+
 /**
  * The driver-facing boundary. `request.statement.parameters` contains raw
  * application values in placeholder order; the adapter binds and encodes them
@@ -67,6 +98,23 @@ export interface QueryAdapter {
     request: ExecutionRequest
   ): Promise<ExecutionResult<TRow>>
 }
+
+/**
+ * An opt-in adapter capability for typed, adapter-decoded EXPLAIN results.
+ *
+ * Qubu renders and validates the statement. The adapter binds parameters,
+ * executes the plan request, owns cancellation and connection lifecycle, and
+ * decodes vendor-specific plan rows without a cross-dialect Qubu plan tree.
+ */
+export interface ExplainableQueryAdapter<
+  TPlanRow extends object = Record<string, unknown>,
+> extends QueryAdapter {
+  explain(request: ExplainRequest): Promise<ExplainResult<TPlanRow>>
+}
+
+/** Extract the plan-row type owned by an explainable adapter. */
+export type ExplainPlanRow<TAdapter extends ExplainableQueryAdapter> =
+  TAdapter extends ExplainableQueryAdapter<infer TPlanRow> ? TPlanRow : never
 
 /**
  * An opt-in adapter capability for streaming rows from read queries.
@@ -116,6 +164,17 @@ export interface QubuClient<TAdapter extends QueryAdapter = QueryAdapter> {
   ): Promise<readonly TRow[]>
 }
 
+/** A bound client whose adapter also decodes vendor-specific EXPLAIN rows. */
+export interface QubuExplainableClient<
+  TAdapter extends ExplainableQueryAdapter = ExplainableQueryAdapter,
+> extends QubuClient<TAdapter> {
+  /** Explain a query without executing it and return adapter-owned plan rows. */
+  explain<TQuery extends Query<any, any, any, any>>(
+    query: TQuery,
+    options?: ExplainOptionsFor<TQuery>
+  ): Promise<ExplainResult<ExplainPlanRow<TAdapter>>>
+}
+
 /** A bound client whose adapter also supports typed read-query streams. */
 export interface QubuStreamingClient<
   TAdapter extends StreamingQueryAdapter = StreamingQueryAdapter,
@@ -126,6 +185,22 @@ export interface QubuStreamingClient<
     options?: ExecutionOptions
   ): AsyncIterable<TRow>
 }
+
+/** A bound client that supports both streaming and typed EXPLAIN plans. */
+export interface QubuStreamingExplainableClient<
+  TAdapter extends StreamingQueryAdapter &
+    ExplainableQueryAdapter = StreamingQueryAdapter & ExplainableQueryAdapter,
+> extends QubuStreamingClient<TAdapter>,
+    QubuExplainableClient<TAdapter> {}
+
+type QubuClientFor<TAdapter extends QueryAdapter> =
+  TAdapter extends StreamingQueryAdapter
+    ? TAdapter extends ExplainableQueryAdapter
+      ? QubuStreamingExplainableClient<TAdapter>
+      : QubuStreamingClient<TAdapter>
+    : TAdapter extends ExplainableQueryAdapter
+      ? QubuExplainableClient<TAdapter>
+      : QubuClient<TAdapter>
 
 /** The client available inside a transaction callback. */
 export type QubuTransaction = QubuClient<QueryAdapter>
@@ -141,10 +216,27 @@ export interface QubuTransactionalClient<
 > extends QubuClient<TAdapter> {
   /** Run several queries on one adapter-owned transaction. */
   transaction<T>(
-    callback: (transaction: QubuClient<TTransactionAdapter>) => Promise<T>,
+    callback: (transaction: QubuClientFor<TTransactionAdapter>) => Promise<T>,
     options?: TransactionOptions
   ): Promise<T>
 }
+
+/** A bound EXPLAIN client with an adapter-owned transaction callback. */
+export type QubuExplainableTransactionalClient<
+  TAdapter extends ExplainableQueryAdapter &
+    TransactionalQueryAdapter = ExplainableQueryAdapter &
+    TransactionalQueryAdapter,
+  TTransactionAdapter extends QueryAdapter = QueryAdapter,
+> = QubuExplainableClient<TAdapter> &
+  QubuTransactionalClient<TAdapter, TTransactionAdapter>
+
+/** A bound streaming and EXPLAIN client with an adapter-owned transaction. */
+export type QubuExplainableStreamingTransactionalClient<
+  TAdapter extends ExplainableQueryAdapter &
+    StreamingTransactionalQueryAdapter = ExplainableQueryAdapter &
+    StreamingTransactionalQueryAdapter,
+> = QubuStreamingExplainableClient<TAdapter> &
+  QubuTransactionalClient<TAdapter, StreamingQueryAdapter>
 
 /** A bound streaming client whose transaction callback can also stream. */
 export interface QubuStreamingTransactionalClient<
@@ -159,6 +251,26 @@ export interface QubuStreamingTransactionalClient<
 }
 
 /** Bind an application-owned adapter once for repeated query execution. */
+export function qubu<
+  TAdapter extends ExplainableQueryAdapter & StreamingTransactionalQueryAdapter,
+>(adapter: TAdapter): QubuExplainableStreamingTransactionalClient<TAdapter>
+export function qubu<
+  TAdapter extends ExplainableQueryAdapter &
+    TransactionalQueryAdapter &
+    StreamingQueryAdapter,
+>(
+  adapter: TAdapter
+): QubuExplainableTransactionalClient<TAdapter> &
+  QubuStreamingExplainableClient<TAdapter>
+export function qubu<
+  TAdapter extends ExplainableQueryAdapter & TransactionalQueryAdapter,
+>(adapter: TAdapter): QubuExplainableTransactionalClient<TAdapter>
+export function qubu<
+  TAdapter extends ExplainableQueryAdapter & StreamingQueryAdapter,
+>(adapter: TAdapter): QubuStreamingExplainableClient<TAdapter>
+export function qubu<TAdapter extends ExplainableQueryAdapter>(
+  adapter: TAdapter
+): QubuExplainableClient<TAdapter>
 export function qubu<TAdapter extends StreamingTransactionalQueryAdapter>(
   adapter: TAdapter
 ): QubuStreamingTransactionalClient<TAdapter>
@@ -214,16 +326,32 @@ function createClient<TAdapter extends QueryAdapter>(
       return executeRows(query, adapter, options)
     },
   }
-  if (!isStreamingQueryAdapter(adapter)) return Object.freeze(client)
+  const streaming = isStreamingQueryAdapter(adapter)
+  const explainable = isExplainableQueryAdapter(adapter)
+  if (!streaming && !explainable) return Object.freeze(client)
 
   return Object.freeze({
     ...client,
-    stream<TRow extends object>(
-      query: StreamableQuery<TRow>,
-      options?: ExecutionOptions
-    ) {
-      return stream(query, adapter, options)
-    },
+    ...(streaming
+      ? {
+          stream<TRow extends object>(
+            query: StreamableQuery<TRow>,
+            options?: ExecutionOptions
+          ) {
+            return stream(query, adapter, options)
+          },
+        }
+      : {}),
+    ...(explainable
+      ? {
+          explain<TQuery extends Query<any, any, any, any>>(
+            query: TQuery,
+            options?: ExplainOptionsFor<TQuery>
+          ) {
+            return explain(query, adapter, options)
+          },
+        }
+      : {}),
   }) as QubuClient<TAdapter>
 }
 
@@ -241,6 +369,14 @@ function isStreamingQueryAdapter(
 ): adapter is StreamingQueryAdapter {
   return (
     typeof (adapter as Partial<StreamingQueryAdapter>).stream === 'function'
+  )
+}
+
+function isExplainableQueryAdapter(
+  adapter: QueryAdapter
+): adapter is ExplainableQueryAdapter {
+  return (
+    typeof (adapter as Partial<ExplainableQueryAdapter>).explain === 'function'
   )
 }
 
@@ -291,6 +427,36 @@ export async function executeRows<TRow extends object>(
 ): Promise<readonly TRow[]> {
   const result = await executeInternal(first, second, options)
   return result.rows
+}
+
+/**
+ * Render a query as a dialect-specific EXPLAIN request and return the
+ * adapter-decoded vendor plan rows. EXPLAIN never calls QueryAdapter.execute.
+ */
+export function explain<
+  TQuery extends Query<any, any, any, any>,
+  TAdapter extends ExplainableQueryAdapter,
+>(
+  query: TQuery,
+  adapter: TAdapter,
+  options?: ExplainOptionsFor<TQuery>
+): Promise<ExplainResult<ExplainPlanRow<TAdapter>>>
+export function explain<
+  TQuery extends Query<any, any, any, any>,
+  TAdapter extends ExplainableQueryAdapter,
+>(
+  adapter: TAdapter,
+  query: TQuery,
+  options?: ExplainOptionsFor<TQuery>
+): Promise<ExplainResult<ExplainPlanRow<TAdapter>>>
+export async function explain(
+  first: Query<any, any, any, any> | ExplainableQueryAdapter,
+  second: Query<any, any, any, any> | ExplainableQueryAdapter,
+  options: ExplainOptions = {}
+): Promise<ExplainResult<any>> {
+  const query = (isQuery(first) ? first : second) as Query<any, any, any, any>
+  const adapter = (isQuery(first) ? second : first) as ExplainableQueryAdapter
+  return adapter.explain(createExplainRequest(query, adapter, options))
 }
 
 /**
@@ -345,6 +511,48 @@ function createExecutionRequest(
     queryKind: query.queryKind,
     ...(options.signal === undefined ? {} : { signal: options.signal }),
   })
+}
+
+function createExplainRequest(
+  query: Query<any, any, any, any>,
+  adapter: ExplainableQueryAdapter,
+  options: ExplainOptions
+): ExplainRequest {
+  const request = createExecutionRequest(query, adapter, options)
+  if (
+    options.analyze === true &&
+    query.queryKind !== 'select' &&
+    query.queryKind !== 'set'
+  ) {
+    throw queryValidationError({
+      code: 'invalid-explain-query',
+      context: 'execution.explain',
+      path: ['analyze'],
+      message: `EXPLAIN ANALYZE is only available for read queries; received ${query.queryKind}`,
+      hint: 'Remove analyze for a plan-only mutation EXPLAIN.',
+    })
+  }
+
+  const dialect = options.dialect ?? adapter.dialect
+  if (dialect.explain === undefined) {
+    throw queryValidationError({
+      code: 'unsupported-explain-dialect',
+      context: 'execution.explain',
+      path: ['dialect'],
+      message: `Dialect "${dialect.name}" does not provide an EXPLAIN rendering policy`,
+      hint: 'Use PostgreSQL, SQLite, MySQL, or a custom dialect with an explain policy.',
+    })
+  }
+
+  const statement = Object.freeze({
+    text: dialect.explain.render(
+      request.statement.text,
+      query.queryKind,
+      options
+    ),
+    parameters: request.statement.parameters,
+  })
+  return Object.freeze({ ...request, statement })
 }
 
 function assertStreamableQuery(

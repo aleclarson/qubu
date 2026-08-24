@@ -5,6 +5,7 @@ import {
   type RowLockMode,
   type RowLockWaitPolicy,
 } from '../core/dialect.ts'
+import { postgresExplain } from './explain.ts'
 import type { RenderContext } from '../core/fragment.ts'
 import {
   comparison,
@@ -61,6 +62,7 @@ export function postgresDialect() {
     castTypes: { binary: 'BYTEA' },
     capabilities: ['ilike', 'on-conflict', 'row-locking'],
     json: postgresJson,
+    explain: postgresExplain,
   })
 }
 

@@ -1,5 +1,6 @@
 import { createDialect, type PaginationPart } from '../core/dialect.ts'
 import type { RenderContext } from '../core/fragment.ts'
+import { sqliteExplain } from './explain.ts'
 import { sqliteJson } from './json.ts'
 
 function renderSqliteSchemaLiteral(value: unknown): string {
@@ -51,6 +52,7 @@ export function sqliteDialect() {
       binary: 'BLOB',
     },
     renderSchemaLiteral: renderSqliteSchemaLiteral,
+    explain: sqliteExplain,
   })
 }
 

@@ -20,6 +20,10 @@ export type QueryValidationErrorCode =
   | 'invalid-subquery'
   | 'invalid-omission'
   | 'invalid-stream-query'
+  | 'invalid-explain-query'
+  | 'invalid-explain-options'
+  | 'unsupported-explain-option'
+  | 'unsupported-explain-dialect'
   | 'missing-dialect-capability'
 
 export interface QueryValidationIssue {

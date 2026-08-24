@@ -6,6 +6,7 @@ import {
   type RowLockWaitPolicy,
 } from '../core/dialect.ts'
 import type { RenderContext } from '../core/fragment.ts'
+import { mysqlExplain } from './explain.ts'
 import { queryValidationError } from '../query/errors.ts'
 import { mysqlJson } from './json.ts'
 
@@ -61,5 +62,6 @@ export function mysqlDialect() {
       bigint: 'SIGNED',
       binary: 'BINARY',
     },
+    explain: mysqlExplain,
   })
 }

@@ -227,6 +227,71 @@ and how much data it buffers. Qubu only forwards the async-iterator protocol
 and the abort signal. Driver errors and cancellation errors pass through
 unchanged.
 
+## Inspect query plans
+
+Add `ExplainableQueryAdapter` when the driver can decode its EXPLAIN rows. The
+standalone `explain()` function and the bound `db.explain()` method render a
+plan request without calling `execute()`:
+
+```ts
+import { explain, qubu } from 'qubu'
+import type { ExplainableQueryAdapter } from 'qubu'
+import { postgresDialect } from 'qubu/postgres'
+
+type PostgresPlanRow = { 'QUERY PLAN': string }
+
+declare const driver: {
+  query<TRow extends object>(
+    text: string,
+    parameters: readonly unknown[],
+    options: { signal?: AbortSignal }
+  ): Promise<{ rows: readonly TRow[] }>
+}
+
+const adapter: ExplainableQueryAdapter<PostgresPlanRow> = {
+  dialect: postgresDialect(),
+  async execute() {
+    return { rows: [] }
+  },
+  async explain(request) {
+    const result = await driver.query<PostgresPlanRow>(
+      request.statement.text,
+      request.statement.parameters,
+      { signal: request.signal }
+    )
+    return { rows: result.rows }
+  },
+}
+
+const plan = await explain(readQuery, adapter, {
+  analyze: true,
+  verbose: true,
+})
+const db = qubu(adapter)
+const samePlan = await db.explain(readQuery)
+```
+
+Qubu keeps `ExplainResult.rows` in the adapter's vendor-specific shape. It
+does not normalize PostgreSQL, SQLite, or MySQL plans into one tree. The
+adapter owns parameter binding, plan-row decoding, connections, transactions,
+and cancellation. `ExplainRequest` carries the rendered statement, ordered
+raw parameters, query kind, and optional abort signal just like an ordinary
+execution request.
+
+The first-party policies accept these options:
+
+| Dialect    | Plan options                                                                       | Restrictions                                                      |
+| ---------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| PostgreSQL | `analyze`, `verbose`, `buffers`, and `format: 'text' \| 'xml' \| 'json' \| 'yaml'` | `buffers` requires `analyze`; analysis is read-only               |
+| SQLite     | `format: 'query-plan' \| 'bytecode'` or `queryPlan`                                | `analyze`, `verbose`, and `buffers` are unsupported               |
+| MySQL      | `analyze` or `format: 'traditional' \| 'json' \| 'tree'`                           | `analyze` cannot be combined with `format`; analysis is read-only |
+
+All supported queries can be explained, including `INSERT`, `UPDATE`, and
+`DELETE`. Mutation EXPLAIN is always plan-only. The type and runtime
+boundaries reject `analyze` for mutations so an inspection call cannot apply a
+write. Unsupported options and invalid combinations raise a structured
+`QueryValidationError` before the adapter is called.
+
 ## Bind the adapter once
 
 Use `qubu()` when several calls share one adapter. The returned client keeps

@@ -20,8 +20,9 @@
 - Parameterized SQL templates whose static text is trusted syntax, whose
   ordinary substitutions become parameters, and whose fragment substitutions
   retain renderer metadata.
-- A driver-neutral adapter boundary with structured execution results, an
-  opt-in transaction-scoped client, and an opt-in Vite compiler hint.
+- A driver-neutral adapter boundary with structured execution results, typed
+  adapter-decoded EXPLAIN results, opt-in streaming and transaction-scoped
+  clients, and an opt-in Vite compiler hint.
 - Pure snapshot serialization, snapshot diffing, migration planning, and DDL
   emission, plus catalog introspection through an application-owned connection
   interface.
@@ -55,7 +56,6 @@ unchanged.
 ## Deferred
 
 - Dialect-aware `ON CONFLICT` upsert support.
-- Recursive CTEs, `JOIN ... USING`, `EXPLAIN`, and broader vendor-specific
-  syntax.
+- Recursive CTEs, `JOIN ... USING`, and broader vendor-specific syntax.
 - Migration execution, ORM behavior, relationship loading, connection
   lifecycle, and driver-specific transaction configuration.
