@@ -1,10 +1,23 @@
 import { parenthesize } from '../core/fragment.ts'
-import type { CapabilityMetadataOf } from '../core/fragment.ts'
-import type { Query, QuerySqlTypeMap } from './types.ts'
+import type {
+  CapabilityMetadataOf,
+  QueryCardinality,
+} from '../core/fragment.ts'
+import type { Query, QueryRow, QuerySqlTypeMap } from './types.ts'
 import type { SqlEqualityCompatible } from '../core/sql-types.ts'
 import type { QueryTypeValidation } from './errors.ts'
+import type { UnknownSourceSqlTypes } from '../schema/source.ts'
 
 export type SetOperator = 'UNION' | 'UNION ALL' | 'INTERSECT' | 'EXCEPT'
+
+export interface SetQuery<
+  TRow extends object = Record<string, unknown>,
+  TCardinality extends QueryCardinality = QueryCardinality,
+  TMetadata = never,
+  TSqlTypes = UnknownSourceSqlTypes<TRow>,
+> extends Query<TRow, TCardinality, TMetadata, TSqlTypes> {
+  readonly queryKind: 'set'
+}
 
 type SetSqlCompatibilityFailures<TLeft, TRight> = {
   [K in keyof QuerySqlTypeMap<TLeft>]: K extends keyof QuerySqlTypeMap<TRight>
@@ -29,15 +42,14 @@ type SetSqlValidation<TLeft, TRight> = [
     >
 
 export function setOperation<
-  TRow extends object,
-  TLeft extends Query<TRow, any, any>,
-  TRight extends Query<TRow, any, any>,
+  TLeft extends Query<any, any, any, any>,
+  TRight extends Query<QueryRow<TLeft>, any, any, any>,
 >(
   operator: SetOperator,
   left: TLeft & SetSqlValidation<TLeft, TRight>,
   right: TRight
-): Query<
-  TRow,
+): SetQuery<
+  QueryRow<TLeft>,
   any,
   CapabilityMetadataOf<TLeft | TRight>,
   QuerySqlTypeMap<TLeft>
@@ -50,8 +62,8 @@ export function setOperation<
       context.append(` ${operator} `)
       context.render(parenthesize(right))
     },
-  } as Query<
-    TRow,
+  } as SetQuery<
+    QueryRow<TLeft>,
     any,
     CapabilityMetadataOf<TLeft | TRight>,
     QuerySqlTypeMap<TLeft>
@@ -59,33 +71,29 @@ export function setOperation<
 }
 
 export function union<
-  TRow extends object,
-  TLeft extends Query<TRow, any, any>,
-  TRight extends Query<TRow, any, any>,
+  TLeft extends Query<any, any, any, any>,
+  TRight extends Query<QueryRow<TLeft>, any, any, any>,
 >(left: TLeft & SetSqlValidation<TLeft, TRight>, right: TRight) {
   return setOperation('UNION', left, right)
 }
 
 export function unionAll<
-  TRow extends object,
-  TLeft extends Query<TRow, any, any>,
-  TRight extends Query<TRow, any, any>,
+  TLeft extends Query<any, any, any, any>,
+  TRight extends Query<QueryRow<TLeft>, any, any, any>,
 >(left: TLeft & SetSqlValidation<TLeft, TRight>, right: TRight) {
   return setOperation('UNION ALL', left, right)
 }
 
 export function intersect<
-  TRow extends object,
-  TLeft extends Query<TRow, any, any>,
-  TRight extends Query<TRow, any, any>,
+  TLeft extends Query<any, any, any, any>,
+  TRight extends Query<QueryRow<TLeft>, any, any, any>,
 >(left: TLeft & SetSqlValidation<TLeft, TRight>, right: TRight) {
   return setOperation('INTERSECT', left, right)
 }
 
 export function except<
-  TRow extends object,
-  TLeft extends Query<TRow, any, any>,
-  TRight extends Query<TRow, any, any>,
+  TLeft extends Query<any, any, any, any>,
+  TRight extends Query<QueryRow<TLeft>, any, any, any>,
 >(left: TLeft & SetSqlValidation<TLeft, TRight>, right: TRight) {
   return setOperation('EXCEPT', left, right)
 }

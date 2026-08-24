@@ -120,6 +120,113 @@ const adapter: QueryAdapter = {
 }
 ```
 
+## Stream read results
+
+Add `StreamingQueryAdapter` when a driver can return rows through an
+adapter-owned `AsyncIterable`. The standalone `stream()` function and the
+bound `db.stream()` method accept only `SELECT` and set-operation queries.
+Mutations stay on `execute()` and `executeRows()`, including mutations with
+`RETURNING`.
+
+```ts
+import { qubu } from 'qubu'
+import type {
+  ExecutionRequest,
+  ExecutionResult,
+  StreamingQueryAdapter,
+} from 'qubu'
+import { postgresDialect } from 'qubu/postgres'
+
+declare const driver: {
+  query<TRow extends object>(
+    text: string,
+    parameters: readonly unknown[],
+    options: { signal?: AbortSignal }
+  ): Promise<{ rows: readonly TRow[]; rowCount: number | null }>
+  stream<TRow extends object>(
+    text: string,
+    parameters: readonly unknown[],
+    options: { signal?: AbortSignal }
+  ): AsyncIterable<TRow>
+}
+
+const adapter: StreamingQueryAdapter = {
+  dialect: postgresDialect(),
+  async execute<TRow extends object>(request: ExecutionRequest) {
+    const result = await driver.query<TRow>(
+      request.statement.text,
+      request.statement.parameters,
+      { signal: request.signal }
+    )
+    return {
+      rows: result.rows,
+      ...(result.rowCount === null ? {} : { affectedRows: result.rowCount }),
+    } satisfies ExecutionResult<TRow>
+  },
+  stream<TRow extends object>(request: ExecutionRequest) {
+    return driver.stream<TRow>(
+      request.statement.text,
+      request.statement.parameters,
+      { signal: request.signal }
+    )
+  },
+}
+
+const db = qubu(adapter)
+for await (const row of db.stream(readQuery)) {
+  consume(row)
+}
+```
+
+Qubu renders the query before calling `stream()` and passes the selected
+dialect, ordered raw parameters, query kind, and optional `AbortSignal` in the
+same `ExecutionRequest` used by `execute()`. The adapter binds values, decodes
+rows, and returns the iterable. Qubu does not open a cursor or connection,
+iterate the result, buffer rows, or impose a fetch size.
+
+The adapter owns the iterator's cleanup contract:
+
+| Event                           | Adapter responsibility                                                                                        |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Normal completion               | Close the cursor and release stream-only resources before the iterable completes.                             |
+| Early iterator close            | Implement `return()` so a consumer can stop without leaking resources.                                        |
+| Iteration failure               | Close the cursor and release resources before the failure reaches the consumer.                               |
+| Aborted signal                  | Stop the driver operation and clean up any open stream resources.                                             |
+| Transaction callback completion | Consume or close every stream before the callback resolves, then commit or release the transaction resources. |
+
+`for await` closes an iterator when a loop exits early. Code that manually
+holds an iterator should close it in a `finally` block:
+
+```ts
+const iterator = db.stream(readQuery)[Symbol.asyncIterator]()
+try {
+  const first = await iterator.next()
+  if (!first.done) consume(first.value)
+} finally {
+  await iterator.return?.()
+}
+```
+
+Inside a transaction, use a `StreamingTransactionalQueryAdapter` so the
+transaction callback receives a streaming client. The adapter must keep its
+cursor and connection valid until the callback's streams finish or close:
+
+```ts
+declare const transactionalAdapter: import('qubu').StreamingTransactionalQueryAdapter
+const transactionalDb = qubu(transactionalAdapter)
+
+await transactionalDb.transaction(async transaction => {
+  for await (const row of transaction.stream(readQuery)) {
+    consume(row)
+  }
+})
+```
+
+The adapter decides how `next()` drives driver reads, whether it prefetches,
+and how much data it buffers. Qubu only forwards the async-iterator protocol
+and the abort signal. Driver errors and cancellation errors pass through
+unchanged.
+
 ## Bind the adapter once
 
 Use `qubu()` when several calls share one adapter. The returned client keeps
@@ -171,7 +278,9 @@ emits `BEGIN`, `COMMIT`, or `ROLLBACK` itself.
 
 The transaction client exposes `execute()` and `rows()` but no public
 `transaction()` method, so nested transactions are not part of this contract.
-Use adapter-specific savepoints when a driver needs nested partial rollback.
+When the adapter also implements `StreamingQueryAdapter`, the scoped client
+also exposes `stream()` and its streams follow the cleanup rule above. Use
+adapter-specific savepoints when a driver needs nested partial rollback.
 `TransactionOptions.signal` is passed to the adapter. Isolation levels and
 other driver-specific settings remain adapter-specific.
 

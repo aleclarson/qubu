@@ -2,7 +2,7 @@
 // authoring. Fragment internals, dialect construction, and schema metadata
 // live behind `qubu/core` and `qubu/schema`.
 
-export { execute, executeRows, qubu } from './execution.ts'
+export { execute, executeRows, qubu, stream } from './execution.ts'
 export type {
   DriverValueEncoder,
   ExecutionOptions,
@@ -10,9 +10,15 @@ export type {
   ExecutionResult,
   QubuClient,
   QubuTransaction,
+  QubuStreamingClient,
+  QubuStreamingTransaction,
+  QubuStreamingTransactionalClient,
   QubuTransactionalClient,
   QueryAdapter,
   QueryExecutor,
+  StreamableQuery,
+  StreamingQueryAdapter,
+  StreamingTransactionalQueryAdapter,
   TransactionOptions,
   TransactionalQueryAdapter,
 } from './execution.ts'
@@ -392,7 +398,7 @@ export type {
   SelectQuery,
 } from './query/select.ts'
 export { except, intersect, union, unionAll } from './query/set.ts'
-export type { SetOperator } from './query/set.ts'
+export type { SetOperator, SetQuery } from './query/set.ts'
 export { omit } from './query/omit.ts'
 export type { Omit, OmittableSelectClause, SelectPart } from './query/omit.ts'
 

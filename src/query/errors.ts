@@ -19,6 +19,7 @@ export type QueryValidationErrorCode =
   | 'incompatible-set-domain'
   | 'invalid-subquery'
   | 'invalid-omission'
+  | 'invalid-stream-query'
   | 'missing-dialect-capability'
 
 export interface QueryValidationIssue {

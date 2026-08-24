@@ -115,6 +115,7 @@ declare global {
   const schemaCall: typeof import('qubu').schemaCall
   const select: typeof import('qubu').select
   const sql: typeof import('qubu').sql
+  const stream: typeof import('qubu').stream
   const subtract: typeof import('qubu').subtract
   const sum: typeof import('qubu').sum
   const table: typeof import('qubu').table
@@ -299,7 +300,21 @@ declare global {
   type QubuClient<
     TAdapter extends import('qubu').QueryAdapter = import('qubu').QueryAdapter,
   > = import('qubu').QubuClient<TAdapter>
+  type QubuStreamingClient<
+    TAdapter extends
+      import('qubu').StreamingQueryAdapter = import('qubu').StreamingQueryAdapter,
+  > = import('qubu').QubuStreamingClient<TAdapter>
+  type QubuStreamingTransaction = import('qubu').QubuStreamingTransaction
+  type QubuStreamingTransactionalClient<
+    TAdapter extends
+      import('qubu').StreamingTransactionalQueryAdapter = import('qubu').StreamingTransactionalQueryAdapter,
+  > = import('qubu').QubuStreamingTransactionalClient<TAdapter>
   type QueryAdapter = import('qubu').QueryAdapter
+  type StreamableQuery<TRow extends object = Record<string, unknown>> =
+    import('qubu').StreamableQuery<TRow>
+  type StreamingQueryAdapter = import('qubu').StreamingQueryAdapter
+  type StreamingTransactionalQueryAdapter =
+    import('qubu').StreamingTransactionalQueryAdapter
   type RenderedQuery = import('qubu').RenderedQuery
   type MutationQuery<
     TRow extends object = Record<string, unknown>,

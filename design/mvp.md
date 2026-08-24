@@ -57,6 +57,5 @@ unchanged.
 - Dialect-aware `ON CONFLICT` upsert support.
 - Recursive CTEs, `JOIN ... USING`, `EXPLAIN`, and broader vendor-specific
   syntax.
-- Streaming.
 - Migration execution, ORM behavior, relationship loading, connection
   lifecycle, and driver-specific transaction configuration.

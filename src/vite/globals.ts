@@ -115,6 +115,7 @@ export const qubuGlobals = [
   'schemaCall',
   'select',
   'sql',
+  'stream',
   'subtract',
   'sum',
   'table',
