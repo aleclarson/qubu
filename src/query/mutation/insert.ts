@@ -12,11 +12,11 @@ import {
   createMutation,
   type MutationQuery,
   type MutationCapabilityMetadata,
-  type MutationReturningClause,
   type MutationRow,
   type MutationScopeValidation,
   type MutationSqlTypes,
 } from './types.ts'
+import type { InsertClause } from './on-conflict.ts'
 import { queryValidationError, type QueryTypeValidation } from '../errors.ts'
 
 export interface ValuesSource<
@@ -170,7 +170,7 @@ type ValidInsertSource<TTable extends AnyTable, TSource extends InsertSource> =
 export function insertInto<
   const TTable extends AnyTable,
   const TSource extends InsertSource,
-  const TClauses extends readonly MutationReturningClause[],
+  const TClauses extends readonly InsertClause[],
 >(
   table: TTable,
   source: TSource & ValidInsertSource<TTable, TSource>,
@@ -184,10 +184,9 @@ export function insertInto<
 > {
   validateInsert(table, source)
 
-  const returningClauses = clauses as readonly MutationReturningClause[]
+  const insertClauses = clauses as readonly InsertClause[]
   const row =
-    returningClauses.find(clause => clause.clauseKind === 'returning')?.row ??
-    {}
+    insertClauses.find(clause => clause.clauseKind === 'returning')?.row ?? {}
   const query = createMutation('insert', row, context => {
     context.append('INSERT INTO ')
     context.render(table.reference)
@@ -218,7 +217,7 @@ export function insertInto<
       context.renderRelation(source.query)
     }
 
-    for (const clause of returningClauses) {
+    for (const clause of insertClauses) {
       context.append(' ')
       context.render(clause)
     }

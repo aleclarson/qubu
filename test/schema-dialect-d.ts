@@ -9,10 +9,14 @@ import type { SchemaDialect } from '../src/schema/index.ts'
 const queryDialect = postgresDialect()
 const schemaDialect = createSchemaDialect(queryDialect, { version: 1 })
 
-expectTypeOf(schemaDialect).toMatchTypeOf<Dialect<'ilike' | 'json'>>()
-expectTypeOf(schemaDialect).toMatchTypeOf<SchemaDialect<'ilike' | 'json'>>()
+expectTypeOf(schemaDialect).toMatchTypeOf<
+  Dialect<'ilike' | 'json' | 'on-conflict'>
+>()
+expectTypeOf(schemaDialect).toMatchTypeOf<
+  SchemaDialect<'ilike' | 'json' | 'on-conflict'>
+>()
 expectTypeOf(postgresSchemaDialect).toMatchTypeOf<
-  SchemaDialect<'ilike' | 'json'>
+  SchemaDialect<'ilike' | 'json' | 'on-conflict'>
 >()
 
 const custom = createSchemaDialect(

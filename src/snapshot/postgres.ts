@@ -68,32 +68,34 @@ const postgresStorageTypes: Readonly<Record<PortableStorageType, string>> =
   })
 
 /** PostgreSQL's query dialect plus its schema metadata behavior. */
-export const postgresSchemaDialect: SchemaDialect<'ilike' | 'json'> =
-  createSchemaDialect(postgresDialect(), {
-    version: schemaSnapshotDialectVersion,
-    validate: validatePostgresSchema,
-    encodeStorage(storage: ColumnStorage, context: SnapshotStorageContext) {
-      return encodePostgresStorage(storage, context.dialect)
-    },
-    encodeExpression(
-      expression: AnyExpression,
-      context: SnapshotExpressionContext
-    ) {
-      return encodePostgresExpression(expression, context.mode, context.dialect)
-    },
-    encodeDialectExtension(
-      extension: SchemaDialectExtension,
-      context: SnapshotExtensionContext
-    ) {
-      return encodePostgresExtension(extension, context.dialect)
-    },
-  })
+export const postgresSchemaDialect: SchemaDialect<
+  'ilike' | 'json' | 'on-conflict'
+> = createSchemaDialect(postgresDialect(), {
+  version: schemaSnapshotDialectVersion,
+  validate: validatePostgresSchema,
+  encodeStorage(storage: ColumnStorage, context: SnapshotStorageContext) {
+    return encodePostgresStorage(storage, context.dialect)
+  },
+  encodeExpression(
+    expression: AnyExpression,
+    context: SnapshotExpressionContext
+  ) {
+    return encodePostgresExpression(expression, context.mode, context.dialect)
+  },
+  encodeDialectExtension(
+    extension: SchemaDialectExtension,
+    context: SnapshotExtensionContext
+  ) {
+    return encodePostgresExtension(extension, context.dialect)
+  },
+})
 
 /** Snapshot adapter retaining the historical adapter-shaped entry point. */
-export const postgresSnapshotAdapter: SchemaSnapshotAdapter<'ilike' | 'json'> =
-  Object.freeze({
-    dialect: postgresSchemaDialect,
-  })
+export const postgresSnapshotAdapter: SchemaSnapshotAdapter<
+  'ilike' | 'json' | 'on-conflict'
+> = Object.freeze({
+  dialect: postgresSchemaDialect,
+})
 
 /** Create a canonical PostgreSQL schema snapshot. */
 export function createPostgresSchemaSnapshot<TSchema extends Schema<any>>(

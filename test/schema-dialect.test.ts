@@ -21,7 +21,9 @@ test('inherits query identifier, placeholder, and capability policy', () => {
   expect(schemaDialect.capabilities).toEqual(queryDialect.capabilities)
   expect(schemaDialect.json).toBe(queryDialect.json)
   expect(schemaDialect.castTypes).toBe(queryDialect.castTypes)
-  expectTypeOf(schemaDialect).toMatchTypeOf<Dialect<'ilike' | 'json'>>()
+  expectTypeOf(schemaDialect).toMatchTypeOf<
+    Dialect<'ilike' | 'json' | 'on-conflict'>
+  >()
 })
 
 test('shares a custom query literal policy with schema rendering', () => {

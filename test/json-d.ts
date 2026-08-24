@@ -33,7 +33,9 @@ export type QueryRequiresJson = Assert<
 >
 
 export type PostgresAdvertisesJson = Assert<
-  typeof postgresDialect extends () => Dialect<'ilike' | 'json'> ? true : false
+  typeof postgresDialect extends () => Dialect<'ilike' | 'json' | 'on-conflict'>
+    ? true
+    : false
 >
 
 export type JsonRendererAdvertisesCapability = Assert<

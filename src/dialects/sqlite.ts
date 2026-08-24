@@ -39,6 +39,7 @@ export function sqliteDialect() {
     name: 'sqlite',
     placeholder: () => '?',
     pagination: { render: renderSqlitePagination },
+    capabilities: ['on-conflict'],
     json: sqliteJson,
     castTypes: {
       decimal: 'NUMERIC',
@@ -52,3 +53,18 @@ export function sqliteDialect() {
     renderSchemaLiteral: renderSqliteSchemaLiteral,
   })
 }
+
+export {
+  doNothing,
+  doUpdate,
+  excluded,
+  onConflict,
+} from '../query/mutation/on-conflict.ts'
+export type {
+  ConflictAction,
+  ConflictTarget,
+  DoNothingAction,
+  DoUpdateAction,
+  ExcludedSource,
+  OnConflictClause,
+} from '../query/mutation/on-conflict.ts'

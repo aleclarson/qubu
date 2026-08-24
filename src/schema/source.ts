@@ -25,6 +25,7 @@ export type SourceKind =
   | 'query-alias'
   | 'lateral'
   | 'cte'
+  | 'excluded'
   | 'custom'
   | 'table-function'
 

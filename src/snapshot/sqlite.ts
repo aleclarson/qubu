@@ -103,9 +103,8 @@ export function sqliteStorageAffinity(
 }
 
 /** SQLite's query dialect plus its schema metadata behavior. */
-export const sqliteSchemaDialect: SchemaDialect<'json'> = createSchemaDialect(
-  sqliteDialect(),
-  {
+export const sqliteSchemaDialect: SchemaDialect<'json' | 'on-conflict'> =
+  createSchemaDialect(sqliteDialect(), {
     version: schemaSnapshotDialectVersion,
     validate: validateSqliteSchema,
     encodeStorage(storage: ColumnStorage, context: SnapshotStorageContext) {
@@ -123,14 +122,14 @@ export const sqliteSchemaDialect: SchemaDialect<'json'> = createSchemaDialect(
     ) {
       return encodeSqliteExtension(extension, context.dialect)
     },
-  }
-)
+  })
 
 /** Snapshot adapter retaining the historical adapter-shaped entry point. */
-export const sqliteSnapshotAdapter: SchemaSnapshotAdapter<'json'> =
-  Object.freeze({
-    dialect: sqliteSchemaDialect,
-  })
+export const sqliteSnapshotAdapter: SchemaSnapshotAdapter<
+  'json' | 'on-conflict'
+> = Object.freeze({
+  dialect: sqliteSchemaDialect,
+})
 
 /** Create a canonical SQLite schema snapshot. */
 export function createSqliteSchemaSnapshot<TSchema extends Schema<any>>(

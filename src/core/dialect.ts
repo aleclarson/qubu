@@ -1,7 +1,7 @@
 import type { AnyFragment, RenderContext } from './fragment.ts'
 
 /** Capabilities whose syntax must be explicitly supported by a dialect. */
-export type DialectCapability = 'ilike' | 'json'
+export type DialectCapability = 'ilike' | 'json' | 'on-conflict'
 
 /**
  * Optional dialect hook used by schema expressions when a JavaScript value

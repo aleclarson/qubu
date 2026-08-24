@@ -6,6 +6,7 @@ import {
   deleteFrom,
   eq,
   from,
+  gt,
   insertInto,
   insertSelect,
   integer,
@@ -17,15 +18,40 @@ import {
   text,
   update,
   upper,
+  unique,
   values,
   where,
 } from '../src/index.ts'
+import {
+  doNothing,
+  doUpdate,
+  excluded,
+  onConflict,
+  postgresDialect,
+} from '../src/dialects/postgres.ts'
+import { sqliteDialect } from '../src/dialects/sqlite.ts'
 
 const users = table('users', {
   id: integer({ generated: true }),
   name: text(),
   email: text({ nullable: true, hasDefault: true }),
 })
+
+const accounts = table(
+  'accounts',
+  {
+    id: integer({ generated: true }),
+    email: text(),
+    name: text(),
+    version: integer(),
+  },
+  accounts => ({
+    constraints: {
+      emailKey: unique(accounts.email),
+    },
+    indexes: {},
+  })
+)
 
 test('renders typed multi-row INSERT values and RETURNING projections', () => {
   const query = insertInto(
@@ -42,6 +68,41 @@ test('renders typed multi-row INSERT values and RETURNING projections', () => {
     parameters: ['Ada', null, 'Grace', 'grace@example.com'],
   })
   expectTypeOf(query.row).toEqualTypeOf<{ id: number; name: string }>()
+})
+
+test('renders PostgreSQL ON CONFLICT DO UPDATE with excluded values and a condition', () => {
+  const incoming = excluded(accounts)
+  const query = insertInto(
+    accounts,
+    values({ email: 'ada@example.com', name: 'Ada', version: 2 }),
+    onConflict(
+      accounts,
+      accounts.constraints.emailKey,
+      doUpdate(
+        { name: incoming.name },
+        where(gt(incoming.version, accounts.version))
+      )
+    ),
+    returning({ id: accounts.id, name: accounts.name })
+  )
+
+  expect(render(query, postgresDialect())).toEqual({
+    text: 'INSERT INTO "accounts" ("email", "name", "version") VALUES ($1, $2, $3) ON CONFLICT ("email") DO UPDATE SET "name" = excluded."name" WHERE (excluded."version" > "accounts"."version") RETURNING "accounts"."id" AS "id", "accounts"."name" AS "name"',
+    parameters: ['ada@example.com', 'Ada', 2],
+  })
+})
+
+test('renders SQLite ON CONFLICT DO NOTHING without a target', () => {
+  const query = insertInto(
+    accounts,
+    values({ email: 'ada@example.com', name: 'Ada', version: 1 }),
+    onConflict(doNothing())
+  )
+
+  expect(render(query, sqliteDialect())).toEqual({
+    text: 'INSERT INTO "accounts" ("email", "name", "version") VALUES (?, ?, ?) ON CONFLICT DO NOTHING',
+    parameters: ['ada@example.com', 'Ada', 1],
+  })
 })
 
 test('renders DEFAULT VALUES when a table has only generated/default columns', () => {

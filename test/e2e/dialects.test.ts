@@ -14,6 +14,8 @@ import {
   jsonPath,
   jsonText,
   orderBy,
+  primaryKey,
+  returning,
   select,
   table,
   text,
@@ -22,7 +24,12 @@ import {
   where,
 } from '../../src/index.ts'
 import { mysqlDialect } from '../../src/dialects/mysql.ts'
-import { postgresDialect } from '../../src/dialects/postgres.ts'
+import {
+  doUpdate,
+  excluded,
+  onConflict,
+  postgresDialect,
+} from '../../src/dialects/postgres.ts'
 import { sqliteDialect } from '../../src/dialects/sqlite.ts'
 import type {
   ExecutionRequest,
@@ -56,11 +63,18 @@ if (configuredDialect !== undefined && !isLiveDialect(configuredDialect)) {
 
 const selectedDialect = configuredDialect as LiveDialect | undefined
 
-const records = table('qubu_e2e_records', {
-  id: integer(),
-  name: text(),
-  payload: json<unknown>(),
-})
+const records = table(
+  'qubu_e2e_records',
+  {
+    id: integer(),
+    name: text(),
+    payload: json<unknown>(),
+  },
+  records => ({
+    constraints: { primary: primaryKey(records.id) },
+    indexes: {},
+  })
+)
 
 interface E2eDriver {
   execute<TRow extends object = Record<string, unknown>>(
@@ -364,6 +378,40 @@ describe.skipIf(!selectedDialect)('live dialect E2E', () => {
       { name: 'Grace' },
     ])
   }, 30_000)
+
+  test.skipIf(dialectName === 'mysql')(
+    'executes a conflicting insert as an update',
+    async () => {
+      if (!environment) throw new Error('E2E environment was not initialized')
+
+      await seedAda(environment)
+
+      const incoming = excluded(records)
+      const rows = await executeRows(
+        insertInto(
+          records,
+          values({
+            id: 1,
+            name: 'Grace',
+            payload: JSON.stringify({ user: { name: 'Grace' } }),
+          }),
+          onConflict(
+            records,
+            records.constraints.primary,
+            doUpdate(
+              { name: incoming.name },
+              where(eq(incoming.id, records.id))
+            )
+          ),
+          returning({ name: records.name })
+        ),
+        environment.adapter
+      )
+
+      expect(rows).toEqual([{ name: 'Grace' }])
+    },
+    30_000
+  )
 
   test('reads the selected namespace through its catalog adapter', async () => {
     if (!environment) throw new Error('E2E environment was not initialized')

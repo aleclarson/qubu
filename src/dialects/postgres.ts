@@ -37,10 +37,25 @@ export function postgresDialect() {
     placeholder: position => `$${position}`,
     pagination: postgresPagination,
     castTypes: { binary: 'BYTEA' },
-    capabilities: ['ilike'],
+    capabilities: ['ilike', 'on-conflict'],
     json: postgresJson,
   })
 }
+
+export {
+  doNothing,
+  doUpdate,
+  excluded,
+  onConflict,
+} from '../query/mutation/on-conflict.ts'
+export type {
+  ConflictAction,
+  ConflictTarget,
+  DoNothingAction,
+  DoUpdateAction,
+  ExcludedSource,
+  OnConflictClause,
+} from '../query/mutation/on-conflict.ts'
 
 /** PostgreSQL's case-insensitive pattern-match operator. */
 export function ilike<
