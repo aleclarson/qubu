@@ -3,6 +3,7 @@ import { Client } from 'pg'
 import mysql from 'mysql2/promise'
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest'
 import {
+  add,
   eq,
   execute,
   executeRows,
@@ -13,15 +14,19 @@ import {
   json,
   jsonPath,
   jsonText,
+  lt,
   orderBy,
+  recursiveCte,
   primaryKey,
   returning,
   select,
   table,
   text,
+  value,
   update,
   values,
   where,
+  withCte,
 } from '../../src/index.ts'
 import { mysqlDialect } from '../../src/dialects/mysql.ts'
 import {
@@ -353,6 +358,28 @@ describe.skipIf(!selectedDialect)('live dialect E2E', () => {
 
     await expect(executeRows(query, environment.adapter)).resolves.toEqual([
       { id: 1, name: 'Ada', payloadName: 'Ada' },
+    ])
+  }, 30_000)
+
+  test('executes a recursive CTE through the dialect adapter', async () => {
+    if (!environment) throw new Error('E2E environment was not initialized')
+
+    const numbers = recursiveCte(
+      'qubu_e2e_numbers',
+      select({ id: value(1) }),
+      self => select({ id: add(self.id, 1) }, from(self), where(lt(self.id, 3)))
+    )
+    const query = select(
+      { id: numbers.id },
+      withCte(numbers),
+      from(numbers),
+      orderBy(numbers.id)
+    )
+
+    await expect(executeRows(query, environment.adapter)).resolves.toEqual([
+      { id: 1 },
+      { id: 2 },
+      { id: 3 },
     ])
   }, 30_000)
 

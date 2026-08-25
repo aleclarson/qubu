@@ -105,6 +105,7 @@ declare global {
   const primaryKey: typeof import('qubu').primaryKey
   const qubu: typeof import('qubu').qubu
   const references: typeof import('qubu').references
+  const recursiveCte: typeof import('qubu').recursiveCte
   const render: typeof import('qubu').render
   const rank: typeof import('qubu').rank
   const rightJoin: typeof import('qubu').rightJoin

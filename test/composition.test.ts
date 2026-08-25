@@ -1,10 +1,13 @@
 import { expect, expectTypeOf, test } from 'vitest'
+import { mysqlDialect } from '../src/dialects/mysql.ts'
 import {
+  add,
   alias,
   cte,
   eq,
   from,
   render,
+  recursiveCte,
   scalar,
   select,
   table,
@@ -13,6 +16,8 @@ import {
   withCte,
   where,
   integer,
+  value,
+  lt,
 } from '../src/index.ts'
 
 const users = table('users', {
@@ -35,6 +40,33 @@ test('composes a common table expression as a typed source', () => {
     'WITH "active_users" AS (SELECT "users"."id" AS "id", "users"."name" AS "name" FROM "users") SELECT "active_users"."name" AS "name" FROM "active_users"'
   )
   expectTypeOf(query.row).toEqualTypeOf<{ name: string }>()
+})
+
+test('renders recursive CTEs with one portable compound body', () => {
+  const anchor = select({ currentValue: value(1) })
+  expectTypeOf(anchor.row).toEqualTypeOf<{ currentValue: number }>()
+  const numbers = recursiveCte('numbers', anchor, self =>
+    select(
+      { currentValue: add(self.currentValue, 1) },
+      from(self),
+      where(lt(self.currentValue, 3))
+    )
+  )
+  const ordinary = cte('ordinary', select({ id: users.id }, from(users)))
+  const query = select(
+    { currentValue: numbers.currentValue },
+    withCte(ordinary, numbers),
+    from(numbers)
+  )
+
+  expect(render(query)).toEqual({
+    text: 'WITH RECURSIVE "ordinary" AS (SELECT "users"."id" AS "id" FROM "users"), "numbers" ("current_value") AS (SELECT ? AS "current_value" UNION ALL SELECT ("numbers"."current_value" + ?) AS "current_value" FROM "numbers" WHERE ("numbers"."current_value" < ?)) SELECT "numbers"."current_value" AS "currentValue" FROM "numbers"',
+    parameters: [1, 1, 3],
+  })
+  expect(render(query, mysqlDialect())).toEqual({
+    text: 'WITH RECURSIVE `ordinary` AS (SELECT `users`.`id` AS `id` FROM `users`), `numbers` (`current_value`) AS (SELECT ? AS `current_value` UNION ALL SELECT (`numbers`.`current_value` + ?) AS `current_value` FROM `numbers` WHERE (`numbers`.`current_value` < ?)) SELECT `numbers`.`current_value` AS `currentValue` FROM `numbers`',
+    parameters: [1, 1, 3],
+  })
 })
 
 test('uses a selected query as a derived table', () => {

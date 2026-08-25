@@ -19,7 +19,7 @@ export interface SetQuery<
   readonly queryKind: 'set'
 }
 
-type SetSqlCompatibilityFailures<TLeft, TRight> = {
+export type SetSqlCompatibilityFailures<TLeft, TRight> = {
   [K in keyof QuerySqlTypeMap<TLeft>]: K extends keyof QuerySqlTypeMap<TRight>
     ? SqlEqualityCompatible<
         QuerySqlTypeMap<TLeft>[K],
@@ -30,7 +30,7 @@ type SetSqlCompatibilityFailures<TLeft, TRight> = {
     : K
 }[keyof QuerySqlTypeMap<TLeft>]
 
-type SetSqlValidation<TLeft, TRight> = [
+export type SetSqlValidation<TLeft, TRight> = [
   SetSqlCompatibilityFailures<TLeft, TRight>,
 ] extends [never]
   ? unknown

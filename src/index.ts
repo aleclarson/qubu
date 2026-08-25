@@ -444,8 +444,12 @@ export { fetchFirst, fetchNext, offset } from './query/clauses/pagination.ts'
 export { rowLock } from './query/clauses/row-lock.ts'
 export type { RowLockClause, RowLockOptions } from './query/clauses/row-lock.ts'
 export { where } from './query/clauses/where.ts'
-export { cte, withCte } from './query/clauses/with.ts'
-export type { CteSource, WithClause } from './query/clauses/with.ts'
+export { cte, recursiveCte, withCte } from './query/clauses/with.ts'
+export type {
+  CteSource,
+  RecursiveCteSource,
+  WithClause,
+} from './query/clauses/with.ts'
 export type {
   AnySelectClause,
   ClausePlacement,

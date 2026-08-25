@@ -7,8 +7,8 @@
 - Parameterized, composable `SELECT` queries with named projections and
   spreadable source columns,
   joins, typed LATERAL sources, grouping, window expressions, ordering,
-  pagination, row locking, CTEs, subqueries, set operations, and source-scope
-  diagnostics.
+  pagination, row locking, ordinary and recursive CTEs, subqueries, set
+  operations, and source-scope diagnostics.
 - Standard SQL rendering plus explicit PostgreSQL, SQLite, and MySQL dialect
   policies for identifiers, placeholders, pagination, and row locking.
 - Schema helpers for dates/timestamps, UUIDs, caller-typed JSON, bigint, and
@@ -56,6 +56,6 @@ unchanged.
 ## Deferred
 
 - Dialect-aware `ON CONFLICT` upsert support.
-- Recursive CTEs, `JOIN ... USING`, and broader vendor-specific syntax.
+- `JOIN ... USING` and broader vendor-specific syntax.
 - Migration execution, ORM behavior, relationship loading, connection
   lifecycle, and driver-specific transaction configuration.

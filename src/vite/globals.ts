@@ -105,6 +105,7 @@ export const qubuGlobals = [
   'primaryKey',
   'qubu',
   'references',
+  'recursiveCte',
   'render',
   'returning',
   'rightJoin',

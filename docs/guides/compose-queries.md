@@ -46,6 +46,37 @@ The rendered statement includes the `WITH` clause before `SELECT`. Selected
 camelCase keys use snake_case while they belong to the CTE relation; the outer
 result projection aliases them back to camelCase for the returned row.
 
+## Build a recursive CTE
+
+`recursiveCte()` uses the anchor projection as the contract for a recursive
+member. The callback receives a typed self-reference; introduce it through
+`from()` or a join before selecting its fields:
+
+```ts
+import {
+  add,
+  from,
+  lt,
+  recursiveCte,
+  select,
+  value,
+  where,
+  withCte,
+} from 'qubu'
+
+const numbers = recursiveCte('numbers', select({ value: value(1) }), self =>
+  select({ value: add(self.value, 1) }, from(self), where(lt(self.value, 3)))
+)
+
+const query = select({ value: numbers.value }, withCte(numbers), from(numbers))
+```
+
+The anchor names the fields, application types, nullability, and SQL domains
+that the returned source exposes. The member must project those same fields
+with compatible types. Qubu renders `WITH RECURSIVE`, an explicit relation
+column list, and `anchor UNION ALL member`; ordinary and recursive CTEs can
+share one `withCte()` clause.
+
 ## Use a derived table
 
 Alias a query when it should be used as an inline source:
