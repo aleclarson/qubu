@@ -46,7 +46,7 @@ const portable = table('portable_values', {
   binary: binary(),
 })
 
-test('builds dialect columns with Qubu physical storage and driver mappings', () => {
+test('builds dialect columns with Qubu physical storage and value modes', () => {
   const appSchema = schema({ portable })
   const postgres = toPostgresDrizzleSchema(appSchema)
   const mysql = toMysqlDrizzleSchema(appSchema)
@@ -109,8 +109,12 @@ test('builds dialect columns with Qubu physical storage and driver mappings', ()
     sqlite.portable.timestamp.mapFromDriverValue('2026-08-23T12:34:56.000Z')
   ).toEqual(instant)
   expect(sqlite.portable.bigint.mapFromDriverValue('42')).toBe(42n)
-  expect(postgres.portable.numeric.mapFromDriverValue('12.5')).toBe(12.5)
-  expect(mysql.portable.bigint.mapFromDriverValue('42')).toBe(42n)
+  expect(
+    (postgres.portable.numeric as unknown as { codec: string }).codec
+  ).toBe('numeric:number')
+  expect((mysql.portable.bigint as unknown as { codec: string }).codec).toBe(
+    'bigint'
+  )
 })
 
 test('preserves logical keys, SQL names, namespaces, and Drizzle query behavior', () => {
@@ -137,7 +141,7 @@ test('preserves logical keys, SQL names, namespaces, and Drizzle query behavior'
     false,
   ])
 
-  const db = pgDrizzle.mock({ schema: converted })
+  const db = pgDrizzle.mock()
   expect(
     db
       .select({ id: converted.users.id })

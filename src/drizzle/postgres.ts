@@ -39,7 +39,8 @@ import {
 import type { DrizzleColumnConfig, DrizzleSchemaValidation } from './types.ts'
 
 type PostgresDrizzleColumn<TTableName extends string, TDefinition> = PgColumn<
-  DrizzleColumnConfig<TTableName, TDefinition, 'PgCustomColumn'>
+  'custom',
+  DrizzleColumnConfig<TTableName, TDefinition>
 >
 
 type PostgresDrizzleColumns<TTable extends AnyTable> = {

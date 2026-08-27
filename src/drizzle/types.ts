@@ -117,15 +117,10 @@ type DrizzleColumnHasDefault<TDefinition> =
     ? true
     : ColumnHasDefault<TDefinition>
 
-export type DrizzleColumnConfig<
-  TTableName extends string,
-  TDefinition,
-  TColumnType extends string,
-> = {
+export type DrizzleColumnConfig<TTableName extends string, TDefinition> = {
   readonly name: string
   readonly tableName: TTableName
   readonly dataType: 'custom'
-  readonly columnType: TColumnType
   readonly data: ColumnOutput<TDefinition>
   readonly driverParam: ColumnInsertInput<TDefinition>
   readonly enumValues: undefined

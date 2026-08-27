@@ -9,11 +9,11 @@ Install Drizzle next to Qubu. The Drizzle entrypoints use an optional peer
 dependency, so importing the rest of Qubu does not load the ORM.
 
 ```bash
-pnpm add qubu drizzle-orm
+pnpm add qubu drizzle-orm@rc
 ```
 
-The converter supports PostgreSQL, MySQL, and SQLite with Drizzle 0.45.2 through
-the current 0.x line.
+The converter supports PostgreSQL, MySQL, and SQLite with Drizzle 1.0.0-rc.4
+and later 1.x releases.
 
 ## Convert the schema
 
@@ -50,13 +50,14 @@ not import a dialect core or provide a universal runtime converter.
 physical `user_records` name, `app` namespace, field keys, and physical column
 names all come from the Qubu declaration.
 
-Pass the converted record to Drizzle and use it in ordinary queries:
+Use the converted tables in ordinary Drizzle queries. Table objects do not need
+to be passed to `drizzle()`:
 
 ```ts
 import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 
-const db = drizzle(pool, { schema: drizzleTables })
+const db = drizzle(pool)
 
 const rows = await db
   .select({ id: drizzleTables.users.id, name: drizzleTables.users.name })
@@ -110,7 +111,7 @@ const tables = toPostgresDrizzleSchema(schema({ records }))
 ```
 
 Conversion first runs Qubu's snapshot validation for the selected dialect.
-Metadata that Drizzle 0.45 cannot express, such as deferred constraints or
+Metadata that Drizzle 1.0 cannot express, such as deferred constraints or
 included index columns, raises `DrizzleSchemaConversionError` with a `code` and
 `path`.
 

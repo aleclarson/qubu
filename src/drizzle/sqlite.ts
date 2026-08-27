@@ -29,7 +29,7 @@ import {
 import type { DrizzleColumnConfig, DrizzleSchemaValidation } from './types.ts'
 
 type SqliteDrizzleColumn<TTableName extends string, TDefinition> = SQLiteColumn<
-  DrizzleColumnConfig<TTableName, TDefinition, 'SQLiteCustomColumn'>
+  DrizzleColumnConfig<TTableName, TDefinition>
 >
 
 type SqliteDrizzleColumns<TTable extends AnyTable> = {

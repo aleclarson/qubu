@@ -38,7 +38,7 @@ import {
 import type { DrizzleColumnConfig, DrizzleSchemaValidation } from './types.ts'
 
 type MysqlDrizzleColumn<TTableName extends string, TDefinition> = MySqlColumn<
-  DrizzleColumnConfig<TTableName, TDefinition, 'MySqlCustomColumn'>
+  DrizzleColumnConfig<TTableName, TDefinition>
 >
 
 type MysqlDrizzleColumns<TTable extends AnyTable> = {

@@ -61,7 +61,7 @@ expectTypeOf(postgres).toEqualTypeOf<PostgresDrizzleSchema<typeof appSchema>>()
 expectTypeOf(postgres.users).toEqualTypeOf<PostgresDrizzleTable<typeof users>>()
 expectTypeOf(mysql).toEqualTypeOf<MysqlDrizzleSchema<typeof appSchema>>()
 
-const db = pgDrizzle.mock({ schema: postgres })
+const db = pgDrizzle.mock()
 db.insert(postgres.users).values({
   name: 'Ada' as UserName,
   nickname: null,
