@@ -3,6 +3,7 @@ import { mysqlDialect } from '../src/dialects/mysql.ts'
 import {
   add,
   alias,
+  cast,
   cte,
   eq,
   from,
@@ -43,7 +44,7 @@ test('composes a common table expression as a typed source', () => {
 })
 
 test('renders recursive CTEs with one portable compound body', () => {
-  const anchor = select({ currentValue: value(1) })
+  const anchor = select({ currentValue: cast(value(1), integer()) })
   expectTypeOf(anchor.row).toEqualTypeOf<{ currentValue: number }>()
   const numbers = recursiveCte('numbers', anchor, self =>
     select(
@@ -60,11 +61,11 @@ test('renders recursive CTEs with one portable compound body', () => {
   )
 
   expect(render(query)).toEqual({
-    text: 'WITH RECURSIVE "ordinary" AS (SELECT "users"."id" AS "id" FROM "users"), "numbers" ("current_value") AS (SELECT ? AS "current_value" UNION ALL SELECT ("numbers"."current_value" + ?) AS "current_value" FROM "numbers" WHERE ("numbers"."current_value" < ?)) SELECT "numbers"."current_value" AS "currentValue" FROM "numbers"',
+    text: 'WITH RECURSIVE "ordinary" AS (SELECT "users"."id" AS "id" FROM "users"), "numbers" ("current_value") AS (SELECT CAST(? AS INTEGER) AS "current_value" UNION ALL SELECT ("numbers"."current_value" + ?) AS "current_value" FROM "numbers" WHERE ("numbers"."current_value" < ?)) SELECT "numbers"."current_value" AS "currentValue" FROM "numbers"',
     parameters: [1, 1, 3],
   })
   expect(render(query, mysqlDialect())).toEqual({
-    text: 'WITH RECURSIVE `ordinary` AS (SELECT `users`.`id` AS `id` FROM `users`), `numbers` (`current_value`) AS (SELECT ? AS `current_value` UNION ALL SELECT (`numbers`.`current_value` + ?) AS `current_value` FROM `numbers` WHERE (`numbers`.`current_value` < ?)) SELECT `numbers`.`current_value` AS `currentValue` FROM `numbers`',
+    text: 'WITH RECURSIVE `ordinary` AS (SELECT `users`.`id` AS `id` FROM `users`), `numbers` (`current_value`) AS (SELECT CAST(? AS SIGNED) AS `current_value` UNION ALL SELECT (`numbers`.`current_value` + ?) AS `current_value` FROM `numbers` WHERE (`numbers`.`current_value` < ?)) SELECT `numbers`.`current_value` AS `currentValue` FROM `numbers`',
     parameters: [1, 1, 3],
   })
 })

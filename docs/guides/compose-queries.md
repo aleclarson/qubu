@@ -55,7 +55,9 @@ member. The callback receives a typed self-reference; introduce it through
 ```ts
 import {
   add,
+  cast,
   from,
+  integer,
   lt,
   recursiveCte,
   select,
@@ -64,8 +66,11 @@ import {
   withCte,
 } from 'qubu'
 
-const numbers = recursiveCte('numbers', select({ value: value(1) }), self =>
-  select({ value: add(self.value, 1) }, from(self), where(lt(self.value, 3)))
+const numbers = recursiveCte(
+  'numbers',
+  select({ value: cast(value(1), integer()) }),
+  self =>
+    select({ value: add(self.value, 1) }, from(self), where(lt(self.value, 3)))
 )
 
 const query = select({ value: numbers.value }, withCte(numbers), from(numbers))
@@ -73,9 +78,11 @@ const query = select({ value: numbers.value }, withCte(numbers), from(numbers))
 
 The anchor names the fields, application types, nullability, and SQL domains
 that the returned source exposes. The member must project those same fields
-with compatible types. Qubu renders `WITH RECURSIVE`, an explicit relation
-column list, and `anchor UNION ALL member`; ordinary and recursive CTEs can
-share one `withCte()` clause.
+with compatible types. Give bound anchor values an explicit SQL type with
+`cast()` when the database cannot infer it from surrounding columns; PostgreSQL
+requires this for recursive CTE anchors. Qubu renders `WITH RECURSIVE`, an
+explicit relation column list, and `anchor UNION ALL member`; ordinary and
+recursive CTEs can share one `withCte()` clause.
 
 ## Use a derived table
 

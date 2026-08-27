@@ -4,6 +4,7 @@ import mysql from 'mysql2/promise'
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest'
 import {
   add,
+  cast,
   eq,
   execute,
   executeRows,
@@ -366,7 +367,7 @@ describe.skipIf(!selectedDialect)('live dialect E2E', () => {
 
     const numbers = recursiveCte(
       'qubu_e2e_numbers',
-      select({ id: value(1) }),
+      select({ id: cast(value(1), integer()) }),
       self => select({ id: add(self.id, 1) }, from(self), where(lt(self.id, 3)))
     )
     const query = select(
