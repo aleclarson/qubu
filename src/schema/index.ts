@@ -1,5 +1,6 @@
 export * from './alias.ts'
 export * from './column.ts'
+export type { DeclaredColumnNullability } from './column-nullability.ts'
 export * from './column-behavior.ts'
 export * from './constraints.ts'
 export * from './dialect.ts'

@@ -200,6 +200,7 @@ export type {
   ExpressionSqlType,
   ExpressionWithOutput,
   SchemaExpression,
+  SchemaExpressionBrand,
 } from './expressions/types.ts'
 export type { JsonPath } from './expressions/json.ts'
 export type { ColumnDependency } from './expressions/column.ts'
@@ -254,6 +255,7 @@ export type {
   TableSqlTypes,
   TableUpdateInput,
 } from './schema/table.ts'
+export type { DeclaredColumnNullability } from './schema/column-nullability.ts'
 export type {
   ColumnDefinition,
   ColumnGeneratedOf,

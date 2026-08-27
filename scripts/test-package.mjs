@@ -184,11 +184,18 @@ function createTypeSmoke(consumerRoot, runtimeSpecifiers, typeOnlySpecifiers) {
     `${runtimeImports}
 ${typeOnlyImports}
 import manifest from 'qubu/package.json' with { type: 'json' }
+import { gt, integer, table } from 'qubu'
 
 const entries: readonly object[] = [${entries}]
 const packageName: string = manifest.name
 const ambientSelect: typeof select = select
 void [entries, packageName, ambientSelect]
+
+export const exportedTable = table('exported_table', { id: integer() })
+export const exportedColumn = exportedTable.id
+export function createExportedExpression() {
+  return gt(exportedTable.id, 0)
+}
 `
   )
   writeFileSync(
@@ -201,7 +208,9 @@ void [entries, packageName, ambientSelect]
           module: 'NodeNext',
           moduleResolution: 'NodeNext',
           resolveJsonModule: true,
-          noEmit: true,
+          declaration: true,
+          emitDeclarationOnly: true,
+          outDir: './declarations',
           noUnusedLocals: true,
           skipLibCheck: true,
           types: typeOnlySpecifiers,
@@ -291,6 +300,15 @@ function testPackedPackage(runtimes) {
         join(temporaryRoot, 'tsconfig.json'),
       ],
       temporaryRoot
+    )
+    const emittedDeclaration = readFileSync(
+      join(temporaryRoot, 'declarations', 'package-smoke.d.ts'),
+      'utf8'
+    )
+    assert.doesNotMatch(
+      emittedDeclaration,
+      /(?:node_modules\/qubu|qubu)\/dist\//,
+      'consumer declarations must not reference Qubu internal dist modules'
     )
     console.log(
       `TypeScript resolved ${runtimeSpecifiers.length + typeOnlySpecifiers.length} packed type entrypoints.`
