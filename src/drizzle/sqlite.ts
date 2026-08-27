@@ -14,7 +14,14 @@ import {
   type SQLiteColumn,
   type SQLiteTableWithColumns,
 } from 'drizzle-orm/sqlite-core'
-import type { PortableColumnStorage } from '../schema/column.ts'
+import type { SqlTimestamp } from '../core/sql-types.ts'
+import {
+  nativeColumn,
+  type ColumnDefinition,
+  type NativeColumnStorage,
+  type PortableColumnStorage,
+} from '../schema/column.ts'
+import type { ExternalDefaultDescriptor } from '../schema/column-behavior.ts'
 import type { Schema, SchemaTableRecord } from '../schema/registry.ts'
 import type { AnyTable } from '../schema/table.ts'
 import { createSqliteSchemaSnapshot } from '../snapshot/sqlite.ts'
@@ -24,6 +31,7 @@ import {
   type RuntimeColumnBuilder,
   type RuntimeForeignKeyBuilder,
   type RuntimeIndexBuilder,
+  type RuntimeQubuColumnDefinition,
   type RuntimeTableFactory,
 } from './runtime.ts'
 import type { DrizzleColumnConfig, DrizzleSchemaValidation } from './types.ts'
@@ -37,6 +45,81 @@ type SqliteDrizzleColumns<TTable extends AnyTable> = {
     TTable['tableName'],
     TTable['definitions'][TKey]
   >
+}
+
+/** Integer encoding used by Drizzle's SQLite timestamp column builder. */
+export type SqliteTimestampMode = 'timestamp' | 'timestamp_ms'
+
+/** Runtime options for a Drizzle-compatible SQLite integer timestamp. */
+export interface SqliteTimestampOptions {
+  /** Store Unix seconds by default, or milliseconds with `timestamp_ms`. */
+  readonly mode?: SqliteTimestampMode
+  readonly nullable?: boolean
+  readonly sqlName?: string
+  /** Supply an application value when a Drizzle insert omits this column. */
+  readonly defaultFn?: () => Date
+}
+
+type SqliteTimestampNullable<TOptions extends SqliteTimestampOptions> =
+  TOptions extends { readonly nullable: true } ? true : false
+
+type SqliteTimestampHasDefault<TOptions extends SqliteTimestampOptions> =
+  TOptions extends { readonly defaultFn: () => Date } ? true : false
+
+/** Qubu definition produced by {@link sqliteTimestamp}. */
+export type SqliteTimestampColumn<
+  TOptions extends SqliteTimestampOptions = {},
+> = ColumnDefinition<
+  Date,
+  SqliteTimestampNullable<TOptions>,
+  Date,
+  Date,
+  SqliteTimestampHasDefault<TOptions>,
+  false,
+  SqlTimestamp,
+  NativeColumnStorage<'sqlite', 'INTEGER'>,
+  SqliteTimestampHasDefault<TOptions> extends true
+    ? ExternalDefaultDescriptor
+    : undefined,
+  undefined,
+  undefined,
+  undefined
+>
+
+type SqliteTimestampRuntime = {
+  readonly mode: SqliteTimestampMode
+  readonly defaultFn?: () => Date
+}
+
+const sqliteTimestampRuntime = new WeakMap<
+  RuntimeQubuColumnDefinition,
+  SqliteTimestampRuntime
+>()
+
+/**
+ * Declare a SQLite `INTEGER` timestamp that retains Drizzle's Date codec.
+ *
+ * @remarks `defaultFn` is runtime-only. Snapshots and emitted DDL retain the
+ * native `INTEGER` storage but do not serialize the callback.
+ */
+export function sqliteTimestamp<
+  const TOptions extends SqliteTimestampOptions = {},
+>(options?: TOptions): SqliteTimestampColumn<TOptions> {
+  const definition = nativeColumn('sqlite', 'INTEGER', {
+    nullable: options?.nullable === true,
+    hasDefault: options?.defaultFn !== undefined,
+    sqlName: options?.sqlName,
+  }).$type<Date>()
+  sqliteTimestampRuntime.set(
+    definition,
+    Object.freeze({
+      mode: options?.mode ?? 'timestamp',
+      ...(options?.defaultFn === undefined
+        ? {}
+        : { defaultFn: options.defaultFn }),
+    })
+  )
+  return definition as unknown as SqliteTimestampColumn<TOptions>
 }
 
 /** The Drizzle SQLite table produced for one Qubu table. */
@@ -121,8 +204,20 @@ export function toSqliteDrizzleSchema<const TTables extends SchemaTableRecord>(
 function createSqliteStorageBuilder(
   type: PortableColumnStorage['type'] | undefined,
   name: string,
-  declaration: string
+  declaration: string,
+  definition: RuntimeQubuColumnDefinition
 ): RuntimeColumnBuilder {
+  const timestampRuntime = sqliteTimestampRuntime.get(definition)
+  if (timestampRuntime !== undefined) {
+    let builder = integer(name, {
+      mode: timestampRuntime.mode,
+    }) as unknown as RuntimeColumnBuilder
+    if (timestampRuntime.defaultFn !== undefined) {
+      builder = builder.$defaultFn(timestampRuntime.defaultFn)
+    }
+    return builder
+  }
+
   const builder = (() => {
     switch (type) {
       case 'integer':

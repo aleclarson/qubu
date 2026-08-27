@@ -68,6 +68,33 @@ const rows = await db
 Existing Qubu queries can keep importing `users`. Move call sites to
 `drizzleTables.users` one at a time without duplicating the table declaration.
 
+### Keep SQLite integer timestamps
+
+Use `sqliteTimestamp()` when an existing SQLite schema stores dates as integer
+Unix timestamps and Drizzle must continue reading and writing `Date` values:
+
+```ts
+import { schema, table } from 'qubu'
+import { sqliteTimestamp, toSqliteDrizzleSchema } from 'qubu/drizzle/sqlite'
+
+const events = table('events', {
+  createdAt: sqliteTimestamp({
+    mode: 'timestamp',
+    defaultFn: () => new Date(),
+  }),
+})
+
+const drizzleTables = toSqliteDrizzleSchema(schema({ events }))
+```
+
+`timestamp` stores Unix seconds and `timestamp_ms` stores Unix milliseconds.
+Both modes expose `Date` values through Drizzle. `defaultFn` runs when a
+Drizzle insert omits the column; it is runtime behavior and is not emitted as a
+database `DEFAULT` or serialized into a Qubu snapshot.
+
+Use Qubu's root `timestamp()` helper for portable schemas. SQLite stores that
+portable form as ISO text instead of an integer.
+
 ## Type behavior
 
 The converted columns preserve selected values, nullability, required insert

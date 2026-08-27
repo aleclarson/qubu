@@ -1,5 +1,6 @@
 import { eq as drizzleEq } from 'drizzle-orm'
 import { drizzle as pgDrizzle } from 'drizzle-orm/node-postgres'
+import { drizzle as sqliteProxyDrizzle } from 'drizzle-orm/sqlite-proxy'
 import { getTableConfig as getMysqlTableConfig } from 'drizzle-orm/mysql-core'
 import { getTableConfig as getPgTableConfig } from 'drizzle-orm/pg-core'
 import { getTableConfig as getSqliteTableConfig } from 'drizzle-orm/sqlite-core'
@@ -7,7 +8,7 @@ import { expect, test } from 'vitest'
 import { DrizzleSchemaConversionError } from 'qubu/drizzle'
 import { toMysqlDrizzleSchema } from 'qubu/drizzle/mysql'
 import { toPostgresDrizzleSchema } from 'qubu/drizzle/postgres'
-import { toSqliteDrizzleSchema } from 'qubu/drizzle/sqlite'
+import { sqliteTimestamp, toSqliteDrizzleSchema } from 'qubu/drizzle/sqlite'
 import {
   bigint,
   binary,
@@ -115,6 +116,33 @@ test('builds dialect columns with Qubu physical storage and value modes', () => 
   expect((mysql.portable.bigint as unknown as { codec: string }).codec).toBe(
     'bigint'
   )
+})
+
+test('preserves SQLite integer timestamp codecs and runtime defaults', () => {
+  const instant = new Date('2026-08-27T12:34:56.000Z')
+  const records = table('timestamp_records', {
+    createdAt: sqliteTimestamp({ defaultFn: () => instant }),
+    updatedAt: sqliteTimestamp({ mode: 'timestamp_ms' }),
+  })
+  const converted = toSqliteDrizzleSchema(schema({ records }))
+  const db = sqliteProxyDrizzle(async () => ({ rows: [] }))
+
+  expect(converted.records.createdAt.getSQLType().toUpperCase()).toBe('INTEGER')
+  expect(converted.records.createdAt.mapToDriverValue(instant)).toBe(
+    instant.getTime() / 1_000
+  )
+  expect(
+    converted.records.createdAt.mapFromDriverValue(instant.getTime() / 1_000)
+  ).toEqual(instant)
+  expect(converted.records.updatedAt.mapToDriverValue(instant)).toBe(
+    instant.getTime()
+  )
+  expect(
+    db.insert(converted.records).values({ updatedAt: instant }).toSQL()
+  ).toEqual({
+    sql: 'insert into "timestamp_records" ("created_at", "updated_at") values (?, ?)',
+    params: [instant.getTime() / 1_000, instant.getTime()],
+  })
 })
 
 test('preserves logical keys, SQL names, namespaces, and Drizzle query behavior', () => {

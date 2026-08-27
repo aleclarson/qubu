@@ -11,7 +11,7 @@ import {
   type PostgresDrizzleSchema,
   type PostgresDrizzleTable,
 } from 'qubu/drizzle/postgres'
-import { toSqliteDrizzleSchema } from 'qubu/drizzle/sqlite'
+import { sqliteTimestamp, toSqliteDrizzleSchema } from 'qubu/drizzle/sqlite'
 import { expectTypeOf } from 'vitest'
 import {
   column,
@@ -60,6 +60,19 @@ expectTypeOf<typeof sqlite.users.$inferInsert>().toEqualTypeOf<UserInsert>()
 expectTypeOf(postgres).toEqualTypeOf<PostgresDrizzleSchema<typeof appSchema>>()
 expectTypeOf(postgres.users).toEqualTypeOf<PostgresDrizzleTable<typeof users>>()
 expectTypeOf(mysql).toEqualTypeOf<MysqlDrizzleSchema<typeof appSchema>>()
+
+const timestampRecords = table('timestamp_records', {
+  createdAt: sqliteTimestamp({ defaultFn: () => new Date() }),
+  updatedAt: sqliteTimestamp({ mode: 'timestamp_ms' }),
+})
+const sqliteTimestamps = toSqliteDrizzleSchema(schema({ timestampRecords }))
+
+expectTypeOf<
+  typeof sqliteTimestamps.timestampRecords.$inferSelect
+>().toEqualTypeOf<{ createdAt: Date; updatedAt: Date }>()
+expectTypeOf<
+  typeof sqliteTimestamps.timestampRecords.$inferInsert
+>().toEqualTypeOf<{ createdAt?: Date; updatedAt: Date }>()
 
 const db = pgDrizzle.mock()
 db.insert(postgres.users).values({

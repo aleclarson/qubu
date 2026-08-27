@@ -26,6 +26,7 @@ import type { DrizzleDialect } from './types.ts'
 export type RuntimeColumnBuilder = {
   notNull(): RuntimeColumnBuilder
   default(value: unknown): RuntimeColumnBuilder
+  $defaultFn(callback: () => unknown): RuntimeColumnBuilder
   generatedAlwaysAs(
     value: SQL,
     config?: { readonly mode?: 'stored' | 'virtual' }
@@ -79,7 +80,8 @@ export type DrizzleRuntimeAdapter = {
   createStorageBuilder(
     type: PortableColumnStorage['type'] | undefined,
     name: string,
-    declaration: string
+    declaration: string,
+    definition: RuntimeQubuColumnDefinition
   ): RuntimeColumnBuilder
   applyIdentity(
     builder: RuntimeColumnBuilder,
@@ -184,7 +186,8 @@ function createColumnBuilder(
   let builder = adapter.createStorageBuilder(
     portableType,
     column.physicalName,
-    declaration
+    declaration,
+    definition
   )
   if (!column.nullable) builder = builder.notNull()
 
