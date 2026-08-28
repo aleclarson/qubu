@@ -112,7 +112,7 @@ async function createEnvironment(
       database: process.env.MYSQL_DATABASE ?? 'qubu',
     })
     return {
-      client: qubu(mysql2Adapter(connection, { encoder })),
+      client: qubu(mysql2Adapter(connection)),
       async exec(sql) {
         await connection.query(sql)
       },

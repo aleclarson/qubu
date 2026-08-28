@@ -16,6 +16,7 @@ function request(
   return {
     statement: { text: 'SELECT ?', parameters },
     queryKind,
+    resultShape: { fields: [] },
   }
 }
 
@@ -33,14 +34,16 @@ describe('workspace adapters', () => {
             parameters: ['Ada'],
           },
           queryKind: 'insert',
+          resultShape: { fields: [] },
         })
       ).resolves.toMatchObject({ affectedRows: 1, insertId: 1 })
-      const selected = await adapter.execute<{ name: string }>({
+      const selected = await adapter.execute({
         statement: {
           text: 'SELECT name FROM records WHERE id = ?',
           parameters: [1],
         },
         queryKind: 'select',
+        resultShape: { fields: [] },
       })
       expect(selected).toEqual({ rows: [{ name: 'Ada' }] })
       expect(Object.getPrototypeOf(selected.rows[0])).toBe(Object.prototype)

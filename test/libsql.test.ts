@@ -43,6 +43,7 @@ function request(
   return {
     statement: { text: 'SELECT ?', parameters: [42] },
     queryKind,
+    resultShape: { fields: [] },
     ...(signal === undefined ? {} : { signal }),
   }
 }
@@ -90,9 +91,7 @@ describe('libsqlAdapter', () => {
       encoder: { encode: value => String(value) },
     })
 
-    await expect(
-      adapter.execute<{ id: number }>(request('insert'))
-    ).resolves.toEqual({
+    await expect(adapter.execute(request('insert'))).resolves.toEqual({
       rows,
       affectedRows: 1,
       insertId: 7n,
