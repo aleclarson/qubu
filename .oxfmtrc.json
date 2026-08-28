@@ -6,7 +6,8 @@
     "**/dist/**",
     "**/node_modules/**",
     "**/styled-system/**",
-    "**/Assets.xcassets/**"
+    "**/Assets.xcassets/**",
+    "**/*.generated.ts"
   ],
   "jsdoc": true,
   "semi": false,

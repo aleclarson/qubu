@@ -113,11 +113,11 @@ select({ value: lateralPost.id }, from(posts), crossJoin(lateralPost))
 // @ts-expect-error The local posts source inside the LATERAL query does not escape outward.
 select({ value: posts.id }, from(users), crossJoin(lateralPost))
 
-// @ts-expect-error Referencing an enclosing source requires an explicit correlate() provision.
 select(
   {
     id: posts.id,
     authorId: users.id,
   },
+  // @ts-expect-error Referencing an enclosing source requires an explicit correlate() provision.
   from(posts),
 )

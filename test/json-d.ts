@@ -46,8 +46,8 @@ render(query, mysqlDialect())
 render(query, sqliteDialect())
 render(query, customJsonDialect)
 
-// @ts-expect-error Custom dialects need to advertise JSON support.
 render(
+  // @ts-expect-error Custom dialects need to advertise JSON support.
   query,
   createDialect({
     name: "plain",
