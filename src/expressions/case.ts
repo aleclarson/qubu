@@ -44,11 +44,11 @@ export function caseWhen<
     context.append(' ELSE ')
     context.render(elseExpression)
     context.append(' END')
-  }) as ResultExpression<
-    T,
-    TCondition | TThen | TElse,
-    'operator',
-    OperandNullability<TThen> | OperandNullability<TElse>,
-    CaseSqlType<TThen, TElse>
-  >
+  }) as ResultExpression<{
+    readonly output: T
+    readonly children: TCondition | TThen | TElse
+    readonly kind: 'operator'
+    readonly nullableFrom: OperandNullability<TThen> | OperandNullability<TElse>
+    readonly sqlType: CaseSqlType<TThen, TElse>
+  }>
 }

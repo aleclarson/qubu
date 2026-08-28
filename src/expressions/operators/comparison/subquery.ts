@@ -51,7 +51,12 @@ export function inQuery<
 >(
   expression: TExpression & InQueryValidation<TExpression, TQuery>,
   query: TQuery
-): SubqueryResultExpression<boolean, TExpression | TQuery, never, SqlBoolean> {
+): SubqueryResultExpression<{
+  readonly output: boolean
+  readonly children: TExpression | TQuery
+  readonly nullableFrom: never
+  readonly sqlType: SqlBoolean
+}> {
   return makeExpression(
     'subquery',
     context => {
@@ -63,12 +68,12 @@ export function inQuery<
     },
     'subquery',
     resultValue('boolean')
-  ) as SubqueryResultExpression<
-    boolean,
-    TExpression | TQuery,
-    never,
-    SqlBoolean
-  >
+  ) as SubqueryResultExpression<{
+    readonly output: boolean
+    readonly children: TExpression | TQuery
+    readonly nullableFrom: never
+    readonly sqlType: SqlBoolean
+  }>
 }
 
 export function exists<TQuery extends Query<any, any, any>>(query: TQuery) {
@@ -80,7 +85,12 @@ export function exists<TQuery extends Query<any, any, any>>(query: TQuery) {
     },
     'subquery',
     resultValue('boolean')
-  ) as SubqueryResultExpression<boolean, TQuery, never, SqlBoolean>
+  ) as SubqueryResultExpression<{
+    readonly output: boolean
+    readonly children: TQuery
+    readonly nullableFrom: never
+    readonly sqlType: SqlBoolean
+  }>
 }
 
 export function notExists<TQuery extends Query<any, any, any>>(query: TQuery) {
@@ -92,5 +102,10 @@ export function notExists<TQuery extends Query<any, any, any>>(query: TQuery) {
     },
     'subquery',
     resultValue('boolean')
-  ) as SubqueryResultExpression<boolean, TQuery, never, SqlBoolean>
+  ) as SubqueryResultExpression<{
+    readonly output: boolean
+    readonly children: TQuery
+    readonly nullableFrom: never
+    readonly sqlType: SqlBoolean
+  }>
 }

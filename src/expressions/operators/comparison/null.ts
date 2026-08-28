@@ -9,9 +9,17 @@ import type { ExpressionSqlType } from '../../types.ts'
 import type { SqlCapabilityValidation } from '../shared.ts'
 import { resultValue } from '../../../result.ts'
 
+type NonNullBooleanResult<TExpression> = ResultExpression<{
+  readonly output: boolean
+  readonly children: TExpression
+  readonly kind: 'operator'
+  readonly nullableFrom: never
+  readonly sqlType: SqlBoolean
+}>
+
 export function isNull<TExpression extends AnyExpression>(
   expression: TExpression
-): ResultExpression<boolean, TExpression, 'operator', never, SqlBoolean> {
+): NonNullBooleanResult<TExpression> {
   return makeSchemaExpression(
     'operator',
     context => {
@@ -20,12 +28,12 @@ export function isNull<TExpression extends AnyExpression>(
       context.append(' IS NULL)')
     },
     resultValue('boolean')
-  ) as ResultExpression<boolean, TExpression, 'operator', never, SqlBoolean>
+  ) as NonNullBooleanResult<TExpression>
 }
 
 export function isNotNull<TExpression extends AnyExpression>(
   expression: TExpression
-): ResultExpression<boolean, TExpression, 'operator', never, SqlBoolean> {
+): NonNullBooleanResult<TExpression> {
   return makeSchemaExpression(
     'operator',
     context => {
@@ -34,7 +42,7 @@ export function isNotNull<TExpression extends AnyExpression>(
       context.append(' IS NOT NULL)')
     },
     resultValue('boolean')
-  ) as ResultExpression<boolean, TExpression, 'operator', never, SqlBoolean>
+  ) as NonNullBooleanResult<TExpression>
 }
 
 export function isTrue<TExpression extends ExpressionWithOutput<boolean>>(
@@ -48,5 +56,5 @@ export function isTrue<TExpression extends ExpressionWithOutput<boolean>>(
       context.append(' IS TRUE')
     },
     resultValue('boolean')
-  ) as ResultExpression<boolean, TExpression, 'operator', never, SqlBoolean>
+  ) as NonNullBooleanResult<TExpression>
 }

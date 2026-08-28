@@ -22,19 +22,21 @@ import type { ExpressionSqlType } from '../../types.ts'
 import { queryValidationError } from '../../../query/errors.ts'
 import { resultValue } from '../../../result.ts'
 
-type ComparisonResult<TLeft, R, TOperator extends string> = ResultExpression<
-  boolean,
-  TLeft | R,
-  'operator',
-  TOperator extends 'IS DISTINCT FROM' | 'IS NOT DISTINCT FROM'
+type ComparisonResult<TLeft, R, TOperator extends string> = ResultExpression<{
+  readonly output: boolean
+  readonly children: TLeft | R
+  readonly kind: 'operator'
+  readonly nullableFrom: TOperator extends
+    | 'IS DISTINCT FROM'
+    | 'IS NOT DISTINCT FROM'
     ? never
     : TOperator extends '=' | '<>'
       ? IsNullOperand<R> extends true
         ? never
         : NullabilityOf<TLeft> | OperandNullability<R>
-      : NullabilityOf<TLeft> | OperandNullability<R>,
-  SqlBoolean
->
+      : NullabilityOf<TLeft> | OperandNullability<R>
+  readonly sqlType: SqlBoolean
+}>
 
 /** SQL-domain validation selected by a comparison operator family. */
 export type ComparisonValidation<

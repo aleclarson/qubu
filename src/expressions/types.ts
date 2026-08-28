@@ -129,62 +129,108 @@ export type ExpressionWithOutput<
   TKind
 >
 
-/** Build an expression result while inheriting non-result metadata from children. */
-export type ResultExpression<
-  TOutput,
-  TChildren = never,
-  TKind extends ExpressionKind = ExpressionKind,
-  TNullableFrom = NullabilityOf<TChildren>,
-  TSqlType extends AnySqlType = import('../core/sql-types.ts').SqlUnknown,
-> = SchemaExpression<
-  | ResultMeta<TOutput, TNullableFrom, TSqlType>
-  | ExpressionMeta<DependenciesOf<TChildren>>
-  | InheritedMetadata<TChildren>,
-  TKind
+/** Sparse type-level configuration for a result-producing expression. */
+export interface ResultExpressionConfig {
+  readonly output?: unknown
+  readonly children?: unknown
+  readonly kind?: ExpressionKind
+  readonly nullableFrom?: unknown
+  readonly sqlType?: AnySqlType
+}
+
+type ResultConfigValue<
+  TConfig,
+  TKey extends PropertyKey,
+  TFallback,
+> = TKey extends keyof TConfig ? TConfig[TKey] : TFallback
+
+type ResultConfigOutput<TConfig> = ResultConfigValue<TConfig, 'output', unknown>
+type ResultConfigChildren<TConfig> = ResultConfigValue<
+  TConfig,
+  'children',
+  never
 >
+type ResultConfigKind<TConfig> = Extract<
+  ResultConfigValue<TConfig, 'kind', ExpressionKind>,
+  ExpressionKind
+>
+type ResultConfigNullableFrom<TConfig> = ResultConfigValue<
+  TConfig,
+  'nullableFrom',
+  NullabilityOf<ResultConfigChildren<TConfig>>
+>
+type ResultConfigSqlType<TConfig> = Extract<
+  ResultConfigValue<
+    TConfig,
+    'sqlType',
+    import('../core/sql-types.ts').SqlUnknown
+  >,
+  AnySqlType
+>
+
+/** Build an expression result while inheriting non-result metadata from children. */
+export type ResultExpression<TConfig extends ResultExpressionConfig = {}> =
+  SchemaExpression<
+    | ResultMeta<
+        ResultConfigOutput<TConfig>,
+        ResultConfigNullableFrom<TConfig>,
+        ResultConfigSqlType<TConfig>
+      >
+    | ExpressionMeta<DependenciesOf<ResultConfigChildren<TConfig>>>
+    | InheritedMetadata<ResultConfigChildren<TConfig>>,
+    ResultConfigKind<TConfig>
+  >
 
 /** Build an aggregate result while recording which dependencies it consumes. */
 export type AggregateResultExpression<
-  TOutput,
-  TChildren = never,
-  TKind extends ExpressionKind = ExpressionKind,
-  TNullableFrom = NullabilityOf<TChildren>,
-  TSqlType extends AnySqlType = import('../core/sql-types.ts').SqlUnknown,
+  TConfig extends ResultExpressionConfig = {},
 > = Expression<
-  | ResultMeta<TOutput, TNullableFrom, TSqlType>
-  | ExpressionMeta<DependenciesOf<TChildren>>
-  | AggregateMeta<DependenciesOf<TChildren>>
-  | InheritedMetadata<TChildren>,
-  TKind
+  | ResultMeta<
+      ResultConfigOutput<TConfig>,
+      ResultConfigNullableFrom<TConfig>,
+      ResultConfigSqlType<TConfig>
+    >
+  | ExpressionMeta<DependenciesOf<ResultConfigChildren<TConfig>>>
+  | AggregateMeta<DependenciesOf<ResultConfigChildren<TConfig>>>
+  | InheritedMetadata<ResultConfigChildren<TConfig>>,
+  ResultConfigKind<TConfig>
 >
 
 /** A result expression that contains a query boundary. */
 export type SubqueryResultExpression<
-  TOutput,
-  TChildren = never,
-  TNullableFrom = NullabilityOf<TChildren>,
-  TSqlType extends AnySqlType = import('../core/sql-types.ts').SqlUnknown,
+  TConfig extends Omit<ResultExpressionConfig, 'kind'> = {},
 > = Expression<
-  | ResultMeta<TOutput, TNullableFrom, TSqlType>
-  | ExpressionMeta<DependenciesOf<TChildren>>
-  | InheritedMetadata<TChildren>
+  | ResultMeta<
+      ResultConfigOutput<TConfig>,
+      ResultConfigNullableFrom<TConfig>,
+      ResultConfigSqlType<TConfig>
+    >
+  | ExpressionMeta<DependenciesOf<ResultConfigChildren<TConfig>>>
+  | InheritedMetadata<ResultConfigChildren<TConfig>>
   | SubqueryMeta,
   'subquery'
 >
 
 /** Preserve the SQL domain of a result-producing child expression. */
 export type ResultExpressionLike<
-  TExpression extends AnyExpression,
-  TOutput = OutputOf<TExpression>,
-  TKind extends ExpressionKind = ExpressionKind,
-  TNullableFrom = NullabilityOf<TExpression>,
-> = ResultExpression<
-  TOutput,
-  TExpression,
-  TKind,
-  TNullableFrom,
-  SqlTypeOf<TExpression>
->
+  TConfig extends ResultExpressionConfig & {
+    readonly expression: AnyExpression
+  },
+> = ResultExpression<{
+  readonly output: ResultConfigValue<
+    TConfig,
+    'output',
+    OutputOf<TConfig['expression']>
+  >
+  readonly children: TConfig['expression']
+  readonly kind: ResultConfigKind<TConfig>
+  readonly nullableFrom: ResultConfigValue<
+    TConfig,
+    'nullableFrom',
+    NullabilityOf<TConfig['expression']>
+  >
+  readonly sqlType: SqlTypeOf<TConfig['expression']>
+}>
 
 export function makeExpression<
   TMetadata = never,

@@ -63,13 +63,13 @@ export function between<
       context.append(')')
     },
     resultValue('boolean')
-  ) as ResultExpression<
-    boolean,
-    TExpression | L | H,
-    'operator',
-    NullabilityOf<TExpression | L | H>,
-    SqlBoolean
-  >
+  ) as ResultExpression<{
+    readonly output: boolean
+    readonly children: TExpression | L | H
+    readonly kind: 'operator'
+    readonly nullableFrom: NullabilityOf<TExpression | L | H>
+    readonly sqlType: SqlBoolean
+  }>
 }
 
 export function inList<
@@ -98,13 +98,13 @@ export function inList<
       context.append('))')
     },
     resultValue('boolean')
-  ) as ResultExpression<
-    boolean,
-    TExpression | TValues[number],
-    'operator',
-    NullabilityOf<TExpression | TValues[number]>,
-    SqlBoolean
-  >
+  ) as ResultExpression<{
+    readonly output: boolean
+    readonly children: TExpression | TValues[number]
+    readonly kind: 'operator'
+    readonly nullableFrom: NullabilityOf<TExpression | TValues[number]>
+    readonly sqlType: SqlBoolean
+  }>
 }
 
 export function notIn<
@@ -133,11 +133,11 @@ export function notIn<
       context.append('))')
     },
     resultValue('boolean')
-  ) as ResultExpression<
-    boolean,
-    TExpression | TValues[number],
-    'operator',
-    NullabilityOf<TExpression | TValues[number]>,
-    SqlBoolean
-  >
+  ) as ResultExpression<{
+    readonly output: boolean
+    readonly children: TExpression | TValues[number]
+    readonly kind: 'operator'
+    readonly nullableFrom: NullabilityOf<TExpression | TValues[number]>
+    readonly sqlType: SqlBoolean
+  }>
 }

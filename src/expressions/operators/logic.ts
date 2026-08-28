@@ -18,13 +18,13 @@ type BooleanComposition<TConditions extends readonly BooleanOperand[]> = [
 ] extends [never]
   ? Omit
   :
-      | ResultExpression<
-          boolean,
-          PresentConditions<TConditions>,
-          'operator',
-          NullabilityOf<PresentConditions<TConditions>>,
-          SqlBoolean
-        >
+      | ResultExpression<{
+          readonly output: boolean
+          readonly children: PresentConditions<TConditions>
+          readonly kind: 'operator'
+          readonly nullableFrom: NullabilityOf<PresentConditions<TConditions>>
+          readonly sqlType: SqlBoolean
+        }>
       | (Omit extends TConditions[number] ? Omit : never)
 
 type BooleanConditionsValidation<TConditions extends readonly unknown[]> =
@@ -92,11 +92,11 @@ export function not<TCondition extends BooleanExpression<any>>(
       context.append(')')
     },
     resultValue('boolean')
-  ) as ResultExpression<
-    boolean,
-    TCondition,
-    'operator',
-    NullabilityOf<TCondition>,
-    SqlBoolean
-  >
+  ) as ResultExpression<{
+    readonly output: boolean
+    readonly children: TCondition
+    readonly kind: 'operator'
+    readonly nullableFrom: NullabilityOf<TCondition>
+    readonly sqlType: SqlBoolean
+  }>
 }

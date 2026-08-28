@@ -73,6 +73,7 @@ import type {
   NullabilityOf,
 } from '../src/index.ts'
 import { ilike } from '../src/dialects/postgres.ts'
+import type { ResultExpression } from '../src/expressions/types.ts'
 
 type Equal<TLeft, TRight> = [TLeft] extends [TRight]
   ? [TRight] extends [TLeft]
@@ -86,6 +87,36 @@ const records = table('records', {
   label: text(),
   count: integer(),
 })
+
+type MinimalResultExpression = ResultExpression<{ readonly output: string }>
+
+export type SparseResultExpressionDefaults = Assert<
+  Equal<
+    [
+      OutputOf<MinimalResultExpression>,
+      NullabilityOf<MinimalResultExpression>,
+      SqlTypeOf<MinimalResultExpression>,
+    ],
+    [string, never, SqlUnknown]
+  >
+>
+
+type ChildResultExpression = ResultExpression<{
+  readonly output: string
+  readonly children: typeof records.label
+}>
+
+export type ResultExpressionDefaultsFollowChildren = Assert<
+  Equal<
+    NullabilityOf<ChildResultExpression>,
+    NullabilityOf<typeof records.label>
+  >
+>
+
+// @ts-expect-error Result SQL domains must use Qubu SQL semantic types.
+type InvalidResultExpressionConfig = ResultExpression<{
+  readonly sqlType: string
+}>
 
 function byStringId<TTable extends TableLike<{ id: string }>>(
   source: TTable,

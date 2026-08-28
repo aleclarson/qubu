@@ -17,16 +17,21 @@ import type {
 import type { SqlCapabilityValidation } from '../operators/shared.ts'
 import type { NullabilityOf } from '../../core/fragment.ts'
 
-export function count(): AggregateResultExpression<
-  number,
-  never,
-  'function',
-  never,
-  SqlInteger
->
+export function count(): AggregateResultExpression<{
+  readonly output: number
+  readonly kind: 'function'
+  readonly nullableFrom: never
+  readonly sqlType: SqlInteger
+}>
 export function count<TExpression extends AnyExpression>(
   expression: TExpression
-): AggregateResultExpression<number, TExpression, 'function', never, SqlInteger>
+): AggregateResultExpression<{
+  readonly output: number
+  readonly children: TExpression
+  readonly kind: 'function'
+  readonly nullableFrom: never
+  readonly sqlType: SqlInteger
+}>
 export function count(expression?: AnyExpression) {
   return makeExpression(
     'function',
@@ -40,13 +45,13 @@ export function count(expression?: AnyExpression) {
       context.append(')')
     },
     'aggregate'
-  ) as AggregateResultExpression<
-    number,
-    AnyExpression,
-    'function',
-    never,
-    SqlInteger
-  >
+  ) as AggregateResultExpression<{
+    readonly output: number
+    readonly children: AnyExpression
+    readonly kind: 'function'
+    readonly nullableFrom: never
+    readonly sqlType: SqlInteger
+  }>
 }
 
 export function countDistinct<TExpression extends AnyExpression>(
@@ -60,13 +65,13 @@ export function countDistinct<TExpression extends AnyExpression>(
       context.append(')')
     },
     'aggregate'
-  ) as AggregateResultExpression<
-    number,
-    TExpression,
-    'function',
-    never,
-    SqlInteger
-  >
+  ) as AggregateResultExpression<{
+    readonly output: number
+    readonly children: TExpression
+    readonly kind: 'function'
+    readonly nullableFrom: never
+    readonly sqlType: SqlInteger
+  }>
 }
 
 export function sum<T, TExpression extends ExpressionWithOutput<T>>(
@@ -79,13 +84,13 @@ export function sum<T, TExpression extends ExpressionWithOutput<T>>(
       expression
     ),
     'aggregate'
-  ) as AggregateResultExpression<
-    ExpressionOutput<TExpression>,
-    TExpression,
-    'function',
-    NullabilityOf<TExpression>,
-    ExpressionSqlType<TExpression>
-  >
+  ) as AggregateResultExpression<{
+    readonly output: ExpressionOutput<TExpression>
+    readonly children: TExpression
+    readonly kind: 'function'
+    readonly nullableFrom: NullabilityOf<TExpression>
+    readonly sqlType: ExpressionSqlType<TExpression>
+  }>
 }
 
 export function avg<T, TExpression extends ExpressionWithOutput<T>>(
@@ -95,13 +100,13 @@ export function avg<T, TExpression extends ExpressionWithOutput<T>>(
   return markExpressionCategory(
     call<number, 'AVG', [TExpression]>('AVG', expression),
     'aggregate'
-  ) as AggregateResultExpression<
-    number,
-    TExpression,
-    'function',
-    NullabilityOf<TExpression>,
-    SqlDecimal
-  >
+  ) as AggregateResultExpression<{
+    readonly output: number
+    readonly children: TExpression
+    readonly kind: 'function'
+    readonly nullableFrom: NullabilityOf<TExpression>
+    readonly sqlType: SqlDecimal
+  }>
 }
 
 export function min<T, TExpression extends ExpressionWithOutput<T>>(
@@ -114,13 +119,13 @@ export function min<T, TExpression extends ExpressionWithOutput<T>>(
       expression
     ),
     'aggregate'
-  ) as AggregateResultExpression<
-    ExpressionOutput<TExpression>,
-    TExpression,
-    'function',
-    NullabilityOf<TExpression>,
-    ExpressionSqlType<TExpression>
-  >
+  ) as AggregateResultExpression<{
+    readonly output: ExpressionOutput<TExpression>
+    readonly children: TExpression
+    readonly kind: 'function'
+    readonly nullableFrom: NullabilityOf<TExpression>
+    readonly sqlType: ExpressionSqlType<TExpression>
+  }>
 }
 
 export function max<T, TExpression extends ExpressionWithOutput<T>>(
@@ -133,11 +138,11 @@ export function max<T, TExpression extends ExpressionWithOutput<T>>(
       expression
     ),
     'aggregate'
-  ) as AggregateResultExpression<
-    ExpressionOutput<TExpression>,
-    TExpression,
-    'function',
-    NullabilityOf<TExpression>,
-    ExpressionSqlType<TExpression>
-  >
+  ) as AggregateResultExpression<{
+    readonly output: ExpressionOutput<TExpression>
+    readonly children: TExpression
+    readonly kind: 'function'
+    readonly nullableFrom: NullabilityOf<TExpression>
+    readonly sqlType: ExpressionSqlType<TExpression>
+  }>
 }

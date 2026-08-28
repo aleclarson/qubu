@@ -25,13 +25,13 @@ function arithmetic<
     context.append(` ${operator} `)
     context.render(rightExpression)
     context.append(')')
-  }) as ResultExpression<
-    T,
-    TLeft | R,
-    'operator',
-    NullabilityOf<TLeft | R>,
-    ExpressionSqlType<TLeft>
-  >
+  }) as ResultExpression<{
+    readonly output: T
+    readonly children: TLeft | R
+    readonly kind: 'operator'
+    readonly nullableFrom: NullabilityOf<TLeft | R>
+    readonly sqlType: ExpressionSqlType<TLeft>
+  }>
 }
 
 type ArithmeticValidation<TLeft, TRight> = SqlCapabilityValidation<

@@ -34,13 +34,13 @@ export function cast<
 >(
   expression: TExpression,
   definition: TDefinition
-): ResultExpression<
-  ColumnOutput<TDefinition>,
-  TExpression,
-  'operator',
-  NullabilityOf<TExpression>,
-  ColumnSqlType<TDefinition>
->
+): ResultExpression<{
+  readonly output: ColumnOutput<TDefinition>
+  readonly children: TExpression
+  readonly kind: 'operator'
+  readonly nullableFrom: NullabilityOf<TExpression>
+  readonly sqlType: ColumnSqlType<TDefinition>
+}>
 
 /** Cast using a type name supplied by the caller or an adapter. */
 export function cast<
@@ -51,17 +51,23 @@ export function cast<
 >(
   expression: TExpression,
   typeName: TType
-): ResultExpression<
-  T,
-  TExpression,
-  'operator',
-  NullabilityOf<TExpression>,
-  TSqlType
->
+): ResultExpression<{
+  readonly output: T
+  readonly children: TExpression
+  readonly kind: 'operator'
+  readonly nullableFrom: NullabilityOf<TExpression>
+  readonly sqlType: TSqlType
+}>
 export function cast(
   expression: AnyExpression,
   target: string | CastDefinition
-): ResultExpression<any, AnyExpression, 'operator', any, AnySqlType> {
+): ResultExpression<{
+  readonly output: any
+  readonly children: AnyExpression
+  readonly kind: 'operator'
+  readonly nullableFrom: any
+  readonly sqlType: AnySqlType
+}> {
   return makeSchemaExpression<
     | ResultMeta<any, NullabilityOf<AnyExpression>, AnySqlType>
     | ExpressionMeta<DependenciesOf<AnyExpression>>
