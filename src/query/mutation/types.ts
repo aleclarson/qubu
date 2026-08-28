@@ -4,7 +4,7 @@ import type {
   RenderFunction,
   RequiresOf,
 } from '../../core/fragment.ts'
-import type { Query } from '../types.ts'
+import type { Query, QueryConfig } from '../types.ts'
 import type { SourceIdentity } from '../../schema/source.ts'
 import type { WhereClause } from '../clauses/where.ts'
 import type {
@@ -19,16 +19,40 @@ import type { ResultShape } from '../../result.ts'
 
 export type MutationKind = 'insert' | 'update' | 'delete'
 
-export interface MutationQuery<
-  TRow extends object = Record<string, unknown>,
-  TKind extends MutationKind = MutationKind,
-  TMetadata = never,
-  TSqlTypes = UnknownSourceSqlTypes<TRow>,
-> extends Query<TRow, 'many', TMetadata, TSqlTypes> {
-  readonly queryKind: TKind
+export interface MutationQueryConfig extends Omit<QueryConfig, 'cardinality'> {
+  readonly kind?: MutationKind
 }
 
-export type AnyMutationQuery = MutationQuery<any, any>
+type MutationConfigValue<
+  TConfig,
+  TKey extends PropertyKey,
+  TFallback,
+> = TKey extends keyof TConfig ? TConfig[TKey] : TFallback
+
+type MutationConfigRow<TConfig> = Extract<
+  MutationConfigValue<TConfig, 'row', Record<string, unknown>>,
+  object
+>
+type MutationConfigKind<TConfig> = Extract<
+  MutationConfigValue<TConfig, 'kind', MutationKind>,
+  MutationKind
+>
+
+export interface MutationQuery<TConfig extends MutationQueryConfig = {}>
+  extends Query<{
+    readonly row: MutationConfigRow<TConfig>
+    readonly cardinality: 'many'
+    readonly metadata: MutationConfigValue<TConfig, 'metadata', never>
+    readonly sqlTypes: MutationConfigValue<
+      TConfig,
+      'sqlTypes',
+      UnknownSourceSqlTypes<MutationConfigRow<TConfig>>
+    >
+  }> {
+  readonly queryKind: MutationConfigKind<TConfig>
+}
+
+export type AnyMutationQuery = MutationQuery<any>
 
 export function createMutation<
   TKind extends MutationKind,
@@ -40,13 +64,23 @@ export function createMutation<
   row: TRow,
   resultShape: ResultShape,
   render: RenderFunction
-): MutationQuery<TRow, TKind, TMetadata, TSqlTypes> {
+): MutationQuery<{
+  readonly row: TRow
+  readonly kind: TKind
+  readonly metadata: TMetadata
+  readonly sqlTypes: TSqlTypes
+}> {
   return {
     queryKind,
     row,
     resultShape,
     render,
-  } as MutationQuery<TRow, TKind, TMetadata, TSqlTypes>
+  } as MutationQuery<{
+    readonly row: TRow
+    readonly kind: TKind
+    readonly metadata: TMetadata
+    readonly sqlTypes: TSqlTypes
+  }>
 }
 
 export type MutationCapabilityMetadata<T> = CapabilityMetadataOf<T>

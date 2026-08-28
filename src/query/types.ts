@@ -13,30 +13,68 @@ export type Row = Record<string, unknown>
 
 export type QueryKind = 'select' | 'set' | 'insert' | 'update' | 'delete'
 
-export interface Query<
-  TRow extends object = Row,
-  TCardinality extends QueryCardinality = QueryCardinality,
-  TMetadata = never,
-  TSqlTypes = SourceSqlTypes<TRow>,
-> extends Fragment<
-    ResultMeta<readonly TRow[]> | CardinalityMeta<TCardinality> | TMetadata
+/** Sparse type-level configuration carried by a query. */
+export interface QueryConfig {
+  readonly row?: object
+  readonly cardinality?: QueryCardinality
+  readonly metadata?: unknown
+  readonly sqlTypes?: unknown
+}
+
+type QueryConfigValue<
+  TConfig,
+  TKey extends PropertyKey,
+  TFallback,
+> = TKey extends keyof TConfig ? TConfig[TKey] : TFallback
+
+type QueryConfigRow<TConfig> = Extract<
+  QueryConfigValue<TConfig, 'row', Row>,
+  object
+>
+type QueryConfigCardinality<TConfig> = Extract<
+  QueryConfigValue<TConfig, 'cardinality', QueryCardinality>,
+  QueryCardinality
+>
+type QueryConfigMetadata<TConfig> = QueryConfigValue<TConfig, 'metadata', never>
+type QueryConfigSqlTypes<TConfig> = QueryConfigValue<
+  TConfig,
+  'sqlTypes',
+  SourceSqlTypes<QueryConfigRow<TConfig>>
+>
+
+export interface Query<TConfig extends QueryConfig = {}>
+  extends Fragment<
+    | ResultMeta<readonly QueryConfigRow<TConfig>[]>
+    | CardinalityMeta<QueryConfigCardinality<TConfig>>
+    | QueryConfigMetadata<TConfig>
   > {
+  /** @internal Type-level configuration retained for inference. */
+  readonly __queryConfig?: TConfig
   readonly queryKind: QueryKind
-  readonly row: TRow
+  readonly row: QueryConfigRow<TConfig>
   /** Runtime metadata used to decode named result fields. */
   readonly resultShape: ResultShape
   /** Type-only SQL domains of the named query projection. */
-  readonly sqlTypes?: TSqlTypes
+  readonly sqlTypes?: QueryConfigSqlTypes<TConfig>
 }
 
-export type AnyQuery = Query<any, any, any, any>
-export type QueryRow<T> =
-  T extends Query<infer TRow, any, any, any> ? TRow : never
+export type AnyQuery = Query<any>
+export type QueryWithRow<TRow extends object> = Query<{
+  readonly row: TRow
+  readonly cardinality: any
+  readonly metadata: any
+  readonly sqlTypes: any
+}>
+export type QueryRow<T> = T extends { readonly row: infer TRow extends object }
+  ? TRow
+  : never
 /** Extract the field-to-SQL-domain map retained by a named query projection. */
-export type QuerySqlTypeMap<T> =
-  T extends Query<infer TRow, any, any, infer TSqlTypes>
-    ? TSqlTypes & SourceSqlTypes<TRow>
-    : never
+export type QuerySqlTypeMap<T> = T extends {
+  readonly row: infer TRow extends object
+  readonly sqlTypes?: infer TSqlTypes
+}
+  ? TSqlTypes & SourceSqlTypes<TRow>
+  : never
 
 export function createQuery<
   TRow extends object,
@@ -48,7 +86,12 @@ export function createQuery<
   row: TRow,
   resultShape: ResultShape,
   render: RenderFunction
-): Query<TRow, TCardinality, TMetadata, TSqlTypes> {
+): Query<{
+  readonly row: TRow
+  readonly cardinality: TCardinality
+  readonly metadata: TMetadata
+  readonly sqlTypes: TSqlTypes
+}> {
   return Object.freeze({
     queryKind,
     row,
@@ -56,5 +99,10 @@ export function createQuery<
     ...fragment<
       ResultMeta<readonly TRow[]> | CardinalityMeta<TCardinality> | TMetadata
     >(render),
-  }) as Query<TRow, TCardinality, TMetadata, TSqlTypes>
+  }) as Query<{
+    readonly row: TRow
+    readonly cardinality: TCardinality
+    readonly metadata: TMetadata
+    readonly sqlTypes: TSqlTypes
+  }>
 }

@@ -20,12 +20,12 @@ export function deleteFrom<
   ...clauses: TClauses &
     MutationScopeValidation<TTable, TClauses> &
     MutationSafetyValidation<TClauses>
-): MutationQuery<
-  MutationRow<TClauses>,
-  'delete',
-  MutationCapabilityMetadata<TClauses[number]>,
-  MutationSqlTypes<TClauses>
-> {
+): MutationQuery<{
+  readonly row: MutationRow<TClauses>
+  readonly kind: 'delete'
+  readonly metadata: MutationCapabilityMetadata<TClauses[number]>
+  readonly sqlTypes: MutationSqlTypes<TClauses>
+}> {
   const normalizedClauses = clauses as readonly MutationClause[]
   validateMutationClauses('DELETE', normalizedClauses)
 
@@ -50,10 +50,10 @@ export function deleteFrom<
     }
   })
 
-  return query as unknown as MutationQuery<
-    MutationRow<TClauses>,
-    'delete',
-    MutationCapabilityMetadata<TClauses[number]>,
-    MutationSqlTypes<TClauses>
-  >
+  return query as unknown as MutationQuery<{
+    readonly row: MutationRow<TClauses>
+    readonly kind: 'delete'
+    readonly metadata: MutationCapabilityMetadata<TClauses[number]>
+    readonly sqlTypes: MutationSqlTypes<TClauses>
+  }>
 }

@@ -2,7 +2,7 @@ import { identifier } from '../../core/primitives/identifier.ts'
 import { isExpression } from '../../expressions/types.ts'
 import type { RenderContext } from '../../core/fragment.ts'
 import type { CapabilityMetadataOf } from '../../core/fragment.ts'
-import type { Query } from '../types.ts'
+import type { AnyQuery } from '../types.ts'
 import type {
   ColumnHasDefault,
   ColumnIsGenerated,
@@ -41,7 +41,7 @@ export function defaultValues(): DefaultValuesSource {
 }
 
 export interface InsertSelectSource<
-  TQuery extends Query<any, any, any> = Query<any, any, any>,
+  TQuery extends AnyQuery = AnyQuery,
   TColumns extends readonly string[] = readonly string[],
 > {
   readonly insertKind: 'select'
@@ -50,7 +50,7 @@ export interface InsertSelectSource<
 }
 
 export function insertSelect<
-  TQuery extends Query<any, any, any>,
+  TQuery extends AnyQuery,
   const TColumns extends readonly [string, ...string[]],
 >(query: TQuery, columns: TColumns): InsertSelectSource<TQuery, TColumns> {
   return Object.freeze({
@@ -175,13 +175,14 @@ export function insertInto<
   table: TTable,
   source: TSource & ValidInsertSource<TTable, TSource>,
   ...clauses: TClauses & MutationScopeValidation<TTable, TClauses>
-): MutationQuery<
-  MutationRow<TClauses>,
-  'insert',
-  | MutationCapabilityMetadata<TClauses[number]>
-  | InsertSourceCapabilityMetadata<TSource>,
-  MutationSqlTypes<TClauses>
-> {
+): MutationQuery<{
+  readonly row: MutationRow<TClauses>
+  readonly kind: 'insert'
+  readonly metadata:
+    | MutationCapabilityMetadata<TClauses[number]>
+    | InsertSourceCapabilityMetadata<TSource>
+  readonly sqlTypes: MutationSqlTypes<TClauses>
+}> {
   validateInsert(table, source)
 
   const insertClauses = clauses as readonly InsertClause[]
@@ -226,13 +227,14 @@ export function insertInto<
     }
   })
 
-  return query as unknown as MutationQuery<
-    MutationRow<TClauses>,
-    'insert',
-    | MutationCapabilityMetadata<TClauses[number]>
-    | InsertSourceCapabilityMetadata<TSource>,
-    MutationSqlTypes<TClauses>
-  >
+  return query as unknown as MutationQuery<{
+    readonly row: MutationRow<TClauses>
+    readonly kind: 'insert'
+    readonly metadata:
+      | MutationCapabilityMetadata<TClauses[number]>
+      | InsertSourceCapabilityMetadata<TSource>
+    readonly sqlTypes: MutationSqlTypes<TClauses>
+  }>
 }
 
 function renderTargetColumns(

@@ -5,7 +5,7 @@ import {
   type RenderOptions,
 } from './core/render.ts'
 import { queryValidationError } from './query/errors.ts'
-import type { Query, QueryKind } from './query/types.ts'
+import type { AnyQuery, QueryKind, QueryWithRow } from './query/types.ts'
 import {
   decodeResultRow,
   type ResultDecoders,
@@ -13,7 +13,7 @@ import {
 } from './result.ts'
 
 export type StreamableQuery<TRow extends object = Record<string, unknown>> =
-  Query<TRow, any, any, any> & {
+  QueryWithRow<TRow> & {
     readonly queryKind: 'select' | 'set'
   }
 
@@ -38,7 +38,7 @@ export type ExplainMutationOptions = Omit<ExplainOptions, 'analyze'> & {
 }
 
 /** Select read-only or plan-only EXPLAIN options from the query kind. */
-export type ExplainOptionsFor<TQuery extends Query<any, any, any, any>> =
+export type ExplainOptionsFor<TQuery extends AnyQuery> =
   TQuery['queryKind'] extends 'select' | 'set'
     ? ExplainReadOptions
     : ExplainMutationOptions
@@ -173,12 +173,12 @@ export interface QubuClient<TAdapter extends QueryAdapter = QueryAdapter> {
   readonly adapter: TAdapter
   /** Execute a query and keep the adapter's structured mutation facts. */
   execute<TRow extends object>(
-    query: Query<TRow, any, any, any>,
+    query: QueryWithRow<TRow>,
     options?: ExecutionOptions
   ): Promise<ExecutionResult<TRow>>
   /** Execute a query and return only its decoded rows. */
   rows<TRow extends object>(
-    query: Query<TRow, any, any, any>,
+    query: QueryWithRow<TRow>,
     options?: ExecutionOptions
   ): Promise<readonly TRow[]>
 }
@@ -188,7 +188,7 @@ export interface QubuExplainableClient<
   TAdapter extends ExplainableQueryAdapter = ExplainableQueryAdapter,
 > extends QubuClient<TAdapter> {
   /** Explain a query without executing it and return adapter-owned plan rows. */
-  explain<TQuery extends Query<any, any, any, any>>(
+  explain<TQuery extends AnyQuery>(
     query: TQuery,
     options?: ExplainOptionsFor<TQuery>
   ): Promise<ExplainResult<ExplainPlanRow<TAdapter>>>
@@ -333,13 +333,13 @@ function createClient<TAdapter extends QueryAdapter>(
   const client = {
     adapter,
     execute<TRow extends object>(
-      query: Query<TRow, any, any, any>,
+      query: QueryWithRow<TRow>,
       options?: ExecutionOptions
     ) {
       return execute(query, adapter, options)
     },
     rows<TRow extends object>(
-      query: Query<TRow, any, any, any>,
+      query: QueryWithRow<TRow>,
       options?: ExecutionOptions
     ) {
       return executeRows(query, adapter, options)
@@ -363,7 +363,7 @@ function createClient<TAdapter extends QueryAdapter>(
       : {}),
     ...(explainable
       ? {
-          explain<TQuery extends Query<any, any, any, any>>(
+          explain<TQuery extends AnyQuery>(
             query: TQuery,
             options?: ExplainOptionsFor<TQuery>
           ) {
@@ -411,18 +411,18 @@ export interface DriverValueEncoder<TDriverValue = unknown> {
  * Driver errors are not caught or translated.
  */
 export function execute<TRow extends object>(
-  query: Query<TRow, any, any, any>,
+  query: QueryWithRow<TRow>,
   adapter: QueryAdapter,
   options?: ExecutionOptions
 ): Promise<ExecutionResult<TRow>>
 export function execute<TRow extends object>(
   adapter: QueryAdapter,
-  query: Query<TRow, any, any, any>,
+  query: QueryWithRow<TRow>,
   options?: ExecutionOptions
 ): Promise<ExecutionResult<TRow>>
 export function execute<TRow extends object>(
-  first: Query<TRow, any, any, any> | QueryAdapter,
-  second: Query<TRow, any, any, any> | QueryAdapter,
+  first: QueryWithRow<TRow> | QueryAdapter,
+  second: QueryWithRow<TRow> | QueryAdapter,
   options: ExecutionOptions = {}
 ): Promise<ExecutionResult<TRow>> {
   return executeInternal(first, second, options)
@@ -430,18 +430,18 @@ export function execute<TRow extends object>(
 
 /** Execute a query and return its decoded rows without mutation facts. */
 export function executeRows<TRow extends object>(
-  query: Query<TRow, any, any, any>,
+  query: QueryWithRow<TRow>,
   adapter: QueryAdapter,
   options?: ExecutionOptions
 ): Promise<readonly TRow[]>
 export function executeRows<TRow extends object>(
   adapter: QueryAdapter,
-  query: Query<TRow, any, any, any>,
+  query: QueryWithRow<TRow>,
   options?: ExecutionOptions
 ): Promise<readonly TRow[]>
 export async function executeRows<TRow extends object>(
-  first: Query<TRow, any, any, any> | QueryAdapter,
-  second: Query<TRow, any, any, any> | QueryAdapter,
+  first: QueryWithRow<TRow> | QueryAdapter,
+  second: QueryWithRow<TRow> | QueryAdapter,
   options: ExecutionOptions = {}
 ): Promise<readonly TRow[]> {
   const result = await executeInternal(first, second, options)
@@ -453,7 +453,7 @@ export async function executeRows<TRow extends object>(
  * adapter-decoded vendor plan rows. EXPLAIN never calls QueryAdapter.execute.
  */
 export function explain<
-  TQuery extends Query<any, any, any, any>,
+  TQuery extends AnyQuery,
   TAdapter extends ExplainableQueryAdapter,
 >(
   query: TQuery,
@@ -461,7 +461,7 @@ export function explain<
   options?: ExplainOptionsFor<TQuery>
 ): Promise<ExplainResult<ExplainPlanRow<TAdapter>>>
 export function explain<
-  TQuery extends Query<any, any, any, any>,
+  TQuery extends AnyQuery,
   TAdapter extends ExplainableQueryAdapter,
 >(
   adapter: TAdapter,
@@ -469,11 +469,11 @@ export function explain<
   options?: ExplainOptionsFor<TQuery>
 ): Promise<ExplainResult<ExplainPlanRow<TAdapter>>>
 export async function explain(
-  first: Query<any, any, any, any> | ExplainableQueryAdapter,
-  second: Query<any, any, any, any> | ExplainableQueryAdapter,
+  first: AnyQuery | ExplainableQueryAdapter,
+  second: AnyQuery | ExplainableQueryAdapter,
   options: ExplainOptions = {}
 ): Promise<ExplainResult<any>> {
-  const query = (isQuery(first) ? first : second) as Query<any, any, any, any>
+  const query = (isQuery(first) ? first : second) as AnyQuery
   const adapter = (isQuery(first) ? second : first) as ExplainableQueryAdapter
   return adapter.explain(createExplainRequest(query, adapter, options))
 }
@@ -511,12 +511,14 @@ export function stream<TRow extends object>(
 }
 
 async function executeInternal<TRow extends object>(
-  first: Query<TRow, any, any, any> | QueryAdapter,
-  second: Query<TRow, any, any, any> | QueryAdapter,
+  first: QueryWithRow<TRow> | QueryAdapter,
+  second: QueryWithRow<TRow> | QueryAdapter,
   options: ExecutionOptions
 ): Promise<ExecutionResult<TRow>> {
-  const query = isQuery(first) ? first : (second as Query<TRow, any, any, any>)
-  const adapter = isQuery(first) ? (second as QueryAdapter) : first
+  const query = isQuery(first) ? first : (second as QueryWithRow<TRow>)
+  const adapter = isQuery(first)
+    ? (second as QueryAdapter)
+    : (first as QueryAdapter)
   const request = createExecutionRequest(query, adapter, options)
 
   // Deliberately do not catch or wrap driver errors. Adapters own their
@@ -538,7 +540,7 @@ async function executeInternal<TRow extends object>(
 }
 
 function createExecutionRequest(
-  query: Query<any, any, any, any>,
+  query: AnyQuery,
   adapter: QueryAdapter,
   options: ExecutionOptions
 ): ExecutionRequest {
@@ -572,7 +574,7 @@ async function* decodeResultStream<TRow extends object>(
 }
 
 function createExplainRequest(
-  query: Query<any, any, any, any>,
+  query: AnyQuery,
   adapter: ExplainableQueryAdapter,
   options: ExplainOptions
 ): ExplainRequest {
@@ -614,7 +616,7 @@ function createExplainRequest(
 }
 
 function assertStreamableQuery(
-  query: Query<any, any, any, any>
+  query: AnyQuery
 ): asserts query is StreamableQuery<any> {
   if (query.queryKind === 'select' || query.queryKind === 'set') return
 
@@ -627,8 +629,6 @@ function assertStreamableQuery(
   })
 }
 
-function isQuery(
-  value: Query<any, any, any, any> | QueryAdapter
-): value is Query<any, any, any, any> {
+function isQuery(value: AnyQuery | QueryAdapter): value is AnyQuery {
   return 'render' in value && typeof value.render === 'function'
 }

@@ -7,6 +7,7 @@ import type {
   OutputOf,
   QueryCardinality,
   Query,
+  QueryRow,
   ResultMeta,
 } from '../src/index.ts'
 import type {
@@ -37,6 +38,26 @@ type NotEqual<TLeft, TRight> = Equal<TLeft, TRight> extends true ? false : true
 
 type UserRow = { id: number }
 
+type SparseQuery = Query<{ readonly row: UserRow }>
+
+export type SparseQueryDefaults = Assert<
+  Equal<
+    [
+      QueryRow<SparseQuery>,
+      CardinalityOf<SparseQuery>,
+      MetadataOf<SparseQuery>,
+    ],
+    [
+      UserRow,
+      QueryCardinality,
+      ResultMeta<readonly UserRow[]> | CardinalityMeta<QueryCardinality>,
+    ]
+  >
+>
+
+// @ts-expect-error Query cardinality must use Qubu's cardinality vocabulary.
+type InvalidQueryConfig = Query<{ readonly cardinality: 'once' }>
+
 export type CardinalityVocabulary = Assert<
   Equal<QueryCardinality, 'many' | 'zero-or-one' | 'exactly-one'>
 >
@@ -53,7 +74,9 @@ export type OrdinaryMetadata = Assert<
 >
 
 export type SpecializedQueryRemainsAssignableToThePublicQueryShape = Assert<
-  typeof exactQuery extends Query<{ value: number }> ? true : false
+  typeof exactQuery extends Query<{ readonly row: { value: number } }>
+    ? true
+    : false
 >
 
 export type LimitedCardinality = Assert<

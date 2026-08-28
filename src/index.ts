@@ -500,6 +500,7 @@ export type {
   MutationClause,
   MutationKind,
   MutationQuery,
+  MutationQueryConfig,
   MutationReturning,
   MutationReturningClause,
   MutationRow,
@@ -516,9 +517,11 @@ export type {
 export type {
   AnyQuery,
   Query,
+  QueryConfig,
   QueryKind,
   QueryRow,
   QuerySqlTypeMap,
+  QueryWithRow,
   Row,
 } from './query/types.ts'
 export {

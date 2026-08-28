@@ -4,7 +4,6 @@ import type {
   HasAggregate,
   NullableSourcesOf,
   ProvidesOuterOf,
-  QueryCardinality,
   RequiresOuterOf,
   RequiresOf,
 } from '../../core/fragment.ts'
@@ -27,17 +26,12 @@ import type { OrderByClause } from '../clauses/order-by.ts'
 import type { WithClause } from '../clauses/with.ts'
 import type { SelectionItems, SelectionRequires } from '../selection.ts'
 import type { VisibleDependenciesOf } from '../../core/fragment.ts'
-import type { Query } from '../types.ts'
+import type { Query, QueryConfig } from '../types.ts'
 import type { Omit, SelectPart } from '../omit.ts'
-import type { UnknownSourceSqlTypes } from '../../schema/source.ts'
 import type { QueryTypeValidation } from '../errors.ts'
 
-export interface SelectQuery<
-  TRow extends object = Record<string, unknown>,
-  TCardinality extends QueryCardinality = QueryCardinality,
-  TMetadata = never,
-  TSqlTypes = UnknownSourceSqlTypes<TRow>,
-> extends Query<TRow, TCardinality, TMetadata, TSqlTypes> {
+export interface SelectQuery<TConfig extends QueryConfig = {}>
+  extends Query<TConfig> {
   readonly queryKind: 'select'
 }
 

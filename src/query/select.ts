@@ -61,15 +61,15 @@ export function select<
     OmissionValidation<TParts> &
     ScopeValidation<TSelection, TClauses> &
     GroupingValidation<TSelection, TClauses>
-): SelectQuery<
-  SelectionOutput<TSelection, NullableSources<TClauses>>,
-  SelectCardinality<TParts>,
-  SelectMetadata<TSelection, TClauses>,
-  SelectionSqlTypes<
+): SelectQuery<{
+  readonly row: SelectionOutput<TSelection, NullableSources<TClauses>>
+  readonly cardinality: SelectCardinality<TParts>
+  readonly metadata: SelectMetadata<TSelection, TClauses>
+  readonly sqlTypes: SelectionSqlTypes<
     TSelection,
     SelectionOutput<TSelection, NullableSources<TClauses>>
   >
-> {
+}> {
   const normalizedClauses = parts.filter(
     (part): part is AnySelectClause => part !== omit
   )
@@ -139,13 +139,13 @@ export function select<
     }
   })
 
-  return query as SelectQuery<
-    SelectionOutput<TSelection, NullableSources<TClauses>>,
-    SelectCardinality<TParts>,
-    SelectMetadata<TSelection, TClauses>,
-    SelectionSqlTypes<
+  return query as SelectQuery<{
+    readonly row: SelectionOutput<TSelection, NullableSources<TClauses>>
+    readonly cardinality: SelectCardinality<TParts>
+    readonly metadata: SelectMetadata<TSelection, TClauses>
+    readonly sqlTypes: SelectionSqlTypes<
       TSelection,
       SelectionOutput<TSelection, NullableSources<TClauses>>
     >
-  >
+  }>
 }

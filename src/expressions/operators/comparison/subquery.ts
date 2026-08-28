@@ -1,5 +1,9 @@
 import { parenthesize } from '../../../core/fragment.ts'
-import type { Query, QueryRow, QuerySqlTypeMap } from '../../../query/types.ts'
+import type {
+  AnyQuery,
+  QueryRow,
+  QuerySqlTypeMap,
+} from '../../../query/types.ts'
 import {
   makeExpression,
   type AnyExpression,
@@ -47,7 +51,7 @@ type InQueryValidation<TExpression, TQuery> = [keyof QueryRow<TQuery>] extends [
 
 export function inQuery<
   TExpression extends AnyExpression,
-  TQuery extends Query<any, any, any>,
+  TQuery extends AnyQuery,
 >(
   expression: TExpression & InQueryValidation<TExpression, TQuery>,
   query: TQuery
@@ -76,7 +80,7 @@ export function inQuery<
   }>
 }
 
-export function exists<TQuery extends Query<any, any, any>>(query: TQuery) {
+export function exists<TQuery extends AnyQuery>(query: TQuery) {
   return makeExpression(
     'subquery',
     context => {
@@ -93,7 +97,7 @@ export function exists<TQuery extends Query<any, any, any>>(query: TQuery) {
   }>
 }
 
-export function notExists<TQuery extends Query<any, any, any>>(query: TQuery) {
+export function notExists<TQuery extends AnyQuery>(query: TQuery) {
   return makeExpression(
     'subquery',
     context => {

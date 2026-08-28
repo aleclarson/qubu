@@ -73,7 +73,12 @@ export type QuerySource<
     import('./source.ts').SourceSqlTypes<TRow> = import('./source.ts').UnknownSourceSqlTypes<TRow>,
 > = Source<QueryAliasIdentity<TAlias>, TRow, TMetadata, TSqlTypes> & {
   readonly alias: TAlias
-  readonly query: Query<TRow, any, TMetadata, TSqlTypes>
+  readonly query: Query<{
+    readonly row: TRow
+    readonly cardinality: any
+    readonly metadata: TMetadata
+    readonly sqlTypes: TSqlTypes
+  }>
   readonly columns: SourceColumns<TRow, QueryAliasIdentity<TAlias>, TSqlTypes>
 } & SourceColumns<TRow, QueryAliasIdentity<TAlias>, TSqlTypes>
 

@@ -81,15 +81,15 @@ export function update<
   ...clauses: TClauses &
     MutationScopeValidation<TTable, TClauses> &
     MutationSafetyValidation<TClauses>
-): MutationQuery<
-  MutationRow<TClauses>,
-  'update',
-  MutationCapabilityMetadata<
+): MutationQuery<{
+  readonly row: MutationRow<TClauses>
+  readonly kind: 'update'
+  readonly metadata: MutationCapabilityMetadata<
     | TClauses[number]
     | (TAssignments extends object ? TAssignments[keyof TAssignments] : never)
-  >,
-  MutationSqlTypes<TClauses>
-> {
+  >
+  readonly sqlTypes: MutationSqlTypes<TClauses>
+}> {
   const normalizedClauses = clauses as readonly MutationClause[]
   validateMutationClauses('UPDATE', normalizedClauses)
   const entries = validateUpdate(table, assignments)
@@ -124,15 +124,15 @@ export function update<
     }
   })
 
-  return query as unknown as MutationQuery<
-    MutationRow<TClauses>,
-    'update',
-    MutationCapabilityMetadata<
+  return query as unknown as MutationQuery<{
+    readonly row: MutationRow<TClauses>
+    readonly kind: 'update'
+    readonly metadata: MutationCapabilityMetadata<
       | TClauses[number]
       | (TAssignments extends object ? TAssignments[keyof TAssignments] : never)
-    >,
-    MutationSqlTypes<TClauses>
-  >
+    >
+    readonly sqlTypes: MutationSqlTypes<TClauses>
+  }>
 }
 
 function renderAssignmentValue(context: RenderContext, value: unknown) {

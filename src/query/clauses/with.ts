@@ -11,6 +11,7 @@ import {
 } from '../../expressions/column.ts'
 import {
   createQuery,
+  type AnyQuery,
   type Query,
   type QueryRow,
   type QuerySqlTypeMap,
@@ -40,11 +41,16 @@ export type CteSource<
     import('../../schema/source.ts').SourceSqlTypes<TRow> = import('../../schema/source.ts').UnknownSourceSqlTypes<TRow>,
 > = Source<CteIdentity<TName>, TRow, TMetadata, TSqlTypes> & {
   readonly cteName: TName
-  readonly query: Query<TRow, any, TMetadata, TSqlTypes>
+  readonly query: Query<{
+    readonly row: TRow
+    readonly cardinality: any
+    readonly metadata: TMetadata
+    readonly sqlTypes: TSqlTypes
+  }>
   readonly columns: SourceColumns<TRow, CteIdentity<TName>, TSqlTypes>
 } & SourceColumns<TRow, CteIdentity<TName>, TSqlTypes>
 
-type CteMetadata<TQuery extends Query<any, any, any, any>> =
+type CteMetadata<TQuery extends AnyQuery> =
   | RequiresOuterMetadataOf<TQuery>
   | CapabilityMetadataOf<TQuery>
 
@@ -86,7 +92,7 @@ type RecursiveMemberValidation<TAnchor, TMember> =
 
 type RecursiveCteSelf<
   TName extends string,
-  TAnchor extends SelectQuery<any, any, any, any>,
+  TAnchor extends SelectQuery<any>,
 > = CteSource<
   TName,
   QueryRow<TAnchor>,
@@ -97,8 +103,8 @@ type RecursiveCteSelf<
 /** The typed source returned by {@link recursiveCte}. */
 export type RecursiveCteSource<
   TName extends string,
-  TAnchor extends SelectQuery<any, any, any, any>,
-  TMember extends SelectQuery<any, any, any, any>,
+  TAnchor extends SelectQuery<any>,
+  TMember extends SelectQuery<any>,
 > = CteSource<
   TName,
   QueryRow<TAnchor>,
@@ -106,25 +112,22 @@ export type RecursiveCteSource<
   QuerySqlTypeMap<TAnchor>
 >
 
-type RecursiveCteQuery<TRow extends object, TMetadata, TSqlTypes> = Query<
-  TRow,
-  'many',
-  TMetadata,
-  TSqlTypes
-> & {
+type RecursiveCteQuery<TRow extends object, TMetadata, TSqlTypes> = Query<{
+  readonly row: TRow
+  readonly cardinality: 'many'
+  readonly metadata: TMetadata
+  readonly sqlTypes: TSqlTypes
+}> & {
   readonly recursive: true
 }
 
 export type AnyCteSource = Source<any, any, any, any, any> & {
   readonly cteName: string
-  readonly query: Query<any, any, any> & { readonly recursive?: boolean }
+  readonly query: AnyQuery & { readonly recursive?: boolean }
   readonly columns: Record<string, unknown>
 }
 
-export function cte<
-  const TName extends string,
-  TQuery extends Query<any, any, any>,
->(
+export function cte<const TName extends string, TQuery extends AnyQuery>(
   name: TName,
   query: TQuery
 ): CteSource<
@@ -177,8 +180,8 @@ export function cte<
  */
 export function recursiveCte<
   const TName extends string,
-  TAnchor extends SelectQuery<any, any, any, any>,
-  TMember extends SelectQuery<any, any, any, any>,
+  TAnchor extends SelectQuery<any>,
+  TMember extends SelectQuery<any>,
 >(
   name: TName,
   anchor: TAnchor,

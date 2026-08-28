@@ -285,23 +285,13 @@ declare global {
   type StreamingTransactionalQueryAdapter =
     import('qubu').StreamingTransactionalQueryAdapter
   type RenderedQuery = import('qubu').RenderedQuery
-  type MutationQuery<
-    TRow extends object = Record<string, unknown>,
-    TKind extends import('qubu').MutationKind = import('qubu').MutationKind,
-    TMetadata = never,
-  > = import('qubu').MutationQuery<TRow, TKind, TMetadata>
-  type Query<
-    TRow extends object = import('qubu').Row,
-    TCardinality extends
-      import('qubu').QueryCardinality = import('qubu').QueryCardinality,
-    TMetadata = never,
-  > = import('qubu').Query<TRow, TCardinality, TMetadata>
-  type SelectQuery<
-    TRow extends object = Record<string, unknown>,
-    TCardinality extends
-      import('qubu').QueryCardinality = import('qubu').QueryCardinality,
-    TMetadata = never,
-  > = import('qubu').SelectQuery<TRow, TCardinality, TMetadata>
+  type MutationQueryConfig = import('qubu').MutationQueryConfig
+  type MutationQuery<TConfig extends MutationQueryConfig = {}> =
+    import('qubu').MutationQuery<TConfig>
+  type QueryConfig = import('qubu').QueryConfig
+  type Query<TConfig extends QueryConfig = {}> = import('qubu').Query<TConfig>
+  type SelectQuery<TConfig extends QueryConfig = {}> =
+    import('qubu').SelectQuery<TConfig>
   type Source<
     TIdentity = unknown,
     TRow extends object = Record<string, unknown>,
