@@ -1,6 +1,6 @@
 interface:
-  display_name: 'Qubu'
-  short_description: 'Route Qubu work to package docs'
-  default_prompt: 'Use $qubu to find the smallest canonical Qubu guide for this task.'
+  display_name: "Qubu"
+  short_description: "Route Qubu work to package docs"
+  default_prompt: "Use $qubu to find the smallest canonical Qubu guide for this task."
 policy:
   allow_implicit_invocation: true

@@ -5,7 +5,8 @@ import type {
   NullabilityOf,
   ResultMeta,
   SqlTypeOf,
-} from '../core/fragment.ts'
+} from "../core/fragment.ts"
+import { resultValue, resultValueOf, type ResultDecoder } from "../result.ts"
 import {
   isSchemaExpression,
   makeExpression,
@@ -15,12 +16,9 @@ import {
   type Expression,
   type ExpressionOutput,
   type SchemaExpression,
-} from './types.ts'
-import { resultValue, resultValueOf, type ResultDecoder } from '../result.ts'
+} from "./types.ts"
 
-type MappedOutput<TOutput, TExpression> =
-  | TOutput
-  | Extract<ExpressionOutput<TExpression>, null>
+type MappedOutput<TOutput, TExpression> = TOutput | Extract<ExpressionOutput<TExpression>, null>
 
 type MappedResultMetadata<TOutput, TExpression> =
   | ResultMeta<
@@ -34,34 +32,23 @@ type MappedResultMetadata<TOutput, TExpression> =
 /** Attach an application decoder to an expression without changing its SQL. */
 export function mapResult<TOutput, TExpression extends AnyExpression>(
   expression: TExpression,
-  decoder: ResultDecoder<TOutput>
+  decoder: ResultDecoder<TOutput>,
 ): TExpression extends AnySchemaExpression
-  ? SchemaExpression<
-      MappedResultMetadata<TOutput, TExpression>,
-      TExpression['expressionKind']
-    >
-  : Expression<
-      MappedResultMetadata<TOutput, TExpression>,
-      TExpression['expressionKind']
-    > {
+  ? SchemaExpression<MappedResultMetadata<TOutput, TExpression>, TExpression["expressionKind"]>
+  : Expression<MappedResultMetadata<TOutput, TExpression>, TExpression["expressionKind"]> {
   const mapped = makeExpression<
     MappedResultMetadata<TOutput, TExpression>,
-    TExpression['expressionKind']
+    TExpression["expressionKind"]
   >(
     expression.expressionKind,
-    context => context.render(expression),
+    (context) => context.render(expression),
     expression.expressionCategory,
-    resultValue(resultValueOf(expression)?.type, decoder)
+    resultValue(resultValueOf(expression)?.type, decoder),
   )
+
   return (
     isSchemaExpression(expression) ? markSchemaExpression(mapped) : mapped
   ) as TExpression extends AnySchemaExpression
-    ? SchemaExpression<
-        MappedResultMetadata<TOutput, TExpression>,
-        TExpression['expressionKind']
-      >
-    : Expression<
-        MappedResultMetadata<TOutput, TExpression>,
-        TExpression['expressionKind']
-      >
+    ? SchemaExpression<MappedResultMetadata<TOutput, TExpression>, TExpression["expressionKind"]>
+    : Expression<MappedResultMetadata<TOutput, TExpression>, TExpression["expressionKind"]>
 }

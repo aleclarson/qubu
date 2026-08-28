@@ -1,60 +1,44 @@
-import { parenthesize } from '../../../core/fragment.ts'
-import type {
-  AnyQuery,
-  QueryRow,
-  QuerySqlTypeMap,
-} from '../../../query/types.ts'
+import { parenthesize } from "../../../core/fragment.ts"
+import type { SqlBoolean } from "../../../core/sql-types.ts"
+import type { QueryTypeValidation } from "../../../query/errors.ts"
+import type { AnyQuery, QueryRow, QuerySqlTypeMap } from "../../../query/types.ts"
+import { resultValue } from "../../../result.ts"
+import type { SingleColumn } from "../../subquery.ts"
 import {
   makeExpression,
   type AnyExpression,
   type SubqueryResultExpression,
   type ExpressionOutput,
   type ExpressionSqlType,
-} from '../../types.ts'
-import type { SingleColumn } from '../../subquery.ts'
-import type { SqlBoolean } from '../../../core/sql-types.ts'
-import type { SqlEqualityValidation } from '../shared.ts'
-import type { QueryTypeValidation } from '../../../query/errors.ts'
-import { resultValue } from '../../../result.ts'
+} from "../../types.ts"
+import type { SqlEqualityValidation } from "../shared.ts"
 
-type IsUnion<T, TWhole = T> = T extends unknown
-  ? [TWhole] extends [T]
-    ? false
-    : true
-  : never
+type IsUnion<T, TWhole = T> = T extends unknown ? ([TWhole] extends [T] ? false : true) : never
 
-type InQueryValidation<TExpression, TQuery> = [keyof QueryRow<TQuery>] extends [
-  never,
-]
+type InQueryValidation<TExpression, TQuery> = [keyof QueryRow<TQuery>] extends [never]
   ? QueryTypeValidation<
-      'invalid-subquery',
-      'in-query.projection',
-      'Select exactly one field in the IN subquery.'
+      "invalid-subquery",
+      "in-query.projection",
+      "Select exactly one field in the IN subquery."
     >
   : true extends IsUnion<keyof QueryRow<TQuery>>
     ? QueryTypeValidation<
-        'invalid-subquery',
-        'in-query.projection',
-        'Select exactly one field in the IN subquery.'
+        "invalid-subquery",
+        "in-query.projection",
+        "Select exactly one field in the IN subquery."
       >
     : SingleColumn<QueryRow<TQuery>> extends ExpressionOutput<TExpression>
-      ? SqlEqualityValidation<
-          ExpressionSqlType<TExpression>,
-          SingleColumn<QuerySqlTypeMap<TQuery>>
-        >
+      ? SqlEqualityValidation<ExpressionSqlType<TExpression>, SingleColumn<QuerySqlTypeMap<TQuery>>>
       : QueryTypeValidation<
-          'incompatible-sql-equality',
-          'in-query.operands',
-          'Select a subquery field from the same SQL equality group as the expression.',
+          "incompatible-sql-equality",
+          "in-query.operands",
+          "Select a subquery field from the same SQL equality group as the expression.",
           SingleColumn<QueryRow<TQuery>>
         >
 
-export function inQuery<
-  TExpression extends AnyExpression,
-  TQuery extends AnyQuery,
->(
+export function inQuery<TExpression extends AnyExpression, TQuery extends AnyQuery>(
   expression: TExpression & InQueryValidation<TExpression, TQuery>,
-  query: TQuery
+  query: TQuery,
 ): SubqueryResultExpression<{
   readonly output: boolean
   readonly children: TExpression | TQuery
@@ -62,16 +46,16 @@ export function inQuery<
   readonly sqlType: SqlBoolean
 }> {
   return makeExpression(
-    'subquery',
-    context => {
-      context.append('(')
+    "subquery",
+    (context) => {
+      context.append("(")
       context.render(expression)
-      context.append(' IN ')
+      context.append(" IN ")
       context.renderRelation(parenthesize(query))
-      context.append(')')
+      context.append(")")
     },
-    'subquery',
-    resultValue('boolean')
+    "subquery",
+    resultValue("boolean"),
   ) as SubqueryResultExpression<{
     readonly output: boolean
     readonly children: TExpression | TQuery
@@ -82,13 +66,13 @@ export function inQuery<
 
 export function exists<TQuery extends AnyQuery>(query: TQuery) {
   return makeExpression(
-    'subquery',
-    context => {
-      context.append('EXISTS ')
+    "subquery",
+    (context) => {
+      context.append("EXISTS ")
       context.renderRelation(parenthesize(query))
     },
-    'subquery',
-    resultValue('boolean')
+    "subquery",
+    resultValue("boolean"),
   ) as SubqueryResultExpression<{
     readonly output: boolean
     readonly children: TQuery
@@ -99,13 +83,13 @@ export function exists<TQuery extends AnyQuery>(query: TQuery) {
 
 export function notExists<TQuery extends AnyQuery>(query: TQuery) {
   return makeExpression(
-    'subquery',
-    context => {
-      context.append('NOT EXISTS ')
+    "subquery",
+    (context) => {
+      context.append("NOT EXISTS ")
       context.renderRelation(parenthesize(query))
     },
-    'subquery',
-    resultValue('boolean')
+    "subquery",
+    resultValue("boolean"),
   ) as SubqueryResultExpression<{
     readonly output: boolean
     readonly children: TQuery

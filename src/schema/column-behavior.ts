@@ -1,12 +1,6 @@
-import type {
-  AnySchemaExpression,
-  SchemaExpression,
-} from '../expressions/types.ts'
-import { isSchemaExpression } from '../expressions/types.ts'
-import {
-  freezeSchemaMetadata,
-  type SchemaDialectExtension,
-} from './metadata.ts'
+import type { AnySchemaExpression, SchemaExpression } from "../expressions/types.ts"
+import { isSchemaExpression } from "../expressions/types.ts"
+import { freezeSchemaMetadata, type SchemaDialectExtension } from "./metadata.ts"
 
 /** Values that can be represented without a dialect-specific SQL renderer. */
 export type SchemaLiteralValue = null | boolean | string | number | bigint
@@ -14,9 +8,9 @@ export type SchemaLiteralValue = null | boolean | string | number | bigint
 /**
  * Public input accepted by a column's `default` option.
  *
- * Primitive values are always literals. Branded schema expressions are
- * rendered as SQL expressions, and an external descriptor records a default
- * whose definition belongs to another schema authority.
+ * Primitive values are always literals. Branded schema expressions are rendered as SQL expressions,
+ * and an external descriptor records a default whose definition belongs to another schema
+ * authority.
  */
 export type ColumnDefaultInput =
   | SchemaLiteralValue
@@ -25,17 +19,27 @@ export type ColumnDefaultInput =
 
 /** A canonical, dialect-neutral literal node retained by default metadata. */
 export type CanonicalLiteral =
-  | { readonly kind: 'null' }
-  | { readonly kind: 'boolean'; readonly value: boolean }
-  | { readonly kind: 'string'; readonly value: string }
-  | { readonly kind: 'number'; readonly value: string }
-  | { readonly kind: 'bigint'; readonly value: string }
+  | { readonly kind: "null" }
+  | {
+      readonly kind: "boolean"
+      readonly value: boolean
+    }
+  | {
+      readonly kind: "string"
+      readonly value: string
+    }
+  | {
+      readonly kind: "number"
+      readonly value: string
+    }
+  | {
+      readonly kind: "bigint"
+      readonly value: string
+    }
 
 /** A default represented by a canonical literal node. */
-export interface LiteralDefaultDescriptor<
-  TLiteral extends CanonicalLiteral = CanonicalLiteral,
-> {
-  readonly kind: 'literal'
+export interface LiteralDefaultDescriptor<TLiteral extends CanonicalLiteral = CanonicalLiteral> {
+  readonly kind: "literal"
   readonly value: TLiteral
 }
 
@@ -43,13 +47,13 @@ export interface LiteralDefaultDescriptor<
 export interface ExpressionDefaultDescriptor<
   TExpression extends AnySchemaExpression = AnySchemaExpression,
 > {
-  readonly kind: 'expression'
+  readonly kind: "expression"
   readonly expression: TExpression
 }
 
 /** A default supplied by the database or another external schema authority. */
 export interface ExternalDefaultDescriptor {
-  readonly kind: 'external'
+  readonly kind: "external"
 }
 
 /** Complete default metadata carried by a column definition. */
@@ -62,20 +66,20 @@ export type ColumnDefault =
 export type DefaultDescriptor = ColumnDefault
 
 /** Storage mode for a generated-column expression. */
-export type GeneratedColumnMode = 'stored' | 'virtual'
+export type GeneratedColumnMode = "stored" | "virtual"
 
 /** A generated column with an expression that can be rendered later. */
 export interface ExpressionGeneratedColumnDescriptor<
   TExpression extends AnySchemaExpression = AnySchemaExpression,
 > {
-  readonly kind: 'expression'
+  readonly kind: "expression"
   readonly expression: TExpression
   readonly mode: GeneratedColumnMode
 }
 
 /** A generated-column behavior known to exist but owned externally. */
 export interface ExternalGeneratedColumnDescriptor {
-  readonly kind: 'external'
+  readonly kind: "external"
 }
 
 /** Complete generated-column metadata, separate from identity metadata. */
@@ -87,18 +91,16 @@ export type GeneratedColumnDescriptor =
 export type GeneratedDescriptor = GeneratedColumnDescriptor
 
 /** Identity generation policy. Identity is not an ordinary SQL expression. */
-export type IdentityGeneration = 'always' | 'by-default'
+export type IdentityGeneration = "always" | "by-default"
 
 /** SQLite's opt-in AUTOINCREMENT behavior for an INTEGER rowid alias. */
-export interface SqliteIdentityExtension
-  extends SchemaDialectExtension<'sqlite'> {
+export interface SqliteIdentityExtension extends SchemaDialectExtension<"sqlite"> {
   /** Preserve deleted rowids instead of allowing SQLite to reuse them. */
   readonly autoIncrement?: boolean
 }
 
 /** MySQL's column-level AUTO_INCREMENT identity detail. */
-export interface MysqlIdentityExtension
-  extends SchemaDialectExtension<'mysql'> {
+export interface MysqlIdentityExtension extends SchemaDialectExtension<"mysql"> {
   /** Emit MySQL's AUTO_INCREMENT behavior for this identity column. */
   readonly autoIncrement?: boolean
 }
@@ -111,7 +113,7 @@ export type IdentityDialectExtension =
 
 /** Complete identity metadata for a database-generated column value. */
 export interface IdentityDescriptor {
-  readonly kind: 'identity'
+  readonly kind: "identity"
   readonly generation: IdentityGeneration
   /** Optional dialect-owned identity semantics such as SQLite AUTOINCREMENT. */
   readonly dialect?: IdentityDialectExtension
@@ -119,14 +121,14 @@ export interface IdentityDescriptor {
 
 /** Structured failures raised while resolving column behavior metadata. */
 export type ColumnBehaviorErrorCode =
-  | 'invalid-default'
-  | 'invalid-generated-column'
-  | 'invalid-identity'
-  | 'invalid-on-update'
-  | 'default-flag-conflict'
-  | 'generated-flag-conflict'
-  | 'default-generated-conflict'
-  | 'identity-generated-conflict'
+  | "invalid-default"
+  | "invalid-generated-column"
+  | "invalid-identity"
+  | "invalid-on-update"
+  | "default-flag-conflict"
+  | "generated-flag-conflict"
+  | "default-generated-conflict"
+  | "identity-generated-conflict"
 
 /** A column behavior error with a stable code and optional property path. */
 export class ColumnBehaviorError extends TypeError {
@@ -135,7 +137,7 @@ export class ColumnBehaviorError extends TypeError {
 
   constructor(code: ColumnBehaviorErrorCode, message: string, path?: string) {
     super(message)
-    this.name = 'ColumnBehaviorError'
+    this.name = "ColumnBehaviorError"
     this.code = code
     this.path = path
   }
@@ -143,34 +145,50 @@ export class ColumnBehaviorError extends TypeError {
 
 /** Build a canonical literal node from a supported JavaScript scalar. */
 export function canonicalLiteral(value: SchemaLiteralValue): CanonicalLiteral {
-  if (value === null) return Object.freeze({ kind: 'null' as const })
-  if (typeof value === 'boolean') {
-    return Object.freeze({ kind: 'boolean' as const, value })
+  if (value === null) {
+    return Object.freeze({ kind: "null" as const })
   }
-  if (typeof value === 'string') {
-    return Object.freeze({ kind: 'string' as const, value })
+
+  if (typeof value === "boolean") {
+    return Object.freeze({
+      kind: "boolean" as const,
+      value,
+    })
   }
-  if (typeof value === 'bigint') {
-    return Object.freeze({ kind: 'bigint' as const, value: String(value) })
+
+  if (typeof value === "string") {
+    return Object.freeze({
+      kind: "string" as const,
+      value,
+    })
   }
+
+  if (typeof value === "bigint") {
+    return Object.freeze({
+      kind: "bigint" as const,
+      value: String(value),
+    })
+  }
+
   if (!Number.isFinite(value)) {
     throw new ColumnBehaviorError(
-      'invalid-default',
-      'Default literal numbers must be finite',
-      'default.value'
+      "invalid-default",
+      "Default literal numbers must be finite",
+      "default.value",
     )
   }
+
   return Object.freeze({
-    kind: 'number' as const,
-    value: Object.is(value, -0) ? '0' : String(value),
+    kind: "number" as const,
+    value: Object.is(value, -0) ? "0" : String(value),
   })
 }
 
 function literalDefault<const TValue extends SchemaLiteralValue>(
-  value: TValue
+  value: TValue,
 ): LiteralDefaultDescriptor {
   return Object.freeze({
-    kind: 'literal' as const,
+    kind: "literal" as const,
     value: canonicalLiteral(value),
   })
 }
@@ -179,40 +197,41 @@ function literalDefault<const TValue extends SchemaLiteralValue>(
 function normalizeDefault(value: ColumnDefaultInput): ColumnDefault {
   if (isSchemaExpression(value)) {
     return Object.freeze({
-      kind: 'expression' as const,
+      kind: "expression" as const,
       expression: value,
     })
   }
-  if (isExternalDefaultDescriptor(value)) return externalDefault()
+
+  if (isExternalDefaultDescriptor(value)) {
+    return externalDefault()
+  }
+
   return literalDefault(value)
 }
 
 /** Mark a legacy or externally managed database default explicitly. */
 export function externalDefault(): ExternalDefaultDescriptor {
-  return Object.freeze({ kind: 'external' as const })
+  return Object.freeze({ kind: "external" as const })
 }
 
 /** Create an immutable generated-column descriptor. */
 export function generatedColumn<const TExpression extends AnySchemaExpression>(
   expression: TExpression,
-  mode?: GeneratedColumnMode | { readonly mode: GeneratedColumnMode }
+  mode?: GeneratedColumnMode | { readonly mode: GeneratedColumnMode },
 ): ExpressionGeneratedColumnDescriptor<TExpression> {
-  assertSchemaExpression(
-    expression,
-    'generatedColumn.expression',
-    'invalid-generated-column'
-  )
-  const resolvedMode =
-    typeof mode === 'string' ? mode : (mode?.mode ?? 'stored')
-  if (resolvedMode !== 'stored' && resolvedMode !== 'virtual') {
+  assertSchemaExpression(expression, "generatedColumn.expression", "invalid-generated-column")
+  const resolvedMode = typeof mode === "string" ? mode : (mode?.mode ?? "stored")
+
+  if (resolvedMode !== "stored" && resolvedMode !== "virtual") {
     throw new ColumnBehaviorError(
-      'invalid-generated-column',
+      "invalid-generated-column",
       `Generated-column mode must be "stored" or "virtual", received "${String(resolvedMode)}"`,
-      'generatedColumn.mode'
+      "generatedColumn.mode",
     )
   }
+
   return Object.freeze({
-    kind: 'expression' as const,
+    kind: "expression" as const,
     expression,
     mode: resolvedMode,
   })
@@ -220,28 +239,28 @@ export function generatedColumn<const TExpression extends AnySchemaExpression>(
 
 /** Mark a legacy or externally managed generated column explicitly. */
 export function externalGeneratedColumn(): ExternalGeneratedColumnDescriptor {
-  return Object.freeze({ kind: 'external' as const })
+  return Object.freeze({ kind: "external" as const })
 }
 
 /** Describe a database identity column without inventing a generated SQL expression. */
 export function identityColumn(
   generation?: IdentityGeneration,
-  options?: { readonly dialect?: IdentityDialectExtension }
+  options?: { readonly dialect?: IdentityDialectExtension },
 ): IdentityDescriptor {
-  const resolvedGeneration = generation ?? 'by-default'
-  if (resolvedGeneration !== 'always' && resolvedGeneration !== 'by-default') {
+  const resolvedGeneration = generation ?? "by-default"
+
+  if (resolvedGeneration !== "always" && resolvedGeneration !== "by-default") {
     throw new ColumnBehaviorError(
-      'invalid-identity',
+      "invalid-identity",
       `Identity generation must be "always" or "by-default", received "${String(resolvedGeneration)}"`,
-      'identity.generation'
+      "identity.generation",
     )
   }
+
   return Object.freeze({
-    kind: 'identity' as const,
+    kind: "identity" as const,
     generation: resolvedGeneration,
-    ...(options?.dialect === undefined
-      ? {}
-      : { dialect: freezeSchemaMetadata(options.dialect) }),
+    ...(options?.dialect === undefined ? {} : { dialect: freezeSchemaMetadata(options.dialect) }),
   })
 }
 
@@ -267,21 +286,16 @@ export function resolveColumnBehavior(options: {
   const hasDefaultFlag = options.hasDefault === true
   const generatedFlag = options.generated === true
   const defaultDescriptor =
-    options.default === undefined
-      ? undefined
-      : normalizeDefault(options.default)
+    options.default === undefined ? undefined : normalizeDefault(options.default)
   const generatedDescriptor = options.generatedColumn
   const identityDescriptor = options.identity
   const onUpdateExpression = options.onUpdate
 
-  if (
-    onUpdateExpression !== undefined &&
-    !isSchemaExpression(onUpdateExpression)
-  ) {
+  if (onUpdateExpression !== undefined && !isSchemaExpression(onUpdateExpression)) {
     throw new ColumnBehaviorError(
-      'invalid-on-update',
-      'Column onUpdate metadata must carry the deterministic schema-expression brand',
-      'onUpdate'
+      "invalid-on-update",
+      "Column onUpdate metadata must carry the deterministic schema-expression brand",
+      "onUpdate",
     )
   }
 
@@ -289,23 +303,25 @@ export function resolveColumnBehavior(options: {
     assertDefaultDescriptor(defaultDescriptor)
     if (options.hasDefault === false) {
       throw new ColumnBehaviorError(
-        'default-flag-conflict',
-        'A complete default descriptor cannot be combined with hasDefault: false',
-        'hasDefault'
+        "default-flag-conflict",
+        "A complete default descriptor cannot be combined with hasDefault: false",
+        "hasDefault",
       )
     }
+
     if (generatedDescriptor !== undefined || identityDescriptor !== undefined) {
       throw new ColumnBehaviorError(
-        'default-generated-conflict',
-        'A column cannot declare a complete default together with generated-column or identity metadata',
-        'default'
+        "default-generated-conflict",
+        "A column cannot declare a complete default together with generated-column or identity metadata",
+        "default",
       )
     }
+
     if (generatedFlag) {
       throw new ColumnBehaviorError(
-        'default-generated-conflict',
-        'A complete default descriptor cannot be combined with generated: true',
-        'default'
+        "default-generated-conflict",
+        "A complete default descriptor cannot be combined with generated: true",
+        "default",
       )
     }
   }
@@ -314,23 +330,25 @@ export function resolveColumnBehavior(options: {
     assertGeneratedColumnDescriptor(generatedDescriptor)
     if (options.generated === false) {
       throw new ColumnBehaviorError(
-        'generated-flag-conflict',
-        'A complete generated-column descriptor cannot be combined with generated: false',
-        'generated'
+        "generated-flag-conflict",
+        "A complete generated-column descriptor cannot be combined with generated: false",
+        "generated",
       )
     }
+
     if (identityDescriptor !== undefined) {
       throw new ColumnBehaviorError(
-        'identity-generated-conflict',
-        'A column cannot declare both generated-column and identity metadata',
-        'generatedColumn'
+        "identity-generated-conflict",
+        "A column cannot declare both generated-column and identity metadata",
+        "generatedColumn",
       )
     }
+
     if (hasDefaultFlag) {
       throw new ColumnBehaviorError(
-        'default-generated-conflict',
-        'A complete generated-column descriptor cannot be combined with hasDefault: true',
-        'generatedColumn'
+        "default-generated-conflict",
+        "A complete generated-column descriptor cannot be combined with hasDefault: true",
+        "generatedColumn",
       )
     }
   }
@@ -339,225 +357,252 @@ export function resolveColumnBehavior(options: {
     assertIdentityDescriptor(identityDescriptor)
     if (options.generated === false) {
       throw new ColumnBehaviorError(
-        'generated-flag-conflict',
-        'Identity metadata cannot be combined with generated: false',
-        'generated'
+        "generated-flag-conflict",
+        "Identity metadata cannot be combined with generated: false",
+        "generated",
       )
     }
+
     if (hasDefaultFlag) {
       throw new ColumnBehaviorError(
-        'identity-generated-conflict',
-        'Identity metadata cannot be combined with hasDefault: true',
-        'identity'
+        "identity-generated-conflict",
+        "Identity metadata cannot be combined with hasDefault: true",
+        "identity",
       )
     }
   }
 
   const normalizedDefault =
-    defaultDescriptor === undefined
-      ? undefined
-      : freezeDefaultDescriptor(defaultDescriptor)
+    defaultDescriptor === undefined ? undefined : freezeDefaultDescriptor(defaultDescriptor)
   const normalizedGenerated =
     generatedDescriptor === undefined
       ? undefined
       : freezeGeneratedColumnDescriptor(generatedDescriptor)
   const normalizedIdentity =
-    identityDescriptor === undefined
-      ? undefined
-      : freezeIdentityDescriptor(identityDescriptor)
+    identityDescriptor === undefined ? undefined : freezeIdentityDescriptor(identityDescriptor)
 
   return Object.freeze({
     hasDefault: hasDefaultFlag || normalizedDefault !== undefined,
     generated:
-      generatedFlag ||
-      normalizedGenerated !== undefined ||
-      normalizedIdentity !== undefined,
-    default:
-      normalizedDefault ?? (hasDefaultFlag ? externalDefault() : undefined),
+      generatedFlag || normalizedGenerated !== undefined || normalizedIdentity !== undefined,
+    default: normalizedDefault ?? (hasDefaultFlag ? externalDefault() : undefined),
     generatedColumn:
       normalizedGenerated ??
-      (generatedFlag && normalizedIdentity === undefined
-        ? externalGeneratedColumn()
-        : undefined),
+      (generatedFlag && normalizedIdentity === undefined ? externalGeneratedColumn() : undefined),
     identity: normalizedIdentity,
     onUpdate: onUpdateExpression,
   })
 }
 
 function freezeDefaultDescriptor(value: ColumnDefault): ColumnDefault {
-  if (value.kind === 'external') return externalDefault()
-  if (value.kind === 'expression') {
+  if (value.kind === "external") {
+    return externalDefault()
+  }
+
+  if (value.kind === "expression") {
     return Object.freeze({
-      kind: 'expression' as const,
+      kind: "expression" as const,
       expression: value.expression,
     })
   }
+
   return Object.freeze({
-    kind: 'literal' as const,
+    kind: "literal" as const,
     value: Object.freeze({ ...value.value }),
   }) as ColumnDefault
 }
 
-function isExternalDefaultDescriptor(
-  value: unknown
-): value is ExternalDefaultDescriptor {
+function isExternalDefaultDescriptor(value: unknown): value is ExternalDefaultDescriptor {
   return (
-    typeof value === 'object' &&
+    typeof value === "object" &&
     value !== null &&
-    (value as { readonly kind?: unknown }).kind === 'external'
+    (value as { readonly kind?: unknown }).kind === "external"
   )
 }
 
 function freezeGeneratedColumnDescriptor(
-  value: GeneratedColumnDescriptor
+  value: GeneratedColumnDescriptor,
 ): GeneratedColumnDescriptor {
-  if (value.kind === 'external') return externalGeneratedColumn()
+  if (value.kind === "external") {
+    return externalGeneratedColumn()
+  }
+
   return Object.freeze({
-    kind: 'expression' as const,
+    kind: "expression" as const,
     expression: value.expression,
     mode: value.mode,
   })
 }
 
-function freezeIdentityDescriptor(
-  value: IdentityDescriptor
-): IdentityDescriptor {
+function freezeIdentityDescriptor(value: IdentityDescriptor): IdentityDescriptor {
   return Object.freeze({
-    kind: 'identity' as const,
+    kind: "identity" as const,
     generation: value.generation,
-    ...(value.dialect === undefined
-      ? {}
-      : { dialect: freezeSchemaMetadata(value.dialect) }),
+    ...(value.dialect === undefined ? {} : { dialect: freezeSchemaMetadata(value.dialect) }),
   })
 }
 
 function assertSchemaExpression(
   expression: unknown,
   path: string,
-  code: 'invalid-default' | 'invalid-generated-column' = 'invalid-default'
+  code: "invalid-default" | "invalid-generated-column" = "invalid-default",
 ): asserts expression is SchemaExpression {
   if (!isSchemaExpression(expression)) {
     throw new ColumnBehaviorError(
       code,
-      'Schema behavior expressions must carry the deterministic schema-expression brand',
-      path
+      "Schema behavior expressions must carry the deterministic schema-expression brand",
+      path,
     )
   }
 }
 
 function assertDefaultDescriptor(value: ColumnDefault): void {
-  if (!value || typeof value !== 'object') {
+  if (!value || typeof value !== "object") {
     throw new ColumnBehaviorError(
-      'invalid-default',
-      'Column default metadata must be an object',
-      'default'
+      "invalid-default",
+      "Column default metadata must be an object",
+      "default",
     )
   }
-  if (value.kind === 'external') return
-  if (value.kind === 'expression') {
-    assertSchemaExpression(value.expression, 'default.expression')
+
+  if (value.kind === "external") {
     return
   }
-  if (value.kind === 'literal') {
+
+  if (value.kind === "expression") {
+    assertSchemaExpression(value.expression, "default.expression")
+    return
+  }
+
+  if (value.kind === "literal") {
     assertCanonicalLiteral(value.value)
     return
   }
+
   throw new ColumnBehaviorError(
-    'invalid-default',
-    'Unknown column default descriptor kind',
-    'default.kind'
+    "invalid-default",
+    "Unknown column default descriptor kind",
+    "default.kind",
   )
 }
 
-function assertGeneratedColumnDescriptor(
-  value: GeneratedColumnDescriptor
-): void {
-  if (!value || typeof value !== 'object') {
+function assertGeneratedColumnDescriptor(value: GeneratedColumnDescriptor): void {
+  if (!value || typeof value !== "object") {
     throw new ColumnBehaviorError(
-      'invalid-generated-column',
-      'Generated-column metadata must be an object',
-      'generatedColumn'
+      "invalid-generated-column",
+      "Generated-column metadata must be an object",
+      "generatedColumn",
     )
   }
-  if (value.kind === 'external') return
-  if (value.kind === 'expression') {
-    assertSchemaExpression(
-      value.expression,
-      'generatedColumn.expression',
-      'invalid-generated-column'
-    )
-    if (value.mode !== 'stored' && value.mode !== 'virtual') {
-      throw new ColumnBehaviorError(
-        'invalid-generated-column',
-        'Generated-column mode must be "stored" or "virtual"',
-        'generatedColumn.mode'
-      )
-    }
+
+  if (value.kind === "external") {
     return
   }
+
+  if (value.kind === "expression") {
+    assertSchemaExpression(
+      value.expression,
+      "generatedColumn.expression",
+      "invalid-generated-column",
+    )
+    if (value.mode !== "stored" && value.mode !== "virtual") {
+      throw new ColumnBehaviorError(
+        "invalid-generated-column",
+        'Generated-column mode must be "stored" or "virtual"',
+        "generatedColumn.mode",
+      )
+    }
+
+    return
+  }
+
   throw new ColumnBehaviorError(
-    'invalid-generated-column',
-    'Unknown generated-column descriptor kind',
-    'generatedColumn.kind'
+    "invalid-generated-column",
+    "Unknown generated-column descriptor kind",
+    "generatedColumn.kind",
   )
 }
 
 function assertIdentityDescriptor(value: IdentityDescriptor): void {
   if (
     !value ||
-    typeof value !== 'object' ||
-    value.kind !== 'identity' ||
-    (value.generation !== 'always' && value.generation !== 'by-default')
+    typeof value !== "object" ||
+    value.kind !== "identity" ||
+    (value.generation !== "always" && value.generation !== "by-default")
   ) {
     throw new ColumnBehaviorError(
-      'invalid-identity',
+      "invalid-identity",
       'Identity metadata must use generation "always" or "by-default"',
-      'identity.generation'
+      "identity.generation",
     )
   }
+
   if (value.dialect !== undefined) {
     if (
-      typeof value.dialect !== 'object' ||
+      typeof value.dialect !== "object" ||
       value.dialect === null ||
-      typeof value.dialect.dialect !== 'string' ||
+      typeof value.dialect.dialect !== "string" ||
       value.dialect.dialect.length === 0
     ) {
       throw new ColumnBehaviorError(
-        'invalid-identity',
-        'Identity dialect metadata must contain a non-empty dialect tag',
-        'identity.dialect'
+        "invalid-identity",
+        "Identity dialect metadata must contain a non-empty dialect tag",
+        "identity.dialect",
       )
     }
   }
 }
 
 function assertCanonicalLiteral(value: CanonicalLiteral): void {
-  if (!value || typeof value !== 'object') {
+  if (!value || typeof value !== "object") {
     throw new ColumnBehaviorError(
-      'invalid-default',
-      'Literal defaults must contain a canonical literal node',
-      'default.value'
+      "invalid-default",
+      "Literal defaults must contain a canonical literal node",
+      "default.value",
     )
   }
+
   switch (value.kind) {
-    case 'null':
+    case "null": {
       return
-    case 'boolean':
-      if (typeof value.value === 'boolean') return
+    }
+
+    case "boolean": {
+      if (typeof value.value === "boolean") {
+        return
+      }
+
       break
-    case 'string':
-      if (typeof value.value === 'string') return
+    }
+
+    case "string": {
+      if (typeof value.value === "string") {
+        return
+      }
+
       break
-    case 'number':
-      if (typeof value.value === 'string' && value.value.length > 0) return
+    }
+
+    case "number": {
+      if (typeof value.value === "string" && value.value.length > 0) {
+        return
+      }
+
       break
-    case 'bigint':
-      if (/^-?(0|[1-9][0-9]*)$/.test(value.value)) return
+    }
+
+    case "bigint": {
+      if (/^-?(0|[1-9][0-9]*)$/.test(value.value)) {
+        return
+      }
+
       break
+    }
   }
+
   throw new ColumnBehaviorError(
-    'invalid-default',
-    'Literal defaults must contain a valid canonical literal node',
-    'default.value'
+    "invalid-default",
+    "Literal defaults must contain a valid canonical literal node",
+    "default.value",
   )
 }

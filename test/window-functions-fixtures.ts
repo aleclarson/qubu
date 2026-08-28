@@ -1,21 +1,11 @@
-import {
-  count,
-  desc,
-  integer,
-  over,
-  rank,
-  rowNumber,
-  table,
-  text,
-  upper,
-} from '../src/index.ts'
+import { count, desc, integer, over, rank, rowNumber, table, text, upper } from "../src/index.ts"
 
-export const users = table('users', {
+export const users = table("users", {
   id: integer(),
   name: text(),
 })
 
-export const posts = table('posts', {
+export const posts = table("posts", {
   id: integer(),
   authorId: integer(),
   title: text(),

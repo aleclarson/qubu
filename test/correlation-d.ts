@@ -10,8 +10,8 @@ import type {
   SourceIdentity,
   SourceProvision,
   SourceRow,
-} from '../src/index.ts'
-import { crossJoin, from, select } from '../src/index.ts'
+} from "../src/index.ts"
+import { crossJoin, from, select } from "../src/index.ts"
 import {
   correlatedPost,
   correlatedScalar,
@@ -22,7 +22,7 @@ import {
   outerProvision,
   posts,
   users,
-} from './correlation-fixtures.ts'
+} from "./correlation-fixtures.ts"
 
 type Equal<TLeft, TRight> = [TLeft] extends [TRight]
   ? [TRight] extends [TLeft]
@@ -56,7 +56,7 @@ export type CorrelatedScalarOutputRemainsNullable = Assert<
 >
 
 export type CorrelatedQueryCardinalityRemainsQueryOnly = Assert<
-  Equal<CardinalityOf<typeof correlatedPost>, 'zero-or-one'>
+  Equal<CardinalityOf<typeof correlatedPost>, "zero-or-one">
 >
 
 export type LateralSourceKeepsOuterRequirements = Assert<
@@ -64,10 +64,7 @@ export type LateralSourceKeepsOuterRequirements = Assert<
 >
 
 export type LateralSourceProvidesOnlyItsLocalIdentity = Assert<
-  Equal<
-    SourceProvision<typeof lateralPost>,
-    ProvidesSourceMeta<LateralIdentity, { id: number }>
-  >
+  Equal<SourceProvision<typeof lateralPost>, ProvidesSourceMeta<LateralIdentity, { id: number }>>
 >
 
 export type LateralSourceRowRemainsPrecise = Assert<
@@ -79,7 +76,13 @@ export type LateralQueryConsumesOuterRequirements = Assert<
 >
 
 export type LateralQueryOutputRemainsPrecise = Assert<
-  Equal<typeof lateralQuery.row, { userId: number; latestPostId: number }>
+  Equal<
+    typeof lateralQuery.row,
+    {
+      userId: number
+      latestPostId: number
+    }
+  >
 >
 
 export type LateralLeftJoinKeepsNullability = Assert<
@@ -96,10 +99,7 @@ export type LocalScalarPreservesItsOutput = Assert<
 
 export type CorrelationMetadataIsTagged = Assert<
   Equal<
-    Extract<
-      MetadataOf<typeof correlatedPost>,
-      { readonly kind: 'requires-outer-source' }
-    >,
+    Extract<MetadataOf<typeof correlatedPost>, { readonly kind: "requires-outer-source" }>,
     RequiresOuterSourceMeta<UserIdentity>
   >
 >
@@ -114,4 +114,10 @@ select({ value: lateralPost.id }, from(posts), crossJoin(lateralPost))
 select({ value: posts.id }, from(users), crossJoin(lateralPost))
 
 // @ts-expect-error Referencing an enclosing source requires an explicit correlate() provision.
-select({ id: posts.id, authorId: users.id }, from(posts))
+select(
+  {
+    id: posts.id,
+    authorId: users.id,
+  },
+  from(posts),
+)

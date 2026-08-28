@@ -6,28 +6,24 @@ import type {
   SqlTypeOf,
   RequiresSourceMeta,
   ResultMeta,
-} from '../core/fragment.ts'
-import type { AnySqlType, SqlBoolean, SqlUnknown } from '../core/sql-types.ts'
-import type {
-  AnyExpression,
-  Expression,
-  SchemaExpression,
-} from '../expressions/types.ts'
+} from "../core/fragment.ts"
+import type { AnySqlType, SqlBoolean, SqlUnknown } from "../core/sql-types.ts"
 import {
   isColumnReference,
   type ColumnDependency,
   type ColumnReference,
-} from '../expressions/column.ts'
-import { unsafeSchemaSql } from './expressions.ts'
-import type { DeclaredColumnNullabilityOf } from './column-nullability.ts'
+} from "../expressions/column.ts"
+import type { AnyExpression, Expression, SchemaExpression } from "../expressions/types.ts"
+import type { DeclaredColumnNullabilityOf } from "./column-nullability.ts"
+import { unsafeSchemaSql } from "./expressions.ts"
 import type {
   SchemaDialectExtension,
   SchemaDialectName,
   SchemaObjectIdentity,
   SchemaObjectNameOptions,
-} from './metadata.ts'
-import { dialectMismatchDiagnostic, freezeSchemaMetadata } from './metadata.ts'
-import { sourceIdentity, type SourceKind } from './source.ts'
+} from "./metadata.ts"
+import { dialectMismatchDiagnostic, freezeSchemaMetadata } from "./metadata.ts"
+import { sourceIdentity, type SourceKind } from "./source.ts"
 
 declare const fieldConstraint: unique symbol
 
@@ -39,13 +35,10 @@ export interface FieldLikeOptions {
 }
 
 /**
- * A reusable source-field requirement combining application and SQL facts.
- * Omitted facts impose no constraint; `nullable: false` requires a non-null
- * selected value.
+ * A reusable source-field requirement combining application and SQL facts. Omitted facts impose no
+ * constraint; `nullable: false` requires a non-null selected value.
  */
-export interface FieldLike<
-  TOptions extends FieldLikeOptions = FieldLikeOptions,
-> {
+export interface FieldLike<TOptions extends FieldLikeOptions = FieldLikeOptions> {
   readonly [fieldConstraint]: TOptions
 }
 
@@ -69,31 +62,21 @@ type RequiredSqlType<T> =
       : AnySqlType
     : AnySqlType
 
-type RequiredColumn<
-  TField extends string,
-  TRequirement,
-  TIdentity,
-> = ColumnReference<
+type RequiredColumn<TField extends string, TRequirement, TIdentity> = ColumnReference<
   TField,
-  | ResultMeta<
-      RequiredOutput<TRequirement>,
-      TIdentity,
-      RequiredSqlType<TRequirement>
-    >
+  | ResultMeta<RequiredOutput<TRequirement>, TIdentity, RequiredSqlType<TRequirement>>
   | RequiresSourceMeta<TIdentity>
   | ExpressionMeta<ColumnDependency<TIdentity, TField>>
 >
 
 type RequiredColumns<TShape extends object, TIdentity> = {
-  readonly [K in keyof TShape]-?: K extends string
-    ? RequiredColumn<K, TShape[K], TIdentity>
-    : never
+  readonly [K in keyof TShape]-?: K extends string ? RequiredColumn<K, TShape[K], TIdentity> : never
 }
 
 /**
- * A source containing at least the requested application and SQL fields.
- * Additional fields and the concrete source identity are preserved by generic
- * functions that accept this lower-bound constraint.
+ * A source containing at least the requested application and SQL fields. Additional fields and the
+ * concrete source identity are preserved by generic functions that accept this lower-bound
+ * constraint.
  */
 export interface SourceLike<TShape extends object> extends Fragment<any> {
   readonly sourceKind: SourceKind
@@ -110,36 +93,28 @@ export interface TableLike<TShape extends object> extends SourceLike<TShape> {
 }
 
 /** Standard SQL referential action retained on a foreign-key constraint. */
-export type ReferentialAction =
-  | 'no-action'
-  | 'restrict'
-  | 'cascade'
-  | 'set-null'
-  | 'set-default'
+export type ReferentialAction = "no-action" | "restrict" | "cascade" | "set-null" | "set-default"
 
 /** Standard SQL match mode for a composite foreign key. */
-export type ForeignKeyMatch = 'simple' | 'full' | 'partial'
+export type ForeignKeyMatch = "simple" | "full" | "partial"
 
 /** Deferrability timing for a foreign-key or key constraint. */
-export type ConstraintTiming = 'immediate' | 'deferred'
+export type ConstraintTiming = "immediate" | "deferred"
 
 /** PostgreSQL-only constraint options retained for a schema adapter. */
-export interface PostgresConstraintExtension
-  extends SchemaDialectExtension<'postgresql'> {
+export interface PostgresConstraintExtension extends SchemaDialectExtension<"postgresql"> {
   /** PostgreSQL `NOT VALID` validation state for a constraint. */
   readonly notValid?: boolean
 }
 
 /** SQLite-only table-constraint options. */
-export interface SqliteConstraintExtension
-  extends SchemaDialectExtension<'sqlite'> {
+export interface SqliteConstraintExtension extends SchemaDialectExtension<"sqlite"> {
   /** SQLite conflict policy attached to a table constraint. */
-  readonly onConflict?: 'rollback' | 'abort' | 'fail' | 'ignore' | 'replace'
+  readonly onConflict?: "rollback" | "abort" | "fail" | "ignore" | "replace"
 }
 
 /** MySQL-only constraint options. */
-export interface MysqlConstraintExtension
-  extends SchemaDialectExtension<'mysql'> {
+export interface MysqlConstraintExtension extends SchemaDialectExtension<"mysql"> {
   /** MySQL 8 constraint enforcement state. */
   readonly enforced?: boolean
 }
@@ -180,8 +155,8 @@ export interface UniqueConstraintOptions<
     | undefined,
 > extends ConstraintOptions<TExtension> {
   /**
-   * SQL NULL comparison semantics. `distinct` is the common default in which
-   * multiple NULL values do not conflict; `not-distinct` permits at most one.
+   * SQL NULL comparison semantics. `distinct` is the common default in which multiple NULL values
+   * do not conflict; `not-distinct` permits at most one.
    */
   readonly nulls?: UniqueNullSemantics
   /** Whether the constraint can be deferred by a supporting dialect. */
@@ -191,7 +166,7 @@ export interface UniqueConstraintOptions<
 }
 
 /** Explicit NULL behavior for a database uniqueness rule. */
-export type UniqueNullSemantics = 'distinct' | 'not-distinct'
+export type UniqueNullSemantics = "distinct" | "not-distinct"
 
 /** Options for a table check constraint. */
 export interface CheckConstraintOptions<
@@ -206,9 +181,7 @@ export interface CheckConstraintOptions<
 }
 
 /** Dialect tag and parameter-free SQL needed to reconstruct a catalog check. */
-export interface CatalogCheckSql<
-  TDialect extends SchemaDialectName = SchemaDialectName,
-> {
+export interface CatalogCheckSql<TDialect extends SchemaDialectName = SchemaDialectName> {
   /** Catalog dialect that supplied the check expression. */
   readonly dialect: TDialect
   /** Opaque SQL text recovered from the catalog. */
@@ -230,11 +203,11 @@ export interface ForeignKeyOptions<
 
 /** A schema constraint whose columns form a relational key. */
 export interface KeyConstraint<
-  TKind extends 'primary-key' | 'unique' = 'primary-key' | 'unique',
-  TColumns extends readonly ColumnReference<
+  TKind extends "primary-key" | "unique" = "primary-key" | "unique",
+  TColumns extends readonly ColumnReference<string, any>[] = readonly ColumnReference<
     string,
     any
-  >[] = readonly ColumnReference<string, any>[],
+  >[],
 > extends SchemaObjectIdentity {
   readonly kind: TKind
   readonly columns: TColumns
@@ -253,16 +226,16 @@ export interface ForeignKeyTarget<
   readonly columns: TColumns
 }
 
-export type ForeignKeyTargetInput<
-  TTarget extends ForeignKeyTarget = ForeignKeyTarget,
-> = TTarget | (() => TTarget)
+export type ForeignKeyTargetInput<TTarget extends ForeignKeyTarget = ForeignKeyTarget> =
+  | TTarget
+  | (() => TTarget)
 
 /** A foreign key from local columns to a direct or lazily resolved target. */
 export interface ForeignKeyConstraint<
   TColumns extends readonly AnyKeyColumn[] = readonly AnyKeyColumn[],
   TTarget extends ForeignKeyTargetInput = ForeignKeyTargetInput,
 > extends SchemaObjectIdentity {
-  readonly kind: 'foreign-key'
+  readonly kind: "foreign-key"
   readonly columns: TColumns
   readonly target: TTarget
   readonly physicalName?: string
@@ -279,7 +252,7 @@ export interface UniqueConstraint<
   TColumns extends readonly AnyKeyColumn[] = readonly AnyKeyColumn[],
   TNulls extends UniqueNullSemantics = UniqueNullSemantics,
 > extends SchemaObjectIdentity {
-  readonly kind: 'unique-constraint'
+  readonly kind: "unique-constraint"
   readonly columns: TColumns
   readonly nulls: TNulls
   readonly physicalName?: string
@@ -292,7 +265,7 @@ export interface UniqueConstraint<
 export interface CheckConstraint<
   TExpression extends AnyExpression = AnyExpression,
 > extends SchemaObjectIdentity {
-  readonly kind: 'check'
+  readonly kind: "check"
   readonly expression: TExpression
   readonly physicalName?: string
   readonly dialect?: ConstraintDialectExtension
@@ -301,15 +274,15 @@ export interface CheckConstraint<
 }
 
 /**
- * Opaque catalog SQL whose check-constraint origin proves a boolean SQL
- * semantic type. The expression remains dialect-tagged and parameter-free.
+ * Opaque catalog SQL whose check-constraint origin proves a boolean SQL semantic type. The
+ * expression remains dialect-tagged and parameter-free.
  */
 export interface CatalogCheckExpression<
   TDialect extends SchemaDialectName = SchemaDialectName,
 > extends SchemaExpression<
-    ResultMeta<boolean, never, SqlBoolean> | ExpressionMeta<never>,
-    'unsafe'
-  > {
+  ResultMeta<boolean, never, SqlBoolean> | ExpressionMeta<never>,
+  "unsafe"
+> {
   readonly schemaSqlDialect: TDialect
   readonly schemaSql: string
 }
@@ -325,84 +298,79 @@ export type SourceConstraint =
 export type SourceConstraintsRecord = Readonly<Record<string, SourceConstraint>>
 
 /**
- * Validate one constraint against a schema adapter dialect. This is kept
- * separate from construction because the same declaration can be inspected
- * for more than one target dialect before a serializer is selected.
+ * Validate one constraint against a schema adapter dialect. This is kept separate from construction
+ * because the same declaration can be inspected for more than one target dialect before a
+ * serializer is selected.
  */
 export function validateConstraintDialect(
   constraint: SourceConstraint,
   dialect: string,
-  path: readonly (string | number)[] = ['constraint']
+  path: readonly (string | number)[] = ["constraint"],
 ) {
-  const diagnostics = [] as import('./metadata.ts').SchemaMetadataDiagnostic[]
+  const diagnostics = [] as import("./metadata.ts").SchemaMetadataDiagnostic[]
   const extension = constraint.dialect
+
   if (extension !== undefined) {
-    const mismatch = dialectMismatchDiagnostic(extension, dialect, [
-      ...path,
-      'dialect',
-    ])
-    if (mismatch !== undefined) diagnostics.push(mismatch)
+    const mismatch = dialectMismatchDiagnostic(extension, dialect, [...path, "dialect"])
+
+    if (mismatch !== undefined) {
+      diagnostics.push(mismatch)
+    }
 
     if (
-      extension.dialect === 'postgresql' &&
-      'notValid' in extension &&
+      extension.dialect === "postgresql" &&
+      "notValid" in extension &&
       extension.notValid === true &&
-      (constraint.kind === 'primary-key' ||
-        constraint.kind === 'unique' ||
-        constraint.kind === 'unique-constraint')
+      (constraint.kind === "primary-key" ||
+        constraint.kind === "unique" ||
+        constraint.kind === "unique-constraint")
     ) {
       diagnostics.push({
-        code: 'unsupported-dialect-option',
-        message: 'PostgreSQL NOT VALID is not supported for key constraints',
-        path: [...path, 'dialect', 'notValid'],
+        code: "unsupported-dialect-option",
+        message: "PostgreSQL NOT VALID is not supported for key constraints",
+        path: [...path, "dialect", "notValid"],
         dialect,
       })
     }
 
     if (
-      extension.dialect === 'sqlite' &&
-      'onConflict' in extension &&
+      extension.dialect === "sqlite" &&
+      "onConflict" in extension &&
       extension.onConflict !== undefined &&
-      constraint.kind === 'foreign-key'
+      constraint.kind === "foreign-key"
     ) {
       diagnostics.push({
-        code: 'unsupported-dialect-option',
-        message: 'SQLite conflict policies do not apply to foreign keys',
-        path: [...path, 'dialect', 'onConflict'],
+        code: "unsupported-dialect-option",
+        message: "SQLite conflict policies do not apply to foreign keys",
+        path: [...path, "dialect", "onConflict"],
         dialect,
       })
     }
   }
 
-  if (
-    constraint.kind === 'foreign-key' &&
-    constraint.match === 'partial' &&
-    dialect === 'mysql'
-  ) {
+  if (constraint.kind === "foreign-key" && constraint.match === "partial" && dialect === "mysql") {
     diagnostics.push({
-      code: 'unsupported-dialect-option',
-      message: 'MySQL does not support MATCH PARTIAL foreign keys',
-      path: [...path, 'match'],
+      code: "unsupported-dialect-option",
+      message: "MySQL does not support MATCH PARTIAL foreign keys",
+      path: [...path, "match"],
       dialect,
     })
   }
-  if (
-    constraint.kind === 'foreign-key' &&
-    constraint.deferrable === true &&
-    dialect === 'mysql'
-  ) {
+
+  if (constraint.kind === "foreign-key" && constraint.deferrable === true && dialect === "mysql") {
     diagnostics.push({
-      code: 'unsupported-dialect-option',
-      message: 'MySQL foreign keys cannot be declared DEFERRABLE',
-      path: [...path, 'deferrable'],
+      code: "unsupported-dialect-option",
+      message: "MySQL foreign keys cannot be declared DEFERRABLE",
+      path: [...path, "deferrable"],
       dialect,
     })
   }
+
   if (constraint.initially !== undefined && constraint.deferrable !== true) {
     diagnostics.push({
-      code: 'unsupported-dialect-option',
-      message: 'An initial constraint timing requires deferrable: true',
-      path: [...path, 'initially'],
+      code: "unsupported-dialect-option",
+      message: "An initial constraint timing requires deferrable: true",
+      path: [...path, "initially"],
       dialect,
     })
   }
@@ -413,13 +381,9 @@ export function validateConstraintDialect(
 export type AnyKeyColumn = ColumnReference<string, any>
 
 type ColumnSource<TColumn> =
-  DependenciesOf<TColumn> extends ColumnDependency<infer TSource, string>
-    ? TSource
-    : never
+  DependenciesOf<TColumn> extends ColumnDependency<infer TSource, string> ? TSource : never
 
-type IsNullableKeyColumn<TColumn> = [
-  DeclaredColumnNullabilityOf<TColumn>,
-] extends [never]
+type IsNullableKeyColumn<TColumn> = [DeclaredColumnNullabilityOf<TColumn>] extends [never]
   ? null extends OutputOf<TColumn>
     ? true
     : false
@@ -437,10 +401,7 @@ type InvalidKeyColumn<TColumn, TSource> = TColumn extends AnyKeyColumn
 
 type KeyColumnsValidation<TColumns extends readonly AnyKeyColumn[]> = [
   {
-    [K in keyof TColumns]: InvalidKeyColumn<
-      TColumns[K],
-      ColumnSource<TColumns[0]>
-    >
+    [K in keyof TColumns]: InvalidKeyColumn<TColumns[K], ColumnSource<TColumns[0]>>
   }[number],
 ] extends [never]
   ? unknown
@@ -449,10 +410,7 @@ type KeyColumnsValidation<TColumns extends readonly AnyKeyColumn[]> = [
 type SameSourceColumnsValidation<TColumns extends readonly AnyKeyColumn[]> = [
   {
     [K in keyof TColumns]: TColumns[K] extends AnyKeyColumn
-      ? DependenciesOf<TColumns[K]> extends ColumnDependency<
-          ColumnSource<TColumns[0]>,
-          string
-        >
+      ? DependenciesOf<TColumns[K]> extends ColumnDependency<ColumnSource<TColumns[0]>, string>
         ? never
         : TColumns[K]
       : TColumns[K]
@@ -470,12 +428,12 @@ type SameSqlDomain<TLeft, TRight> =
           ? false
           : TLeftSql extends AnySqlType
             ? TRightSql extends AnySqlType
-              ? string extends TLeftSql['sqlType']
+              ? string extends TLeftSql["sqlType"]
                 ? false
-                : string extends TRightSql['sqlType']
+                : string extends TRightSql["sqlType"]
                   ? false
-                  : [TLeftSql['sqlType']] extends [TRightSql['sqlType']]
-                    ? [TRightSql['sqlType']] extends [TLeftSql['sqlType']]
+                  : [TLeftSql["sqlType"]] extends [TRightSql["sqlType"]]
+                    ? [TRightSql["sqlType"]] extends [TLeftSql["sqlType"]]
                       ? true
                       : false
                     : false
@@ -507,7 +465,7 @@ type ForeignKeyColumnsValidation<
 type IsUnresolvedSqlDomain<TSqlType> = TSqlType extends SqlUnknown
   ? true
   : TSqlType extends AnySqlType
-    ? string extends TSqlType['sqlType']
+    ? string extends TSqlType["sqlType"]
       ? true
       : false
     : true
@@ -538,110 +496,84 @@ type CatalogForeignKeyColumnsValidation<
     ? unknown
     : never
 
-type CheckExpressionValidation<TExpression> = [SqlTypeOf<TExpression>] extends [
-  never,
-]
+type CheckExpressionValidation<TExpression> = [SqlTypeOf<TExpression>] extends [never]
   ? never
   : SqlTypeOf<TExpression> extends SqlBoolean
     ? unknown
     : never
 
 /** Declare a primary key, including a composite primary key. */
-export function primaryKey<
-  const TColumns extends readonly [AnyKeyColumn, ...AnyKeyColumn[]],
->(
+export function primaryKey<const TColumns extends readonly [AnyKeyColumn, ...AnyKeyColumn[]]>(
   ...columns: TColumns & KeyColumnsValidation<NoInfer<TColumns>>
-): KeyConstraint<'primary-key', TColumns>
+): KeyConstraint<"primary-key", TColumns>
 export function primaryKey<
   const TColumns extends readonly [AnyKeyColumn, ...AnyKeyColumn[]],
   const TOptions extends KeyConstraintOptions,
 >(
-  ...columnsAndOptions: [...TColumns, TOptions] &
-    KeyColumnsValidation<NoInfer<TColumns>>
-): KeyConstraint<'primary-key', TColumns>
+  ...columnsAndOptions: [...TColumns, TOptions] & KeyColumnsValidation<NoInfer<TColumns>>
+): KeyConstraint<"primary-key", TColumns>
 export function primaryKey(...columnsAndOptions: readonly unknown[]) {
   const last = columnsAndOptions.at(-1)
-  const options =
-    last && typeof last === 'object' && !('expressionKind' in last)
-      ? last
-      : undefined
+  const options = last && typeof last === "object" && !("expressionKind" in last) ? last : undefined
   const columns = (
     options ? columnsAndOptions.slice(0, -1) : columnsAndOptions
   ) as readonly AnyKeyColumn[]
-  return freezeConstraint(
-    'primary-key',
-    columns,
-    options as KeyConstraintOptions | undefined
-  )
+
+  return freezeConstraint("primary-key", columns, options as KeyConstraintOptions | undefined)
 }
 
 /** Declare a non-null unique key, including a composite unique key. */
-export function unique<
-  const TColumns extends readonly [AnyKeyColumn, ...AnyKeyColumn[]],
->(
+export function unique<const TColumns extends readonly [AnyKeyColumn, ...AnyKeyColumn[]]>(
   ...columns: TColumns & KeyColumnsValidation<NoInfer<TColumns>>
-): KeyConstraint<'unique', TColumns>
+): KeyConstraint<"unique", TColumns>
 export function unique<
   const TColumns extends readonly [AnyKeyColumn, ...AnyKeyColumn[]],
   const TOptions extends KeyConstraintOptions,
 >(
-  ...columnsAndOptions: [...TColumns, TOptions] &
-    KeyColumnsValidation<NoInfer<TColumns>>
-): KeyConstraint<'unique', TColumns>
+  ...columnsAndOptions: [...TColumns, TOptions] & KeyColumnsValidation<NoInfer<TColumns>>
+): KeyConstraint<"unique", TColumns>
 export function unique(...columnsAndOptions: readonly unknown[]) {
   const last = columnsAndOptions.at(-1)
-  const options =
-    last && typeof last === 'object' && !('expressionKind' in last)
-      ? last
-      : undefined
+  const options = last && typeof last === "object" && !("expressionKind" in last) ? last : undefined
   const columns = (
     options ? columnsAndOptions.slice(0, -1) : columnsAndOptions
   ) as readonly AnyKeyColumn[]
-  return freezeConstraint(
-    'unique',
-    columns,
-    options as KeyConstraintOptions | undefined
-  )
+
+  return freezeConstraint("unique", columns, options as KeyConstraintOptions | undefined)
 }
 
 /**
- * Describe database uniqueness without claiming that the columns determine a
- * row. Nullable columns are accepted, and the NULL behavior is explicit in
- * the returned metadata. Use {@link unique} when a type-level key proof is
- * intended.
+ * Describe database uniqueness without claiming that the columns determine a row. Nullable columns
+ * are accepted, and the NULL behavior is explicit in the returned metadata. Use {@link unique} when
+ * a type-level key proof is intended.
  */
-export function uniqueConstraint<
-  const TColumns extends readonly [AnyKeyColumn, ...AnyKeyColumn[]],
->(
+export function uniqueConstraint<const TColumns extends readonly [AnyKeyColumn, ...AnyKeyColumn[]]>(
   ...columns: TColumns & SameSourceColumnsValidation<NoInfer<TColumns>>
-): UniqueConstraint<TColumns, 'distinct'>
+): UniqueConstraint<TColumns, "distinct">
 export function uniqueConstraint<
   const TColumns extends readonly [AnyKeyColumn, ...AnyKeyColumn[]],
   const TOptions extends UniqueConstraintOptions,
 >(
-  ...columnsAndOptions: [...TColumns, TOptions] &
-    SameSourceColumnsValidation<NoInfer<TColumns>>
+  ...columnsAndOptions: [...TColumns, TOptions] & SameSourceColumnsValidation<NoInfer<TColumns>>
 ): UniqueConstraint<
   TColumns,
   TOptions extends { readonly nulls: infer TNulls extends UniqueNullSemantics }
     ? TNulls
-    : 'distinct'
+    : "distinct"
 >
 export function uniqueConstraint(...columnsAndOptions: readonly unknown[]) {
   const last = columnsAndOptions.at(-1)
-  const options =
-    last && typeof last === 'object' && !('expressionKind' in last)
-      ? last
-      : undefined
+  const options = last && typeof last === "object" && !("expressionKind" in last) ? last : undefined
   const columns = (
     options ? columnsAndOptions.slice(0, -1) : columnsAndOptions
   ) as readonly AnyKeyColumn[]
   const resolvedOptions = (options ?? {}) as UniqueConstraintOptions
+
   return freezeConstraint(
-    'unique-constraint',
+    "unique-constraint",
     columns,
     resolvedOptions,
-    resolvedOptions.nulls ?? 'distinct'
+    resolvedOptions.nulls ?? "distinct",
   )
 }
 
@@ -669,27 +601,24 @@ export function foreignKey<
     (ResolvedTarget<TTarget> extends ForeignKeyTarget<any, infer TTargetColumns>
       ? ForeignKeyColumnsValidation<TColumns, TTargetColumns>
       : never),
-  options?: TOptions
+  options?: TOptions,
 ): ForeignKeyConstraint<TColumns, TTarget> {
-  return freezeConstraint(
-    'foreign-key',
-    columns,
-    options,
-    target
-  ) as ForeignKeyConstraint<TColumns, TTarget>
+  return freezeConstraint("foreign-key", columns, options, target) as ForeignKeyConstraint<
+    TColumns,
+    TTarget
+  >
 }
 
 /**
  * Reconstruct a foreign key proved by database catalog metadata.
  *
  * @remarks
- * Use this helper for generated or introspection-owned declarations when one
- * or both native SQL domains are unresolved. It accepts unresolved domains,
- * but still rejects known domain mismatches, unequal tuple arity, and local
- * columns from different sources. The enclosing `table()` declaration
- * continues to verify target-column ownership and candidate-key metadata.
- * Resolved targets also receive runtime shape, ownership, and arity checks.
- * The returned value serializes as an ordinary foreign-key constraint.
+ *   Use this helper for generated or introspection-owned declarations when one or both native SQL
+ *   domains are unresolved. It accepts unresolved domains, but still rejects known domain
+ *   mismatches, unequal tuple arity, and local columns from different sources. The enclosing
+ *   `table()` declaration continues to verify target-column ownership and candidate-key metadata.
+ *   Resolved targets also receive runtime shape, ownership, and arity checks. The returned value
+ *   serializes as an ordinary foreign-key constraint.
  */
 export function catalogForeignKey<
   const TColumns extends readonly [AnyKeyColumn, ...AnyKeyColumn[]],
@@ -701,20 +630,15 @@ export function catalogForeignKey<
     (ResolvedTarget<TTarget> extends ForeignKeyTarget<any, infer TTargetColumns>
       ? CatalogForeignKeyColumnsValidation<TColumns, TTargetColumns>
       : never),
-  options?: TOptions
+  options?: TOptions,
 ): ForeignKeyConstraint<TColumns, TTarget> {
-  assertCatalogForeignKeyColumns(columns, 'local')
-  const validatedTarget = validateCatalogForeignKeyTargetInput(
-    target,
-    columns.length
-  ) as TTarget
+  assertCatalogForeignKeyColumns(columns, "local")
+  const validatedTarget = validateCatalogForeignKeyTargetInput(target, columns.length) as TTarget
 
-  return freezeConstraint(
-    'foreign-key',
-    columns,
-    options,
-    validatedTarget
-  ) as ForeignKeyConstraint<TColumns, TTarget>
+  return freezeConstraint("foreign-key", columns, options, validatedTarget) as ForeignKeyConstraint<
+    TColumns,
+    TTarget
+  >
 }
 
 /** Declare a boolean table invariant. */
@@ -723,124 +647,104 @@ export function check<
   const TOptions extends CheckConstraintOptions = {},
 >(
   expression: TExpression & CheckExpressionValidation<TExpression>,
-  options?: TOptions
+  options?: TOptions,
 ): CheckConstraint<TExpression> {
-  return freezeConstraint(
-    'check',
-    undefined,
-    options,
-    expression
-  ) as CheckConstraint<TExpression>
+  return freezeConstraint("check", undefined, options, expression) as CheckConstraint<TExpression>
 }
 
 /**
- * Reconstruct a boolean check from opaque SQL recovered from a database
- * catalog.
+ * Reconstruct a boolean check from opaque SQL recovered from a database catalog.
  *
  * @remarks
- * This helper records catalog origin as a narrow type-level proof. It
- * gives the opaque expression the {@link SqlBoolean} semantic type without
- * changing the ordinary {@link check} contract. Qubu does not parse or infer
- * dependencies from the SQL. It preserves the text apart from normalizing
- * line endings and retains the dialect tag in serialized schema metadata.
+ *   This helper records catalog origin as a narrow type-level proof. It gives the opaque expression
+ *   the {@link SqlBoolean} semantic type without changing the ordinary {@link check} contract. Qubu
+ *   does not parse or infer dependencies from the SQL. It preserves the text apart from normalizing
+ *   line endings and retains the dialect tag in serialized schema metadata.
  */
 export function catalogCheck<
   const TDialect extends SchemaDialectName,
   const TOptions extends CheckConstraintOptions = {},
 >(
   input: CatalogCheckSql<TDialect>,
-  options?: TOptions
+  options?: TOptions,
 ): CheckConstraint<CatalogCheckExpression<TDialect>> {
   assertCatalogCheckSql(input)
-  const expression = unsafeSchemaSql(
-    input.dialect,
-    input.sql
-  ) as CatalogCheckExpression<TDialect>
+  const expression = unsafeSchemaSql(input.dialect, input.sql) as CatalogCheckExpression<TDialect>
 
-  return freezeConstraint(
-    'check',
-    undefined,
-    options,
-    expression
-  ) as CheckConstraint<CatalogCheckExpression<TDialect>>
+  return freezeConstraint("check", undefined, options, expression) as CheckConstraint<
+    CatalogCheckExpression<TDialect>
+  >
 }
 
-function assertCatalogCheckSql(
-  value: unknown
-): asserts value is CatalogCheckSql {
-  if (typeof value !== 'object' || value === null) {
-    throw new TypeError('catalogCheck() requires dialect-tagged SQL data')
+function assertCatalogCheckSql(value: unknown): asserts value is CatalogCheckSql {
+  if (typeof value !== "object" || value === null) {
+    throw new TypeError("catalogCheck() requires dialect-tagged SQL data")
   }
 
   const input = value as Partial<CatalogCheckSql>
-  if (
-    input.dialect !== 'postgresql' &&
-    input.dialect !== 'sqlite' &&
-    input.dialect !== 'mysql'
-  ) {
+
+  if (input.dialect !== "postgresql" && input.dialect !== "sqlite" && input.dialect !== "mysql") {
     throw new TypeError(
-      `catalogCheck() requires a supported catalog dialect, received "${String(input.dialect)}"`
+      `catalogCheck() requires a supported catalog dialect, received "${String(input.dialect)}"`,
     )
   }
-  if (typeof input.sql !== 'string' || input.sql.trim().length === 0) {
-    throw new TypeError('catalogCheck() requires non-empty SQL text')
+
+  if (typeof input.sql !== "string" || input.sql.trim().length === 0) {
+    throw new TypeError("catalogCheck() requires non-empty SQL text")
   }
 }
 
 function assertCatalogForeignKeyColumns(
   value: unknown,
-  side: 'local' | 'target'
+  side: "local" | "target",
 ): asserts value is readonly [AnyKeyColumn, ...AnyKeyColumn[]] {
   if (!Array.isArray(value) || value.length === 0) {
-    throw new TypeError(
-      `catalogForeignKey() requires at least one ${side} column`
-    )
+    throw new TypeError(`catalogForeignKey() requires at least one ${side} column`)
   }
+
   if (!value.every(isColumnReference)) {
-    throw new TypeError(
-      `catalogForeignKey() requires ${side} columns to be column references`
-    )
+    throw new TypeError(`catalogForeignKey() requires ${side} columns to be column references`)
   }
 }
 
 function validateCatalogForeignKeyTargetInput(
   value: ForeignKeyTargetInput,
-  localArity: number
+  localArity: number,
 ): ForeignKeyTargetInput {
-  return typeof value === 'function'
+  return typeof value === "function"
     ? () => validateCatalogForeignKeyTarget(value(), localArity)
     : validateCatalogForeignKeyTarget(value, localArity)
 }
 
-function validateCatalogForeignKeyTarget(
-  value: unknown,
-  localArity: number
-): ForeignKeyTarget {
-  if (typeof value !== 'object' || value === null) {
-    throw new TypeError('catalogForeignKey() requires a foreign-key target')
+function validateCatalogForeignKeyTarget(value: unknown, localArity: number): ForeignKeyTarget {
+  if (typeof value !== "object" || value === null) {
+    throw new TypeError("catalogForeignKey() requires a foreign-key target")
   }
 
   const target = value as Partial<ForeignKeyTarget>
-  assertCatalogForeignKeyColumns(target.columns, 'target')
+
+  assertCatalogForeignKeyColumns(target.columns, "target")
   if (target.columns.length !== localArity) {
     throw new TypeError(
-      `catalogForeignKey() column arity differs: ${localArity} local and ${target.columns.length} target`
+      `catalogForeignKey() column arity differs: ${localArity} local and ${target.columns.length} target`,
     )
   }
 
   const table = target.table as Partial<TableLike<any>> | undefined
+
   if (
-    typeof table !== 'object' ||
+    typeof table !== "object" ||
     table === null ||
-    typeof table.columns !== 'object' ||
+    typeof table.columns !== "object" ||
     table.columns === null
   ) {
-    throw new TypeError('catalogForeignKey() target must reference a table')
+    throw new TypeError("catalogForeignKey() target must reference a table")
   }
+
   for (const column of target.columns) {
     if (table.columns[column.fieldName] !== column) {
       throw new TypeError(
-        `catalogForeignKey() target column "${column.fieldName}" does not belong to its table`
+        `catalogForeignKey() target column "${column.fieldName}" does not belong to its table`,
       )
     }
   }
@@ -849,12 +753,7 @@ function validateCatalogForeignKeyTarget(
 }
 
 function freezeConstraint(
-  kind:
-    | 'primary-key'
-    | 'unique'
-    | 'unique-constraint'
-    | 'foreign-key'
-    | 'check',
+  kind: "primary-key" | "unique" | "unique-constraint" | "foreign-key" | "check",
   columns: readonly AnyKeyColumn[] | undefined,
   options:
     | ConstraintOptions
@@ -863,7 +762,7 @@ function freezeConstraint(
     | KeyConstraintOptions
     | CheckConstraintOptions
     | undefined,
-  extra?: unknown
+  extra?: unknown,
 ): object {
   const value: Record<string, unknown> = { kind }
   const optionValues = options as
@@ -875,34 +774,48 @@ function freezeConstraint(
         readonly match?: ForeignKeyMatch
       })
     | undefined
-  if (columns !== undefined) value.columns = Object.freeze([...columns])
 
-  if (kind === 'check') value.expression = extra
-  else if (kind === 'foreign-key') value.target = extra
-  else if (kind === 'unique-constraint') value.nulls = extra
+  if (columns !== undefined) {
+    value.columns = Object.freeze([...columns])
+  }
+
+  if (kind === "check") {
+    value.expression = extra
+  } else if (kind === "foreign-key") {
+    value.target = extra
+  } else if (kind === "unique-constraint") {
+    value.nulls = extra
+  }
 
   if (optionValues?.physicalName !== undefined) {
     value.physicalName = optionValues.physicalName
   }
+
   if (optionValues?.dialect !== undefined) {
     value.dialect = freezeSchemaMetadata(optionValues.dialect)
   }
+
   if (optionValues?.deferrable !== undefined) {
     value.deferrable = optionValues.deferrable
   }
+
   if (optionValues?.initially !== undefined) {
     value.initially = optionValues.initially
   }
-  if (kind === 'foreign-key') {
+
+  if (kind === "foreign-key") {
     if (optionValues?.onUpdate !== undefined) {
       value.onUpdate = optionValues.onUpdate
     }
+
     if (optionValues?.onDelete !== undefined) {
       value.onDelete = optionValues.onDelete
     }
+
     if (optionValues?.match !== undefined) {
       value.match = optionValues.match
     }
   }
+
   return Object.freeze(value)
 }

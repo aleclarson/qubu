@@ -1,21 +1,21 @@
+import { createDialect } from "../src/core/index.ts"
+import { postgresDialect } from "../src/dialects/postgres.ts"
+import { sqliteDialect } from "../src/dialects/sqlite.ts"
 import type {
   CapabilitiesOf,
   Dialect,
   DialectCapability,
   MetadataOf,
   RequiresCapabilityMeta,
-} from '../src/index.ts'
-import { render } from '../src/index.ts'
-import { createDialect } from '../src/core/index.ts'
-import { postgresDialect } from '../src/dialects/postgres.ts'
-import { sqliteDialect } from '../src/dialects/sqlite.ts'
+} from "../src/index.ts"
+import { render } from "../src/index.ts"
 import {
   namedPostgresDialect,
   queryFromCapabilityAlias,
   portableQuery,
   postgresOnlyQuery,
   unionedQuery,
-} from './dialect-capabilities-fixtures.ts'
+} from "./dialect-capabilities-fixtures.ts"
 
 type Equal<TLeft, TRight> = [TLeft] extends [TRight]
   ? [TRight] extends [TLeft]
@@ -26,41 +26,36 @@ type Equal<TLeft, TRight> = [TLeft] extends [TRight]
 type Assert<TCondition extends true> = TCondition
 
 export type CapabilityVocabulary = Assert<
-  Equal<DialectCapability, 'ilike' | 'json' | 'on-conflict' | 'row-locking'>
+  Equal<DialectCapability, "ilike" | "json" | "on-conflict" | "row-locking">
 >
 
 export type PostgresQueryRequiresIlike = Assert<
-  Equal<CapabilitiesOf<typeof postgresOnlyQuery>, 'ilike'>
+  Equal<CapabilitiesOf<typeof postgresOnlyQuery>, "ilike">
 >
 
 export type SetCompositionPreservesCapabilities = Assert<
-  Equal<CapabilitiesOf<typeof unionedQuery>, 'ilike'>
+  Equal<CapabilitiesOf<typeof unionedQuery>, "ilike">
 >
 
 export type SourceAliasPreservesCapabilities = Assert<
-  Equal<CapabilitiesOf<typeof queryFromCapabilityAlias>, 'ilike'>
+  Equal<CapabilitiesOf<typeof queryFromCapabilityAlias>, "ilike">
 >
 
 export type CapabilityMetadataIsTagged = Assert<
   Equal<
-    Extract<
-      MetadataOf<typeof postgresOnlyQuery>,
-      { readonly kind: 'requires-capability' }
-    >,
-    RequiresCapabilityMeta<'ilike'>
+    Extract<MetadataOf<typeof postgresOnlyQuery>, { readonly kind: "requires-capability" }>,
+    RequiresCapabilityMeta<"ilike">
   >
 >
 
 export type PostgresDialectAdvertisesIlike = Assert<
-  typeof postgresDialect extends () => Dialect<
-    'ilike' | 'json' | 'on-conflict' | 'row-locking'
-  >
+  typeof postgresDialect extends () => Dialect<"ilike" | "json" | "on-conflict" | "row-locking">
     ? true
     : false
 >
 
 export type NamedDialectAdvertisesIlike = Assert<
-  Equal<typeof namedPostgresDialect, Dialect<'ilike'>>
+  Equal<typeof namedPostgresDialect, Dialect<"ilike">>
 >
 
 render(postgresOnlyQuery, postgresDialect())
@@ -85,5 +80,8 @@ render(queryFromCapabilityAlias, sqliteDialect())
 render(
   // @ts-expect-error A custom dialect must advertise ILIKE before it can render it.
   postgresOnlyQuery,
-  createDialect({ name: 'portable-only', placeholder: () => '?' })
+  createDialect({
+    name: "portable-only",
+    placeholder: () => "?",
+  }),
 )

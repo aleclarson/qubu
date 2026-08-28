@@ -14,15 +14,15 @@ import type {
   SourceRow,
   SourceSqlTypeMap,
   SqlUnknown,
-} from '../src/index.ts'
+} from "../src/index.ts"
+import { from, select, where, eq } from "../src/index.ts"
 import {
   entries,
   entriesQuery,
   joinedEntriesClause,
   joinedEntriesQuery,
   users,
-} from './source-producing-fixtures.ts'
-import { from, select, where, eq } from '../src/index.ts'
+} from "./source-producing-fixtures.ts"
 
 type Equal<TLeft, TRight> = [TLeft] extends [TRight]
   ? [TRight] extends [TLeft]
@@ -36,50 +36,60 @@ type EntryIdentity = SourceIdentity<typeof entries>
 type EntryRow = SourceRow<typeof entries>
 
 declare const sparseSource: Source<{
-  readonly identity: 'sparse-source'
-  readonly row: { readonly id: number; readonly label: string }
+  readonly identity: "sparse-source"
+  readonly row: {
+    readonly id: number
+    readonly label: string
+  }
 }>
 
 export type SparseSourceIdentity = Assert<
-  Equal<SourceIdentity<typeof sparseSource>, 'sparse-source'>
+  Equal<SourceIdentity<typeof sparseSource>, "sparse-source">
 >
 
 export type SparseSourceRow = Assert<
   Equal<
     SourceRow<typeof sparseSource>,
-    { readonly id: number; readonly label: string }
+    {
+      readonly id: number
+      readonly label: string
+    }
   >
 >
 
 export type SparseSourceDefaultsSqlTypes = Assert<
   Equal<
     SourceSqlTypeMap<typeof sparseSource>,
-    { readonly id: SqlUnknown; readonly label: SqlUnknown }
+    {
+      readonly id: SqlUnknown
+      readonly label: SqlUnknown
+    }
   >
 >
 
 export type SourceProvisionIsPrecise = Assert<
-  Equal<
-    SourceProvision<typeof entries>,
-    ProvidesSourceMeta<EntryIdentity, EntryRow>
-  >
+  Equal<SourceProvision<typeof entries>, ProvidesSourceMeta<EntryIdentity, EntryRow>>
 >
 
 export type SourceIdentityComesFromProvision = Assert<
   Equal<ProvidedSourceIdentity<typeof entries>, EntryIdentity>
 >
 
-export type SourceRowComesFromProvision = Assert<
-  Equal<ProvidedSourceRow<typeof entries>, EntryRow>
->
+export type SourceRowComesFromProvision = Assert<Equal<ProvidedSourceRow<typeof entries>, EntryRow>>
 
 export type SourceRowShape = Assert<
-  Equal<EntryRow, { key: number; value: string | null }>
+  Equal<
+    EntryRow,
+    {
+      key: number
+      value: string | null
+    }
+  >
 >
 
 export type SourceProvisionMetadataIsAvailableToComposition = Assert<
   Equal<
-    Extract<MetadataOf<typeof entries>, { readonly kind: 'provides-source' }>,
+    Extract<MetadataOf<typeof entries>, { readonly kind: "provides-source" }>,
     ProvidesSourceMeta<EntryIdentity, EntryRow>
   >
 >
@@ -91,15 +101,15 @@ export type SourceRequirementsRemainPrecise = Assert<
 export type SourceOutputRemainsPrecise = Assert<
   Equal<
     OutputOf<typeof entriesQuery>,
-    readonly { key: number; value: string | null }[]
+    readonly {
+      key: number
+      value: string | null
+    }[]
   >
 >
 
 export type SourceDependenciesRemainPrecise = Assert<
-  Equal<
-    DependenciesOf<typeof entries.value>,
-    ColumnDependency<EntryIdentity, 'value'>
-  >
+  Equal<DependenciesOf<typeof entries.value>, ColumnDependency<EntryIdentity, "value">>
 >
 
 export type JoinedSourceNullabilityRemainsClauseDriven = Assert<
@@ -109,7 +119,11 @@ export type JoinedSourceNullabilityRemainsClauseDriven = Assert<
 export type JoinedSourceOutputRemainsSound = Assert<
   Equal<
     typeof joinedEntriesQuery.row,
-    { userId: number; value: string | null; total: number }
+    {
+      userId: number
+      value: string | null
+      total: number
+    }
   >
 >
 

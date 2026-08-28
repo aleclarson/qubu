@@ -1,3 +1,3 @@
-import baseConfig from '../tsdown.config.ts'
+import baseConfig from "../tsdown.config.ts"
 
 export default baseConfig

@@ -8,7 +8,7 @@ It keeps the object kind, namespace, logical ID, physical name, dialect, path,
 and catalog evidence on every result object.
 
 ```ts
-import { diffSnapshots } from 'qubu/diff'
+import { diffSnapshots } from "qubu/diff"
 
 const result = diffSnapshots(previousSnapshot, currentSnapshot)
 
@@ -32,10 +32,10 @@ use an ID, a physical name, or an exact path when a nested scope repeats an ID.
 const result = diffSnapshots(previousSnapshot, currentSnapshot, {
   renameHints: [
     {
-      kind: 'table',
-      namespace: 'public',
-      from: 'legacy_accounts',
-      to: 'accounts',
+      kind: "table",
+      namespace: "public",
+      from: "legacy_accounts",
+      to: "accounts",
     },
   ],
 })

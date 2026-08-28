@@ -84,18 +84,14 @@ needs to preserve a fact across composition:
 ## A small example
 
 ```ts
-import { eq, from, integer, render, select, table, text, where } from 'qubu'
+import { eq, from, integer, render, select, table, text, where } from "qubu"
 
-const users = table('users', {
+const users = table("users", {
   id: integer(),
   name: text(),
 })
 
-const query = select(
-  { id: users.id, name: users.name },
-  from(users),
-  where(eq(users.id, 7))
-)
+const query = select({ id: users.id, name: users.name }, from(users), where(eq(users.id, 7)))
 
 render(query)
 // {

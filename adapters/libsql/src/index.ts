@@ -6,7 +6,7 @@ import type {
   Row,
   Transaction,
   TransactionMode,
-} from '@libsql/client'
+} from "@libsql/client"
 import type {
   DriverValueEncoder,
   ExecutionRequest,
@@ -16,20 +16,18 @@ import type {
   ExplainResult,
   TransactionOptions,
   TransactionalQueryAdapter,
-} from 'qubu'
-import { sqliteDialect } from 'qubu/sqlite'
+} from "qubu"
+import { sqliteDialect } from "qubu/sqlite"
 
 export interface LibsqlAdapterOptions {
   readonly encoder?: DriverValueEncoder<InValue>
   readonly transactionMode?: TransactionMode
 }
 
-export interface LibsqlTransactionAdapter
-  extends ExplainableQueryAdapter<Row> {}
+export interface LibsqlTransactionAdapter extends ExplainableQueryAdapter<Row> {}
 
 export interface LibsqlAdapter
-  extends ExplainableQueryAdapter<Row>,
-    TransactionalQueryAdapter<LibsqlTransactionAdapter> {
+  extends ExplainableQueryAdapter<Row>, TransactionalQueryAdapter<LibsqlTransactionAdapter> {
   readonly client: Client
   readonly transactionMode: TransactionMode
 }
@@ -45,12 +43,9 @@ const identityEncoder: DriverValueEncoder<InValue> = {
 }
 
 /** Adapt an application-owned `@libsql/client` for Qubu execution. */
-export function libsqlAdapter(
-  client: Client,
-  options: LibsqlAdapterOptions = {}
-): LibsqlAdapter {
+export function libsqlAdapter(client: Client, options: LibsqlAdapterOptions = {}): LibsqlAdapter {
   const encoder = options.encoder ?? identityEncoder
-  const transactionMode = options.transactionMode ?? 'write'
+  const transactionMode = options.transactionMode ?? "write"
 
   return {
     client,
@@ -64,7 +59,7 @@ export function libsqlAdapter(
     },
     async transaction<T>(
       callback: (adapter: LibsqlTransactionAdapter) => Promise<T>,
-      transactionOptions: TransactionOptions = {}
+      transactionOptions: TransactionOptions = {},
     ): Promise<T> {
       throwIfAborted(transactionOptions.signal)
       const transaction = await client.transaction(transactionMode)
@@ -73,11 +68,15 @@ export function libsqlAdapter(
       try {
         throwIfAborted(transactionOptions.signal)
         const result = await callback(adapter)
+
         throwIfAborted(transactionOptions.signal)
         await transaction.commit()
         return result
       } catch (error) {
-        if (!transaction.closed) await transaction.rollback()
+        if (!transaction.closed) {
+          await transaction.rollback()
+        }
+
         throw error
       } finally {
         transaction.close()
@@ -88,7 +87,7 @@ export function libsqlAdapter(
 
 function transactionAdapter(
   transaction: Transaction,
-  encoder: DriverValueEncoder<InValue>
+  encoder: DriverValueEncoder<InValue>,
 ): LibsqlTransactionAdapter {
   return {
     dialect: sqliteDialect(),
@@ -104,17 +103,16 @@ function transactionAdapter(
 async function executeRequest<TRow extends object>(
   executor: LibsqlExecutor,
   request: ExecutionRequest,
-  encoder: DriverValueEncoder<InValue>
+  encoder: DriverValueEncoder<InValue>,
 ): Promise<ExecutionResult<TRow>> {
   throwIfAborted(request.signal)
   const result = await executor.execute(statement(request, encoder))
-  const isMutation =
-    request.queryKind !== 'select' && request.queryKind !== 'set'
+  const isMutation = request.queryKind !== "select" && request.queryKind !== "set"
 
   return {
     rows: result.rows as unknown as readonly TRow[],
     ...(isMutation ? { affectedRows: result.rowsAffected } : {}),
-    ...(request.queryKind === 'insert' && result.lastInsertRowid !== undefined
+    ...(request.queryKind === "insert" && result.lastInsertRowid !== undefined
       ? { insertId: result.lastInsertRowid }
       : {}),
   }
@@ -123,20 +121,18 @@ async function executeRequest<TRow extends object>(
 async function explainRequest(
   executor: LibsqlExecutor,
   request: ExplainRequest,
-  encoder: DriverValueEncoder<InValue>
+  encoder: DriverValueEncoder<InValue>,
 ): Promise<ExplainResult<Row>> {
   throwIfAborted(request.signal)
   const result = await executor.execute(statement(request, encoder))
+
   return { rows: result.rows }
 }
 
-function statement(
-  request: ExecutionRequest,
-  encoder: DriverValueEncoder<InValue>
-): InStatement {
+function statement(request: ExecutionRequest, encoder: DriverValueEncoder<InValue>): InStatement {
   return {
     sql: request.statement.text,
-    args: request.statement.parameters.map(value => encoder.encode(value)),
+    args: request.statement.parameters.map((value) => encoder.encode(value)),
   }
 }
 

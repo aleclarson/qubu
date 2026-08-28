@@ -2,34 +2,31 @@ import {
   parenthesize,
   type CapabilityMetadataOf,
   type RequiresOuterMetadataOf,
-} from '../../core/fragment.ts'
-import { identifier } from '../../core/primitives/identifier.ts'
-import { resolveSqlNames } from '../../core/naming.ts'
+} from "../../core/fragment.ts"
+import { resolveSqlNames } from "../../core/naming.ts"
+import { identifier } from "../../core/primitives/identifier.ts"
+import { createColumnReference, type ColumnReference } from "../../expressions/column.ts"
+import { resultShapeValue } from "../../result.ts"
 import {
-  createColumnReference,
-  type ColumnReference,
-} from '../../expressions/column.ts'
+  createSource,
+  exposeColumns,
+  type Source,
+  type SourceColumns,
+} from "../../schema/source.ts"
+import type { QueryTypeValidation } from "../errors.ts"
+import type { SelectQuery } from "../select/types.ts"
+import type { SetSqlValidation } from "../set.ts"
 import {
   createQuery,
   type AnyQuery,
   type Query,
   type QueryRow,
   type QuerySqlTypeMap,
-} from '../types.ts'
-import type { SelectQuery } from '../select/types.ts'
-import type { SetSqlValidation } from '../set.ts'
-import type { QueryTypeValidation } from '../errors.ts'
-import {
-  createSource,
-  exposeColumns,
-  type Source,
-  type SourceColumns,
-} from '../../schema/source.ts'
-import { createClause, type SelectClause } from './types.ts'
-import { resultShapeValue } from '../../result.ts'
+} from "../types.ts"
+import { createClause, type SelectClause } from "./types.ts"
 
 export type CteIdentity<TName extends string> = {
-  readonly sourceKind: 'cte'
+  readonly sourceKind: "cte"
   readonly name: TName
 }
 
@@ -37,8 +34,8 @@ export type CteSource<
   TName extends string,
   TRow extends object,
   TMetadata = never,
-  TSqlTypes extends
-    import('../../schema/source.ts').SourceSqlTypes<TRow> = import('../../schema/source.ts').UnknownSourceSqlTypes<TRow>,
+  TSqlTypes extends import("../../schema/source.ts").SourceSqlTypes<TRow> =
+    import("../../schema/source.ts").UnknownSourceSqlTypes<TRow>,
 > = Source<{
   readonly identity: CteIdentity<TName>
   readonly row: TRow
@@ -59,11 +56,7 @@ type CteMetadata<TQuery extends AnyQuery> =
   | RequiresOuterMetadataOf<TQuery>
   | CapabilityMetadataOf<TQuery>
 
-type IsUnknown<T> = unknown extends T
-  ? [keyof T] extends [never]
-    ? true
-    : false
-  : false
+type IsUnknown<T> = unknown extends T ? ([keyof T] extends [never] ? true : false) : false
 
 type RecursiveMemberFieldFailures<TAnchor, TMember> =
   | Exclude<keyof QueryRow<TAnchor>, keyof QueryRow<TMember>>
@@ -85,20 +78,19 @@ type RecursiveMemberShapeValidation<TAnchor, TMember> = [
 ] extends [never]
   ? unknown
   : QueryTypeValidation<
-      'incompatible-set-domain',
-      'recursive-cte.member',
-      'The recursive member must expose the anchor fields with compatible application types.',
+      "incompatible-set-domain",
+      "recursive-cte.member",
+      "The recursive member must expose the anchor fields with compatible application types.",
       RecursiveMemberFieldFailures<TAnchor, TMember>
     >
 
-type RecursiveMemberValidation<TAnchor, TMember> =
-  RecursiveMemberShapeValidation<TAnchor, TMember> &
-    SetSqlValidation<TAnchor, TMember>
+type RecursiveMemberValidation<TAnchor, TMember> = RecursiveMemberShapeValidation<
+  TAnchor,
+  TMember
+> &
+  SetSqlValidation<TAnchor, TMember>
 
-type RecursiveCteSelf<
-  TName extends string,
-  TAnchor extends SelectQuery<any>,
-> = CteSource<
+type RecursiveCteSelf<TName extends string, TAnchor extends SelectQuery<any>> = CteSource<
   TName,
   QueryRow<TAnchor>,
   CteMetadata<TAnchor>,
@@ -110,16 +102,11 @@ export type RecursiveCteSource<
   TName extends string,
   TAnchor extends SelectQuery<any>,
   TMember extends SelectQuery<any>,
-> = CteSource<
-  TName,
-  QueryRow<TAnchor>,
-  CteMetadata<TAnchor | TMember>,
-  QuerySqlTypeMap<TAnchor>
->
+> = CteSource<TName, QueryRow<TAnchor>, CteMetadata<TAnchor | TMember>, QuerySqlTypeMap<TAnchor>>
 
 type RecursiveCteQuery<TRow extends object, TMetadata, TSqlTypes> = Query<{
   readonly row: TRow
-  readonly cardinality: 'many'
+  readonly cardinality: "many"
   readonly metadata: TMetadata
   readonly sqlTypes: TSqlTypes
 }> & {
@@ -134,7 +121,7 @@ export type AnyCteSource = Source<any> & {
 
 export function cte<const TName extends string, TQuery extends AnyQuery>(
   name: TName,
-  query: TQuery
+  query: TQuery,
 ): CteSource<
   TName,
   QueryRow<TQuery>,
@@ -143,29 +130,25 @@ export function cte<const TName extends string, TQuery extends AnyQuery>(
 > {
   type TRow = QueryRow<TQuery>
   type TIdentity = CteIdentity<TName>
-  type TMetadata =
-    | RequiresOuterMetadataOf<TQuery>
-    | CapabilityMetadataOf<TQuery>
+  type TMetadata = RequiresOuterMetadataOf<TQuery> | CapabilityMetadataOf<TQuery>
   type TSqlTypes = QuerySqlTypeMap<TQuery>
   const reference = identifier(name)
   const source = createSource<TIdentity, TRow, TMetadata, TSqlTypes>(
-    'cte',
-    context => context.render(reference),
-    reference
+    "cte",
+    (context) => context.render(reference),
+    reference,
   )
-  const sqlNames = resolveSqlNames(
-    Object.keys(query.row).map(fieldName => ({ fieldName }))
-  )
+  const sqlNames = resolveSqlNames(Object.keys(query.row).map((fieldName) => ({ fieldName })))
   const columns = Object.fromEntries(
-    Object.keys(query.row).map(fieldName => [
+    Object.keys(query.row).map((fieldName) => [
       fieldName,
       createColumnReference(
         sqlNames[fieldName],
         reference,
         fieldName,
-        resultShapeValue(query.resultShape, fieldName)
+        resultShapeValue(query.resultShape, fieldName),
       ) as ColumnReference<string, any>,
-    ])
+    ]),
   ) as SourceColumns<TRow, TIdentity, TSqlTypes>
 
   Object.assign(source, {
@@ -179,9 +162,9 @@ export function cte<const TName extends string, TQuery extends AnyQuery>(
 }
 
 /**
- * Define a typed recursive `WITH` source from an anchor and one recursive
- * member. The callback receives a forward reference that must be introduced
- * through the member query's normal FROM or JOIN scope.
+ * Define a typed recursive `WITH` source from an anchor and one recursive member. The callback
+ * receives a forward reference that must be introduced through the member query's normal FROM or
+ * JOIN scope.
  */
 export function recursiveCte<
   const TName extends string,
@@ -192,9 +175,8 @@ export function recursiveCte<
   anchor: TAnchor,
   member: ((self: RecursiveCteSelf<TName, TAnchor>) => TMember) &
     ((
-      self: RecursiveCteSelf<TName, TAnchor>
-    ) => TMember &
-      RecursiveMemberValidation<NoInfer<TAnchor>, NoInfer<TMember>>)
+      self: RecursiveCteSelf<TName, TAnchor>,
+    ) => TMember & RecursiveMemberValidation<NoInfer<TAnchor>, NoInfer<TMember>>),
 ): RecursiveCteSource<TName, TAnchor, TMember> {
   type TRow = QueryRow<TAnchor>
   type TIdentity = CteIdentity<TName>
@@ -202,23 +184,21 @@ export function recursiveCte<
   type TSqlTypes = QuerySqlTypeMap<TAnchor>
   const reference = identifier(name)
   const source = createSource<TIdentity, TRow, CteMetadata<TAnchor>, TSqlTypes>(
-    'cte',
-    context => context.render(reference),
-    reference
+    "cte",
+    (context) => context.render(reference),
+    reference,
   )
-  const sqlNames = resolveSqlNames(
-    Object.keys(anchor.row).map(fieldName => ({ fieldName }))
-  )
+  const sqlNames = resolveSqlNames(Object.keys(anchor.row).map((fieldName) => ({ fieldName })))
   const columns = Object.fromEntries(
-    Object.keys(anchor.row).map(fieldName => [
+    Object.keys(anchor.row).map((fieldName) => [
       fieldName,
       createColumnReference(
         sqlNames[fieldName],
         reference,
         fieldName,
-        resultShapeValue(anchor.resultShape, fieldName)
+        resultShapeValue(anchor.resultShape, fieldName),
       ) as ColumnReference<string, any>,
-    ])
+    ]),
   ) as SourceColumns<TRow, TIdentity, TSqlTypes>
 
   Object.assign(source, {
@@ -230,15 +210,15 @@ export function recursiveCte<
 
   const memberQuery = member(source as RecursiveCteSelf<TName, TAnchor>)
   const query = Object.freeze({
-    ...createQuery<TRow, 'many', TMetadata, TSqlTypes>(
-      'set',
+    ...createQuery<TRow, "many", TMetadata, TSqlTypes>(
+      "set",
       anchor.row,
       anchor.resultShape,
-      context => {
+      (context) => {
         context.render(anchor)
-        context.append(' UNION ALL ')
+        context.append(" UNION ALL ")
         context.render(memberQuery)
-      }
+      },
     ),
     recursive: true as const,
   }) as RecursiveCteQuery<TRow, TMetadata, TSqlTypes>
@@ -251,41 +231,46 @@ export function recursiveCte<
 }
 
 export interface WithClause<TMetadata = never> extends SelectClause<TMetadata> {
-  readonly clauseKind: 'with'
+  readonly clauseKind: "with"
   readonly ctes: readonly AnyCteSource[]
 }
 
 export function withCte<const TCtes extends readonly AnyCteSource[]>(
   ...ctes: TCtes
-): WithClause<
-  RequiresOuterMetadataOf<TCtes[number]> | CapabilityMetadataOf<TCtes[number]>
-> {
-  type TMetadata =
-    | RequiresOuterMetadataOf<TCtes[number]>
-    | CapabilityMetadataOf<TCtes[number]>
+): WithClause<RequiresOuterMetadataOf<TCtes[number]> | CapabilityMetadataOf<TCtes[number]>> {
+  type TMetadata = RequiresOuterMetadataOf<TCtes[number]> | CapabilityMetadataOf<TCtes[number]>
   return Object.assign(
-    createClause<TMetadata>('with', 'before-select', 10, context => {
-      context.append(
-        ctes.some(entry => entry.query.recursive) ? 'WITH RECURSIVE ' : 'WITH '
-      )
+    createClause<TMetadata>("with", "before-select", 10, (context) => {
+      context.append(ctes.some((entry) => entry.query.recursive) ? "WITH RECURSIVE " : "WITH ")
       ctes.forEach((entry, index) => {
-        if (index > 0) context.append(', ')
+        if (index > 0) {
+          context.append(", ")
+        }
+
         context.render(identifier(entry.cteName))
         if (entry.query.recursive) {
           const sqlNames = resolveSqlNames(
-            Object.keys(entry.query.row).map(fieldName => ({ fieldName }))
+            Object.keys(entry.query.row).map((fieldName) => ({ fieldName })),
           )
-          context.append(' (')
+
+          context.append(" (")
           Object.keys(entry.query.row).forEach((fieldName, columnIndex) => {
-            if (columnIndex > 0) context.append(', ')
+            if (columnIndex > 0) {
+              context.append(", ")
+            }
+
             context.render(identifier(sqlNames[fieldName]))
           })
-          context.append(')')
+          context.append(")")
         }
-        context.append(' AS ')
+
+        context.append(" AS ")
         context.renderRelation(parenthesize(entry.query))
       })
     }),
-    { clauseKind: 'with' as const, ctes }
+    {
+      clauseKind: "with" as const,
+      ctes,
+    },
   ) as WithClause<TMetadata>
 }

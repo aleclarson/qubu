@@ -43,10 +43,10 @@ Specific result domains are still retained. `lower(textColumn)` produces
 `SqlText`, while `avg(integerColumn)` produces `SqlDecimal`:
 
 ```ts
-import { avg, integer, lower, table, text } from 'qubu'
-import type { SqlTypeOf } from 'qubu'
+import { avg, integer, lower, table, text } from "qubu"
+import type { SqlTypeOf } from "qubu"
 
-const metrics = table('metrics', {
+const metrics = table("metrics", {
   label: text(),
   sampleCount: integer(),
 })
@@ -72,15 +72,15 @@ semantics. Contextual JavaScript literals remain ergonomic for compatible
 operators:
 
 ```ts
-import { asc, eq, inList, like, lower, orderBy, table, uuid } from 'qubu'
+import { asc, eq, inList, like, lower, orderBy, table, uuid } from "qubu"
 
-const records = table('records', { id: uuid() })
+const records = table("records", { id: uuid() })
 
-eq(records.id, '108cb836-20d2-41b2-8c23-f0c94700aa7e') // valid
-inList(records.id, ['first-id', 'second-id']) // valid
+eq(records.id, "108cb836-20d2-41b2-8c23-f0c94700aa7e") // valid
+inList(records.id, ["first-id", "second-id"]) // valid
 
 lower(records.id) // TypeScript error: SqlUuid is not SqlTextLike
-like(records.id, '%uuid%') // TypeScript error: SqlUuid is not SqlTextLike
+like(records.id, "%uuid%") // TypeScript error: SqlUuid is not SqlTextLike
 orderBy(asc(records.id)) // TypeScript error: SqlUuid is not portably orderable
 ```
 
@@ -90,10 +90,10 @@ operation. This contextual typing does not relabel an expression: comparing a
 the database operation intentionally changes domains:
 
 ```ts
-import { cast, like, text } from 'qubu'
+import { cast, like, text } from "qubu"
 
 const idAsText = cast(records.id, text())
-like(idAsText, '108c%')
+like(idAsText, "108c%")
 ```
 
 Built-in definitions carry logical cast targets, so the active dialect can

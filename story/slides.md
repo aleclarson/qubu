@@ -1,6 +1,6 @@
 ---
 theme: default
-title: 'Qubu: build it in pieces'
+title: "Qubu: build it in pieces"
 info: A short story about composable SQL and schema change
 author: Qubu
 aspectRatio: 16/9

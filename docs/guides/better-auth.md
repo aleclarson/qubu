@@ -14,24 +14,24 @@ fields, plugin tables, references, unique constraints, and compound indexes all
 participate.
 
 ```ts
-import { betterAuth } from 'better-auth'
-import type { BetterAuthOptions } from 'better-auth/types'
-import { twoFactor } from 'better-auth/plugins'
-import { betterAuthSchema, qubuAdapter } from '@qubu/better-auth'
-import { qubu } from 'qubu'
-import { pgAdapter } from '@qubu/adapter-pg'
+import { betterAuth } from "better-auth"
+import type { BetterAuthOptions } from "better-auth/types"
+import { twoFactor } from "better-auth/plugins"
+import { betterAuthSchema, qubuAdapter } from "@qubu/better-auth"
+import { qubu } from "qubu"
+import { pgAdapter } from "@qubu/adapter-pg"
 
 const options = {
   user: {
-    modelName: 'auth_users',
+    modelName: "auth_users",
     additionalFields: {
-      locale: { type: 'string', required: false },
+      locale: { type: "string", required: false },
     },
   },
   plugins: [twoFactor()],
 } satisfies BetterAuthOptions
 
-const authSchema = betterAuthSchema(options, 'postgresql')
+const authSchema = betterAuthSchema(options, "postgresql")
 const db = qubu(pgAdapter(pool))
 
 export const auth = betterAuth({

@@ -1,27 +1,27 @@
-import { sqliteSchemaDialect } from '../snapshot/sqlite.ts'
-import { createDdlEmitter } from './emitter.ts'
-import type { DdlEmission, DdlEmissionOptions, DdlEmitter } from './types.ts'
-import type { MigrationPlan } from '../migration/index.ts'
+import type { MigrationPlan } from "../migration/index.ts"
+import { sqliteSchemaDialect } from "../snapshot/sqlite.ts"
+import { createDdlEmitter } from "./emitter.ts"
+import type { DdlEmission, DdlEmissionOptions, DdlEmitter } from "./types.ts"
 
 /** SQLite operation support used by the strict DDL preflight. */
 export const sqliteDdlEmitter: DdlEmitter = createDdlEmitter({
-  dialect: 'sqlite',
+  dialect: "sqlite",
   supports: new Set([
-    'table',
-    'column',
-    'constraint',
-    'index',
-    'view',
-    'trigger',
-    'generated-column',
-    'index-predicate',
+    "table",
+    "column",
+    "constraint",
+    "index",
+    "view",
+    "trigger",
+    "generated-column",
+    "index-predicate",
   ]),
 })
 
 /** Emit a reviewed plan with SQLite's schema dialect. */
 export function emitSqliteMigrationPlan(
   plan: MigrationPlan,
-  options?: DdlEmissionOptions
+  options?: DdlEmissionOptions,
 ): DdlEmission {
   return sqliteDdlEmitter.emit(plan, sqliteSchemaDialect, options)
 }

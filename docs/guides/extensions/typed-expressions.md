@@ -29,22 +29,18 @@ actually supports. Compatibility groups allow a dialect-specific domain to
 interoperate with a built-in family:
 
 ```ts
-import { cast, column } from 'qubu'
-import type {
-  SqlEqualityComparable,
-  SqlOrderable,
-  SqlSemanticType,
-  SqlTextLike,
-} from 'qubu'
+import { cast, column } from "qubu"
+import type { SqlEqualityComparable, SqlOrderable, SqlSemanticType, SqlTextLike } from "qubu"
 
 interface SqlCitext
-  extends SqlSemanticType<'postgres.citext'>,
+  extends
+    SqlSemanticType<"postgres.citext">,
     SqlTextLike,
-    SqlOrderable<'text'>,
-    SqlEqualityComparable<'text'> {}
+    SqlOrderable<"text">,
+    SqlEqualityComparable<"text"> {}
 
 const citext = column<string, string, string, SqlCitext>({
-  castType: 'CITEXT',
+  castType: "CITEXT",
 })
 
 const nameAsCitext = cast(users.name, citext)
@@ -61,13 +57,13 @@ nullability comes from the operand and write flags have no cast meaning.
 Declare result domains at other extension boundaries too:
 
 ```ts
-import { typedCall, typedCast, typedValue, unsafeExpression } from 'qubu/core'
-import type { SqlText, SqlUuid } from 'qubu'
+import { typedCall, typedCast, typedValue, unsafeExpression } from "qubu/core"
+import type { SqlText, SqlUuid } from "qubu"
 
-const id = typedValue<SqlUuid, string>('108cb836-20d2-41b2-8c23-f0c94700aa7e')
-const normalized = typedCall<SqlText, string>()('custom_text', users.name)
-const rawNameAsText = typedCast<string, SqlText>()(users.name, 'TEXT')
-const generated = unsafeExpression<string, SqlText>('custom_text()')
+const id = typedValue<SqlUuid, string>("108cb836-20d2-41b2-8c23-f0c94700aa7e")
+const normalized = typedCall<SqlText, string>()("custom_text", users.name)
+const rawNameAsText = typedCast<string, SqlText>()(users.name, "TEXT")
+const generated = unsafeExpression<string, SqlText>("custom_text()")
 ```
 
 `typedCall()` preserves source requirements from its arguments. `typedCast()`

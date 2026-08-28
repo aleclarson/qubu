@@ -33,10 +33,10 @@ Use a dialect-native descriptor when a column needs an exact vendor
 declaration:
 
 ```ts
-import { nativeColumn, nativeStorage, table } from 'qubu'
+import { nativeColumn, nativeStorage, table } from "qubu"
 
-const accounts = table('accounts', {
-  handle: nativeColumn(nativeStorage('postgresql', 'citext COLLATE "C"')),
+const accounts = table("accounts", {
+  handle: nativeColumn(nativeStorage("postgresql", 'citext COLLATE "C"')),
 })
 ```
 
@@ -52,12 +52,12 @@ can be rendered for checks, generated columns, indexes, and other declaration
 metadata:
 
 ```ts
-import { eq, table, text } from 'qubu'
-import { renderSchemaSql } from 'qubu/schema'
+import { eq, table, text } from "qubu"
+import { renderSchemaSql } from "qubu/schema"
 
-const accounts = table('accounts', { status: text() })
+const accounts = table("accounts", { status: text() })
 
-renderSchemaSql(eq(accounts.status, 'active'), { mode: 'check' })
+renderSchemaSql(eq(accounts.status, "active"), { mode: "check" })
 // ("status" = 'active')
 ```
 
@@ -74,13 +74,13 @@ subqueries are rejected in every schema mode.
 An extension must opt into the schema contract with `defineSchemaExpression()`:
 
 ```ts
-import { defineSchemaExpression, renderSchemaSql } from 'qubu/schema'
+import { defineSchemaExpression, renderSchemaSql } from "qubu/schema"
 
-const currentDate = defineSchemaExpression('function', context => {
-  context.append('CURRENT_DATE')
+const currentDate = defineSchemaExpression("function", (context) => {
+  context.append("CURRENT_DATE")
 })
 
-renderSchemaSql(currentDate, { mode: 'default' })
+renderSchemaSql(currentDate, { mode: "default" })
 ```
 
 ## Use raw schema SQL only when necessary

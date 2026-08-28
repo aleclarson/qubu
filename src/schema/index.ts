@@ -1,12 +1,12 @@
-export * from './alias.ts'
-export * from './column.ts'
-export type { DeclaredColumnNullability } from './column-nullability.ts'
-export * from './column-behavior.ts'
-export * from './constraints.ts'
-export * from './dialect.ts'
-export * from './expressions.ts'
-export * from './indexes.ts'
-export * from './metadata.ts'
-export * from './registry.ts'
-export * from './source.ts'
-export * from './table.ts'
+export * from "./alias.ts"
+export * from "./column.ts"
+export type { DeclaredColumnNullability } from "./column-nullability.ts"
+export * from "./column-behavior.ts"
+export * from "./constraints.ts"
+export * from "./dialect.ts"
+export * from "./expressions.ts"
+export * from "./indexes.ts"
+export * from "./metadata.ts"
+export * from "./registry.ts"
+export * from "./source.ts"
+export * from "./table.ts"

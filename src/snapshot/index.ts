@@ -1,11 +1,11 @@
-export * from './canonical.ts'
-export * from './complete-types.ts'
-export * from './complete.ts'
-export * from './decode.ts'
-export * from './postgres.ts'
-export * from './serialize.ts'
-export * from './sqlite.ts'
-export * from './mysql.ts'
-export * from './types.ts'
-export { createSchemaDialect } from '../schema/dialect.ts'
-export type { SchemaDialect, SchemaDialectHooks } from '../schema/dialect.ts'
+export * from "./canonical.ts"
+export * from "./complete-types.ts"
+export * from "./complete.ts"
+export * from "./decode.ts"
+export * from "./postgres.ts"
+export * from "./serialize.ts"
+export * from "./sqlite.ts"
+export * from "./mysql.ts"
+export * from "./types.ts"
+export { createSchemaDialect } from "../schema/dialect.ts"
+export type { SchemaDialect, SchemaDialectHooks } from "../schema/dialect.ts"

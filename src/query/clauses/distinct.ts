@@ -1,14 +1,14 @@
-import { createClause, type SelectClause } from './types.ts'
+import { createClause, type SelectClause } from "./types.ts"
 
 export interface DistinctClause extends SelectClause<never> {
-  readonly clauseKind: 'distinct'
+  readonly clauseKind: "distinct"
 }
 
 export function distinct(): DistinctClause {
   return Object.assign(
-    createClause('distinct', 'after-select', 20, context => {
-      context.append('DISTINCT')
+    createClause("distinct", "after-select", 20, (context) => {
+      context.append("DISTINCT")
     }),
-    { clauseKind: 'distinct' as const }
+    { clauseKind: "distinct" as const },
   )
 }

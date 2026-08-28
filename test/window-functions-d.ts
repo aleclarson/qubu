@@ -12,7 +12,7 @@ import type {
   SourceIdentity,
   VisibleDependenciesOf,
   WindowMeta,
-} from '../src/index.ts'
+} from "../src/index.ts"
 import type {
   mixedWindowCount,
   nullableWindow,
@@ -20,7 +20,7 @@ import type {
   posts,
   unconfiguredRank,
   users,
-} from './window-functions-fixtures.ts'
+} from "./window-functions-fixtures.ts"
 
 type Equal<TLeft, TRight> = [TLeft] extends [TRight]
   ? [TRight] extends [TLeft]
@@ -32,9 +32,9 @@ type Assert<TCondition extends true> = TCondition
 
 type UserIdentity = SourceIdentity<typeof users>
 type PostIdentity = SourceIdentity<typeof posts>
-type UserId = ColumnDependency<UserIdentity, 'id'>
-type PostId = ColumnDependency<PostIdentity, 'id'>
-type PostTitle = ColumnDependency<PostIdentity, 'title'>
+type UserId = ColumnDependency<UserIdentity, "id">
+type PostId = ColumnDependency<PostIdentity, "id">
+type PostTitle = ColumnDependency<PostIdentity, "title">
 
 export type PartitionedRowNumberOutput = Assert<
   Equal<OutputOf<typeof partitionedRowNumber>, number>
@@ -64,9 +64,7 @@ export type MixedWindowVisibleDependencies = Assert<
   Equal<VisibleDependenciesOf<typeof mixedWindowCount>, UserId | PostTitle>
 >
 
-export type NullableWindowOutput = Assert<
-  Equal<OutputOf<typeof nullableWindow>, string>
->
+export type NullableWindowOutput = Assert<Equal<OutputOf<typeof nullableWindow>, string>>
 
 export type NullableWindowNullability = Assert<
   Equal<NullabilityOf<typeof nullableWindow>, PostIdentity>

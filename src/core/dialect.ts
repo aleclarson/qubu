@@ -1,20 +1,20 @@
-import type { AnyFragment, RenderContext } from './fragment.ts'
-import type { QueryKind } from '../query/types.ts'
+import type { QueryKind } from "../query/types.ts"
+import type { AnyFragment, RenderContext } from "./fragment.ts"
 
 /** Capabilities whose syntax must be explicitly supported by a dialect. */
-export type DialectCapability = 'ilike' | 'json' | 'on-conflict' | 'row-locking'
+export type DialectCapability = "ilike" | "json" | "on-conflict" | "row-locking"
 
 /**
- * Optional dialect hook used by schema expressions when a JavaScript value
- * must become SQL text instead of a query parameter.
+ * Optional dialect hook used by schema expressions when a JavaScript value must become SQL text
+ * instead of a query parameter.
  *
- * The hook is deliberately separate from {@link Dialect.placeholder}: schema
- * metadata is parameter-free and must never render a query placeholder.
+ * The hook is deliberately separate from {@link Dialect.placeholder}: schema metadata is
+ * parameter-free and must never render a query placeholder.
  */
 export type SchemaLiteralRenderer = (value: unknown) => string
 
 /** Scalar application types supported by the portable JSON renderer. */
-export type JsonScalarKind = 'text' | 'number' | 'boolean'
+export type JsonScalarKind = "text" | "number" | "boolean"
 
 /** Dialect policy for portable scalar JSON reads and path existence checks. */
 export interface DialectJson {
@@ -22,41 +22,39 @@ export interface DialectJson {
     context: RenderContext,
     document: AnyFragment,
     path: readonly (string | number)[],
-    kind: JsonScalarKind
+    kind: JsonScalarKind,
   ): void
   renderExists(
     context: RenderContext,
     document: AnyFragment,
-    path: readonly (string | number)[]
+    path: readonly (string | number)[],
   ): void
 }
 
-export type PaginationKind = 'offset' | 'fetch'
+export type PaginationKind = "offset" | "fetch"
 
 /** Logical built-in targets that a dialect can spell in CAST expressions. */
 export type PortableCastType =
-  | 'integer'
-  | 'decimal'
-  | 'text'
-  | 'boolean'
-  | 'date'
-  | 'timestamp'
-  | 'uuid'
-  | 'json'
-  | 'bigint'
-  | 'binary'
+  | "integer"
+  | "decimal"
+  | "text"
+  | "boolean"
+  | "date"
+  | "timestamp"
+  | "uuid"
+  | "json"
+  | "bigint"
+  | "binary"
 
 /** A logical cast target whose concrete spelling is selected by a dialect. */
-export interface PortableCastTarget<
-  TType extends PortableCastType = PortableCastType,
-> {
-  readonly kind: 'portable-cast'
+export interface PortableCastTarget<TType extends PortableCastType = PortableCastType> {
+  readonly kind: "portable-cast"
   readonly type: TType
 }
 
 /** A trusted raw cast target supplied by a custom definition. */
 export interface NamedCastTarget<TTypeName extends string = string> {
-  readonly kind: 'named-cast'
+  readonly kind: "named-cast"
   readonly typeName: TTypeName
 }
 
@@ -64,47 +62,38 @@ export interface NamedCastTarget<TTypeName extends string = string> {
 export type CastTarget = PortableCastTarget | NamedCastTarget
 
 /** Dialect-specific spellings for built-in logical CAST targets. */
-export type DialectCastTypes = Readonly<
-  Partial<Record<PortableCastType, string>>
->
+export type DialectCastTypes = Readonly<Partial<Record<PortableCastType, string>>>
 
 export interface PaginationPart {
   readonly kind: PaginationKind
   readonly rows: number
-  readonly direction?: 'FIRST' | 'NEXT'
+  readonly direction?: "FIRST" | "NEXT"
 }
 
 export interface DialectPagination {
   /** Render a complete pagination group in dialect-specific syntax. */
-  readonly render: (
-    context: RenderContext,
-    parts: readonly PaginationPart[]
-  ) => void
+  readonly render: (context: RenderContext, parts: readonly PaginationPart[]) => void
 }
 
-export type RowLockMode = 'update' | 'no-key-update' | 'share' | 'key-share'
+export type RowLockMode = "update" | "no-key-update" | "share" | "key-share"
 
-export type RowLockWaitPolicy = 'default' | 'nowait' | 'skip-locked'
+export type RowLockWaitPolicy = "default" | "nowait" | "skip-locked"
 
 export interface DialectRowLocking {
   /** Render a dialect-supported row-locking clause. */
-  readonly render: (
-    context: RenderContext,
-    mode: RowLockMode,
-    wait: RowLockWaitPolicy
-  ) => void
+  readonly render: (context: RenderContext, mode: RowLockMode, wait: RowLockWaitPolicy) => void
 }
 
 /** Output modes accepted by first-party EXPLAIN policies. */
 export type ExplainFormat =
-  | 'text'
-  | 'json'
-  | 'xml'
-  | 'yaml'
-  | 'tree'
-  | 'traditional'
-  | 'query-plan'
-  | 'bytecode'
+  | "text"
+  | "json"
+  | "xml"
+  | "yaml"
+  | "tree"
+  | "traditional"
+  | "query-plan"
+  | "bytecode"
 
 /** Dialect-independent EXPLAIN switches passed to a dialect policy. */
 export interface ExplainRenderOptions {
@@ -121,13 +110,11 @@ export interface DialectExplain {
   readonly render: (
     statement: string,
     queryKind: QueryKind,
-    options: ExplainRenderOptions
+    options: ExplainRenderOptions,
   ) => string
 }
 
-export interface Dialect<
-  TCapabilities extends DialectCapability = DialectCapability,
-> {
+export interface Dialect<TCapabilities extends DialectCapability = DialectCapability> {
   readonly name: string
   quoteIdentifier(identifier: string): string
   placeholder(position: number): string
@@ -147,7 +134,7 @@ export interface Dialect<
 }
 
 export interface DialectOptions<
-  TCapabilities extends Exclude<DialectCapability, 'json'> = never,
+  TCapabilities extends Exclude<DialectCapability, "json"> = never,
   TJson extends DialectJson | undefined = DialectJson | undefined,
 > {
   readonly name: string
@@ -167,46 +154,45 @@ export interface DialectOptions<
 }
 
 const standardCastTypes: Readonly<Record<PortableCastType, string>> = {
-  integer: 'INTEGER',
-  decimal: 'DECIMAL',
-  text: 'TEXT',
-  boolean: 'BOOLEAN',
-  date: 'DATE',
-  timestamp: 'TIMESTAMP',
-  uuid: 'UUID',
-  json: 'JSON',
-  bigint: 'BIGINT',
-  binary: 'VARBINARY',
+  integer: "INTEGER",
+  decimal: "DECIMAL",
+  text: "TEXT",
+  boolean: "BOOLEAN",
+  date: "DATE",
+  timestamp: "TIMESTAMP",
+  uuid: "UUID",
+  json: "JSON",
+  bigint: "BIGINT",
+  binary: "VARBINARY",
 }
 
 /** Resolve a logical or explicitly named CAST target for a dialect. */
-export function resolveCastTarget(
-  dialect: Dialect,
-  target: CastTarget
-): string {
-  if (target.kind === 'named-cast') return target.typeName
+export function resolveCastTarget(dialect: Dialect, target: CastTarget): string {
+  if (target.kind === "named-cast") {
+    return target.typeName
+  }
+
   return dialect.castTypes?.[target.type] ?? standardCastTypes[target.type]
 }
 
-const quoteIdentifier = (identifier: string) =>
-  `"${identifier.replaceAll('"', '""')}` + '"'
+const quoteIdentifier = (identifier: string) => `"${identifier.replaceAll('"', '""')}` + '"'
 
 /**
- * Create a dialect from the few rendering decisions that SQL builders need
- * to leave open. More involved syntax can be supplied as a custom fragment.
+ * Create a dialect from the few rendering decisions that SQL builders need to leave open. More
+ * involved syntax can be supplied as a custom fragment.
  */
 export function createDialect<
-  const TCapabilities extends Exclude<DialectCapability, 'json'> = never,
+  const TCapabilities extends Exclude<DialectCapability, "json"> = never,
 >(
   options: DialectOptions<TCapabilities, DialectJson> & {
     readonly json: DialectJson
-  }
-): Dialect<TCapabilities | 'json'>
+  },
+): Dialect<TCapabilities | "json">
 export function createDialect<
-  const TCapabilities extends Exclude<DialectCapability, 'json'> = never,
+  const TCapabilities extends Exclude<DialectCapability, "json"> = never,
 >(options: DialectOptions<TCapabilities, undefined>): Dialect<TCapabilities>
 export function createDialect(
-  options: DialectOptions<Exclude<DialectCapability, 'json'>>
+  options: DialectOptions<Exclude<DialectCapability, "json">>,
 ): Dialect {
   return Object.freeze({
     name: options.name,
@@ -215,29 +201,24 @@ export function createDialect(
     pagination: options.pagination,
     rowLocking: options.rowLocking,
     json: options.json,
-    castTypes: options.castTypes
-      ? Object.freeze({ ...options.castTypes })
-      : undefined,
+    castTypes: options.castTypes ? Object.freeze({ ...options.castTypes }) : undefined,
     renderSchemaLiteral: options.renderSchemaLiteral,
     explain: options.explain,
     capabilities: Object.freeze([
       ...(options.capabilities ?? []),
-      ...(options.json ? (['json'] as const) : []),
+      ...(options.json ? (["json"] as const) : []),
     ]),
   }) as Dialect
 }
 
 /**
- * Check a capability at runtime for callers that intentionally bypass the
- * typed render boundary or use a dialect supplied by an older integration.
+ * Check a capability at runtime for callers that intentionally bypass the typed render boundary or
+ * use a dialect supplied by an older integration.
  */
-export function assertDialectCapability(
-  dialect: Dialect,
-  capability: DialectCapability
-): void {
-  if (dialect.capabilities?.includes(capability)) return
+export function assertDialectCapability(dialect: Dialect, capability: DialectCapability): void {
+  if (dialect.capabilities?.includes(capability)) {
+    return
+  }
 
-  throw new Error(
-    `Dialect "${dialect.name}" does not support the "${capability}" capability`
-  )
+  throw new Error(`Dialect "${dialect.name}" does not support the "${capability}" capability`)
 }

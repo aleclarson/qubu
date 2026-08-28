@@ -16,9 +16,9 @@ import {
   jsonText,
   select,
   table,
-} from 'qubu'
+} from "qubu"
 
-const events = table('events', {
+const events = table("events", {
   payload: json<{
     user?: { name?: string; active?: boolean; score?: number }
   }>(),
@@ -26,12 +26,12 @@ const events = table('events', {
 
 const query = select(
   {
-    name: jsonText(events.payload, jsonPath('user', 'name')),
-    active: jsonBoolean(events.payload, jsonPath('user', 'active')),
-    score: jsonNumber(events.payload, jsonPath('user', 'score')),
-    hasUser: jsonExists(events.payload, jsonPath('user')),
+    name: jsonText(events.payload, jsonPath("user", "name")),
+    active: jsonBoolean(events.payload, jsonPath("user", "active")),
+    score: jsonNumber(events.payload, jsonPath("user", "score")),
+    hasUser: jsonExists(events.payload, jsonPath("user")),
   },
-  from(events)
+  from(events),
 )
 ```
 

@@ -1,12 +1,12 @@
-import { defineConfig } from 'vitest/config'
+import { defineConfig } from "vitest/config"
 
 export default defineConfig({
   test: {
-    include: ['test/**/*.test.ts'],
+    include: ["test/**/*.test.ts"],
     isolate: false,
     typecheck: {
       enabled: true,
-      include: ['test/**/*.test.ts', 'test/**/*-d.ts'],
+      include: ["test/**/*.test.ts", "test/**/*-d.ts"],
     },
   },
 })

@@ -14,14 +14,14 @@ import {
   table,
   text,
   where,
-} from '../src/index.ts'
+} from "../src/index.ts"
 
-export const users = table('users', {
+export const users = table("users", {
   id: integer(),
   name: text(),
 })
 
-export const posts = table('posts', {
+export const posts = table("posts", {
   id: integer(),
   authorId: integer(),
   title: text(),
@@ -35,7 +35,7 @@ export const correlatedPost = select(
   outerProvision,
   where(eq(posts.authorId, users.id)),
   orderBy(desc(posts.id)),
-  fetchFirst(1)
+  fetchFirst(1),
 )
 
 export const correlatedScalar = scalar(correlatedPost)
@@ -46,10 +46,10 @@ export const correlatedQuery = select(
     latestPostId: correlatedScalar,
   },
   from(users),
-  where(eq(users.id, 7))
+  where(eq(users.id, 7)),
 )
 
-export const lateralPost = lateral(correlatedPost, 'latest_post')
+export const lateralPost = lateral(correlatedPost, "latest_post")
 
 export const lateralQuery = select(
   {
@@ -58,13 +58,13 @@ export const lateralQuery = select(
   },
   from(users),
   crossJoin(lateralPost),
-  where(eq(users.id, 7))
+  where(eq(users.id, 7)),
 )
 
 export const leftLateralQuery = select(
   { latestPostId: lateralPost.id },
   from(users),
-  leftJoin(lateralPost, eq(users.id, lateralPost.id))
+  leftJoin(lateralPost, eq(users.id, lateralPost.id)),
 )
 
 export const localPostQuery = select({ id: posts.id }, from(posts))

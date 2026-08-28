@@ -2,7 +2,7 @@
 // authoring. Fragment internals, dialect construction, and schema metadata
 // live behind `qubu/core` and `qubu/schema`.
 
-export { execute, executeRows, explain, qubu, stream } from './execution.ts'
+export { execute, executeRows, explain, qubu, stream } from "./execution.ts"
 export type {
   DriverValueEncoder,
   AdapterExecutionResult,
@@ -34,14 +34,14 @@ export type {
   StreamingTransactionalQueryAdapter,
   TransactionOptions,
   TransactionalQueryAdapter,
-} from './execution.ts'
+} from "./execution.ts"
 export {
   booleanResultDecoder,
   dateResultDecoder,
   jsonTextResultDecoder,
   ResultDecodingError,
   timestampResultDecoder,
-} from './result.ts'
+} from "./result.ts"
 export type {
   DecodableResultType,
   ResultDecodeContext,
@@ -49,9 +49,9 @@ export type {
   ResultDecoders,
   ResultField,
   ResultShape,
-} from './result.ts'
-export { render } from './core/render.ts'
-export type { RenderedQuery, RenderOptions } from './core/render.ts'
+} from "./result.ts"
+export { render } from "./core/render.ts"
+export type { RenderedQuery, RenderOptions } from "./core/render.ts"
 export type {
   AggregateDependenciesOf,
   AggregateMeta,
@@ -94,7 +94,7 @@ export type {
   SubqueryMeta,
   VisibleDependenciesOf,
   WindowMeta,
-} from './core/fragment.ts'
+} from "./core/fragment.ts"
 export type {
   AnySqlType,
   SqlBigInt,
@@ -116,7 +116,7 @@ export type {
   SqlTypeSatisfies,
   SqlUnknown,
   SqlUuid,
-} from './core/sql-types.ts'
+} from "./core/sql-types.ts"
 export type {
   CastTarget,
   Dialect,
@@ -138,13 +138,13 @@ export type {
   RowLockMode,
   RowLockWaitPolicy,
   SchemaLiteralRenderer,
-} from './core/dialect.ts'
+} from "./core/dialect.ts"
 
-export { cast } from './expressions/cast.ts'
-export { mapResult } from './expressions/map-result.ts'
-export { caseWhen } from './expressions/case.ts'
-export { sql } from './expressions/sql.ts'
-export type { SqlFragment, SqlTag, TypedSqlTag } from './expressions/sql.ts'
+export { cast } from "./expressions/cast.ts"
+export { mapResult } from "./expressions/map-result.ts"
+export { caseWhen } from "./expressions/case.ts"
+export { sql } from "./expressions/sql.ts"
+export type { SqlFragment, SqlTag, TypedSqlTag } from "./expressions/sql.ts"
 export {
   call,
   coalesce,
@@ -162,28 +162,12 @@ export {
   sum,
   avg,
   upper,
-} from './expressions/function.ts'
-export { scalar } from './expressions/subquery.ts'
-export {
-  jsonBoolean,
-  jsonExists,
-  jsonNumber,
-  jsonPath,
-  jsonText,
-} from './expressions/json.ts'
-export {
-  add,
-  divide,
-  modulo,
-  multiply,
-  subtract,
-} from './expressions/operators/arithmetic.ts'
-export { and, not, or } from './expressions/operators/logic.ts'
-export {
-  between,
-  inList,
-  notIn,
-} from './expressions/operators/comparison/range.ts'
+} from "./expressions/function.ts"
+export { scalar } from "./expressions/subquery.ts"
+export { jsonBoolean, jsonExists, jsonNumber, jsonPath, jsonText } from "./expressions/json.ts"
+export { add, divide, modulo, multiply, subtract } from "./expressions/operators/arithmetic.ts"
+export { and, not, or } from "./expressions/operators/logic.ts"
+export { between, inList, notIn } from "./expressions/operators/comparison/range.ts"
 export {
   eq,
   gt,
@@ -195,17 +179,9 @@ export {
   lte,
   ne,
   notLike,
-} from './expressions/operators/comparison/relational.ts'
-export {
-  exists,
-  inQuery,
-  notExists,
-} from './expressions/operators/comparison/subquery.ts'
-export {
-  isNotNull,
-  isNull,
-  isTrue,
-} from './expressions/operators/comparison/null.ts'
+} from "./expressions/operators/comparison/relational.ts"
+export { exists, inQuery, notExists } from "./expressions/operators/comparison/subquery.ts"
+export { isNotNull, isNull, isTrue } from "./expressions/operators/comparison/null.ts"
 export type {
   AnyExpression,
   AnySchemaExpression,
@@ -218,12 +194,12 @@ export type {
   ExpressionWithOutput,
   SchemaExpression,
   SchemaExpressionBrand,
-} from './expressions/types.ts'
-export type { JsonPath } from './expressions/json.ts'
-export type { ColumnDependency } from './expressions/column.ts'
-export { asValue, value } from './expressions/value.ts'
+} from "./expressions/types.ts"
+export type { JsonPath } from "./expressions/json.ts"
+export type { ColumnDependency } from "./expressions/column.ts"
+export { asValue, value } from "./expressions/value.ts"
 
-export { alias, lateral } from './schema/alias.ts'
+export { alias, lateral } from "./schema/alias.ts"
 export {
   bigint,
   binary,
@@ -240,14 +216,14 @@ export {
   text,
   timestamp,
   uuid,
-} from './schema/column.ts'
-export { index } from './schema/indexes.ts'
+} from "./schema/column.ts"
+export { index } from "./schema/indexes.ts"
 export {
   externalDefault,
   externalGeneratedColumn,
   generatedColumn,
   identityColumn,
-} from './schema/column-behavior.ts'
+} from "./schema/column-behavior.ts"
 export {
   catalogCheck,
   catalogForeignKey,
@@ -257,10 +233,10 @@ export {
   references,
   unique,
   uniqueConstraint,
-} from './schema/constraints.ts'
-export { schema } from './schema/registry.ts'
-export { unsafeSchemaSql } from './schema/expressions.ts'
-export { table } from './schema/table.ts'
+} from "./schema/constraints.ts"
+export { schema } from "./schema/registry.ts"
+export { unsafeSchemaSql } from "./schema/expressions.ts"
+export { table } from "./schema/table.ts"
 export type {
   AnyTable,
   Table,
@@ -271,8 +247,8 @@ export type {
   TableRow,
   TableSqlTypes,
   TableUpdateInput,
-} from './schema/table.ts'
-export type { DeclaredColumnNullability } from './schema/column-nullability.ts'
+} from "./schema/table.ts"
+export type { DeclaredColumnNullability } from "./schema/column-nullability.ts"
 export type {
   ColumnDefinition,
   ColumnDefinitionConfig,
@@ -295,12 +271,9 @@ export type {
   ColumnUpdateInput,
   NativeColumnStorage,
   PortableColumnStorage,
-} from './schema/column.ts'
-export type {
-  ColumnDefault,
-  ColumnDefaultInput,
-} from './schema/column-behavior.ts'
-export type { ColumnReference } from './expressions/column.ts'
+} from "./schema/column.ts"
+export type { ColumnDefault, ColumnDefaultInput } from "./schema/column-behavior.ts"
+export type { ColumnReference } from "./expressions/column.ts"
 export type {
   AnySource,
   Source,
@@ -314,7 +287,7 @@ export type {
   ProvidedSourceRow,
   SourceRow,
   SourceSqlTypeMap,
-} from './schema/source.ts'
+} from "./schema/source.ts"
 export type {
   AliasIdentity,
   AliasedSource,
@@ -322,7 +295,7 @@ export type {
   LateralSource,
   QueryAliasIdentity,
   QuerySource,
-} from './schema/alias.ts'
+} from "./schema/alias.ts"
 export type {
   CanonicalLiteral,
   ColumnBehaviorError,
@@ -343,7 +316,7 @@ export type {
   ResolvedColumnBehavior,
   SchemaLiteralValue,
   SqliteIdentityExtension,
-} from './schema/column-behavior.ts'
+} from "./schema/column-behavior.ts"
 export type {
   AnyKeyColumn,
   CatalogCheckExpression,
@@ -373,8 +346,8 @@ export type {
   UniqueConstraint,
   UniqueConstraintOptions,
   UniqueNullSemantics,
-} from './schema/constraints.ts'
-export type { SchemaDialect, SchemaDialectHooks } from './schema/dialect.ts'
+} from "./schema/constraints.ts"
+export type { SchemaDialect, SchemaDialectHooks } from "./schema/dialect.ts"
 export type {
   RenderedSchemaExpression,
   SchemaExpressionErrorCode,
@@ -383,7 +356,7 @@ export type {
   SchemaRenderContext,
   SchemaRenderOptions,
   UnsafeSchemaSqlExpression,
-} from './schema/expressions.ts'
+} from "./schema/expressions.ts"
 export type {
   IndexDialectExtension,
   IndexOptions,
@@ -394,14 +367,14 @@ export type {
   SourceIndexesRecord,
   SqliteIndexExtension,
   TableIndex,
-} from './schema/indexes.ts'
+} from "./schema/indexes.ts"
 export type {
   SchemaDialectExtension,
   SchemaDialectName,
   SchemaMetadataDiagnostic,
   SchemaObjectIdentity,
   SchemaObjectNameOptions,
-} from './schema/metadata.ts'
+} from "./schema/metadata.ts"
 export type {
   Schema,
   SchemaDiagnostic,
@@ -411,16 +384,16 @@ export type {
   SchemaTableNames,
   SchemaTableRecord,
   SchemaTableRegistry,
-} from './schema/registry.ts'
+} from "./schema/registry.ts"
 
-export { all } from './query/selection.ts'
+export { all } from "./query/selection.ts"
 export type {
   Selection,
   SelectionObject,
   SelectionOutput,
   SelectionSqlTypes,
-} from './query/selection.ts'
-export { select } from './query/select.ts'
+} from "./query/selection.ts"
+export { select } from "./query/select.ts"
 export type {
   AvailableOuterScope,
   AvailableScope,
@@ -432,18 +405,18 @@ export type {
   ScopeValidation,
   SelectCardinality,
   SelectQuery,
-} from './query/select.ts'
-export { except, intersect, union, unionAll } from './query/set.ts'
-export type { SetOperator, SetQuery } from './query/set.ts'
-export { omit } from './query/omit.ts'
-export type { Omit, OmittableSelectClause, SelectPart } from './query/omit.ts'
+} from "./query/select.ts"
+export { except, intersect, union, unionAll } from "./query/set.ts"
+export type { SetOperator, SetQuery } from "./query/set.ts"
+export { omit } from "./query/omit.ts"
+export type { Omit, OmittableSelectClause, SelectPart } from "./query/omit.ts"
 
-export { correlate } from './query/clauses/correlate.ts'
-export { distinct } from './query/clauses/distinct.ts'
-export { from } from './query/clauses/from.ts'
-export type { FromClause, FromScope, FromSource } from './query/clauses/from.ts'
-export { groupBy } from './query/clauses/group-by.ts'
-export { having } from './query/clauses/having.ts'
+export { correlate } from "./query/clauses/correlate.ts"
+export { distinct } from "./query/clauses/distinct.ts"
+export { from } from "./query/clauses/from.ts"
+export type { FromClause, FromScope, FromSource } from "./query/clauses/from.ts"
+export { groupBy } from "./query/clauses/group-by.ts"
+export { having } from "./query/clauses/having.ts"
 export {
   crossJoin,
   fullJoin,
@@ -451,51 +424,28 @@ export {
   leftJoin,
   naturalJoin,
   rightJoin,
-} from './query/clauses/joins.ts'
-export {
-  asc,
-  desc,
-  nullsFirst,
-  nullsLast,
-  order,
-  orderBy,
-} from './query/clauses/order-by.ts'
-export type { OrderTerm } from './query/clauses/order-by.ts'
-export { fetchFirst, fetchNext, offset } from './query/clauses/pagination.ts'
-export { rowLock } from './query/clauses/row-lock.ts'
-export type { RowLockClause, RowLockOptions } from './query/clauses/row-lock.ts'
-export { where } from './query/clauses/where.ts'
-export { cte, recursiveCte, withCte } from './query/clauses/with.ts'
-export type {
-  CteSource,
-  RecursiveCteSource,
-  WithClause,
-} from './query/clauses/with.ts'
-export type {
-  AnySelectClause,
-  ClausePlacement,
-  SelectClause,
-} from './query/clauses/types.ts'
+} from "./query/clauses/joins.ts"
+export { asc, desc, nullsFirst, nullsLast, order, orderBy } from "./query/clauses/order-by.ts"
+export type { OrderTerm } from "./query/clauses/order-by.ts"
+export { fetchFirst, fetchNext, offset } from "./query/clauses/pagination.ts"
+export { rowLock } from "./query/clauses/row-lock.ts"
+export type { RowLockClause, RowLockOptions } from "./query/clauses/row-lock.ts"
+export { where } from "./query/clauses/where.ts"
+export { cte, recursiveCte, withCte } from "./query/clauses/with.ts"
+export type { CteSource, RecursiveCteSource, WithClause } from "./query/clauses/with.ts"
+export type { AnySelectClause, ClausePlacement, SelectClause } from "./query/clauses/types.ts"
 
-export {
-  defaultValues,
-  insertInto,
-  insertSelect,
-  values,
-} from './query/mutation/insert.ts'
+export { defaultValues, insertInto, insertSelect, values } from "./query/mutation/insert.ts"
 export type {
   DefaultValuesSource,
   InsertSelectSource,
   InsertSource,
   ValuesSource,
-} from './query/mutation/insert.ts'
-export { update } from './query/mutation/update.ts'
-export type {
-  UpdateAssignments,
-  UpdateAssignmentValue,
-} from './query/mutation/update.ts'
-export { deleteFrom } from './query/mutation/delete.ts'
-export { allowAll } from './query/mutation/types.ts'
+} from "./query/mutation/insert.ts"
+export { update } from "./query/mutation/update.ts"
+export type { UpdateAssignments, UpdateAssignmentValue } from "./query/mutation/update.ts"
+export { deleteFrom } from "./query/mutation/delete.ts"
+export { allowAll } from "./query/mutation/types.ts"
 export type {
   AllowAllClause,
   MutationClause,
@@ -507,13 +457,13 @@ export type {
   MutationRow,
   MutationScopeValidation,
   MutationSqlTypes,
-} from './query/mutation/types.ts'
-export { returning } from './query/mutation/returning.ts'
+} from "./query/mutation/types.ts"
+export { returning } from "./query/mutation/returning.ts"
 export type {
   ReturningClause,
   ReturningRow,
   ReturningSqlTypes,
-} from './query/mutation/returning.ts'
+} from "./query/mutation/returning.ts"
 
 export type {
   AnyQuery,
@@ -524,10 +474,10 @@ export type {
   QuerySqlTypeMap,
   QueryWithRow,
   Row,
-} from './query/types.ts'
+} from "./query/types.ts"
 export {
   QueryValidationError,
   type QueryValidationErrorCode,
   type QueryValidationIssue,
   type QueryTypeValidation,
-} from './query/errors.ts'
+} from "./query/errors.ts"

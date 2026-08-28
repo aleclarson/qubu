@@ -1,9 +1,5 @@
-import type { RenderContext } from '../../core/fragment.ts'
-import {
-  createClause,
-  type ClausePlacement,
-  type SelectClause,
-} from './types.ts'
+import type { RenderContext } from "../../core/fragment.ts"
+import { createClause, type ClausePlacement, type SelectClause } from "./types.ts"
 
 export function customClause<TMetadata = never>(options: {
   readonly name: string
@@ -13,8 +9,8 @@ export function customClause<TMetadata = never>(options: {
 }): SelectClause<TMetadata> {
   return createClause(
     options.name,
-    options.placement ?? 'after-select',
+    options.placement ?? "after-select",
     options.order,
-    options.render
+    options.render,
   )
 }

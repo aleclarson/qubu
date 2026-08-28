@@ -7,9 +7,9 @@
 An object projection uses its keys as result names:
 
 ```ts
-import { from, integer, select, table, text, upper } from 'qubu'
+import { from, integer, select, table, text, upper } from "qubu"
 
-const users = table('users', {
+const users = table("users", {
   id: integer(),
   name: text(),
 })
@@ -19,7 +19,7 @@ const query = select(
     id: users.id,
     displayName: upper(users.name),
   },
-  from(users)
+  from(users),
 )
 
 type Row = typeof query.row
@@ -31,12 +31,9 @@ shaped result. Reserve `all(source)` for a whole-source result contract. It
 expands to named columns, so the SQL columns and inferred row keys stay aligned:
 
 ```ts
-import { all, from, select, upper } from 'qubu'
+import { all, from, select, upper } from "qubu"
 
-const query = select(
-  { ...all(users), normalizedName: upper(users.name) },
-  from(users)
-)
+const query = select({ ...all(users), normalizedName: upper(users.name) }, from(users))
 ```
 
 When a query becomes a CTE or derived table, its row shape becomes the columns
@@ -53,13 +50,13 @@ source widens with `null`, while an expression with its own non-null result
 contract can stay non-null:
 
 ```ts
-import { count, eq, from, integer, leftJoin, select, table, text } from 'qubu'
+import { count, eq, from, integer, leftJoin, select, table, text } from "qubu"
 
-const users = table('users', {
+const users = table("users", {
   id: integer(),
   name: text(),
 })
-const posts = table('posts', {
+const posts = table("posts", {
   id: integer(),
   authorId: integer(),
   title: text(),
@@ -72,7 +69,7 @@ const query = select(
     postCount: count(posts.id),
   },
   from(users),
-  leftJoin(posts, eq(users.id, posts.authorId))
+  leftJoin(posts, eq(users.id, posts.authorId)),
 )
 
 type Row = typeof query.row
@@ -89,9 +86,9 @@ expression with non-null branches can return a non-null result.
 result includes `null` when the query may return no rows:
 
 ```ts
-import { fetchFirst, from, scalar, select, table, value } from 'qubu'
+import { fetchFirst, from, scalar, select, table, value } from "qubu"
 
-const users = table('users', { id: integer() })
+const users = table("users", { id: integer() })
 const firstUser = select({ id: users.id }, from(users), fetchFirst(1))
 
 const firstId = scalar(firstUser)

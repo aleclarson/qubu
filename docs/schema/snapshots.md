@@ -8,7 +8,7 @@ hashed, checked into source control, and handed to a dialect adapter. Importing
 the snapshot entrypoint is optional; ordinary query imports do not load it.
 
 ```ts
-import { createSchemaSnapshot, encodeSchemaSnapshot } from 'qubu/snapshot'
+import { createSchemaSnapshot, encodeSchemaSnapshot } from "qubu/snapshot"
 
 const snapshot = createSchemaSnapshot(appSchema)
 const json = encodeSchemaSnapshot(snapshot)
@@ -29,12 +29,12 @@ expression retains its dialect tag and is rejected when it does not match the
 selected snapshot dialect.
 
 ```ts
-import { decodeSchemaSnapshot } from 'qubu/snapshot'
+import { decodeSchemaSnapshot } from "qubu/snapshot"
 
 const decoded = decodeSchemaSnapshot(json)
 if (!decoded.ok) {
   for (const issue of decoded.diagnostics) {
-    console.error(issue.path.join('.'), issue.code, issue.message)
+    console.error(issue.path.join("."), issue.code, issue.message)
   }
 }
 ```

@@ -1,5 +1,6 @@
-import { expectTypeOf } from 'vitest'
-import { identityColumn, integer, schema, table } from '../src/index.ts'
+import { expectTypeOf } from "vitest"
+
+import { identityColumn, integer, schema, table } from "../src/index.ts"
 import {
   createSchemaSnapshot,
   createSqliteSchemaSnapshot,
@@ -8,26 +9,27 @@ import {
   type SchemaSnapshot,
   type SchemaSnapshotAdapter,
   type SnapshotStorage,
-} from '../src/snapshot/index.ts'
+} from "../src/snapshot/index.ts"
 
-const records = table('records', {
+const records = table("records", {
   id: integer({
-    identity: identityColumn('by-default', {
-      dialect: { dialect: 'sqlite', autoIncrement: true },
+    identity: identityColumn("by-default", {
+      dialect: {
+        dialect: "sqlite",
+        autoIncrement: true,
+      },
     }),
   }),
 })
 const registry = schema({ records })
 
+expectTypeOf(createSqliteSchemaSnapshot(registry)).toMatchTypeOf<SchemaSnapshot>()
 expectTypeOf(
-  createSqliteSchemaSnapshot(registry)
-).toMatchTypeOf<SchemaSnapshot>()
-expectTypeOf(
-  createSchemaSnapshot(registry, { adapter: sqliteSnapshotAdapter })
+  createSchemaSnapshot(registry, { adapter: sqliteSnapshotAdapter }),
 ).toMatchTypeOf<SchemaSnapshot>()
 expectTypeOf(sqliteSnapshotAdapter).toMatchTypeOf<SchemaSnapshotAdapter>()
-expectTypeOf(sqliteStorageAffinity('INTEGER')).toEqualTypeOf<
-  'integer' | 'text' | 'numeric' | 'blob' | 'real'
+expectTypeOf(sqliteStorageAffinity("INTEGER")).toEqualTypeOf<
+  "integer" | "text" | "numeric" | "blob" | "real"
 >()
 expectTypeOf<SnapshotStorage>().toMatchTypeOf<{
   readonly kind: string

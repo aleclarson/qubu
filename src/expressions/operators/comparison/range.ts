@@ -1,18 +1,14 @@
+import type { NullabilityOf } from "../../../core/fragment.ts"
+import type { SqlBoolean } from "../../../core/sql-types.ts"
+import { resultValue } from "../../../result.ts"
 import {
   makeSchemaExpression,
   type ExpressionWithOutput,
   type ResultExpression,
-} from '../../types.ts'
-import { expressionOperand, isNullOperand, type Operand } from '../shared.ts'
-import type { ExpressionSqlType } from '../../types.ts'
-import type { SqlBoolean } from '../../../core/sql-types.ts'
-import type { NullabilityOf } from '../../../core/fragment.ts'
-import type {
-  OperandSqlType,
-  SqlEqualityValidation,
-  SqlOrderValidation,
-} from '../shared.ts'
-import { resultValue } from '../../../result.ts'
+} from "../../types.ts"
+import type { ExpressionSqlType } from "../../types.ts"
+import { expressionOperand, isNullOperand, type Operand } from "../shared.ts"
+import type { OperandSqlType, SqlEqualityValidation, SqlOrderValidation } from "../shared.ts"
 
 type BetweenValidation<TExpression, TLower, TUpper> = SqlOrderValidation<
   ExpressionSqlType<TExpression>,
@@ -23,10 +19,10 @@ type BetweenValidation<TExpression, TLower, TUpper> = SqlOrderValidation<
     OperandSqlType<TUpper, ExpressionSqlType<TExpression>>
   >
 
-type ListValidation<
-  TExpression,
-  TValues extends readonly unknown[],
-> = TValues extends readonly [infer THead, ...infer TTail]
+type ListValidation<TExpression, TValues extends readonly unknown[]> = TValues extends readonly [
+  infer THead,
+  ...infer TTail,
+]
   ? SqlEqualityValidation<
       ExpressionSqlType<TExpression>,
       OperandSqlType<THead, ExpressionSqlType<TExpression>>
@@ -39,34 +35,30 @@ export function between<
   TExpression extends ExpressionWithOutput<T>,
   L extends Operand<NoInfer<T>>,
   H extends Operand<NoInfer<T>>,
->(
-  expression: TExpression & BetweenValidation<TExpression, L, H>,
-  lower: L,
-  upper: H
-) {
+>(expression: TExpression & BetweenValidation<TExpression, L, H>, lower: L, upper: H) {
   if (isNullOperand(lower) || isNullOperand(upper)) {
-    throw new TypeError(
-      'between() does not accept NULL bounds; use an explicit NULL predicate'
-    )
+    throw new TypeError("between() does not accept NULL bounds; use an explicit NULL predicate")
   }
+
   const lowerExpression = expressionOperand(lower)
   const upperExpression = expressionOperand(upper)
+
   return makeSchemaExpression(
-    'operator',
-    context => {
-      context.append('(')
+    "operator",
+    (context) => {
+      context.append("(")
       context.render(expression)
-      context.append(' BETWEEN ')
+      context.append(" BETWEEN ")
       context.render(lowerExpression)
-      context.append(' AND ')
+      context.append(" AND ")
       context.render(upperExpression)
-      context.append(')')
+      context.append(")")
     },
-    resultValue('boolean')
+    resultValue("boolean"),
   ) as ResultExpression<{
     readonly output: boolean
     readonly children: TExpression | L | H
-    readonly kind: 'operator'
+    readonly kind: "operator"
     readonly nullableFrom: NullabilityOf<TExpression | L | H>
     readonly sqlType: SqlBoolean
   }>
@@ -76,32 +68,34 @@ export function inList<
   T,
   TExpression extends ExpressionWithOutput<T>,
   const TValues extends readonly Operand<NoInfer<T>>[],
->(
-  expression: TExpression & ListValidation<TExpression, TValues>,
-  values: TValues
-) {
+>(expression: TExpression & ListValidation<TExpression, TValues>, values: TValues) {
   const valueExpressions = values.map(expressionOperand)
+
   return makeSchemaExpression(
-    'operator',
-    context => {
+    "operator",
+    (context) => {
       if (values.length === 0) {
-        context.append('(1 = 0)')
+        context.append("(1 = 0)")
         return
       }
-      context.append('(')
+
+      context.append("(")
       context.render(expression)
-      context.append(' IN (')
+      context.append(" IN (")
       valueExpressions.forEach((value, index) => {
-        if (index > 0) context.append(', ')
+        if (index > 0) {
+          context.append(", ")
+        }
+
         context.render(value)
       })
-      context.append('))')
+      context.append("))")
     },
-    resultValue('boolean')
+    resultValue("boolean"),
   ) as ResultExpression<{
     readonly output: boolean
     readonly children: TExpression | TValues[number]
-    readonly kind: 'operator'
+    readonly kind: "operator"
     readonly nullableFrom: NullabilityOf<TExpression | TValues[number]>
     readonly sqlType: SqlBoolean
   }>
@@ -111,32 +105,34 @@ export function notIn<
   T,
   TExpression extends ExpressionWithOutput<T>,
   const TValues extends readonly Operand<NoInfer<T>>[],
->(
-  expression: TExpression & ListValidation<TExpression, TValues>,
-  values: TValues
-) {
+>(expression: TExpression & ListValidation<TExpression, TValues>, values: TValues) {
   const valueExpressions = values.map(expressionOperand)
+
   return makeSchemaExpression(
-    'operator',
-    context => {
+    "operator",
+    (context) => {
       if (values.length === 0) {
-        context.append('(1 = 1)')
+        context.append("(1 = 1)")
         return
       }
-      context.append('(')
+
+      context.append("(")
       context.render(expression)
-      context.append(' NOT IN (')
+      context.append(" NOT IN (")
       valueExpressions.forEach((value, index) => {
-        if (index > 0) context.append(', ')
+        if (index > 0) {
+          context.append(", ")
+        }
+
         context.render(value)
       })
-      context.append('))')
+      context.append("))")
     },
-    resultValue('boolean')
+    resultValue("boolean"),
   ) as ResultExpression<{
     readonly output: boolean
     readonly children: TExpression | TValues[number]
-    readonly kind: 'operator'
+    readonly kind: "operator"
     readonly nullableFrom: NullabilityOf<TExpression | TValues[number]>
     readonly sqlType: SqlBoolean
   }>

@@ -11,7 +11,7 @@ import {
   createSchemaSnapshot,
   createPostgresSchemaSnapshot,
   postgresSnapshotAdapter,
-} from 'qubu/snapshot'
+} from "qubu/snapshot"
 
 const snapshot = createPostgresSchemaSnapshot(appSchema)
 // Equivalent: createSchemaSnapshot(appSchema, { adapter: postgresSnapshotAdapter })
@@ -46,12 +46,12 @@ schema and application boundaries.
 Use the non-throwing form when a schema may contain a server-specific feature:
 
 ```ts
-import { tryCreatePostgresSchemaSnapshot } from 'qubu/snapshot'
+import { tryCreatePostgresSchemaSnapshot } from "qubu/snapshot"
 
 const result = tryCreatePostgresSchemaSnapshot(appSchema)
 if (!result.ok) {
   for (const issue of result.diagnostics) {
-    console.error(issue.path.join('.'), issue.code, issue.message)
+    console.error(issue.path.join("."), issue.code, issue.message)
   }
 }
 ```

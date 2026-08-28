@@ -8,7 +8,7 @@ logical and physical identity evidence, dependency edges, preconditions, safety,
 lock and transaction requirements, and reversibility markers.
 
 ```ts
-import { createMigrationPlan } from 'qubu/migration'
+import { createMigrationPlan } from "qubu/migration"
 
 const result = createMigrationPlan(diff)
 if (!result.ok) {
@@ -31,11 +31,11 @@ kind, namespace, and path, and each decision carries a review reason.
 ```ts
 const reviewed = createMigrationPlan(diff, {
   decisions: result.plan.operations
-    .filter(operation => operation.status === 'decision-required')
-    .map(operation => ({
+    .filter((operation) => operation.status === "decision-required")
+    .map((operation) => ({
       operationId: operation.id,
-      action: 'allow',
-      reason: 'Reviewed against the deployment change request',
+      action: "allow",
+      reason: "Reviewed against the deployment change request",
     })),
 })
 ```
@@ -48,10 +48,10 @@ dialect, safety declaration, reason, reversibility, and dependency position:
 createMigrationPlan(diff, {
   customSql: [
     {
-      sql: 'ALTER TABLE accounts VALIDATE CONSTRAINT accounts_check',
-      dialect: { name: 'postgresql', version: 1 },
-      safety: 'review-required',
-      reason: 'The dialect emitter does not model this catalog fact yet',
+      sql: "ALTER TABLE accounts VALIDATE CONSTRAINT accounts_check",
+      dialect: { name: "postgresql", version: 1 },
+      safety: "review-required",
+      reason: "The dialect emitter does not model this catalog fact yet",
       reversible: false,
       position: 3,
     },

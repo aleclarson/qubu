@@ -1,15 +1,11 @@
-import type {
-  CatalogColumn,
-  CatalogDialect,
-  CatalogTable,
-} from '../introspection/types.ts'
+import type { CatalogColumn, CatalogDialect, CatalogTable } from "../introspection/types.ts"
 import type {
   SnapshotColumn,
   SnapshotConstraint,
   SnapshotIndex,
   SnapshotTable,
-} from '../snapshot/types.ts'
-import type { CodegenApplicationType, CodegenSqlDomain } from './types.ts'
+} from "../snapshot/types.ts"
+import type { CodegenApplicationType, CodegenSqlDomain } from "./types.ts"
 
 export interface ResolvedColumn {
   readonly name: string

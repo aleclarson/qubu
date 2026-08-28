@@ -9,9 +9,9 @@ columns accept `null` as a value, which is distinct from omitting a defaulted
 field:
 
 ```ts
-import { integer, table, text } from 'qubu'
+import { integer, table, text } from "qubu"
 
-const users = table('users', {
+const users = table("users", {
   id: integer({ generated: true }),
   name: text(),
   email: text({ nullable: true, hasDefault: true }),
@@ -27,15 +27,12 @@ Pass one or more rows to `values()`. Qubu checks that every row uses the same
 columns and that required, non-generated fields are present:
 
 ```ts
-import { insertInto, render, returning, values } from 'qubu'
+import { insertInto, render, returning, values } from "qubu"
 
 const query = insertInto(
   users,
-  values(
-    { name: 'Ada', email: null },
-    { name: 'Grace', email: 'grace@example.com' }
-  ),
-  returning({ id: users.id, name: users.name })
+  values({ name: "Ada", email: null }, { name: "Grace", email: "grace@example.com" }),
+  returning({ id: users.id, name: users.name }),
 )
 
 render(query)
@@ -54,13 +51,13 @@ default. Use `insertSelect(query, columns)` for an `INSERT ... SELECT` source.
 the target table:
 
 ```ts
-import { eq, returning, update, upper, where } from 'qubu'
+import { eq, returning, update, upper, where } from "qubu"
 
 const query = update(
   users,
   { name: upper(users.name) },
   where(eq(users.id, 7)),
-  returning({ id: users.id, name: users.name })
+  returning({ id: users.id, name: users.name }),
 )
 ```
 
@@ -71,15 +68,15 @@ Use `omit` for a runtime-conditional assignment. Qubu removes omitted fields
 before validating and rendering the effective assignment set:
 
 ```ts
-import { eq, omit, update, where } from 'qubu'
+import { eq, omit, update, where } from "qubu"
 
 const query = update(
   users,
   {
-    name: rename ? 'Archived' : omit,
+    name: rename ? "Archived" : omit,
     email: clearEmail ? null : omit,
   },
-  where(eq(users.id, 7))
+  where(eq(users.id, 7)),
 )
 ```
 
@@ -93,13 +90,9 @@ remain source- and capability-aware even when their runtime alternative is
 ## Delete with a predicate
 
 ```ts
-import { deleteFrom, eq, returning, where } from 'qubu'
+import { deleteFrom, eq, returning, where } from "qubu"
 
-const query = deleteFrom(
-  users,
-  where(eq(users.id, 8)),
-  returning({ id: users.id })
-)
+const query = deleteFrom(users, where(eq(users.id, 8)), returning({ id: users.id }))
 ```
 
 ## Keep unrestricted writes explicit
@@ -108,9 +101,9 @@ Both `UPDATE` and `DELETE` require a `WHERE` clause by default. If an operation
 really must affect every row, opt in at the call site:
 
 ```ts
-import { allowAll, update } from 'qubu'
+import { allowAll, update } from "qubu"
 
-const query = update(users, { name: 'Archived' }, allowAll())
+const query = update(users, { name: "Archived" }, allowAll())
 ```
 
 `allowAll()` is a safety boundary, not a replacement for authorization or

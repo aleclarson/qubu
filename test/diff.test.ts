@@ -1,22 +1,26 @@
-import { expect, test } from 'vitest'
+import { expect, test } from "vitest"
+
 import {
   decodeSnapshotForDiff,
   diffSnapshots,
   encodeSnapshotRenameHints,
   validateSnapshotRenameHints,
-} from '../src/diff/index.ts'
-import type { CompleteSchemaSnapshot } from '../src/snapshot/complete-types.ts'
-import type { SchemaSnapshot } from '../src/snapshot/types.ts'
+} from "../src/diff/index.ts"
+import type { CompleteSchemaSnapshot } from "../src/snapshot/complete-types.ts"
+import type { SchemaSnapshot } from "../src/snapshot/types.ts"
 
-function tableSnapshot(
-  tables: SchemaSnapshot['tables'],
-  namespace = 'public'
-): SchemaSnapshot {
+function tableSnapshot(tables: SchemaSnapshot["tables"], namespace = "public"): SchemaSnapshot {
   return {
-    format: 'qubu-schema',
+    format: "qubu-schema",
     version: 1,
-    dialect: { name: 'neutral', version: 1 },
-    namingPolicy: { name: 'test', version: 1 },
+    dialect: {
+      name: "neutral",
+      version: 1,
+    },
+    namingPolicy: {
+      name: "test",
+      version: 1,
+    },
     namespace,
     tables,
   }
@@ -25,7 +29,7 @@ function tableSnapshot(
 function table(
   id: string,
   physicalName = id,
-  columns: SchemaSnapshot['tables'][number]['columns'] = []
+  columns: SchemaSnapshot["tables"][number]["columns"] = [],
 ) {
   return {
     id,
@@ -37,26 +41,35 @@ function table(
 }
 
 function completeSnapshot(
-  opaqueObjects: CompleteSchemaSnapshot['opaqueObjects'] = [],
-  deferredObjects: CompleteSchemaSnapshot['deferredObjects'] = []
+  opaqueObjects: CompleteSchemaSnapshot["opaqueObjects"] = [],
+  deferredObjects: CompleteSchemaSnapshot["deferredObjects"] = [],
 ): CompleteSchemaSnapshot {
   return {
-    format: 'qubu-schema',
+    format: "qubu-schema",
     version: 2,
-    dialect: { name: 'mysql', version: 1 },
-    namingPolicy: { name: 'introspected-physical', version: 1 },
-    namespace: { kind: 'mysql-database', name: 'app' },
+    dialect: {
+      name: "mysql",
+      version: 1,
+    },
+    namingPolicy: {
+      name: "introspected-physical",
+      version: 1,
+    },
+    namespace: {
+      kind: "mysql-database",
+      name: "app",
+    },
     capabilities: {
       generatedColumns: true,
       identityMetadata: true,
       checkConstraints: true,
-      checkConstraintEnforcement: 'enforced',
+      checkConstraintEnforcement: "enforced",
       expressionDecompilation: true,
       indexExpressions: true,
       indexPredicates: true,
       indexIncludedColumns: true,
       namespaces: true,
-      visibility: 'complete',
+      visibility: "complete",
     },
     tables: [],
     views: [],
@@ -76,9 +89,9 @@ function completeSnapshot(
   }
 }
 
-test('compares reordered canonical arrays as equal', () => {
-  const before = tableSnapshot([table('accounts'), table('users')])
-  const after = tableSnapshot([table('users'), table('accounts')])
+test("compares reordered canonical arrays as equal", () => {
+  const before = tableSnapshot([table("accounts"), table("users")])
+  const after = tableSnapshot([table("users"), table("accounts")])
 
   const result = diffSnapshots(before, after)
 
@@ -87,57 +100,49 @@ test('compares reordered canonical arrays as equal', () => {
   expect(result.beforeDigest).toBe(result.afterDigest)
 })
 
-test('classifies additions, removals, and property changes', () => {
+test("classifies additions, removals, and property changes", () => {
   const before = tableSnapshot([
-    table('accounts', 'accounts', [
+    table("accounts", "accounts", [
       {
-        id: 'id',
-        physicalName: 'id',
+        id: "id",
+        physicalName: "id",
         nullable: true,
         hasDefault: false,
         generated: false,
       },
     ]),
-    table('removed'),
+    table("removed"),
   ])
   const after = tableSnapshot([
-    table('accounts', 'accounts', [
+    table("accounts", "accounts", [
       {
-        id: 'id',
-        physicalName: 'id',
+        id: "id",
+        physicalName: "id",
         nullable: false,
         hasDefault: false,
         generated: false,
       },
     ]),
-    table('added'),
+    table("added"),
   ])
 
   const result = diffSnapshots(before, after)
 
-  expect(result.additions.map(operation => operation.logicalId)).toContain(
-    'added'
-  )
-  expect(result.removals.map(operation => operation.logicalId)).toContain(
-    'removed'
-  )
-  expect(
-    result.propertyChanges.map(operation => operation.logicalId)
-  ).toContain('id')
-  expect(result.diagnostics.some(issue => issue.code === 'destructive')).toBe(
-    true
-  )
+  expect(result.additions.map((operation) => operation.logicalId)).toContain("added")
+  expect(result.removals.map((operation) => operation.logicalId)).toContain("removed")
+  expect(result.propertyChanges.map((operation) => operation.logicalId)).toContain("id")
+  expect(result.diagnostics.some((issue) => issue.code === "destructive")).toBe(true)
 })
 
-test('keeps explicit rename hints authoritative and serializable', () => {
-  const before = tableSnapshot([table('legacy_accounts', 'legacy_accounts')])
-  const after = tableSnapshot([table('accounts', 'accounts')])
+test("keeps explicit rename hints authoritative and serializable", () => {
+  const before = tableSnapshot([table("legacy_accounts", "legacy_accounts")])
+  const after = tableSnapshot([table("accounts", "accounts")])
   const hints = [
     {
-      kind: 'table' as const,
-      namespace: 'public',
-      from: 'legacy_accounts',
-      to: 'accounts',
+      kind: "table" as const,
+      namespace: "public",
+      from: "legacy_accounts",
+      to: "accounts",
     },
   ]
 
@@ -145,140 +150,141 @@ test('keeps explicit rename hints authoritative and serializable', () => {
 
   expect(result.renames).toHaveLength(1)
   expect(result.renames[0]).toMatchObject({
-    type: 'physical-rename',
-    source: 'explicit-hint',
-    before: { id: 'legacy_accounts', physicalName: 'legacy_accounts' },
-    after: { id: 'accounts', physicalName: 'accounts' },
+    type: "physical-rename",
+    source: "explicit-hint",
+    before: {
+      id: "legacy_accounts",
+      physicalName: "legacy_accounts",
+    },
+    after: {
+      id: "accounts",
+      physicalName: "accounts",
+    },
   })
   expect(result.additions).toEqual([])
   expect(result.removals).toEqual([])
   expect(encodeSnapshotRenameHints(hints)).toBe(
-    '[{"from":"legacy_accounts","kind":"table","namespace":"public","to":"accounts"}]'
+    '[{"from":"legacy_accounts","kind":"table","namespace":"public","to":"accounts"}]',
   )
 })
 
-test('reports structural rename suggestions without creating renames', () => {
+test("reports structural rename suggestions without creating renames", () => {
   const columns = [
     {
-      id: 'id',
-      physicalName: 'id',
+      id: "id",
+      physicalName: "id",
       nullable: false,
       hasDefault: false,
       generated: false,
     },
   ] as const
   const result = diffSnapshots(
-    tableSnapshot([table('legacy', 'legacy', columns)]),
-    tableSnapshot([table('current', 'current', columns)])
+    tableSnapshot([table("legacy", "legacy", columns)]),
+    tableSnapshot([table("current", "current", columns)]),
   )
 
   expect(result.renames).toEqual([])
   expect(result.suggestions).toHaveLength(1)
   expect(result.suggestions[0]).toMatchObject({
-    type: 'rename-suggestion',
-    before: { id: 'legacy' },
-    after: { id: 'current' },
+    type: "rename-suggestion",
+    before: { id: "legacy" },
+    after: { id: "current" },
   })
-  expect(
-    result.operations.filter(operation => operation.type === 'remove')
-  ).not.toHaveLength(0)
-  expect(
-    result.operations.filter(operation => operation.type === 'add')
-  ).not.toHaveLength(0)
+  expect(result.operations.filter((operation) => operation.type === "remove")).not.toHaveLength(0)
+  expect(result.operations.filter((operation) => operation.type === "add")).not.toHaveLength(0)
 })
 
-test('diagnoses ambiguous structural matches', () => {
-  const before = tableSnapshot([table('legacy', 'legacy')])
-  const after = tableSnapshot([
-    table('first', 'first'),
-    table('second', 'second'),
-  ])
+test("diagnoses ambiguous structural matches", () => {
+  const before = tableSnapshot([table("legacy", "legacy")])
+  const after = tableSnapshot([table("first", "first"), table("second", "second")])
 
   const result = diffSnapshots(before, after)
 
   expect(result.suggestions).toEqual([])
-  expect(result.diagnostics.some(issue => issue.code === 'ambiguous')).toBe(
-    true
-  )
+  expect(result.diagnostics.some((issue) => issue.code === "ambiguous")).toBe(true)
   expect(result.renames).toEqual([])
 })
 
-test('rejects malformed and out-of-scope rename hints', () => {
+test("rejects malformed and out-of-scope rename hints", () => {
   const malformed = validateSnapshotRenameHints([
-    { kind: 'not-an-object', from: 'old', to: 'new' },
-    { kind: 'table', namespace: 'public', from: {}, to: 'new' },
-  ])
-  expect(malformed.ok).toBe(false)
-  expect(
-    malformed.diagnostics.some(issue => issue.code === 'invalid-rename-hint')
-  ).toBe(true)
-
-  const result = diffSnapshots(
-    tableSnapshot([table('old')]),
-    tableSnapshot([table('new')]),
     {
-      renameHints: [
-        { kind: 'table', namespace: 'other', from: 'old', to: 'new' },
-      ],
-    }
-  )
+      kind: "not-an-object",
+      from: "old",
+      to: "new",
+    },
+    {
+      kind: "table",
+      namespace: "public",
+      from: {},
+      to: "new",
+    },
+  ])
+
+  expect(malformed.ok).toBe(false)
+  expect(malformed.diagnostics.some((issue) => issue.code === "invalid-rename-hint")).toBe(true)
+
+  const result = diffSnapshots(tableSnapshot([table("old")]), tableSnapshot([table("new")]), {
+    renameHints: [
+      {
+        kind: "table",
+        namespace: "other",
+        from: "old",
+        to: "new",
+      },
+    ],
+  })
+
   expect(result.renames).toEqual([])
-  expect(
-    result.diagnostics.some(issue => issue.code === 'invalid-rename-hint')
-  ).toBe(true)
+  expect(result.diagnostics.some((issue) => issue.code === "invalid-rename-hint")).toBe(true)
 })
 
-test('keeps opaque and deferred records out of automatic rename matching', () => {
+test("keeps opaque and deferred records out of automatic rename matching", () => {
   const before = completeSnapshot([
     {
-      kind: 'opaque-object',
-      id: 'event-old',
-      objectKind: 'event',
-      physicalName: 'event-old',
-      data: { sql: 'CREATE EVENT event-old' },
+      kind: "opaque-object",
+      id: "event-old",
+      objectKind: "event",
+      physicalName: "event-old",
+      data: { sql: "CREATE EVENT event-old" },
     },
   ])
   const after = completeSnapshot([
     {
-      kind: 'opaque-object',
-      id: 'event-new',
-      objectKind: 'event',
-      physicalName: 'event-new',
-      data: { sql: 'CREATE EVENT event-new' },
+      kind: "opaque-object",
+      id: "event-new",
+      objectKind: "event",
+      physicalName: "event-new",
+      data: { sql: "CREATE EVENT event-new" },
     },
   ])
 
   const result = diffSnapshots(before, after)
 
   expect(result.renames).toEqual([])
-  expect(result.diagnostics.some(issue => issue.code === 'lossy')).toBe(true)
-  expect(result.operations.some(operation => operation.type === 'remove')).toBe(
-    true
-  )
-  expect(result.operations.some(operation => operation.type === 'add')).toBe(
-    true
-  )
+  expect(result.diagnostics.some((issue) => issue.code === "lossy")).toBe(true)
+  expect(result.operations.some((operation) => operation.type === "remove")).toBe(true)
+  expect(result.operations.some((operation) => operation.type === "add")).toBe(true)
 })
 
-test('compares complete v2 object groups independently of array order', () => {
+test("compares complete v2 object groups independently of array order", () => {
   const before = completeSnapshot(
     [],
     [
       {
-        kind: 'deferred-object',
-        id: 'sequence-a',
-        objectKind: 'sequence',
-        physicalName: 'sequence_a',
-        reason: 'adapter boundary',
+        kind: "deferred-object",
+        id: "sequence-a",
+        objectKind: "sequence",
+        physicalName: "sequence_a",
+        reason: "adapter boundary",
       },
       {
-        kind: 'deferred-object',
-        id: 'sequence-b',
-        objectKind: 'sequence',
-        physicalName: 'sequence_b',
-        reason: 'adapter boundary',
+        kind: "deferred-object",
+        id: "sequence-b",
+        objectKind: "sequence",
+        physicalName: "sequence_b",
+        reason: "adapter boundary",
       },
-    ]
+    ],
   )
   const after = completeSnapshot([], [...before.deferredObjects].reverse())
 
@@ -286,14 +292,15 @@ test('compares complete v2 object groups independently of array order', () => {
 
   expect(result.equal).toBe(true)
   expect(result.operations).toEqual([])
-  expect(result.diagnostics.some(issue => issue.code === 'unknown')).toBe(true)
-  expect(result.diagnostics.some(issue => issue.code === 'unsupported')).toBe(
-    true
-  )
+  expect(result.diagnostics.some((issue) => issue.code === "unknown")).toBe(true)
+  expect(result.diagnostics.some((issue) => issue.code === "unsupported")).toBe(true)
 })
 
-test('decodes invalid snapshots as structured diff diagnostics', () => {
+test("decodes invalid snapshots as structured diff diagnostics", () => {
   const result = decodeSnapshotForDiff({ version: 99 })
+
   expect(result.ok).toBe(false)
-  if (!result.ok) expect(result.diagnostics[0]?.code).toBe('invalid-snapshot')
+  if (!result.ok) {
+    expect(result.diagnostics[0]?.code).toBe("invalid-snapshot")
+  }
 })

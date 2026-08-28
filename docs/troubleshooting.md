@@ -12,9 +12,9 @@ Check that the query includes the original source or use the columns exposed by
 the alias, CTE, or derived table you actually placed in the query:
 
 ```ts
-import { alias, from, select } from 'qubu'
+import { alias, from, select } from "qubu"
 
-const author = alias(users, 'author')
+const author = alias(users, "author")
 
 select({ name: author.name }, from(author))
 ```
@@ -27,9 +27,9 @@ identity after aliasing.
 This is the default mutation safety check. Add a source-aware predicate:
 
 ```ts
-import { deleteFrom, eq, update, where } from 'qubu'
+import { deleteFrom, eq, update, where } from "qubu"
 
-update(users, { name: 'Ada' }, where(eq(users.id, 7)))
+update(users, { name: "Ada" }, where(eq(users.id, 7)))
 deleteFrom(users, where(eq(users.id, 8)))
 ```
 
@@ -43,7 +43,7 @@ A scalar subquery must return one selected field. Reduce the projection before
 calling `scalar()`:
 
 ```ts
-import { from, scalar, select } from 'qubu'
+import { from, scalar, select } from "qubu"
 
 const idQuery = select({ id: users.id }, from(users))
 const idExpression = scalar(idQuery)
@@ -58,8 +58,8 @@ Render with the dialect that the adapter expects and inspect both fields of the
 result:
 
 ```ts
-import { render } from 'qubu'
-import { postgresDialect } from 'qubu/postgres'
+import { render } from "qubu"
+import { postgresDialect } from "qubu/postgres"
 
 const statement = render(query, postgresDialect())
 console.log(statement.text)
@@ -78,7 +78,7 @@ path, and hint before changing the query. The hint names the repair boundary;
 the path points to the clause or field that needs attention.
 
 ```ts
-import { QueryValidationError, fetchFirst } from 'qubu'
+import { QueryValidationError, fetchFirst } from "qubu"
 
 try {
   fetchFirst(-1)
@@ -140,10 +140,10 @@ placement. Rendering traverses that normalized statement, so inspect the final
 `text` and `parameters` together rather than assuming source argument order:
 
 ```ts
-import { eq, fetchFirst, from, render, select, where } from 'qubu'
+import { eq, fetchFirst, from, render, select, where } from "qubu"
 
 const statement = render(
-  select({ id: users.id }, from(users), where(eq(users.id, 7)), fetchFirst(10))
+  select({ id: users.id }, from(users), where(eq(users.id, 7)), fetchFirst(10)),
 )
 ```
 

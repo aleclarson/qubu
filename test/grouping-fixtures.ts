@@ -15,14 +15,14 @@ import {
   text,
   sum,
   upper,
-} from '../src/index.ts'
+} from "../src/index.ts"
 
-export const users = table('users', {
+export const users = table("users", {
   id: integer(),
   name: text(),
 })
 
-export const posts = table('posts', {
+export const posts = table("posts", {
   id: integer(),
   authorId: integer(),
   title: text(),
@@ -44,13 +44,13 @@ export const groupedByColumn = select(
   leftJoin(posts, eq(users.id, posts.authorId)),
   groupedByColumnClause,
   having(gt(count(posts.id), 0)),
-  orderBy(users.name)
+  orderBy(users.name),
 )
 
 export const groupedByExpression = select(
   { displayName: groupedName },
   from(users),
-  groupBy(groupedName)
+  groupBy(groupedName),
 )
 
 export const groupedWithWindow = select(
@@ -61,5 +61,5 @@ export const groupedWithWindow = select(
   },
   from(users),
   leftJoin(posts, eq(users.id, posts.authorId)),
-  groupBy(users.name)
+  groupBy(users.name),
 )

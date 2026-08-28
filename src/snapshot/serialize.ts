@@ -1,37 +1,27 @@
-import { isColumnReference } from '../expressions/column.ts'
-import type {
-  AnyExpression,
-  AnySchemaExpression,
-} from '../expressions/types.ts'
-import type { OrderTerm } from '../query/clauses/order-by.ts'
-import type { AnyTable, TableDefinitions } from '../schema/table.ts'
+import { standardDialect } from "../dialects/standard.ts"
+import { isColumnReference } from "../expressions/column.ts"
+import type { AnyExpression, AnySchemaExpression } from "../expressions/types.ts"
+import type { OrderTerm } from "../query/clauses/order-by.ts"
 import type {
   ColumnDefault,
   GeneratedColumnDescriptor,
   IdentityDescriptor,
-} from '../schema/column-behavior.ts'
-import type { ColumnStorage } from '../schema/column.ts'
+} from "../schema/column-behavior.ts"
+import type { ColumnStorage } from "../schema/column.ts"
 import type {
   ForeignKeyConstraint,
   SourceConstraint,
   ForeignKeyTarget,
-} from '../schema/constraints.ts'
-import { defaultSchemaNamingPolicy, type Schema } from '../schema/registry.ts'
-import type { SchemaDialect } from '../schema/dialect.ts'
-import { createSchemaDialect } from '../schema/dialect.ts'
-import type { SchemaDialectExtension } from '../schema/metadata.ts'
-import { generatedSchemaObjectName } from '../schema/metadata.ts'
-import {
-  isUnsafeSchemaSql,
-  renderSchemaExpression,
-} from '../schema/expressions.ts'
-import { standardDialect } from '../dialects/standard.ts'
-import { assertSchemaSnapshot, SnapshotValidationError } from './decode.ts'
-import {
-  encodeCanonicalSnapshot,
-  schemaSnapshotDigest,
-  toSnapshotJsonValue,
-} from './canonical.ts'
+} from "../schema/constraints.ts"
+import type { SchemaDialect } from "../schema/dialect.ts"
+import { createSchemaDialect } from "../schema/dialect.ts"
+import { isUnsafeSchemaSql, renderSchemaExpression } from "../schema/expressions.ts"
+import type { SchemaDialectExtension } from "../schema/metadata.ts"
+import { generatedSchemaObjectName } from "../schema/metadata.ts"
+import { defaultSchemaNamingPolicy, type Schema } from "../schema/registry.ts"
+import type { AnyTable, TableDefinitions } from "../schema/table.ts"
+import { encodeCanonicalSnapshot, schemaSnapshotDigest, toSnapshotJsonValue } from "./canonical.ts"
+import { assertSchemaSnapshot, SnapshotValidationError } from "./decode.ts"
 import {
   neutralSnapshotDialect,
   schemaSnapshotDialectVersion,
@@ -57,20 +47,20 @@ import {
   type SnapshotLiteral,
   type SnapshotTable,
   type SnapshotUniqueConstraint,
-} from './types.ts'
-import type { SnapshotDiagnostic, SnapshotExpressionContext } from './types.ts'
+} from "./types.ts"
+import type { SnapshotDiagnostic, SnapshotExpressionContext } from "./types.ts"
 
 const neutralSchemaDialect = createSchemaDialect(
   Object.freeze({
     ...standardDialect(),
     name: neutralSnapshotDialect.name,
   }),
-  { version: schemaSnapshotDialectVersion }
+  { version: schemaSnapshotDialectVersion },
 )
 
 /** Error raised when a live Qubu schema cannot be represented as a snapshot. */
 export class SnapshotSerializationError extends SnapshotValidationError {
-  readonly name = 'SnapshotSerializationError'
+  readonly name = "SnapshotSerializationError"
 }
 
 /** Options for the neutral traversal and a future dialect adapter. */
@@ -78,9 +68,9 @@ export interface SchemaSnapshotOptions {
   readonly adapter?: SchemaSnapshotAdapter
   readonly dialect?: SchemaDialect
   /** Explicit hook overrides retained for custom tooling integrations. */
-  readonly expressionEncoder?: SchemaDialect['schema']['encodeExpression']
-  readonly storageEncoder?: SchemaDialect['schema']['encodeStorage']
-  readonly extensionEncoder?: SchemaDialect['schema']['encodeDialectExtension']
+  readonly expressionEncoder?: SchemaDialect["schema"]["encodeExpression"]
+  readonly storageEncoder?: SchemaDialect["schema"]["encodeStorage"]
+  readonly extensionEncoder?: SchemaDialect["schema"]["encodeDialectExtension"]
   readonly namingPolicy?: {
     readonly name: string
     readonly version?: number
@@ -90,26 +80,31 @@ export interface SchemaSnapshotOptions {
 /** Create a neutral or adapter-owned immutable snapshot from a live schema. */
 export function createSchemaSnapshot<TSchema extends Schema<any>>(
   schema: TSchema,
-  options: SchemaSnapshotOptions = {}
+  options: SchemaSnapshotOptions = {},
 ): SchemaSnapshot {
   const result = tryCreateSchemaSnapshot(schema, options)
-  if (!result.ok) throw new SnapshotSerializationError(result.diagnostics)
+
+  if (!result.ok) {
+    throw new SnapshotSerializationError(result.diagnostics)
+  }
+
   return result.value
 }
 
 /** Non-throwing form of {@link createSchemaSnapshot}. */
 export function tryCreateSchemaSnapshot<TSchema extends Schema<any>>(
   schema: TSchema,
-  options: SchemaSnapshotOptions = {}
+  options: SchemaSnapshotOptions = {},
 ): SnapshotCreateResult {
   const diagnostics: SnapshotDiagnostic[] = []
+
   if (!isSchemaRoot(schema)) {
     return {
       ok: false,
       diagnostics: [
         {
-          code: 'invalid-schema',
-          message: 'Snapshot input must be a Qubu schema registry',
+          code: "invalid-schema",
+          message: "Snapshot input must be a Qubu schema registry",
           path: [],
         },
       ],
@@ -126,10 +121,10 @@ export function tryCreateSchemaSnapshot<TSchema extends Schema<any>>(
       ok: false,
       diagnostics: [
         {
-          code: 'dialect-mismatch',
-          message: 'Snapshot adapter and explicit dialect must agree',
-          path: ['dialect'],
-          relatedPaths: [['adapter', 'dialect']],
+          code: "dialect-mismatch",
+          message: "Snapshot adapter and explicit dialect must agree",
+          path: ["dialect"],
+          relatedPaths: [["adapter", "dialect"]],
         },
       ],
     }
@@ -143,8 +138,8 @@ export function tryCreateSchemaSnapshot<TSchema extends Schema<any>>(
     Object.freeze({
       name:
         schema.namingPolicy.tableName === defaultSchemaNamingPolicy.tableName
-          ? 'snake-case'
-          : 'custom',
+          ? "snake-case"
+          : "custom",
       version: schema.namingPolicy.version ?? schemaSnapshotNamingPolicyVersion,
     })
   const tableEntries = Object.entries(schema.registry)
@@ -152,17 +147,18 @@ export function tryCreateSchemaSnapshot<TSchema extends Schema<any>>(
   const tablesById = new Map<string, AnyTable>()
 
   const validate = adapter?.dialect.schema.validate ?? dialect.schema.validate
+
   if (validate !== undefined) {
     try {
       diagnostics.push(
         ...validate(schema, {
           path: [],
           dialect,
-        })
+        }),
       )
     } catch (error) {
       diagnostics.push({
-        code: 'invalid-schema',
+        code: "invalid-schema",
         message: error instanceof Error ? error.message : String(error),
         path: [],
       })
@@ -184,14 +180,17 @@ export function tryCreateSchemaSnapshot<TSchema extends Schema<any>>(
         tablesById,
         dialect,
         options,
-        diagnostics
-      )
+        diagnostics,
+      ),
     )
     .filter((table): table is SnapshotTable => table !== undefined)
     .sort(compareId)
 
   if (diagnostics.length > 0) {
-    return { ok: false, diagnostics: Object.freeze(diagnostics) }
+    return {
+      ok: false,
+      diagnostics: Object.freeze(diagnostics),
+    }
   }
 
   const rawSnapshot: SchemaSnapshot = {
@@ -210,16 +209,23 @@ export function tryCreateSchemaSnapshot<TSchema extends Schema<any>>(
   }
 
   try {
-    return { ok: true, value: assertSchemaSnapshot(rawSnapshot) }
+    return {
+      ok: true,
+      value: assertSchemaSnapshot(rawSnapshot),
+    }
   } catch (error) {
     if (error instanceof SnapshotValidationError) {
-      return { ok: false, diagnostics: error.diagnostics }
+      return {
+        ok: false,
+        diagnostics: error.diagnostics,
+      }
     }
+
     return {
       ok: false,
       diagnostics: [
         {
-          code: 'invalid-schema',
+          code: "invalid-schema",
           message: error instanceof Error ? error.message : String(error),
           path: [],
         },
@@ -231,6 +237,7 @@ export function tryCreateSchemaSnapshot<TSchema extends Schema<any>>(
 /** Encode a valid snapshot using fixed property order and canonical JSON. */
 export function encodeSchemaSnapshot(snapshot: SchemaSnapshot): string {
   const canonical = assertSchemaSnapshot(snapshot)
+
   return encodeCanonicalSnapshot(canonical)
 }
 
@@ -251,7 +258,7 @@ function serializeTable(
   tablesById: ReadonlyMap<string, AnyTable>,
   dialect: SchemaDialect,
   options: SchemaSnapshotOptions,
-  diagnostics: SnapshotDiagnostic[]
+  diagnostics: SnapshotDiagnostic[],
 ): SnapshotTable | undefined {
   const definitions = table.definitions as TableDefinitions
   const tableMetadata = table as AnyTable & {
@@ -279,8 +286,8 @@ function serializeTable(
         table.sqlNames[fieldName] ?? fieldName,
         dialect,
         options,
-        diagnostics
-      )
+        diagnostics,
+      ),
     )
     .sort(compareId)
 
@@ -294,24 +301,15 @@ function serializeTable(
         tablesById,
         dialect,
         options,
-        diagnostics
-      )
+        diagnostics,
+      ),
     )
-    .filter(
-      (constraint): constraint is SnapshotConstraint => constraint !== undefined
-    )
+    .filter((constraint): constraint is SnapshotConstraint => constraint !== undefined)
     .sort(compareId)
 
   const indexes = Object.entries(tableMetadata.indexes)
     .map(([indexId, indexMetadata]) =>
-      serializeIndex(
-        indexId,
-        indexMetadata,
-        table,
-        dialect,
-        options,
-        diagnostics
-      )
+      serializeIndex(indexId, indexMetadata, table, dialect, options, diagnostics),
     )
     .filter((index): index is SnapshotIndex => index !== undefined)
     .sort(compareId)
@@ -331,54 +329,49 @@ function serializeColumn(
   physicalName: string,
   dialect: SchemaDialect,
   options: SchemaSnapshotOptions,
-  diagnostics: SnapshotDiagnostic[]
+  diagnostics: SnapshotDiagnostic[],
 ): SnapshotColumn {
   const storage = definition.storage
     ? encodeStorage(
         definition.storage,
         dialect,
-        ['tables', id, 'columns', id, 'storage'],
+        ["tables", id, "columns", id, "storage"],
         options,
-        diagnostics
+        diagnostics,
       )
     : undefined
   const defaultValue = definition.default
-    ? encodeDefault(
-        definition.default,
-        dialect,
-        ['columns', id, 'default'],
-        options,
-        diagnostics
-      )
+    ? encodeDefault(definition.default, dialect, ["columns", id, "default"], options, diagnostics)
     : undefined
   const generatedColumn = definition.generatedColumn
     ? encodeGenerated(
         definition.generatedColumn,
         dialect,
-        ['columns', id, 'generatedColumn'],
+        ["columns", id, "generatedColumn"],
         options,
-        diagnostics
+        diagnostics,
       )
     : undefined
   const identity = definition.identity
     ? encodeIdentity(
         definition.identity,
         dialect,
-        ['tables', id, 'columns', id, 'identity'],
+        ["tables", id, "columns", id, "identity"],
         options,
-        diagnostics
+        diagnostics,
       )
     : undefined
   const onUpdate = definition.onUpdate
     ? encodeExpression(
         definition.onUpdate,
-        'default',
+        "default",
         dialect,
-        ['columns', id, 'onUpdate'],
+        ["columns", id, "onUpdate"],
         options,
-        diagnostics
+        diagnostics,
       )
     : undefined
+
   return {
     id,
     physicalName,
@@ -398,37 +391,47 @@ function encodeStorage(
   dialect: SchemaDialect,
   path: readonly (string | number)[],
   options: SchemaSnapshotOptions,
-  diagnostics: SnapshotDiagnostic[]
+  diagnostics: SnapshotDiagnostic[],
 ) {
-  if (storage.kind === 'native' && storage.dialect !== dialect.name) {
+  if (storage.kind === "native" && storage.dialect !== dialect.name) {
     diagnostics.push({
-      code: 'dialect-mismatch',
+      code: "dialect-mismatch",
       message: `Native storage belongs to "${storage.dialect}" but the snapshot dialect is "${dialect.name}"`,
       path,
     })
     return undefined
   }
+
   const encoder =
     options.storageEncoder ??
     options.adapter?.dialect.schema.encodeStorage ??
     dialect.schema.encodeStorage
+
   if (encoder !== undefined) {
     try {
-      return encoder(storage, { path, dialect })
+      return encoder(storage, {
+        path,
+        dialect,
+      })
     } catch (error) {
       diagnostics.push({
-        code: 'invalid-schema',
+        code: "invalid-schema",
         message: error instanceof Error ? error.message : String(error),
         path,
       })
       return undefined
     }
   }
-  if (storage.kind === 'portable') {
-    return { kind: 'portable' as const, type: storage.type }
+
+  if (storage.kind === "portable") {
+    return {
+      kind: "portable" as const,
+      type: storage.type,
+    }
   }
+
   return {
-    kind: 'native' as const,
+    kind: "native" as const,
     dialect: storage.dialect,
     type: storage.type,
   }
@@ -439,23 +442,34 @@ function encodeDefault(
   dialect: SchemaDialect,
   path: readonly (string | number)[],
   options: SchemaSnapshotOptions,
-  diagnostics: SnapshotDiagnostic[]
+  diagnostics: SnapshotDiagnostic[],
 ): SnapshotDefault | undefined {
-  if (value.kind === 'external') return { kind: 'external' }
-  if (value.kind === 'literal') {
-    return { kind: 'literal', value: value.value as SnapshotLiteral }
+  if (value.kind === "external") {
+    return { kind: "external" }
   }
+
+  if (value.kind === "literal") {
+    return {
+      kind: "literal",
+      value: value.value as SnapshotLiteral,
+    }
+  }
+
   const expression = encodeExpression(
     value.expression,
-    'default',
+    "default",
     dialect,
     path,
     options,
-    diagnostics
+    diagnostics,
   )
+
   return expression === undefined
     ? undefined
-    : { kind: 'expression', expression }
+    : {
+        kind: "expression",
+        expression,
+      }
 }
 
 function encodeGenerated(
@@ -463,20 +477,28 @@ function encodeGenerated(
   dialect: SchemaDialect,
   path: readonly (string | number)[],
   options: SchemaSnapshotOptions,
-  diagnostics: SnapshotDiagnostic[]
+  diagnostics: SnapshotDiagnostic[],
 ): SnapshotGeneratedColumn | undefined {
-  if (value.kind === 'external') return { kind: 'external' }
+  if (value.kind === "external") {
+    return { kind: "external" }
+  }
+
   const expression = encodeExpression(
     value.expression,
-    'generated',
+    "generated",
     dialect,
     path,
     options,
-    diagnostics
+    diagnostics,
   )
+
   return expression === undefined
     ? undefined
-    : { kind: 'expression', expression, mode: value.mode }
+    : {
+        kind: "expression",
+        expression,
+        mode: value.mode,
+      }
 }
 
 function encodeIdentity(
@@ -484,17 +506,18 @@ function encodeIdentity(
   dialect: SchemaDialect,
   path: readonly (string | number)[],
   options: SchemaSnapshotOptions,
-  diagnostics: SnapshotDiagnostic[]
+  diagnostics: SnapshotDiagnostic[],
 ): SnapshotIdentity | undefined {
   const extension = encodeExtension(
     value.dialect,
     dialect,
-    [...path, 'dialect'],
+    [...path, "dialect"],
     options,
-    diagnostics
+    diagnostics,
   )
+
   return {
-    kind: 'identity',
+    kind: "identity",
     generation: value.generation,
     ...(extension === undefined ? {} : { dialect: extension }),
   }
@@ -508,7 +531,7 @@ function serializeConstraint(
   tablesById: ReadonlyMap<string, AnyTable>,
   dialect: SchemaDialect,
   options: SchemaSnapshotOptions,
-  diagnostics: SnapshotDiagnostic[]
+  diagnostics: SnapshotDiagnostic[],
 ): SnapshotConstraint | undefined {
   const physicalName = constraint.physicalName ?? generatedSchemaObjectName(id)
   const common = {
@@ -518,35 +541,41 @@ function serializeConstraint(
   }
 
   if (
-    constraint.kind === 'primary-key' ||
-    constraint.kind === 'unique' ||
-    constraint.kind === 'unique-constraint'
+    constraint.kind === "primary-key" ||
+    constraint.kind === "unique" ||
+    constraint.kind === "unique-constraint"
   ) {
     const columns = serializeColumns(
       constraint.columns,
       table,
-      ['constraints', id, 'columns'],
-      diagnostics
+      ["constraints", id, "columns"],
+      diagnostics,
     )
     const extension = encodeExtension(
       constraint.dialect,
       dialect,
-      ['constraints', id, 'dialect'],
+      ["constraints", id, "dialect"],
       options,
-      diagnostics
+      diagnostics,
     )
-    if (columns === undefined) return undefined
+
+    if (columns === undefined) {
+      return undefined
+    }
+
     const timing = serializeTiming(constraint)
-    if (constraint.kind === 'unique-constraint') {
+
+    if (constraint.kind === "unique-constraint") {
       return {
         ...common,
-        kind: 'unique-constraint',
+        kind: "unique-constraint",
         columns,
         nulls: constraint.nulls,
         ...timing,
         ...(extension === undefined ? {} : { dialect: extension }),
       } satisfies SnapshotUniqueConstraint
     }
+
     return {
       ...common,
       kind: constraint.kind,
@@ -556,65 +585,69 @@ function serializeConstraint(
     } satisfies SnapshotKeyConstraint
   }
 
-  if (constraint.kind === 'foreign-key') {
+  if (constraint.kind === "foreign-key") {
     const columns = serializeColumns(
       constraint.columns,
       table,
-      ['constraints', id, 'columns'],
-      diagnostics
+      ["constraints", id, "columns"],
+      diagnostics,
     )
     const target = resolveForeignKeyTarget(
       constraint,
       tableIds,
       tablesById,
-      ['constraints', id, 'target'],
-      diagnostics
+      ["constraints", id, "target"],
+      diagnostics,
     )
     const extension = encodeExtension(
       constraint.dialect,
       dialect,
-      ['constraints', id, 'dialect'],
+      ["constraints", id, "dialect"],
       options,
-      diagnostics
+      diagnostics,
     )
-    if (columns === undefined || target === undefined) return undefined
+
+    if (columns === undefined || target === undefined) {
+      return undefined
+    }
+
     return {
       ...common,
-      kind: 'foreign-key',
+      kind: "foreign-key",
       columns,
       target,
-      ...(constraint.onUpdate === undefined
-        ? {}
-        : { onUpdate: constraint.onUpdate }),
-      ...(constraint.onDelete === undefined
-        ? {}
-        : { onDelete: constraint.onDelete }),
+      ...(constraint.onUpdate === undefined ? {} : { onUpdate: constraint.onUpdate }),
+      ...(constraint.onDelete === undefined ? {} : { onDelete: constraint.onDelete }),
       ...(constraint.match === undefined ? {} : { match: constraint.match }),
       ...serializeTiming(constraint),
       ...(extension === undefined ? {} : { dialect: extension }),
     } satisfies SnapshotForeignKey
   }
 
-  if (constraint.kind === 'check') {
+  if (constraint.kind === "check") {
     const expression = encodeExpression(
       constraint.expression,
-      'check',
+      "check",
       dialect,
-      ['constraints', id, 'expression'],
+      ["constraints", id, "expression"],
       options,
-      diagnostics
+      diagnostics,
     )
     const extension = encodeExtension(
       constraint.dialect,
       dialect,
-      ['constraints', id, 'dialect'],
+      ["constraints", id, "dialect"],
       options,
-      diagnostics
+      diagnostics,
     )
-    if (expression === undefined) return undefined
+
+    if (expression === undefined) {
+      return undefined
+    }
+
     return {
       ...common,
-      kind: 'check',
+      kind: "check",
       expression,
       ...serializeTiming(constraint),
       ...(extension === undefined ? {} : { dialect: extension }),
@@ -622,16 +655,16 @@ function serializeConstraint(
   }
 
   diagnostics.push({
-    code: 'invalid-schema',
+    code: "invalid-schema",
     message: `Unsupported constraint kind on "${id}"`,
-    path: ['constraints', id],
+    path: ["constraints", id],
   })
   return undefined
 }
 
 function serializeTiming(value: {
   readonly deferrable?: boolean
-  readonly initially?: 'immediate' | 'deferred'
+  readonly initially?: "immediate" | "deferred"
 }) {
   return {
     ...(value.deferrable === undefined ? {} : { deferrable: value.deferrable }),
@@ -643,31 +676,33 @@ function serializeColumns(
   columns: readonly AnyExpression[],
   table: AnyTable,
   path: readonly (string | number)[],
-  diagnostics: SnapshotDiagnostic[]
+  diagnostics: SnapshotDiagnostic[],
 ): readonly string[] | undefined {
   const result: string[] = []
+
   for (const [index, column] of columns.entries()) {
     if (!isColumnReference(column)) {
       diagnostics.push({
-        code: 'invalid-schema',
-        message: 'Constraint columns must be column references',
+        code: "invalid-schema",
+        message: "Constraint columns must be column references",
         path: [...path, index],
       })
       continue
     }
+
     if (!(column.fieldName in table.definitions)) {
       diagnostics.push({
-        code: 'unresolved-reference',
+        code: "unresolved-reference",
         message: `Column "${column.fieldName}" is not declared on table "${table.tableName}"`,
         path: [...path, index],
       })
       continue
     }
+
     result.push(column.fieldName)
   }
-  return result.length === columns.length && result.length > 0
-    ? result
-    : undefined
+
+  return result.length === columns.length && result.length > 0 ? result : undefined
 }
 
 function resolveForeignKeyTarget(
@@ -675,18 +710,17 @@ function resolveForeignKeyTarget(
   tableIds: ReadonlyMap<object, string>,
   tablesById: ReadonlyMap<string, AnyTable>,
   path: readonly (string | number)[],
-  diagnostics: SnapshotDiagnostic[]
-): SnapshotForeignKey['target'] | undefined {
+  diagnostics: SnapshotDiagnostic[],
+): SnapshotForeignKey["target"] | undefined {
   let target: ForeignKeyTarget
+
   try {
     target = (
-      typeof constraint.target === 'function'
-        ? constraint.target()
-        : constraint.target
+      typeof constraint.target === "function" ? constraint.target() : constraint.target
     ) as ForeignKeyTarget
   } catch (error) {
     diagnostics.push({
-      code: 'unresolved-reference',
+      code: "unresolved-reference",
       message: `Foreign-key target could not be resolved: ${
         error instanceof Error ? error.message : String(error)
       }`,
@@ -696,22 +730,31 @@ function resolveForeignKeyTarget(
   }
 
   const targetId = tableIds.get(target.table)
+
   if (targetId === undefined || !tablesById.has(targetId)) {
     diagnostics.push({
-      code: 'unresolved-reference',
-      message: 'Foreign-key target table is not registered in the schema',
-      path: [...path, 'table'],
+      code: "unresolved-reference",
+      message: "Foreign-key target table is not registered in the schema",
+      path: [...path, "table"],
     })
     return undefined
   }
+
   const targetColumns = serializeColumns(
     target.columns,
     target.table as AnyTable,
-    [...path, 'columns'],
-    diagnostics
+    [...path, "columns"],
+    diagnostics,
   )
-  if (targetColumns === undefined) return undefined
-  return { table: targetId, columns: targetColumns }
+
+  if (targetColumns === undefined) {
+    return undefined
+  }
+
+  return {
+    table: targetId,
+    columns: targetColumns,
+  }
 }
 
 function serializeIndex(
@@ -728,30 +771,35 @@ function serializeIndex(
   table: AnyTable,
   dialect: SchemaDialect,
   options: SchemaSnapshotOptions,
-  diagnostics: SnapshotDiagnostic[]
+  diagnostics: SnapshotDiagnostic[],
 ): SnapshotIndex | undefined {
   const terms: SnapshotIndexTerm[] = []
+
   for (const [termIndex, term] of indexMetadata.terms.entries()) {
     const serialized = serializeIndexTerm(
       term,
       table,
       dialect,
-      ['indexes', id, 'terms', termIndex],
+      ["indexes", id, "terms", termIndex],
       options,
-      diagnostics
+      diagnostics,
     )
-    if (serialized !== undefined) terms.push(serialized)
+
+    if (serialized !== undefined) {
+      terms.push(serialized)
+    }
   }
+
   const predicate =
     indexMetadata.predicate === undefined
       ? undefined
       : encodeExpression(
           indexMetadata.predicate,
-          'index',
+          "index",
           dialect,
-          ['indexes', id, 'predicate'],
+          ["indexes", id, "predicate"],
           options,
-          diagnostics
+          diagnostics,
         )
   const includedColumns =
     indexMetadata.includedColumns === undefined
@@ -759,25 +807,27 @@ function serializeIndex(
       : serializeColumns(
           indexMetadata.includedColumns,
           table,
-          ['indexes', id, 'includedColumns'],
-          diagnostics
+          ["indexes", id, "includedColumns"],
+          diagnostics,
         )
   const extension = encodeExtension(
     indexMetadata.dialect,
     dialect,
-    ['indexes', id, 'dialect'],
+    ["indexes", id, "dialect"],
     options,
-    diagnostics
+    diagnostics,
   )
+
   if (
     terms.length !== indexMetadata.terms.length ||
-    (indexMetadata.includedColumns !== undefined &&
-      includedColumns === undefined)
-  )
+    (indexMetadata.includedColumns !== undefined && includedColumns === undefined)
+  ) {
     return undefined
+  }
+
   return {
     id,
-    kind: 'index',
+    kind: "index",
     physicalName: indexMetadata.physicalName ?? generatedSchemaObjectName(id),
     terms,
     unique: indexMetadata.unique,
@@ -794,36 +844,29 @@ function serializeIndexTerm(
   dialect: SchemaDialect,
   path: readonly (string | number)[],
   options: SchemaSnapshotOptions,
-  diagnostics: SnapshotDiagnostic[]
+  diagnostics: SnapshotDiagnostic[],
 ): SnapshotIndexTerm | undefined {
   if (isOrderTerm(term)) {
     const expression = serializeIndexTermExpression(
       term.expression,
       table,
       dialect,
-      [...path, 'expression'],
+      [...path, "expression"],
       options,
-      diagnostics
+      diagnostics,
     )
+
     return expression === undefined
       ? undefined
       : {
-          kind: 'order',
+          kind: "order",
           expression,
-          ...(term.direction === undefined
-            ? {}
-            : { direction: term.direction }),
+          ...(term.direction === undefined ? {} : { direction: term.direction }),
           ...(term.nulls === undefined ? {} : { nulls: term.nulls }),
         }
   }
-  return serializeIndexTermExpression(
-    term,
-    table,
-    dialect,
-    path,
-    options,
-    diagnostics
-  )
+
+  return serializeIndexTermExpression(term, table, dialect, path, options, diagnostics)
 }
 
 function serializeIndexTermExpression(
@@ -832,54 +875,62 @@ function serializeIndexTermExpression(
   dialect: SchemaDialect,
   path: readonly (string | number)[],
   options: SchemaSnapshotOptions,
-  diagnostics: SnapshotDiagnostic[]
+  diagnostics: SnapshotDiagnostic[],
 ): SnapshotIndexTermExpression | undefined {
   if (isColumnReference(expression)) {
     if (!(expression.fieldName in table.definitions)) {
       diagnostics.push({
-        code: 'unresolved-reference',
+        code: "unresolved-reference",
         message: `Index column "${expression.fieldName}" is not declared on table "${table.tableName}"`,
         path,
       })
       return undefined
     }
-    return { kind: 'column', column: expression.fieldName }
+
+    return {
+      kind: "column",
+      column: expression.fieldName,
+    }
   }
-  const encoded = encodeExpression(
-    expression,
-    'index',
-    dialect,
-    path,
-    options,
-    diagnostics
-  )
+
+  const encoded = encodeExpression(expression, "index", dialect, path, options, diagnostics)
+
   return encoded === undefined
     ? undefined
-    : { kind: 'expression', expression: encoded }
+    : {
+        kind: "expression",
+        expression: encoded,
+      }
 }
 
 function encodeExpression(
   expression: AnyExpression,
-  mode: SnapshotExpressionContext['mode'],
+  mode: SnapshotExpressionContext["mode"],
   dialect: SchemaDialect,
   path: readonly (string | number)[],
   options: SchemaSnapshotOptions,
-  diagnostics: SnapshotDiagnostic[]
+  diagnostics: SnapshotDiagnostic[],
 ): SnapshotExpression | undefined {
   const encoder =
     options.expressionEncoder ??
     options.adapter?.dialect.schema.encodeExpression ??
     dialect.schema.encodeExpression
+
   if (encoder !== undefined) {
     try {
-      return encoder(expression, { mode, path, dialect })
+      return encoder(expression, {
+        mode,
+        path,
+        dialect,
+      })
     } catch (error) {
       const code =
         error instanceof Error &&
-        'code' in error &&
-        (error as { readonly code?: unknown }).code === 'dialect-mismatch'
-          ? 'dialect-mismatch'
-          : 'unsupported-expression'
+        "code" in error &&
+        (error as { readonly code?: unknown }).code === "dialect-mismatch"
+          ? "dialect-mismatch"
+          : "unsupported-expression"
+
       diagnostics.push({
         code,
         message: error instanceof Error ? error.message : String(error),
@@ -896,32 +947,35 @@ function encodeExpression(
   if (isUnsafeSchemaSql(expression)) {
     if (expression.schemaSqlDialect !== dialect.name) {
       diagnostics.push({
-        code: 'dialect-mismatch',
+        code: "dialect-mismatch",
         message: `Schema SQL is tagged for "${expression.schemaSqlDialect}" but the snapshot dialect is "${dialect.name}"`,
         path,
       })
       return undefined
     }
+
     return {
-      kind: 'expression',
+      kind: "expression",
       expressionKind: expression.expressionKind,
       sql: expression.schemaSql,
       dialect: expression.schemaSqlDialect,
     }
   }
+
   try {
     const rendered = renderSchemaExpression(expression as AnySchemaExpression, {
       mode,
       dialect,
     })
+
     return {
-      kind: 'expression',
+      kind: "expression",
       expressionKind: expression.expressionKind,
       sql: rendered.text,
     }
   } catch (error) {
     diagnostics.push({
-      code: 'unsupported-expression',
+      code: "unsupported-expression",
       message: error instanceof Error ? error.message : String(error),
       path,
     })
@@ -934,37 +988,50 @@ function encodeExtension(
   dialect: SchemaDialect,
   path: readonly (string | number)[],
   options: SchemaSnapshotOptions,
-  diagnostics: SnapshotDiagnostic[]
+  diagnostics: SnapshotDiagnostic[],
 ): SnapshotDialectExtension | undefined {
-  if (extension === undefined) return undefined
+  if (extension === undefined) {
+    return undefined
+  }
+
   if (extension.dialect !== dialect.name) {
     diagnostics.push({
-      code: 'dialect-mismatch',
+      code: "dialect-mismatch",
       message: `Dialect extension belongs to "${extension.dialect}" but the snapshot dialect is "${dialect.name}"`,
       path,
     })
     return undefined
   }
+
   const encoder =
     options.extensionEncoder ??
     options.adapter?.dialect.schema.encodeDialectExtension ??
     dialect.schema.encodeDialectExtension
+
   if (encoder !== undefined) {
     try {
-      return encoder(extension, { path, dialect })
+      return encoder(extension, {
+        path,
+        dialect,
+      })
     } catch (error) {
       diagnostics.push({
-        code: 'dialect-mismatch',
+        code: "dialect-mismatch",
         message: error instanceof Error ? error.message : String(error),
         path,
       })
       return undefined
     }
   }
+
   const data: Record<string, unknown> = {}
+
   for (const [key, value] of Object.entries(extension)) {
-    if (key !== 'dialect') data[key] = value
+    if (key !== "dialect") {
+      data[key] = value
+    }
   }
+
   try {
     return {
       dialect: extension.dialect,
@@ -973,7 +1040,7 @@ function encodeExtension(
     }
   } catch (error) {
     diagnostics.push({
-      code: 'invalid-value',
+      code: "invalid-value",
       message: error instanceof Error ? error.message : String(error),
       path,
     })
@@ -983,27 +1050,24 @@ function encodeExtension(
 
 function isOrderTerm(value: unknown): value is OrderTerm<any> {
   return (
-    typeof value === 'object' &&
+    typeof value === "object" &&
     value !== null &&
-    'orderKind' in value &&
-    (value as { readonly orderKind?: unknown }).orderKind === 'term' &&
-    'expression' in value
+    "orderKind" in value &&
+    (value as { readonly orderKind?: unknown }).orderKind === "term" &&
+    "expression" in value
   )
 }
 
 function isSchemaRoot(value: unknown): value is Schema<any> {
   return (
-    typeof value === 'object' &&
+    typeof value === "object" &&
     value !== null &&
-    (value as { readonly schemaKind?: unknown }).schemaKind === 'schema' &&
-    typeof (value as { readonly registry?: unknown }).registry === 'object' &&
+    (value as { readonly schemaKind?: unknown }).schemaKind === "schema" &&
+    typeof (value as { readonly registry?: unknown }).registry === "object" &&
     (value as { readonly registry?: unknown }).registry !== null
   )
 }
 
-function compareId(
-  left: { readonly id: string },
-  right: { readonly id: string }
-): number {
+function compareId(left: { readonly id: string }, right: { readonly id: string }): number {
   return left.id < right.id ? -1 : left.id > right.id ? 1 : 0
 }

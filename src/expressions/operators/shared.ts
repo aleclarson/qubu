@@ -5,16 +5,16 @@ import type {
   RequiresOf,
   RenderContext,
   SqlTypeOf,
-} from '../../core/fragment.ts'
+} from "../../core/fragment.ts"
 import type {
   AnySqlType,
   SqlEqualityCompatible,
   SqlOrderCompatible,
   SqlTypeSatisfies,
-} from '../../core/sql-types.ts'
-import { asValue, isValueExpression, type ValueExpression } from '../value.ts'
-import type { AnyExpression, ExpressionWithOutput } from '../types.ts'
-import type { QueryTypeValidation } from '../../query/errors.ts'
+} from "../../core/sql-types.ts"
+import type { QueryTypeValidation } from "../../query/errors.ts"
+import type { AnyExpression, ExpressionWithOutput } from "../types.ts"
+import { asValue, isValueExpression, type ValueExpression } from "../value.ts"
 
 export type Operand<T> = T | ExpressionWithOutput<T>
 
@@ -27,9 +27,9 @@ export type SqlCapabilityValidation<TActual, TCapability> =
   SqlTypeSatisfies<TActual, TCapability> extends true
     ? unknown
     : QueryTypeValidation<
-        'incompatible-sql-domain',
-        'expression.sql-domain',
-        'Use an expression with the required SQL domain.',
+        "incompatible-sql-domain",
+        "expression.sql-domain",
+        "Use an expression with the required SQL domain.",
         TActual
       >
 
@@ -38,9 +38,9 @@ export type SqlEqualityValidation<TLeft, TRight> =
   SqlEqualityCompatible<TLeft, TRight> extends true
     ? unknown
     : QueryTypeValidation<
-        'incompatible-sql-equality',
-        'comparison.operands',
-        'Use operands from the same SQL equality group.',
+        "incompatible-sql-equality",
+        "comparison.operands",
+        "Use operands from the same SQL equality group.",
         readonly [TLeft, TRight]
       >
 
@@ -49,19 +49,17 @@ export type SqlOrderValidation<TLeft, TRight> =
   SqlOrderCompatible<TLeft, TRight> extends true
     ? unknown
     : QueryTypeValidation<
-        'incompatible-sql-order',
-        'comparison.operands',
-        'Use operands from the same SQL ordering group.',
+        "incompatible-sql-order",
+        "comparison.operands",
+        "Use operands from the same SQL ordering group.",
         readonly [TLeft, TRight]
       >
 
 export type OperandRequires<T> = T extends Fragment<any> ? RequiresOf<T> : never
 
-export type OperandMetadata<T> =
-  T extends Fragment<any> ? InheritedMetadata<T> : never
+export type OperandMetadata<T> = T extends Fragment<any> ? InheritedMetadata<T> : never
 
-export type OperandNullability<T> =
-  T extends Fragment<any> ? NullabilityOf<T> : never
+export type OperandNullability<T> = T extends Fragment<any> ? NullabilityOf<T> : never
 
 export type IsNullOperand<T> = T extends null
   ? true
@@ -82,17 +80,16 @@ export function expressionOperand<T>(operand: Operand<T>) {
 export function renderOperands(
   context: RenderContext,
   operands: readonly AnyExpression[],
-  separator: string
+  separator: string,
 ) {
   operands.forEach((operand, index) => {
-    if (index > 0) context.append(separator)
+    if (index > 0) {
+      context.append(separator)
+    }
+
     context.render(operand)
   })
 }
 
-export type RequirementsOf<T extends readonly unknown[]> = OperandRequires<
-  T[number]
->
-export type MetadataOfOperands<T extends readonly unknown[]> = OperandMetadata<
-  T[number]
->
+export type RequirementsOf<T extends readonly unknown[]> = OperandRequires<T[number]>
+export type MetadataOfOperands<T extends readonly unknown[]> = OperandMetadata<T[number]>

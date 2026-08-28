@@ -5,12 +5,12 @@
     "type": "git",
     "url": "https://github.com/aleclarson/qubu"
   },
-  "type": "module",
   "files": [
     "dist",
     "docs",
     "skills"
   ],
+  "type": "module",
   "exports": {
     ".": "./src/index.ts",
     "./codegen": "./src/codegen/index.ts",
@@ -29,59 +29,6 @@
     "./globals": {
       "types": "./src/vite/ambient.d.ts"
     }
-  },
-  "prettier": "@alloc/prettier-config",
-  "devDependencies": {
-    "@alloc/prettier-config": "^1.0.0",
-    "@electric-sql/pglite": "^0.5.8",
-    "@libsql/client": "^0.17.4",
-    "@pg-nano/pg-tmp": "^2.0.3",
-    "@stylistic/eslint-plugin": "^6.0.0-beta.6",
-    "@types/bun": "^1.3.0",
-    "@types/node": "^24.6.2",
-    "@types/pg": "^8.23.1",
-    "lildocs": "^0.1.27",
-    "mysql2": "^3.23.4",
-    "oxfmt": "^0.58.0",
-    "oxlint": "1.73.0",
-    "pg": "^8.23.0",
-    "picospawn": "^0.3.10",
-    "postgres": "^3.4.9",
-    "prettier": "^3.6.2",
-    "qubu": "link:",
-    "radashi": "^12.6.2",
-    "tinyglobby": "^0.2.15",
-    "tsdown": "^0.22.14",
-    "type-fest": "^5.0.1",
-    "typescript": "^5.9.3",
-    "vitest": "^3.2.4"
-  },
-  "dependencies": {
-    "@standard-schema/spec": "^1.0.0"
-  },
-  "scripts": {
-    "build": "tsdown",
-    "build:workspace-packages": "pnpm --recursive --filter './adapters/*' build",
-    "check:package": "node ./scripts/test-package.mjs --check-built",
-    "check:workspace-versions": "node ./scripts/set-release-version.mjs --check",
-    "prepack": "pnpm run build && pnpm run check:package",
-    "prepublishOnly": "pnpm run test:package",
-    "playground": "bun run ./playground/playground.ts",
-    "test": "vitest",
-    "test:e2e": "vitest --run test/e2e",
-    "test:type-performance": "node ./scripts/test-type-performance.mjs",
-    "diff-check": "vitest --run test/diff.test.ts test/migration.test.ts",
-    "test:bun": "node ./scripts/test-package.mjs --runtime=bun",
-    "test:package": "node ./scripts/test-package.mjs",
-    "test:workspace-children": "pnpm --recursive --filter './adapters/*' build && node ./scripts/test-workspace-packages.mjs",
-    "test:workspace-packages": "pnpm run test:package && pnpm run test:workspace-children",
-    "test:package:node": "node ./scripts/test-package.mjs --runtime=node",
-    "typecheck": "vitest --typecheck --run",
-    "typecheck:workspace-packages": "pnpm --recursive --filter './adapters/*' typecheck",
-    "typecheck:playground": "tsc --project ./playground/tsconfig.json",
-    "format": "oxlint --fix && oxfmt",
-    "release:version": "node ./scripts/set-release-version.mjs",
-    "release:publish": "node ./scripts/publish-workspace.mjs"
   },
   "publishConfig": {
     "exports": {
@@ -142,5 +89,58 @@
         "types": "./dist/vite/ambient.d.ts"
       }
     }
-  }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "build:workspace-packages": "pnpm --recursive --filter './adapters/*' build",
+    "check:package": "node ./scripts/test-package.mjs --check-built",
+    "check:workspace-versions": "node ./scripts/set-release-version.mjs --check",
+    "prepack": "pnpm run build && pnpm run check:package",
+    "prepublishOnly": "pnpm run test:package",
+    "playground": "bun run ./playground/playground.ts",
+    "test": "vitest",
+    "test:e2e": "vitest --run test/e2e",
+    "test:type-performance": "node ./scripts/test-type-performance.mjs",
+    "diff-check": "vitest --run test/diff.test.ts test/migration.test.ts",
+    "test:bun": "node ./scripts/test-package.mjs --runtime=bun",
+    "test:package": "node ./scripts/test-package.mjs",
+    "test:workspace-children": "pnpm --recursive --filter './adapters/*' build && node ./scripts/test-workspace-packages.mjs",
+    "test:workspace-packages": "pnpm run test:package && pnpm run test:workspace-children",
+    "test:package:node": "node ./scripts/test-package.mjs --runtime=node",
+    "typecheck": "vitest --typecheck --run",
+    "typecheck:workspace-packages": "pnpm --recursive --filter './adapters/*' typecheck",
+    "typecheck:playground": "tsc --project ./playground/tsconfig.json",
+    "format": "oxlint --fix && oxfmt",
+    "release:version": "node ./scripts/set-release-version.mjs",
+    "release:publish": "node ./scripts/publish-workspace.mjs"
+  },
+  "dependencies": {
+    "@standard-schema/spec": "^1.0.0"
+  },
+  "devDependencies": {
+    "@alloc/prettier-config": "^1.0.0",
+    "@electric-sql/pglite": "^0.5.8",
+    "@libsql/client": "^0.17.4",
+    "@pg-nano/pg-tmp": "^2.0.3",
+    "@stylistic/eslint-plugin": "^6.0.0-beta.6",
+    "@types/bun": "^1.3.0",
+    "@types/node": "^24.6.2",
+    "@types/pg": "^8.23.1",
+    "lildocs": "^0.1.27",
+    "mysql2": "^3.23.4",
+    "oxfmt": "^0.58.0",
+    "oxlint": "1.73.0",
+    "pg": "^8.23.0",
+    "picospawn": "^0.3.10",
+    "postgres": "^3.4.9",
+    "prettier": "^3.6.2",
+    "qubu": "link:",
+    "radashi": "^12.6.2",
+    "tinyglobby": "^0.2.15",
+    "tsdown": "^0.22.14",
+    "type-fest": "^5.0.1",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  },
+  "prettier": "@alloc/prettier-config"
 }

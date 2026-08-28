@@ -4,11 +4,11 @@ import {
   type CardinalityOf,
   type ResultMeta,
   type SubqueryMeta,
-} from '../core/fragment.ts'
-import type { AnyQuery, QueryRow, QuerySqlTypeMap } from '../query/types.ts'
-import { makeExpression, type Expression } from './types.ts'
-import { queryValidationError } from '../query/errors.ts'
-import { resultShapeValue } from '../result.ts'
+} from "../core/fragment.ts"
+import { queryValidationError } from "../query/errors.ts"
+import type { AnyQuery, QueryRow, QuerySqlTypeMap } from "../query/types.ts"
+import { resultShapeValue } from "../result.ts"
+import { makeExpression, type Expression } from "./types.ts"
 
 export type SingleColumn<Row extends object> = keyof Row extends infer TKey
   ? TKey extends keyof Row
@@ -20,27 +20,25 @@ export type SingleColumn<Row extends object> = keyof Row extends infer TKey
 
 type ScalarOutput<TQuery extends AnyQuery> =
   | SingleColumn<QueryRow<TQuery>>
-  | ([CardinalityOf<TQuery>] extends ['exactly-one'] ? never : null)
+  | ([CardinalityOf<TQuery>] extends ["exactly-one"] ? never : null)
 
-type SingleColumnSqlType<TQuery extends AnyQuery> = SingleColumn<
-  QuerySqlTypeMap<TQuery>
->
+type SingleColumnSqlType<TQuery extends AnyQuery> = SingleColumn<QuerySqlTypeMap<TQuery>>
 
 export function scalar<TQuery extends AnyQuery>(
-  query: TQuery
+  query: TQuery,
 ): Expression<
   | ResultMeta<ScalarOutput<TQuery>, never, SingleColumnSqlType<TQuery>>
   | InheritedMetadata<TQuery>
   | SubqueryMeta,
-  'subquery'
+  "subquery"
 > {
   if (Object.keys(query.row).length !== 1) {
     throw queryValidationError({
-      code: 'invalid-subquery',
-      context: 'expression.scalar.query',
-      path: ['scalar', 'query', 'row'],
-      message: 'scalar() requires a query with exactly one selected column',
-      hint: 'Select exactly one named field before wrapping the query in scalar().',
+      code: "invalid-subquery",
+      context: "expression.scalar.query",
+      path: ["scalar", "query", "row"],
+      message: "scalar() requires a query with exactly one selected column",
+      hint: "Select exactly one named field before wrapping the query in scalar().",
     })
   }
 
@@ -48,16 +46,16 @@ export function scalar<TQuery extends AnyQuery>(
     | ResultMeta<ScalarOutput<TQuery>, never, SingleColumnSqlType<TQuery>>
     | InheritedMetadata<TQuery>
     | SubqueryMeta,
-    'subquery'
+    "subquery"
   >(
-    'subquery',
-    context => context.renderRelation(parenthesize(query)),
-    'subquery',
-    resultShapeValue(query.resultShape, Object.keys(query.row)[0])
+    "subquery",
+    (context) => context.renderRelation(parenthesize(query)),
+    "subquery",
+    resultShapeValue(query.resultShape, Object.keys(query.row)[0]),
   ) as Expression<
     | ResultMeta<ScalarOutput<TQuery>, never, SingleColumnSqlType<TQuery>>
     | InheritedMetadata<TQuery>
     | SubqueryMeta,
-    'subquery'
+    "subquery"
   >
 }

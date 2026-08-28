@@ -1,6 +1,6 @@
-import type { Expression, ExpressionKind } from '../../types.ts'
-import type { ResultMeta } from '../../../core/fragment.ts'
-import type { AnySqlType } from '../../../core/sql-types.ts'
+import type { ResultMeta } from "../../../core/fragment.ts"
+import type { AnySqlType } from "../../../core/sql-types.ts"
+import type { Expression, ExpressionKind } from "../../types.ts"
 
 export type BooleanExpression<
   TMetadata = never,

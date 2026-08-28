@@ -1,20 +1,20 @@
-import { mapCatalogToSnapshot } from '../introspection/snapshot.ts'
+import { mapCatalogToSnapshot } from "../introspection/snapshot.ts"
 import type {
   CatalogColumn,
   CatalogDialect,
   IntrospectionCatalog,
   IntrospectionResult,
-} from '../introspection/types.ts'
-import { decodeSchemaSnapshot } from '../snapshot/decode.ts'
+} from "../introspection/types.ts"
+import { decodeSchemaSnapshot } from "../snapshot/decode.ts"
 import type {
   SchemaSnapshot,
   SnapshotConstraint,
   SnapshotIndex,
   SnapshotIndexTerm,
   SnapshotTable,
-} from '../snapshot/types.ts'
-import type { ResolvedColumn, ResolvedSchema, ResolvedTable } from './model.ts'
-import { printSchemaSource } from './source.ts'
+} from "../snapshot/types.ts"
+import type { ResolvedColumn, ResolvedSchema, ResolvedTable } from "./model.ts"
+import { printSchemaSource } from "./source.ts"
 import type {
   CodegenApplicationType,
   CodegenColumnMapping,
@@ -23,170 +23,151 @@ import type {
   CodegenSqlDomain,
   SchemaCodegenOptions,
   SchemaCodegenResult,
-} from './types.ts'
+} from "./types.ts"
 
-const supportedDialects = new Set<CatalogDialect>([
-  'postgresql',
-  'sqlite',
-  'mysql',
-])
+const supportedDialects = new Set<CatalogDialect>(["postgresql", "sqlite", "mysql"])
 
 const applicationTypes = new Set<CodegenApplicationType>([
-  'unknown',
-  'string',
-  'number',
-  'boolean',
-  'bigint',
-  'Date',
-  'Uint8Array',
+  "unknown",
+  "string",
+  "number",
+  "boolean",
+  "bigint",
+  "Date",
+  "Uint8Array",
 ])
 
 const sqlDomains = new Set<CodegenSqlDomain>([
-  'unknown',
-  'integer',
-  'decimal',
-  'text',
-  'boolean',
-  'date',
-  'timestamp',
-  'uuid',
-  'json',
-  'bigint',
-  'binary',
+  "unknown",
+  "integer",
+  "decimal",
+  "text",
+  "boolean",
+  "date",
+  "timestamp",
+  "uuid",
+  "json",
+  "bigint",
+  "binary",
 ])
 
 const orderableDomains = new Set<CodegenSqlDomain>([
-  'unknown',
-  'integer',
-  'decimal',
-  'text',
-  'date',
-  'timestamp',
-  'bigint',
+  "unknown",
+  "integer",
+  "decimal",
+  "text",
+  "date",
+  "timestamp",
+  "bigint",
 ])
 
 const reservedBindings = new Set([
-  'arguments',
-  'await',
-  'break',
-  'case',
-  'catch',
-  'class',
-  'const',
-  'continue',
-  'debugger',
-  'default',
-  'delete',
-  'do',
-  'else',
-  'enum',
-  'eval',
-  'export',
-  'extends',
-  'false',
-  'finally',
-  'for',
-  'function',
-  'if',
-  'implements',
-  'import',
-  'in',
-  'interface',
-  'instanceof',
-  'let',
-  'new',
-  'null',
-  'package',
-  'private',
-  'protected',
-  'public',
-  'return',
-  'static',
-  'super',
-  'switch',
-  'this',
-  'throw',
-  'true',
-  'try',
-  'typeof',
-  'var',
-  'void',
-  'while',
-  'with',
-  'yield',
+  "arguments",
+  "await",
+  "break",
+  "case",
+  "catch",
+  "class",
+  "const",
+  "continue",
+  "debugger",
+  "default",
+  "delete",
+  "do",
+  "else",
+  "enum",
+  "eval",
+  "export",
+  "extends",
+  "false",
+  "finally",
+  "for",
+  "function",
+  "if",
+  "implements",
+  "import",
+  "in",
+  "interface",
+  "instanceof",
+  "let",
+  "new",
+  "null",
+  "package",
+  "private",
+  "protected",
+  "public",
+  "return",
+  "static",
+  "super",
+  "switch",
+  "this",
+  "throw",
+  "true",
+  "try",
+  "typeof",
+  "var",
+  "void",
+  "while",
+  "with",
+  "yield",
 ])
 
 const excludedFamilies = [
-  ['views', 'views'],
-  ['sequences', 'sequences'],
-  ['enums', 'enums'],
-  ['domains', 'domains'],
-  ['collations', 'collations'],
-  ['triggers', 'triggers'],
-  ['routines', 'routines'],
-  ['partitions', 'partitions'],
-  ['policies', 'policies'],
-  ['extensionObjects', 'extension objects'],
-  ['deferredObjects', 'deferred objects'],
-  ['opaqueObjects', 'opaque objects'],
-  ['comments', 'comments'],
-  ['ownership', 'ownership records'],
+  ["views", "views"],
+  ["sequences", "sequences"],
+  ["enums", "enums"],
+  ["domains", "domains"],
+  ["collations", "collations"],
+  ["triggers", "triggers"],
+  ["routines", "routines"],
+  ["partitions", "partitions"],
+  ["policies", "policies"],
+  ["extensionObjects", "extension objects"],
+  ["deferredObjects", "deferred objects"],
+  ["opaqueObjects", "opaque objects"],
+  ["comments", "comments"],
+  ["ownership", "ownership records"],
 ] as const
 
 /**
  * Generate a deterministic TypeScript module from one introspection result.
  *
  * @remarks
- * Generation accepts only a successful, non-lossy Snapshot v1 result for one
- * PostgreSQL, SQLite, or MySQL namespace. It is pure: it opens no connection,
- * performs no filesystem writes, and never evaluates catalog SQL. Existing
- * introspection diagnostics are copied into the result. Any error returns no
- * source.
- *
- * The generated module exports every ordinary table plus one schema registry.
- * Physical names and native declarations remain escaped string literals.
- * Catalog expressions use dialect-tagged schema data, checks use
- * `catalogCheck()`, and foreign keys use lazy `catalogForeignKey()` targets.
- * Foreign keys must have equal local and target arity and target an exact
- * primary key, strict unique key, or candidate index. Nullable database UNIQUE
- * constraints do not provide that candidate-key proof and fail generation.
- *
- * Application output, insert, and update types default independently to
- * `unknown`. The generator may attach a conservative SQL semantic domain, and
- * {@link SchemaCodegenOptions.mapColumn} can override either type axis with a
- * fixed token. Naming callbacks can replace suggested camelCase IDs, but they
- * cannot supply source syntax.
- *
- * @param input A completed introspection operation. Failed and lossy results
- * are reported as diagnostics rather than thrown errors.
+ *   Generation accepts only a successful, non-lossy Snapshot v1 result for one PostgreSQL, SQLite,
+ *   or MySQL namespace. It is pure: it opens no connection, performs no filesystem writes, and
+ *   never evaluates catalog SQL. Existing introspection diagnostics are copied into the result. Any
+ *   error returns no source. The generated module exports every ordinary table plus one schema
+ *   registry. Physical names and native declarations remain escaped string literals. Catalog
+ *   expressions use dialect-tagged schema data, checks use `catalogCheck()`, and foreign keys use
+ *   lazy `catalogForeignKey()` targets. Foreign keys must have equal local and target arity and
+ *   target an exact primary key, strict unique key, or candidate index. Nullable database UNIQUE
+ *   constraints do not provide that candidate-key proof and fail generation. Application output,
+ *   insert, and update types default independently to `unknown`. The generator may attach a
+ *   conservative SQL semantic domain, and {@link SchemaCodegenOptions.mapColumn} can override either
+ *   type axis with a fixed token. Naming callbacks can replace suggested camelCase IDs, but they
+ *   cannot supply source syntax.
+ * @param input A completed introspection operation. Failed and lossy results are reported as
+ *   diagnostics rather than thrown errors.
  * @param options Controlled logical-name and column-type mappings.
  * @returns Generated source and diagnostics, or diagnostics without source.
  */
 export function generateSchemaSource(
   input: IntrospectionResult,
-  options: SchemaCodegenOptions = {}
+  options: SchemaCodegenOptions = {},
 ): SchemaCodegenResult {
   const diagnostics: CodegenDiagnostic[] = []
 
   try {
     if (!isOptions(options)) {
       diagnostics.push(
-        errorDiagnostic(
-          'invalid-option',
-          'Code generation options must be an object',
-          ['options']
-        )
+        errorDiagnostic("invalid-option", "Code generation options must be an object", ["options"]),
       )
       return failure(diagnostics)
     }
 
     if (!isIntrospectionResult(input)) {
       diagnostics.push(
-        errorDiagnostic(
-          'invalid-input',
-          'Code generation requires an introspection result',
-          []
-        )
+        errorDiagnostic("invalid-input", "Code generation requires an introspection result", []),
       )
       return failure(diagnostics)
     }
@@ -197,10 +178,10 @@ export function generateSchemaSource(
     if (!input.ok) {
       diagnostics.push(
         errorDiagnostic(
-          'invalid-input',
-          'Code generation requires a successful introspection result',
-          []
-        )
+          "invalid-input",
+          "Code generation requires a successful introspection result",
+          [],
+        ),
       )
       return failure(diagnostics)
     }
@@ -208,51 +189,51 @@ export function generateSchemaSource(
     if (input.lossy) {
       diagnostics.push(
         errorDiagnostic(
-          'lossy-input',
-          'Code generation rejects lossy introspection results',
-          ['lossy'],
-          'Run introspection in strict mode and resolve every reported omission.'
-        )
+          "lossy-input",
+          "Code generation rejects lossy introspection results",
+          ["lossy"],
+          "Run introspection in strict mode and resolve every reported omission.",
+        ),
       )
     }
-    if (diagnostics.some(diagnostic => diagnostic.severity === 'error')) {
+
+    if (diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
       return failure(diagnostics)
     }
 
     const decoded = decodeSchemaSnapshot(input.snapshot)
+
     if (!decoded.ok) {
       diagnostics.push(
-        ...decoded.diagnostics.map(diagnostic =>
-          errorDiagnostic(
-            'unsupported-snapshot',
-            diagnostic.message,
-            diagnostic.path
-          )
-        )
+        ...decoded.diagnostics.map((diagnostic) =>
+          errorDiagnostic("unsupported-snapshot", diagnostic.message, diagnostic.path),
+        ),
       )
       return failure(diagnostics)
     }
 
     const snapshot = decoded.value
+
     validateInputEnvelope(input.catalog, snapshot, diagnostics)
     validatePhysicalFacts(input.catalog, snapshot, diagnostics)
     validateSchemaProofs(snapshot, diagnostics)
-    if (hasErrors(diagnostics)) return failure(diagnostics)
+    if (hasErrors(diagnostics)) {
+      return failure(diagnostics)
+    }
 
-    const resolved = resolveSchema(
-      input.catalog,
-      snapshot,
-      options,
-      diagnostics
-    )
+    const resolved = resolveSchema(input.catalog, snapshot, options, diagnostics)
+
     if (resolved === undefined || hasErrors(diagnostics)) {
       return failure(diagnostics)
     }
 
     validateResolvedDomains(resolved, diagnostics)
-    if (hasErrors(diagnostics)) return failure(diagnostics)
+    if (hasErrors(diagnostics)) {
+      return failure(diagnostics)
+    }
 
     const source = printSchemaSource(resolved, diagnostics)
+
     if (source === undefined || hasErrors(diagnostics)) {
       return failure(diagnostics)
     }
@@ -265,12 +246,12 @@ export function generateSchemaSource(
   } catch (caught) {
     diagnostics.push(
       errorDiagnostic(
-        'unsafe-source',
+        "unsafe-source",
         caught instanceof Error
           ? `Schema source generation failed safely: ${caught.message}`
-          : 'Schema source generation failed safely',
-        []
-      )
+          : "Schema source generation failed safely",
+        [],
+      ),
     )
     return failure(diagnostics)
   }
@@ -279,46 +260,49 @@ export function generateSchemaSource(
 function validateInputEnvelope(
   catalog: IntrospectionCatalog,
   snapshot: SchemaSnapshot,
-  diagnostics: CodegenDiagnostic[]
+  diagnostics: CodegenDiagnostic[],
 ): void {
   if (!supportedDialects.has(catalog.dialect)) {
     diagnostics.push(
       errorDiagnostic(
-        'unsupported-snapshot',
+        "unsupported-snapshot",
         `Code generation does not support catalog dialect "${catalog.dialect}"`,
-        ['catalog', 'dialect']
-      )
+        ["catalog", "dialect"],
+      ),
     )
   }
+
   if (snapshot.dialect.name !== catalog.dialect) {
     diagnostics.push(
       errorDiagnostic(
-        'unsupported-snapshot',
+        "unsupported-snapshot",
         `Snapshot dialect "${snapshot.dialect.name}" does not match catalog dialect "${catalog.dialect}"`,
-        ['snapshot', 'dialect'],
+        ["snapshot", "dialect"],
         undefined,
-        [['catalog', 'dialect']]
-      )
+        [["catalog", "dialect"]],
+      ),
     )
   }
+
   if (snapshot.dialect.version !== 1) {
     diagnostics.push(
       errorDiagnostic(
-        'unsupported-snapshot',
+        "unsupported-snapshot",
         `Code generation supports Snapshot v1 dialect extensions, received version ${snapshot.dialect.version}`,
-        ['snapshot', 'dialect', 'version']
-      )
+        ["snapshot", "dialect", "version"],
+      ),
     )
   }
+
   if (snapshot.namespace !== catalog.namespace.name) {
     diagnostics.push(
       errorDiagnostic(
-        'unsupported-snapshot',
-        'Snapshot and catalog namespaces do not match',
-        ['snapshot', 'namespace'],
+        "unsupported-snapshot",
+        "Snapshot and catalog namespaces do not match",
+        ["snapshot", "namespace"],
         undefined,
-        [['catalog', 'namespace', 'name']]
-      )
+        [["catalog", "namespace", "name"]],
+      ),
     )
   }
 }
@@ -326,340 +310,354 @@ function validateInputEnvelope(
 function validatePhysicalFacts(
   catalog: IntrospectionCatalog,
   snapshot: SchemaSnapshot,
-  diagnostics: CodegenDiagnostic[]
+  diagnostics: CodegenDiagnostic[],
 ): void {
   const remapped = mapCatalogToSnapshot(catalog, {
     namespace: catalog.namespace.name,
-    mode: 'strict',
+    mode: "strict",
   })
+
   if (!remapped.ok) {
     diagnostics.push(
       errorDiagnostic(
-        'omitted-fact',
-        'The normalized catalog cannot be mapped to a complete strict Snapshot v1',
-        ['catalog', 'tables'],
-        'Resolve the strict introspection diagnostics before generating source.'
-      )
+        "omitted-fact",
+        "The normalized catalog cannot be mapped to a complete strict Snapshot v1",
+        ["catalog", "tables"],
+        "Resolve the strict introspection diagnostics before generating source.",
+      ),
     )
     return
   }
 
   const expected = JSON.stringify(toPhysicalFacts(remapped.snapshot))
   const actual = JSON.stringify(toPhysicalFacts(snapshot))
+
   if (actual !== expected) {
     diagnostics.push(
       errorDiagnostic(
-        'omitted-fact',
+        "omitted-fact",
         "The introspection snapshot does not contain the catalog's complete Snapshot v1 table facts",
-        ['snapshot', 'tables'],
-        'Use the snapshot returned with this exact strict catalog result.'
-      )
+        ["snapshot", "tables"],
+        "Use the snapshot returned with this exact strict catalog result.",
+      ),
     )
   }
 }
 
-function validateSchemaProofs(
-  snapshot: SchemaSnapshot,
-  diagnostics: CodegenDiagnostic[]
-): void {
-  const tables = new Map(snapshot.tables.map(table => [table.id, table]))
+function validateSchemaProofs(snapshot: SchemaSnapshot, diagnostics: CodegenDiagnostic[]): void {
+  const tables = new Map(snapshot.tables.map((table) => [table.id, table]))
 
   for (const table of snapshot.tables) {
-    const columns = new Map(table.columns.map(column => [column.id, column]))
-    const path = ['snapshot', 'tables', table.id] as const
+    const columns = new Map(table.columns.map((column) => [column.id, column]))
+    const path = ["snapshot", "tables", table.id] as const
 
     for (const constraint of table.constraints) {
-      if (constraint.kind !== 'primary-key' && constraint.kind !== 'unique') {
+      if (constraint.kind !== "primary-key" && constraint.kind !== "unique") {
         continue
       }
-      const nullable = constraint.columns.filter(
-        column => columns.get(column)?.nullable === true
-      )
+
+      const nullable = constraint.columns.filter((column) => columns.get(column)?.nullable === true)
+
       if (nullable.length > 0) {
         diagnostics.push(
           errorDiagnostic(
-            'unrepresentable-fact',
+            "unrepresentable-fact",
             `Strict key constraint "${constraint.physicalName}" contains nullable columns`,
-            [...path, 'constraints', constraint.id, 'columns'],
-            'Qubu primary and strict unique keys require every column to be non-nullable.'
-          )
+            [...path, "constraints", constraint.id, "columns"],
+            "Qubu primary and strict unique keys require every column to be non-nullable.",
+          ),
         )
       }
     }
 
     for (const index of table.indexes) {
-      if (!index.candidateKey) continue
+      if (!index.candidateKey) {
+        continue
+      }
+
       const candidateColumns = candidateIndexColumns(index)
+
       if (
         candidateColumns === undefined ||
-        candidateColumns.some(column => columns.get(column)?.nullable !== false)
+        candidateColumns.some((column) => columns.get(column)?.nullable !== false)
       ) {
         diagnostics.push(
           errorDiagnostic(
-            'unrepresentable-fact',
+            "unrepresentable-fact",
             `Index "${index.physicalName}" is marked as a candidate key without an exact non-null column key`,
-            [...path, 'indexes', index.id, 'candidateKey']
-          )
+            [...path, "indexes", index.id, "candidateKey"],
+          ),
         )
       }
     }
 
     for (const constraint of table.constraints) {
-      if (constraint.kind !== 'foreign-key') continue
-      const constraintPath = [...path, 'constraints', constraint.id] as const
+      if (constraint.kind !== "foreign-key") {
+        continue
+      }
+
+      const constraintPath = [...path, "constraints", constraint.id] as const
+
       if (constraint.columns.length !== constraint.target.columns.length) {
         diagnostics.push(
           errorDiagnostic(
-            'unrepresentable-fact',
+            "unrepresentable-fact",
             `Foreign key "${constraint.physicalName}" has unequal local and target arity`,
-            [...constraintPath, 'target', 'columns']
-          )
+            [...constraintPath, "target", "columns"],
+          ),
         )
         continue
       }
 
       const target = tables.get(constraint.target.table)
-      if (target === undefined) continue
+
+      if (target === undefined) {
+        continue
+      }
+
       if (!hasCandidateKey(target, constraint.target.columns)) {
         diagnostics.push(
           errorDiagnostic(
-            'unrepresentable-fact',
+            "unrepresentable-fact",
             `Foreign key "${constraint.physicalName}" does not target an exact primary key, strict unique key, or candidate index`,
-            [...constraintPath, 'target', 'columns'],
-            'Nullable UNIQUE constraints are database uniqueness metadata, not Qubu candidate-key proofs.'
-          )
+            [...constraintPath, "target", "columns"],
+            "Nullable UNIQUE constraints are database uniqueness metadata, not Qubu candidate-key proofs.",
+          ),
         )
       }
     }
   }
 }
 
-function hasCandidateKey(
-  table: SnapshotTable,
-  targetColumns: readonly string[]
-): boolean {
-  const columns = new Map(table.columns.map(column => [column.id, column]))
+function hasCandidateKey(table: SnapshotTable, targetColumns: readonly string[]): boolean {
+  const columns = new Map(table.columns.map((column) => [column.id, column]))
   const constraintMatch = table.constraints.some(
-    constraint =>
-      (constraint.kind === 'primary-key' || constraint.kind === 'unique') &&
-      constraint.columns.every(
-        column => columns.get(column)?.nullable === false
-      ) &&
-      sameColumns(constraint.columns, targetColumns)
+    (constraint) =>
+      (constraint.kind === "primary-key" || constraint.kind === "unique") &&
+      constraint.columns.every((column) => columns.get(column)?.nullable === false) &&
+      sameColumns(constraint.columns, targetColumns),
   )
-  if (constraintMatch) return true
 
-  return table.indexes.some(index => {
-    if (!index.candidateKey) return false
+  if (constraintMatch) {
+    return true
+  }
+
+  return table.indexes.some((index) => {
+    if (!index.candidateKey) {
+      return false
+    }
+
     const candidateColumns = candidateIndexColumns(index)
+
     return (
       candidateColumns !== undefined &&
-      candidateColumns.every(
-        column => columns.get(column)?.nullable === false
-      ) &&
+      candidateColumns.every((column) => columns.get(column)?.nullable === false) &&
       sameColumns(candidateColumns, targetColumns)
     )
   })
 }
 
-function candidateIndexColumns(
-  index: SnapshotIndex
-): readonly string[] | undefined {
+function candidateIndexColumns(index: SnapshotIndex): readonly string[] | undefined {
   if (!index.candidateKey || !index.unique || index.predicate !== undefined) {
     return undefined
   }
+
   const columns: string[] = []
+
   for (const term of index.terms) {
-    const expression = term.kind === 'order' ? term.expression : term
-    if (expression.kind !== 'column') return undefined
+    const expression = term.kind === "order" ? term.expression : term
+
+    if (expression.kind !== "column") {
+      return undefined
+    }
+
     columns.push(expression.column)
   }
+
   return columns.length > 0 ? columns : undefined
 }
 
-function sameColumns(
-  left: readonly string[],
-  right: readonly string[]
-): boolean {
-  return (
-    left.length === right.length &&
-    left.every((column, index) => column === right[index])
-  )
+function sameColumns(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((column, index) => column === right[index])
 }
 
 function resolveSchema(
   catalog: IntrospectionCatalog,
   snapshot: SchemaSnapshot,
   options: SchemaCodegenOptions,
-  diagnostics: CodegenDiagnostic[]
+  diagnostics: CodegenDiagnostic[],
 ): ResolvedSchema | undefined {
   const schemaSuggested = `${camelCase(catalog.namespace.name)}Schema`
   const schemaName = resolveName(
     {
-      kind: 'schema',
+      kind: "schema",
       physicalName: catalog.namespace.name,
       suggestedName: schemaSuggested,
     },
     options,
-    ['schema'],
+    ["schema"],
     true,
-    diagnostics
+    diagnostics,
   )
 
   const catalogTables = groupUnique(
     catalog.tables,
-    table => table.physicalName,
-    ['catalog', 'tables'],
-    diagnostics
+    (table) => table.physicalName,
+    ["catalog", "tables"],
+    diagnostics,
   )
   const tables: ResolvedTable[] = []
   const tableNames = new Map<string, readonly (string | number)[]>()
 
   for (const table of [...snapshot.tables].sort(comparePhysicalName)) {
     const catalogTable = catalogTables.get(table.physicalName)
+
     if (catalogTable === undefined) {
       diagnostics.push(
         errorDiagnostic(
-          'omitted-fact',
+          "omitted-fact",
           `Snapshot table "${table.physicalName}" is missing from the catalog`,
-          ['snapshot', 'tables', table.id]
-        )
+          ["snapshot", "tables", table.id],
+        ),
       )
       continue
     }
-    const path = ['snapshot', 'tables', table.id] as const
+
+    const path = ["snapshot", "tables", table.id] as const
     const name = resolveName(
       {
-        kind: 'table',
+        kind: "table",
         physicalName: table.physicalName,
         suggestedName: camelCase(table.physicalName),
       },
       options,
       path,
       true,
-      diagnostics
+      diagnostics,
     )
-    if (name === undefined) continue
+
+    if (name === undefined) {
+      continue
+    }
+
     addUniqueName(name, path, tableNames, diagnostics)
-    const resolvedTable = resolveTable(
-      table,
-      catalogTable,
-      name,
-      catalog,
-      options,
-      diagnostics
-    )
-    if (resolvedTable !== undefined) tables.push(resolvedTable)
+    const resolvedTable = resolveTable(table, catalogTable, name, catalog, options, diagnostics)
+
+    if (resolvedTable !== undefined) {
+      tables.push(resolvedTable)
+    }
   }
 
   if (schemaName !== undefined) {
     const tableCollision = tableNames.get(schemaName)
+
     if (tableCollision !== undefined) {
       diagnostics.push(
         errorDiagnostic(
-          'name-collision',
+          "name-collision",
           `Schema export and table export both resolve to "${schemaName}"`,
-          ['schema'],
+          ["schema"],
           undefined,
-          [tableCollision]
-        )
+          [tableCollision],
+        ),
       )
     }
   }
-  if (schemaName === undefined || hasErrors(diagnostics)) return undefined
+
+  if (schemaName === undefined || hasErrors(diagnostics)) {
+    return undefined
+  }
 
   const orderedTables = tables.sort(compareName)
+
   return {
     name: schemaName,
     namespace: catalog.namespace.name,
     dialect: catalog.dialect,
     tables: orderedTables,
-    tablesBySnapshotId: new Map(
-      orderedTables.map(table => [table.snapshot.id, table])
-    ),
+    tablesBySnapshotId: new Map(orderedTables.map((table) => [table.snapshot.id, table])),
   }
 }
 
 function resolveTable(
   snapshot: SnapshotTable,
-  catalogTable: IntrospectionCatalog['tables'][number],
+  catalogTable: IntrospectionCatalog["tables"][number],
   tableName: string,
   catalog: IntrospectionCatalog,
   options: SchemaCodegenOptions,
-  diagnostics: CodegenDiagnostic[]
+  diagnostics: CodegenDiagnostic[],
 ): ResolvedTable | undefined {
   const columnCatalog = groupUnique(
     catalogTable.columns,
-    column => column.physicalName,
-    ['catalog', 'tables', catalogTable.id, 'columns'],
-    diagnostics
+    (column) => column.physicalName,
+    ["catalog", "tables", catalogTable.id, "columns"],
+    diagnostics,
   )
   const columns: ResolvedColumn[] = []
   const columnNames = new Map<string, readonly (string | number)[]>()
 
   for (const column of [...snapshot.columns].sort(comparePhysicalName)) {
-    const path = [
-      'snapshot',
-      'tables',
-      snapshot.id,
-      'columns',
-      column.id,
-    ] as const
+    const path = ["snapshot", "tables", snapshot.id, "columns", column.id] as const
     const catalogColumn = columnCatalog.get(column.physicalName)
+
     if (catalogColumn === undefined) {
       diagnostics.push(
         errorDiagnostic(
-          'omitted-fact',
+          "omitted-fact",
           `Snapshot column "${column.physicalName}" is missing from its catalog table`,
-          path
-        )
+          path,
+        ),
       )
       continue
     }
-    if (column.storage?.kind !== 'native') {
+
+    if (column.storage?.kind !== "native") {
       diagnostics.push(
         errorDiagnostic(
-          'unrepresentable-fact',
+          "unrepresentable-fact",
           `Introspected column "${column.physicalName}" must retain exact native storage`,
-          [...path, 'storage']
-        )
+          [...path, "storage"],
+        ),
       )
       continue
     }
+
     if (column.storage.dialect !== catalog.dialect) {
       diagnostics.push(
         errorDiagnostic(
-          'unrepresentable-fact',
+          "unrepresentable-fact",
           `Column storage dialect "${column.storage.dialect}" does not match "${catalog.dialect}"`,
-          [...path, 'storage', 'dialect']
-        )
+          [...path, "storage", "dialect"],
+        ),
       )
       continue
     }
+
     if (column.storage.type.trim().length === 0) {
       diagnostics.push(
-        errorDiagnostic(
-          'unrepresentable-fact',
-          'Native storage declarations cannot be empty',
-          [...path, 'storage', 'type']
-        )
+        errorDiagnostic("unrepresentable-fact", "Native storage declarations cannot be empty", [
+          ...path,
+          "storage",
+          "type",
+        ]),
       )
       continue
     }
+
     if (!hasCompleteColumnBehavior(column)) {
       diagnostics.push(
         errorDiagnostic(
-          'omitted-fact',
+          "omitted-fact",
           `Column "${column.physicalName}" omits metadata required to reconstruct its write behavior`,
-          path
-        )
+          path,
+        ),
       )
       continue
     }
 
     const name = resolveName(
       {
-        kind: 'column',
+        kind: "column",
         physicalName: column.physicalName,
         suggestedName: camelCase(column.physicalName),
         tablePhysicalName: snapshot.physicalName,
@@ -668,9 +666,13 @@ function resolveTable(
       options,
       path,
       false,
-      diagnostics
+      diagnostics,
     )
-    if (name === undefined) continue
+
+    if (name === undefined) {
+      continue
+    }
+
     addUniqueName(name, path, columnNames, diagnostics)
 
     const suggestedSqlDomain = inferSqlDomain(catalog.dialect, catalogColumn)
@@ -683,16 +685,20 @@ function resolveTable(
       suggestedSqlDomain,
       options,
       path,
-      diagnostics
+      diagnostics,
     )
-    if (mapping === undefined) continue
+
+    if (mapping === undefined) {
+      continue
+    }
+
     columns.push({
       name,
       snapshot: column,
       catalog: catalogColumn,
-      output: mapping.output ?? 'unknown',
-      insert: mapping.insert ?? 'unknown',
-      update: mapping.update ?? 'unknown',
+      output: mapping.output ?? "unknown",
+      insert: mapping.insert ?? "unknown",
+      update: mapping.update ?? "unknown",
       sqlDomain: mapping.sqlDomain ?? suggestedSqlDomain,
       explicitSqlDomain: mapping.sqlDomain !== undefined,
     })
@@ -700,31 +706,33 @@ function resolveTable(
 
   const constraints = resolveObjects(
     snapshot.constraints,
-    'constraint',
+    "constraint",
     snapshot,
     tableName,
     options,
-    diagnostics
+    diagnostics,
   )
   const indexes = resolveObjects(
     snapshot.indexes,
-    'index',
+    "index",
     snapshot,
     tableName,
     options,
-    diagnostics
+    diagnostics,
   )
-  if (hasErrors(diagnostics)) return undefined
+
+  if (hasErrors(diagnostics)) {
+    return undefined
+  }
 
   const orderedColumns = columns.sort(compareName)
+
   return {
     name: tableName,
     snapshot,
     catalog: catalogTable,
     columns: orderedColumns,
-    columnsBySnapshotId: new Map(
-      orderedColumns.map(column => [column.snapshot.id, column])
-    ),
+    columnsBySnapshotId: new Map(orderedColumns.map((column) => [column.snapshot.id, column])),
     constraints,
     indexes,
   }
@@ -732,20 +740,27 @@ function resolveTable(
 
 function resolveObjects<TObject extends SnapshotConstraint | SnapshotIndex>(
   objects: readonly TObject[],
-  kind: 'constraint' | 'index',
+  kind: "constraint" | "index",
   table: SnapshotTable,
   tableName: string,
   options: SchemaCodegenOptions,
-  diagnostics: CodegenDiagnostic[]
-): readonly { readonly name: string; readonly snapshot: TObject }[] {
+  diagnostics: CodegenDiagnostic[],
+): readonly {
+  readonly name: string
+  readonly snapshot: TObject
+}[] {
   const names = new Map<string, readonly (string | number)[]>()
-  const result: { readonly name: string; readonly snapshot: TObject }[] = []
+  const result: {
+    readonly name: string
+    readonly snapshot: TObject
+  }[] = []
+
   for (const object of [...objects].sort(comparePhysicalName)) {
     const path = [
-      'snapshot',
-      'tables',
+      "snapshot",
+      "tables",
       table.id,
-      kind === 'constraint' ? 'constraints' : 'indexes',
+      kind === "constraint" ? "constraints" : "indexes",
       object.id,
     ] as const
     const name = resolveName(
@@ -759,12 +774,20 @@ function resolveObjects<TObject extends SnapshotConstraint | SnapshotIndex>(
       options,
       path,
       false,
-      diagnostics
+      diagnostics,
     )
-    if (name === undefined) continue
+
+    if (name === undefined) {
+      continue
+    }
+
     addUniqueName(name, path, names, diagnostics)
-    result.push({ name, snapshot: object })
+    result.push({
+      name,
+      snapshot: object,
+    })
   }
+
   return result.sort(compareName)
 }
 
@@ -777,20 +800,21 @@ function resolveColumnMapping(
   suggestedSqlDomain: CodegenSqlDomain,
   options: SchemaCodegenOptions,
   path: readonly (string | number)[],
-  diagnostics: CodegenDiagnostic[]
+  diagnostics: CodegenDiagnostic[],
 ): CodegenColumnMapping | undefined {
-  if (options.mapColumn === undefined) return {}
-  if (typeof options.mapColumn !== 'function') {
+  if (options.mapColumn === undefined) {
+    return {}
+  }
+
+  if (typeof options.mapColumn !== "function") {
     diagnostics.push(
-      errorDiagnostic('invalid-option', 'mapColumn must be a function', [
-        'options',
-        'mapColumn',
-      ])
+      errorDiagnostic("invalid-option", "mapColumn must be a function", ["options", "mapColumn"]),
     )
     return undefined
   }
 
   let mapping: CodegenColumnMapping | undefined
+
   try {
     mapping = options.mapColumn({
       dialect: catalog.dialect,
@@ -807,86 +831,83 @@ function resolveColumnMapping(
   } catch (caught) {
     diagnostics.push(
       errorDiagnostic(
-        'invalid-option',
+        "invalid-option",
         caught instanceof Error
           ? `Column mapping failed: ${caught.message}`
-          : 'Column mapping failed',
-        [...path, 'mapping']
-      )
+          : "Column mapping failed",
+        [...path, "mapping"],
+      ),
     )
     return undefined
   }
 
-  if (mapping === undefined) return {}
-  if (
-    typeof mapping !== 'object' ||
-    mapping === null ||
-    Array.isArray(mapping)
-  ) {
+  if (mapping === undefined) {
+    return {}
+  }
+
+  if (typeof mapping !== "object" || mapping === null || Array.isArray(mapping)) {
     diagnostics.push(
-      errorDiagnostic(
-        'invalid-option',
-        'Column mappings must return an object or undefined',
-        [...path, 'mapping']
-      )
+      errorDiagnostic("invalid-option", "Column mappings must return an object or undefined", [
+        ...path,
+        "mapping",
+      ]),
     )
     return undefined
   }
 
-  for (const axis of ['output', 'insert', 'update'] as const) {
+  for (const axis of ["output", "insert", "update"] as const) {
     const value = mapping[axis]
+
     if (value !== undefined && !applicationTypes.has(value)) {
       diagnostics.push(
         errorDiagnostic(
-          'invalid-option',
+          "invalid-option",
           `Unsupported ${axis} application type "${String(value)}"`,
-          [...path, 'mapping', axis]
-        )
+          [...path, "mapping", axis],
+        ),
       )
     }
   }
+
   if (mapping.sqlDomain !== undefined && !sqlDomains.has(mapping.sqlDomain)) {
     diagnostics.push(
-      errorDiagnostic(
-        'invalid-option',
-        `Unsupported SQL domain "${String(mapping.sqlDomain)}"`,
-        [...path, 'mapping', 'sqlDomain']
-      )
+      errorDiagnostic("invalid-option", `Unsupported SQL domain "${String(mapping.sqlDomain)}"`, [
+        ...path,
+        "mapping",
+        "sqlDomain",
+      ]),
     )
   }
+
   return hasErrors(diagnostics) ? undefined : mapping
 }
 
-function validateResolvedDomains(
-  schema: ResolvedSchema,
-  diagnostics: CodegenDiagnostic[]
-): void {
+function validateResolvedDomains(schema: ResolvedSchema, diagnostics: CodegenDiagnostic[]): void {
   for (const table of schema.tables) {
     for (const index of table.indexes) {
       for (const term of index.snapshot.terms) {
-        const ordered = term.kind === 'order' ? term : undefined
-        if (ordered?.expression.kind !== 'column') continue
+        const ordered = term.kind === "order" ? term : undefined
+
+        if (ordered?.expression.kind !== "column") {
+          continue
+        }
+
         const column = table.columnsBySnapshotId.get(ordered.expression.column)
+
         if (column === undefined || orderableDomains.has(column.sqlDomain)) {
           continue
         }
+
         if (column.explicitSqlDomain) {
           diagnostics.push(
             errorDiagnostic(
-              'invalid-option',
+              "invalid-option",
               `SQL domain "${column.sqlDomain}" cannot represent an ordered index term`,
-              [
-                'snapshot',
-                'tables',
-                table.snapshot.id,
-                'indexes',
-                index.snapshot.id,
-                'terms',
-              ]
-            )
+              ["snapshot", "tables", table.snapshot.id, "indexes", index.snapshot.id, "terms"],
+            ),
           )
         } else {
-          column.sqlDomain = 'unknown'
+          column.sqlDomain = "unknown"
         }
       }
     }
@@ -894,130 +915,174 @@ function validateResolvedDomains(
 
   for (const table of schema.tables) {
     for (const constraint of table.constraints) {
-      if (constraint.snapshot.kind !== 'foreign-key') continue
-      const targetTable = schema.tablesBySnapshotId.get(
-        constraint.snapshot.target.table
-      )
-      if (targetTable === undefined) continue
+      if (constraint.snapshot.kind !== "foreign-key") {
+        continue
+      }
+
+      const targetTable = schema.tablesBySnapshotId.get(constraint.snapshot.target.table)
+
+      if (targetTable === undefined) {
+        continue
+      }
+
       for (const [index, localId] of constraint.snapshot.columns.entries()) {
         const targetId = constraint.snapshot.target.columns[index]
         const local = table.columnsBySnapshotId.get(localId)
-        const target = targetId
-          ? targetTable.columnsBySnapshotId.get(targetId)
-          : undefined
+        const target = targetId ? targetTable.columnsBySnapshotId.get(targetId) : undefined
+
         if (
           local === undefined ||
           target === undefined ||
-          local.sqlDomain === 'unknown' ||
-          target.sqlDomain === 'unknown' ||
+          local.sqlDomain === "unknown" ||
+          target.sqlDomain === "unknown" ||
           local.sqlDomain === target.sqlDomain
         ) {
           continue
         }
+
         if (local.explicitSqlDomain && target.explicitSqlDomain) {
           diagnostics.push(
             errorDiagnostic(
-              'invalid-option',
+              "invalid-option",
               `Mapped foreign-key domains differ: "${local.sqlDomain}" and "${target.sqlDomain}"`,
               [
-                'snapshot',
-                'tables',
+                "snapshot",
+                "tables",
                 table.snapshot.id,
-                'constraints',
+                "constraints",
                 constraint.snapshot.id,
-                'columns',
+                "columns",
                 index,
-              ]
-            )
+              ],
+            ),
           )
         } else if (!local.explicitSqlDomain) {
-          local.sqlDomain = 'unknown'
+          local.sqlDomain = "unknown"
         } else {
-          target.sqlDomain = 'unknown'
+          target.sqlDomain = "unknown"
         }
       }
     }
   }
 }
 
-function inferSqlDomain(
-  dialect: CatalogDialect,
-  column: CatalogColumn
-): CodegenSqlDomain {
+function inferSqlDomain(dialect: CatalogDialect, column: CatalogColumn): CodegenSqlDomain {
   const portable = column.storage.portable
-  if (portable?.confidence === 'exact') {
+
+  if (portable?.confidence === "exact") {
     return portableDomain(portable.type)
   }
 
   const declaration = column.storage.nativeType.trim().toLowerCase()
-  if (dialect === 'postgresql') {
+
+  if (dialect === "postgresql") {
     switch (declaration) {
-      case 'smallint':
-      case 'integer':
-        return 'integer'
-      case 'bigint':
-        return 'bigint'
-      case 'numeric':
-        return 'decimal'
-      case 'text':
-        return 'text'
-      case 'boolean':
-        return 'boolean'
-      case 'date':
-        return 'date'
-      case 'timestamp without time zone':
-      case 'timestamp with time zone':
-        return 'timestamp'
-      case 'uuid':
-        return 'uuid'
-      case 'json':
-      case 'jsonb':
-        return 'json'
-      case 'bytea':
-        return 'binary'
-      default:
-        return 'unknown'
+      case "smallint":
+      case "integer": {
+        return "integer"
+      }
+
+      case "bigint": {
+        return "bigint"
+      }
+
+      case "numeric": {
+        return "decimal"
+      }
+
+      case "text": {
+        return "text"
+      }
+
+      case "boolean": {
+        return "boolean"
+      }
+
+      case "date": {
+        return "date"
+      }
+
+      case "timestamp without time zone":
+      case "timestamp with time zone": {
+        return "timestamp"
+      }
+
+      case "uuid": {
+        return "uuid"
+      }
+
+      case "json":
+      case "jsonb": {
+        return "json"
+      }
+
+      case "bytea": {
+        return "binary"
+      }
+
+      default: {
+        return "unknown"
+      }
     }
   }
-  if (dialect === 'mysql') {
+
+  if (dialect === "mysql") {
     switch (declaration) {
-      case 'tinyint':
-      case 'smallint':
-      case 'mediumint':
-      case 'int':
-        return 'integer'
-      case 'bigint':
-        return 'bigint'
-      case 'decimal':
-        return 'decimal'
-      case 'text':
-      case 'tinytext':
-      case 'mediumtext':
-      case 'longtext':
-        return 'text'
-      case 'date':
-        return 'date'
-      case 'datetime':
-      case 'timestamp':
-        return 'timestamp'
-      case 'json':
-        return 'json'
-      case 'blob':
-      case 'tinyblob':
-      case 'mediumblob':
-      case 'longblob':
-        return 'binary'
-      default:
-        return 'unknown'
+      case "tinyint":
+      case "smallint":
+      case "mediumint":
+      case "int": {
+        return "integer"
+      }
+
+      case "bigint": {
+        return "bigint"
+      }
+
+      case "decimal": {
+        return "decimal"
+      }
+
+      case "text":
+      case "tinytext":
+      case "mediumtext":
+      case "longtext": {
+        return "text"
+      }
+
+      case "date": {
+        return "date"
+      }
+
+      case "datetime":
+      case "timestamp": {
+        return "timestamp"
+      }
+
+      case "json": {
+        return "json"
+      }
+
+      case "blob":
+      case "tinyblob":
+      case "mediumblob":
+      case "longblob": {
+        return "binary"
+      }
+
+      default: {
+        return "unknown"
+      }
     }
   }
-  return 'unknown'
+
+  return "unknown"
 }
 
 function portableDomain(
-  portable: NonNullable<CatalogColumn['storage']['portable']>['type']
+  portable: NonNullable<CatalogColumn["storage"]["portable"]>["type"],
 ): CodegenSqlDomain {
-  return portable === 'numeric' ? 'decimal' : portable
+  return portable === "numeric" ? "decimal" : portable
 }
 
 function resolveName(
@@ -1025,111 +1090,114 @@ function resolveName(
   options: SchemaCodegenOptions,
   path: readonly (string | number)[],
   exportBinding: boolean,
-  diagnostics: CodegenDiagnostic[]
+  diagnostics: CodegenDiagnostic[],
 ): string | undefined {
   let name: unknown = context.suggestedName
+
   if (options.naming !== undefined) {
-    if (typeof options.naming !== 'function') {
+    if (typeof options.naming !== "function") {
       diagnostics.push(
-        errorDiagnostic('invalid-option', 'naming must be a function', [
-          'options',
-          'naming',
-        ])
+        errorDiagnostic("invalid-option", "naming must be a function", ["options", "naming"]),
       )
       return undefined
     }
+
     try {
       name = options.naming(context) ?? context.suggestedName
     } catch (caught) {
       diagnostics.push(
         errorDiagnostic(
-          'invalid-option',
+          "invalid-option",
           caught instanceof Error
             ? `Naming callback failed: ${caught.message}`
-            : 'Naming callback failed',
-          [...path, 'name']
-        )
+            : "Naming callback failed",
+          [...path, "name"],
+        ),
       )
       return undefined
     }
   }
 
   if (
-    typeof name !== 'string' ||
+    typeof name !== "string" ||
     !/^[a-z][A-Za-z0-9]*$/u.test(name) ||
     (exportBinding && reservedBindings.has(name))
   ) {
     diagnostics.push(
       errorDiagnostic(
-        'unsafe-name',
+        "unsafe-name",
         `Physical ${context.kind} name ${JSON.stringify(context.physicalName)} does not resolve to a safe camelCase${
-          exportBinding ? ' export' : ''
+          exportBinding ? " export" : ""
         } identifier`,
-        [...path, 'name'],
-        'Return a safe camelCase ID from the naming callback.'
-      )
+        [...path, "name"],
+        "Return a safe camelCase ID from the naming callback.",
+      ),
     )
     return undefined
   }
+
   return name
 }
 
 function camelCase(value: string): string {
   const words = value
-    .replace(/([a-z0-9])([A-Z])/gu, '$1 $2')
+    .replace(/([a-z0-9])([A-Z])/gu, "$1 $2")
     .split(/[^A-Za-z0-9]+/u)
     .filter(Boolean)
-    .map(word => word.toLowerCase())
-  const first = words.shift() ?? ''
+    .map((word) => word.toLowerCase())
+  const first = words.shift() ?? ""
+
   return `${first}${words
-    .map(word => `${word.slice(0, 1).toUpperCase()}${word.slice(1)}`)
-    .join('')}`
+    .map((word) => `${word.slice(0, 1).toUpperCase()}${word.slice(1)}`)
+    .join("")}`
 }
 
 function hasCompleteColumnBehavior(
-  column: SchemaSnapshot['tables'][number]['columns'][number]
+  column: SchemaSnapshot["tables"][number]["columns"][number],
 ): boolean {
-  const behaviorCount = [
-    column.default,
-    column.generatedColumn,
-    column.identity,
-  ].filter(value => value !== undefined).length
-  if (behaviorCount > 1) return false
+  const behaviorCount = [column.default, column.generatedColumn, column.identity].filter(
+    (value) => value !== undefined,
+  ).length
+
+  if (behaviorCount > 1) {
+    return false
+  }
+
   if (column.generatedColumn !== undefined || column.identity !== undefined) {
     return column.generated && !column.hasDefault
   }
+
   if (column.default !== undefined) {
     return !column.generated && column.hasDefault
   }
+
   return !column.generated && !column.hasDefault
 }
 
 function toPhysicalFacts(snapshot: SchemaSnapshot): unknown {
-  const tableById = new Map(snapshot.tables.map(table => [table.id, table]))
+  const tableById = new Map(snapshot.tables.map((table) => [table.id, table]))
   const columnNames = new Map(
-    snapshot.tables.map(table => [
+    snapshot.tables.map((table) => [
       table.id,
-      new Map(table.columns.map(column => [column.id, column.physicalName])),
-    ])
+      new Map(table.columns.map((column) => [column.id, column.physicalName])),
+    ]),
   )
 
   return {
     dialect: snapshot.dialect,
     namespace: snapshot.namespace ?? null,
-    tables: [...snapshot.tables].sort(comparePhysicalName).map(table => ({
+    tables: [...snapshot.tables].sort(comparePhysicalName).map((table) => ({
       physicalName: table.physicalName,
-      columns: [...table.columns].sort(comparePhysicalName).map(column => ({
+      columns: [...table.columns].sort(comparePhysicalName).map((column) => ({
         ...column,
         id: column.physicalName,
       })),
       constraints: [...table.constraints]
         .sort(comparePhysicalName)
-        .map(constraint =>
-          physicalConstraint(constraint, table, tableById, columnNames)
-        ),
+        .map((constraint) => physicalConstraint(constraint, table, tableById, columnNames)),
       indexes: [...table.indexes]
         .sort(comparePhysicalName)
-        .map(index => physicalIndex(index, table, columnNames)),
+        .map((index) => physicalIndex(index, table, columnNames)),
     })),
   }
 }
@@ -1138,22 +1206,29 @@ function physicalConstraint(
   constraint: SnapshotConstraint,
   table: SnapshotTable,
   tables: ReadonlyMap<string, SnapshotTable>,
-  columns: ReadonlyMap<string, ReadonlyMap<string, string>>
+  columns: ReadonlyMap<string, ReadonlyMap<string, string>>,
 ): unknown {
-  if (constraint.kind === 'check') {
-    return { ...constraint, id: constraint.physicalName }
+  if (constraint.kind === "check") {
+    return {
+      ...constraint,
+      id: constraint.physicalName,
+    }
   }
+
   const localColumns = constraint.columns.map(
-    id => columns.get(table.id)?.get(id) ?? `missing:${id}`
+    (id) => columns.get(table.id)?.get(id) ?? `missing:${id}`,
   )
-  if (constraint.kind !== 'foreign-key') {
+
+  if (constraint.kind !== "foreign-key") {
     return {
       ...constraint,
       id: constraint.physicalName,
       columns: localColumns,
     }
   }
+
   const targetTable = tables.get(constraint.target.table)
+
   return {
     ...constraint,
     id: constraint.physicalName,
@@ -1161,7 +1236,7 @@ function physicalConstraint(
     target: {
       table: targetTable?.physicalName ?? `missing:${constraint.target.table}`,
       columns: constraint.target.columns.map(
-        id => columns.get(constraint.target.table)?.get(id) ?? `missing:${id}`
+        (id) => columns.get(constraint.target.table)?.get(id) ?? `missing:${id}`,
       ),
     },
   }
@@ -1170,43 +1245,44 @@ function physicalConstraint(
 function physicalIndex(
   index: SnapshotIndex,
   table: SnapshotTable,
-  columns: ReadonlyMap<string, ReadonlyMap<string, string>>
+  columns: ReadonlyMap<string, ReadonlyMap<string, string>>,
 ): unknown {
   const names = columns.get(table.id)
+
   return {
     ...index,
     id: index.physicalName,
-    terms: index.terms.map(term => physicalIndexTerm(term, names)),
+    terms: index.terms.map((term) => physicalIndexTerm(term, names)),
     ...(index.includedColumns === undefined
       ? {}
       : {
-          includedColumns: index.includedColumns.map(
-            id => names?.get(id) ?? `missing:${id}`
-          ),
+          includedColumns: index.includedColumns.map((id) => names?.get(id) ?? `missing:${id}`),
         }),
   }
 }
 
 function physicalIndexTerm(
   term: SnapshotIndexTerm,
-  columns: ReadonlyMap<string, string> | undefined
+  columns: ReadonlyMap<string, string> | undefined,
 ): unknown {
-  if (term.kind === 'column') {
+  if (term.kind === "column") {
     return {
       ...term,
       column: columns?.get(term.column) ?? `missing:${term.column}`,
     }
   }
-  if (term.kind === 'expression') return term
+
+  if (term.kind === "expression") {
+    return term
+  }
+
   return {
     ...term,
     expression:
-      term.expression.kind === 'column'
+      term.expression.kind === "column"
         ? {
             ...term.expression,
-            column:
-              columns?.get(term.expression.column) ??
-              `missing:${term.expression.column}`,
+            column: columns?.get(term.expression.column) ?? `missing:${term.expression.column}`,
           }
         : term.expression,
   }
@@ -1214,19 +1290,25 @@ function physicalIndexTerm(
 
 function appendExcludedFamilyDiagnostics(
   catalog: IntrospectionCatalog | undefined,
-  diagnostics: CodegenDiagnostic[]
+  diagnostics: CodegenDiagnostic[],
 ): void {
-  if (catalog === undefined) return
+  if (catalog === undefined) {
+    return
+  }
+
   for (const [property, label] of excludedFamilies) {
     const values = catalog[property]
-    if (values === undefined || values.length === 0) continue
+
+    if (values === undefined || values.length === 0) {
+      continue
+    }
+
     diagnostics.push({
-      severity: 'warning',
-      code: 'excluded-object-family',
+      severity: "warning",
+      code: "excluded-object-family",
       message: `Snapshot v1 source generation excludes ${values.length} ${label}`,
-      path: Object.freeze(['catalog', property]),
-      remediation:
-        'Use the complete normalized catalog or Snapshot v2 for this object family.',
+      path: Object.freeze(["catalog", property]),
+      remediation: "Use the complete normalized catalog or Snapshot v2 for this object family.",
     })
   }
 }
@@ -1235,23 +1317,26 @@ function groupUnique<T>(
   values: readonly T[],
   keyOf: (value: T) => string,
   path: readonly (string | number)[],
-  diagnostics: CodegenDiagnostic[]
+  diagnostics: CodegenDiagnostic[],
 ): Map<string, T> {
   const result = new Map<string, T>()
+
   for (const [index, value] of values.entries()) {
     const key = keyOf(value)
+
     if (result.has(key)) {
       diagnostics.push(
         errorDiagnostic(
-          'name-collision',
+          "name-collision",
           `Physical name ${JSON.stringify(key)} occurs more than once`,
-          [...path, index]
-        )
+          [...path, index],
+        ),
       )
     } else {
       result.set(key, value)
     }
   }
+
   return result
 }
 
@@ -1259,33 +1344,35 @@ function addUniqueName(
   name: string,
   path: readonly (string | number)[],
   names: Map<string, readonly (string | number)[]>,
-  diagnostics: CodegenDiagnostic[]
+  diagnostics: CodegenDiagnostic[],
 ): void {
   const existing = names.get(name)
+
   if (existing === undefined) {
     names.set(name, path)
     return
   }
+
   diagnostics.push(
     errorDiagnostic(
-      'name-collision',
+      "name-collision",
       `More than one physical object resolves to logical ID "${name}"`,
-      [...path, 'name'],
-      'Override one logical ID with the naming callback.',
-      [existing]
-    )
+      [...path, "name"],
+      "Override one logical ID with the naming callback.",
+      [existing],
+    ),
   )
 }
 
 function errorDiagnostic(
-  code: CodegenDiagnostic['code'],
+  code: CodegenDiagnostic["code"],
   message: string,
   path: readonly (string | number)[],
   remediation?: string,
-  relatedPaths?: readonly (readonly (string | number)[])[]
+  relatedPaths?: readonly (readonly (string | number)[])[],
 ): CodegenDiagnostic {
   return {
-    severity: 'error',
+    severity: "error",
     code,
     message,
     path,
@@ -1294,9 +1381,7 @@ function errorDiagnostic(
   }
 }
 
-function failure(
-  diagnostics: readonly CodegenDiagnostic[]
-): SchemaCodegenResult {
+function failure(diagnostics: readonly CodegenDiagnostic[]): SchemaCodegenResult {
   return Object.freeze({
     ok: false as const,
     diagnostics: freezeDiagnostics(diagnostics),
@@ -1304,31 +1389,29 @@ function failure(
 }
 
 function freezeDiagnostics(
-  diagnostics: readonly CodegenDiagnostic[]
+  diagnostics: readonly CodegenDiagnostic[],
 ): readonly CodegenDiagnostic[] {
   return Object.freeze(
-    diagnostics.map(diagnostic =>
+    diagnostics.map((diagnostic) =>
       Object.freeze({
         ...diagnostic,
         path: Object.freeze([...diagnostic.path]),
         relatedPaths:
           diagnostic.relatedPaths === undefined
             ? undefined
-            : Object.freeze(
-                diagnostic.relatedPaths.map(path => Object.freeze([...path]))
-              ),
-      })
-    )
+            : Object.freeze(diagnostic.relatedPaths.map((path) => Object.freeze([...path]))),
+      }),
+    ),
   )
 }
 
 function hasErrors(diagnostics: readonly CodegenDiagnostic[]): boolean {
-  return diagnostics.some(diagnostic => diagnostic.severity === 'error')
+  return diagnostics.some((diagnostic) => diagnostic.severity === "error")
 }
 
 function comparePhysicalName(
   left: { readonly physicalName: string },
-  right: { readonly physicalName: string }
+  right: { readonly physicalName: string },
 ): number {
   return left.physicalName < right.physicalName
     ? -1
@@ -1337,26 +1420,23 @@ function comparePhysicalName(
       : 0
 }
 
-function compareName(
-  left: { readonly name: string },
-  right: { readonly name: string }
-): number {
+function compareName(left: { readonly name: string }, right: { readonly name: string }): number {
   return left.name < right.name ? -1 : left.name > right.name ? 1 : 0
 }
 
 function isOptions(value: unknown): value is SchemaCodegenOptions {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+  return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
 function isIntrospectionResult(value: unknown): value is IntrospectionResult {
   return (
-    typeof value === 'object' &&
+    typeof value === "object" &&
     value !== null &&
-    'ok' in value &&
-    typeof value.ok === 'boolean' &&
-    'lossy' in value &&
-    typeof value.lossy === 'boolean' &&
-    'diagnostics' in value &&
+    "ok" in value &&
+    typeof value.ok === "boolean" &&
+    "lossy" in value &&
+    typeof value.lossy === "boolean" &&
+    "diagnostics" in value &&
     Array.isArray(value.diagnostics)
   )
 }

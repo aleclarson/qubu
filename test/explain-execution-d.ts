@@ -1,4 +1,6 @@
-import { expectTypeOf } from 'vitest'
+import { expectTypeOf } from "vitest"
+
+import { postgresDialect } from "../src/dialects/postgres.ts"
 import {
   explain,
   from,
@@ -15,12 +17,11 @@ import {
   type QubuClient,
   type QubuExplainableClient,
   type QueryAdapter,
-} from '../src/index.ts'
-import { postgresDialect } from '../src/dialects/postgres.ts'
+} from "../src/index.ts"
 
-type PlanRow = { 'QUERY PLAN': string }
+type PlanRow = { "QUERY PLAN": string }
 
-const users = table('users', { id: integer() })
+const users = table("users", { id: integer() })
 const query = select({ id: users.id }, from(users))
 const mutation = insertInto(users, values({ id: 7 }))
 
@@ -40,17 +41,12 @@ const options: ExplainOptions = {
   signal: new AbortController().signal,
 }
 
-expectTypeOf(explain(query, adapter, options)).toEqualTypeOf<
-  Promise<ExplainResult<PlanRow>>
->()
-expectTypeOf(explain(adapter, query)).toEqualTypeOf<
-  Promise<ExplainResult<PlanRow>>
->()
+expectTypeOf(explain(query, adapter, options)).toEqualTypeOf<Promise<ExplainResult<PlanRow>>>()
+expectTypeOf(explain(adapter, query)).toEqualTypeOf<Promise<ExplainResult<PlanRow>>>()
 
 const db = qubu(adapter)
-expectTypeOf(db).toEqualTypeOf<
-  QubuExplainableClient<ExplainableQueryAdapter<PlanRow>>
->()
+
+expectTypeOf(db).toEqualTypeOf<QubuExplainableClient<ExplainableQueryAdapter<PlanRow>>>()
 expectTypeOf(db.explain(query)).toEqualTypeOf<Promise<ExplainResult<PlanRow>>>()
 
 // Mutation EXPLAIN stays plan-only. The type boundary rejects analysis.
@@ -64,6 +60,7 @@ const plainAdapter: QueryAdapter = {
   },
 }
 const plainDb = qubu(plainAdapter)
+
 expectTypeOf(plainDb).toEqualTypeOf<QubuClient<QueryAdapter>>()
 // @ts-expect-error A plain QueryAdapter does not expose explain().
 plainDb.explain(query)

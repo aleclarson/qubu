@@ -7,21 +7,21 @@ import {
   type ResultMeta,
   type SqlTypeOf,
   type WindowMeta,
-} from '../../core/fragment.ts'
-import type { OrderTerm } from '../../query/clauses/order-by.ts'
+} from "../../core/fragment.ts"
+import type { OrderTerm } from "../../query/clauses/order-by.ts"
 import {
   makeExpression,
   markExpressionCategory,
   type AnyExpression,
   type Expression,
-} from '../types.ts'
-import { call } from './call.ts'
+} from "../types.ts"
+import { call } from "./call.ts"
 
 export type WindowOrder = AnyExpression | OrderTerm<any>
 
 /**
- * The initial inline window scope. Named windows and frame clauses can be
- * added at a later dialect-aware boundary without changing expression types.
+ * The initial inline window scope. Named windows and frame clauses can be added at a later
+ * dialect-aware boundary without changing expression types.
  */
 export interface WindowSpec {
   readonly partitionBy?: readonly AnyExpression[]
@@ -31,97 +31,86 @@ export interface WindowSpec {
 type FragmentItems<T> = T extends readonly unknown[] ? T[number] : never
 
 type WindowSpecParts<TWindow> = TWindow extends WindowSpec
-  ? FragmentItems<TWindow['partitionBy']> | FragmentItems<TWindow['orderBy']>
+  ? FragmentItems<TWindow["partitionBy"]> | FragmentItems<TWindow["orderBy"]>
   : never
 
 export type WindowedExpression<
   TExpression extends AnyExpression,
   TWindow extends WindowSpec | undefined,
 > = Expression<
-  | ResultMeta<
-      OutputOf<TExpression>,
-      NullabilityOf<TExpression>,
-      SqlTypeOf<TExpression>
-    >
+  | ResultMeta<OutputOf<TExpression>, NullabilityOf<TExpression>, SqlTypeOf<TExpression>>
   | ExpressionMeta<DependenciesOf<TExpression | WindowSpecParts<TWindow>>>
   | InheritedMetadata<TExpression | WindowSpecParts<TWindow>>
   | WindowMeta,
-  'function'
+  "function"
 >
 
 export function over<
   TExpression extends AnyExpression,
   const TWindow extends WindowSpec | undefined = undefined,
->(
-  expression: TExpression,
-  window?: TWindow
-): WindowedExpression<TExpression, TWindow> {
+>(expression: TExpression, window?: TWindow): WindowedExpression<TExpression, TWindow> {
   return makeExpression(
-    'function',
-    context => {
+    "function",
+    (context) => {
       context.render(expression)
-      context.append(' OVER (')
+      context.append(" OVER (")
 
       let hasPart = false
+
       if (window?.partitionBy && window.partitionBy.length > 0) {
-        context.append('PARTITION BY ')
+        context.append("PARTITION BY ")
         window.partitionBy.forEach((part, index) => {
-          if (index > 0) context.append(', ')
+          if (index > 0) {
+            context.append(", ")
+          }
+
           context.render(part)
         })
         hasPart = true
       }
 
       if (window?.orderBy && window.orderBy.length > 0) {
-        if (hasPart) context.append(' ')
-        context.append('ORDER BY ')
+        if (hasPart) {
+          context.append(" ")
+        }
+
+        context.append("ORDER BY ")
         window.orderBy.forEach((part, index) => {
-          if (index > 0) context.append(', ')
+          if (index > 0) {
+            context.append(", ")
+          }
+
           context.render(part)
         })
       }
 
-      context.append(')')
+      context.append(")")
     },
-    'window'
+    "window",
   ) as WindowedExpression<TExpression, TWindow>
 }
 
 export function rowNumber() {
   return markExpressionCategory(
-    call<
-      number,
-      'ROW_NUMBER',
-      [],
-      never,
-      import('../../core/sql-types.ts').SqlInteger
-    >('ROW_NUMBER'),
-    'window'
+    call<number, "ROW_NUMBER", [], never, import("../../core/sql-types.ts").SqlInteger>(
+      "ROW_NUMBER",
+    ),
+    "window",
   )
 }
 
 export function rank() {
   return markExpressionCategory(
-    call<
-      number,
-      'RANK',
-      [],
-      never,
-      import('../../core/sql-types.ts').SqlInteger
-    >('RANK'),
-    'window'
+    call<number, "RANK", [], never, import("../../core/sql-types.ts").SqlInteger>("RANK"),
+    "window",
   )
 }
 
 export function denseRank() {
   return markExpressionCategory(
-    call<
-      number,
-      'DENSE_RANK',
-      [],
-      never,
-      import('../../core/sql-types.ts').SqlInteger
-    >('DENSE_RANK'),
-    'window'
+    call<number, "DENSE_RANK", [], never, import("../../core/sql-types.ts").SqlInteger>(
+      "DENSE_RANK",
+    ),
+    "window",
   )
 }

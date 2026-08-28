@@ -8,37 +8,19 @@
 Attach it with `withCte()` and use the CTE source in `from()`:
 
 ```ts
-import {
-  cte,
-  eq,
-  from,
-  integer,
-  select,
-  table,
-  text,
-  where,
-  withCte,
-} from 'qubu'
+import { cte, eq, from, integer, select, table, text, where, withCte } from "qubu"
 
-const users = table('users', {
+const users = table("users", {
   id: integer(),
   name: text(),
 })
 
 const activeUsers = cte(
-  'active_users',
-  select(
-    { id: users.id, name: users.name },
-    from(users),
-    where(eq(users.id, 7))
-  )
+  "active_users",
+  select({ id: users.id, name: users.name }, from(users), where(eq(users.id, 7))),
 )
 
-const report = select(
-  { displayName: activeUsers.name },
-  withCte(activeUsers),
-  from(activeUsers)
-)
+const report = select({ displayName: activeUsers.name }, withCte(activeUsers), from(activeUsers))
 ```
 
 `activeUsers.name` is a typed column derived from the first query's row shape.
@@ -53,24 +35,10 @@ member. The callback receives a typed self-reference; introduce it through
 `from()` or a join before selecting its fields:
 
 ```ts
-import {
-  add,
-  cast,
-  from,
-  integer,
-  lt,
-  recursiveCte,
-  select,
-  value,
-  where,
-  withCte,
-} from 'qubu'
+import { add, cast, from, integer, lt, recursiveCte, select, value, where, withCte } from "qubu"
 
-const numbers = recursiveCte(
-  'numbers',
-  select({ value: cast(value(1), integer()) }),
-  self =>
-    select({ value: add(self.value, 1) }, from(self), where(lt(self.value, 3)))
+const numbers = recursiveCte("numbers", select({ value: cast(value(1), integer()) }), (self) =>
+  select({ value: add(self.value, 1) }, from(self), where(lt(self.value, 3))),
 )
 
 const query = select({ value: numbers.value }, withCte(numbers), from(numbers))
@@ -89,11 +57,11 @@ recursive CTEs can share one `withCte()` clause.
 Alias a query when it should be used as an inline source:
 
 ```ts
-import { alias, from, lower, select } from 'qubu'
-import type { SqlTypeOf } from 'qubu'
+import { alias, from, lower, select } from "qubu"
+import type { SqlTypeOf } from "qubu"
 
 const names = select({ name: lower(users.name) }, from(users))
-const namesSource = alias(names, 'names')
+const namesSource = alias(names, "names")
 
 const query = select({ name: namesSource.name }, from(namesSource))
 type NameSqlDomain = SqlTypeOf<typeof namesSource.name>
@@ -112,7 +80,7 @@ so downstream text operations remain checked without redeclaring the field.
 `scalar()` turns a query with exactly one selected field into an expression:
 
 ```ts
-import { from, scalar, select, value } from 'qubu'
+import { from, scalar, select, value } from "qubu"
 
 const firstId = select({ id: users.id }, from(users))
 const query = select(
@@ -120,7 +88,7 @@ const query = select(
     name: users.name,
     firstId: scalar(firstId),
   },
-  from(users)
+  from(users),
 )
 ```
 
@@ -139,7 +107,7 @@ Set operations preserve the left query's row shape. Both queries must select
 compatible rows:
 
 ```ts
-import { eq, from, select, unionAll, where } from 'qubu'
+import { eq, from, select, unionAll, where } from "qubu"
 
 const first = select({ id: users.id }, from(users))
 const second = select({ id: users.id }, from(users), where(eq(users.id, 7)))
@@ -156,17 +124,12 @@ are collected in traversal order.
 Build reusable pieces as ordinary values and pass them into the final query:
 
 ```ts
-import { desc, eq, from, orderBy, select, where } from 'qubu'
+import { desc, eq, from, orderBy, select, where } from "qubu"
 
 const byId = where(eq(users.id, 7))
 const newest = orderBy(desc(users.id))
 
-const query = select(
-  { id: users.id, name: users.name },
-  from(users),
-  byId,
-  newest
-)
+const query = select({ id: users.id, name: users.name }, from(users), byId, newest)
 ```
 
 This makes it possible to share a predicate or projection without mutating a
@@ -185,13 +148,10 @@ generic function retains its exact source identity.
 For an application-level requirement, describe the required JavaScript row:
 
 ```ts
-import { eq, where } from 'qubu'
-import type { TableLike } from 'qubu'
+import { eq, where } from "qubu"
+import type { TableLike } from "qubu"
 
-function byStringId<TTable extends TableLike<{ id: string }>>(
-  table: TTable,
-  id: string
-) {
+function byStringId<TTable extends TableLike<{ id: string }>>(table: TTable, id: string) {
   return where(eq(table.columns.id, id))
 }
 ```
@@ -203,18 +163,15 @@ extra fields and rejects `string | null`, but it does not distinguish
 Use `FieldLike` when the fragment depends on SQL semantics:
 
 ```ts
-import { eq, where } from 'qubu'
-import type { FieldLike, SourceLike, SqlTextLike } from 'qubu'
+import { eq, where } from "qubu"
+import type { FieldLike, SourceLike, SqlTextLike } from "qubu"
 
 type NonNullTextId = FieldLike<{
   sqlType: SqlTextLike
   nullable: false
 }>
 
-function byTextId<TSource extends SourceLike<{ id: NonNullTextId }>>(
-  source: TSource,
-  id: string
-) {
+function byTextId<TSource extends SourceLike<{ id: NonNullTextId }>>(source: TSource, id: string) {
   return where(eq(source.columns.id, id))
 }
 ```

@@ -1,4 +1,9 @@
-import { expect, test } from 'vitest'
+import { expect, test } from "vitest"
+
+import { mysqlDialect } from "../src/dialects/mysql.ts"
+import { postgresDialect } from "../src/dialects/postgres.ts"
+import { sqliteDialect } from "../src/dialects/sqlite.ts"
+import { standardDialect } from "../src/dialects/standard.ts"
 import {
   eq,
   explain,
@@ -12,18 +17,14 @@ import {
   where,
   type ExplainableQueryAdapter,
   type ExplainRequest,
-} from '../src/index.ts'
-import { mysqlDialect } from '../src/dialects/mysql.ts'
-import { postgresDialect } from '../src/dialects/postgres.ts'
-import { sqliteDialect } from '../src/dialects/sqlite.ts'
-import { standardDialect } from '../src/dialects/standard.ts'
+} from "../src/index.ts"
 
 type PlanRow = { plan: string }
 
-const users = table('users', { id: integer() })
+const users = table("users", { id: integer() })
 const query = select({ id: users.id }, from(users), where(eq(users.id, 7)))
 
-test('renders PostgreSQL EXPLAIN options and forwards request controls', async () => {
+test("renders PostgreSQL EXPLAIN options and forwards request controls", async () => {
   let received: ExplainRequest | undefined
   let executeCalls = 0
   const adapter: ExplainableQueryAdapter<PlanRow> = {
@@ -34,7 +35,7 @@ test('renders PostgreSQL EXPLAIN options and forwards request controls', async (
     },
     async explain(request) {
       received = request
-      return { rows: [{ plan: 'Index Scan' }] }
+      return { rows: [{ plan: "Index Scan" }] }
     },
   }
   const controller = new AbortController()
@@ -43,7 +44,7 @@ test('renders PostgreSQL EXPLAIN options and forwards request controls', async (
     analyze: true,
     verbose: true,
     buffers: true,
-    format: 'json',
+    format: "json",
     signal: controller.signal,
   })
 
@@ -52,15 +53,15 @@ test('renders PostgreSQL EXPLAIN options and forwards request controls', async (
       text: 'EXPLAIN (ANALYZE, VERBOSE, BUFFERS, FORMAT JSON) SELECT "users"."id" AS "id" FROM "users" WHERE ("users"."id" = $1)',
       parameters: [7],
     },
-    queryKind: 'select',
-    resultShape: { fields: [{ name: 'id' }] },
+    queryKind: "select",
+    resultShape: { fields: [{ name: "id" }] },
     signal: controller.signal,
   })
-  expect(result).toEqual({ rows: [{ plan: 'Index Scan' }] })
+  expect(result).toEqual({ rows: [{ plan: "Index Scan" }] })
   expect(executeCalls).toBe(0)
 })
 
-test('renders SQLite and MySQL EXPLAIN modes', async () => {
+test("renders SQLite and MySQL EXPLAIN modes", async () => {
   const sqliteStatements: string[] = []
   const sqlite: ExplainableQueryAdapter<PlanRow> = {
     dialect: sqliteDialect(),
@@ -73,8 +74,8 @@ test('renders SQLite and MySQL EXPLAIN modes', async () => {
     },
   }
 
-  await explain(query, sqlite, { format: 'query-plan' })
-  await explain(query, sqlite, { format: 'bytecode' })
+  await explain(query, sqlite, { format: "query-plan" })
+  await explain(query, sqlite, { format: "bytecode" })
 
   const mysqlStatements: string[] = []
   const mysql: ExplainableQueryAdapter<PlanRow> = {
@@ -88,7 +89,7 @@ test('renders SQLite and MySQL EXPLAIN modes', async () => {
     },
   }
 
-  await explain(query, mysql, { format: 'json' })
+  await explain(query, mysql, { format: "json" })
   await explain(query, mysql, { analyze: true })
 
   expect(sqliteStatements).toEqual([
@@ -96,35 +97,33 @@ test('renders SQLite and MySQL EXPLAIN modes', async () => {
     'EXPLAIN SELECT "users"."id" AS "id" FROM "users" WHERE ("users"."id" = ?)',
   ])
   expect(mysqlStatements).toEqual([
-    'EXPLAIN FORMAT=JSON SELECT `users`.`id` AS `id` FROM `users` WHERE (`users`.`id` = ?)',
-    'EXPLAIN ANALYZE SELECT `users`.`id` AS `id` FROM `users` WHERE (`users`.`id` = ?)',
+    "EXPLAIN FORMAT=JSON SELECT `users`.`id` AS `id` FROM `users` WHERE (`users`.`id` = ?)",
+    "EXPLAIN ANALYZE SELECT `users`.`id` AS `id` FROM `users` WHERE (`users`.`id` = ?)",
   ])
 })
 
-test('explains mutations without executing them', async () => {
+test("explains mutations without executing them", async () => {
   let received: ExplainRequest | undefined
   const adapter: ExplainableQueryAdapter<PlanRow> = {
     dialect: sqliteDialect(),
     async execute() {
-      throw new Error('execute should not be called by explain')
+      throw new Error("execute should not be called by explain")
     },
     async explain(request) {
       received = request
-      return { rows: [{ plan: 'SCAN users' }] }
+      return { rows: [{ plan: "SCAN users" }] }
     },
   }
   const mutation = insertInto(users, values({ id: 8 }))
 
   await explain(mutation, adapter)
 
-  expect(received?.statement.text).toBe(
-    'EXPLAIN QUERY PLAN INSERT INTO "users" ("id") VALUES (?)'
-  )
+  expect(received?.statement.text).toBe('EXPLAIN QUERY PLAN INSERT INTO "users" ("id") VALUES (?)')
   expect(received?.statement.parameters).toEqual([8])
-  expect(received?.queryKind).toBe('insert')
+  expect(received?.queryKind).toBe("insert")
 })
 
-test('reports unsupported and invalid EXPLAIN options', async () => {
+test("reports unsupported and invalid EXPLAIN options", async () => {
   const sqlite: ExplainableQueryAdapter<PlanRow> = {
     dialect: sqliteDialect(),
     async execute() {
@@ -154,29 +153,28 @@ test('reports unsupported and invalid EXPLAIN options', async () => {
   }
   const mutation = insertInto(users, values({ id: 8 }))
 
-  await expect(explain(query, sqlite, { verbose: true })).rejects.toMatchObject(
-    {
-      code: 'unsupported-explain-option',
-      path: ['verbose'],
-    }
-  )
-  await expect(
-    explain(query, postgres, { buffers: true })
-  ).rejects.toMatchObject({
-    code: 'invalid-explain-options',
-    path: ['buffers'],
+  await expect(explain(query, sqlite, { verbose: true })).rejects.toMatchObject({
+    code: "unsupported-explain-option",
+    path: ["verbose"],
+  })
+  await expect(explain(query, postgres, { buffers: true })).rejects.toMatchObject({
+    code: "invalid-explain-options",
+    path: ["buffers"],
   })
   await expect(
-    Reflect.apply(explain, undefined, [mutation, postgres, { analyze: true }])
+    Reflect.apply(explain, undefined, [mutation, postgres, { analyze: true }]),
   ).rejects.toMatchObject({
-    code: 'invalid-explain-query',
-    path: ['analyze'],
+    code: "invalid-explain-query",
+    path: ["analyze"],
   })
   await expect(
-    explain(query, mysql, { analyze: true, format: 'json' })
+    explain(query, mysql, {
+      analyze: true,
+      format: "json",
+    }),
   ).rejects.toMatchObject({
-    code: 'invalid-explain-options',
-    path: ['analyze', 'format'],
+    code: "invalid-explain-options",
+    path: ["analyze", "format"],
   })
 
   const standard: ExplainableQueryAdapter<PlanRow> = {
@@ -188,13 +186,14 @@ test('reports unsupported and invalid EXPLAIN options', async () => {
       return { rows: [] }
     },
   }
+
   await expect(explain(query, standard)).rejects.toMatchObject({
-    code: 'unsupported-explain-dialect',
-    path: ['dialect'],
+    code: "unsupported-explain-dialect",
+    path: ["dialect"],
   })
 })
 
-test('adds explain to a bound explainable client', async () => {
+test("adds explain to a bound explainable client", async () => {
   let received: ExplainRequest | undefined
   const adapter: ExplainableQueryAdapter<PlanRow> = {
     dialect: postgresDialect(),
@@ -203,12 +202,12 @@ test('adds explain to a bound explainable client', async () => {
     },
     async explain(request) {
       received = request
-      return { rows: [{ plan: 'Seq Scan' }] }
+      return { rows: [{ plan: "Seq Scan" }] }
     },
   }
 
   const result = await qubu(adapter).explain(query)
 
-  expect(result).toEqual({ rows: [{ plan: 'Seq Scan' }] })
-  expect(received?.queryKind).toBe('select')
+  expect(result).toEqual({ rows: [{ plan: "Seq Scan" }] })
+  expect(received?.queryKind).toBe("select")
 })

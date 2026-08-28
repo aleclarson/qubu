@@ -1,24 +1,21 @@
-import { identifier } from '../core/primitives/identifier.ts'
-import { resolveSqlNames } from '../core/naming.ts'
 import type {
   DependenciesOf,
   HasAggregate,
   HasSubquery,
   HasWindow,
   SqlTypeOf,
-} from '../core/fragment.ts'
+} from "../core/fragment.ts"
+import { resolveSqlNames } from "../core/naming.ts"
+import { identifier } from "../core/primitives/identifier.ts"
+import type { SqlBoolean } from "../core/sql-types.ts"
 import {
   createColumnReference,
   type ColumnDependency,
   type ColumnReference,
-} from '../expressions/column.ts'
-import {
-  createSource,
-  exposeColumns,
-  type Source,
-  type SourceColumns,
-  type SourceIdentity,
-} from './source.ts'
+} from "../expressions/column.ts"
+import type { AnyExpression } from "../expressions/types.ts"
+import type { OrderTerm } from "../query/clauses/order-by.ts"
+import type { DeclaredColumnNullability } from "./column-nullability.ts"
 import {
   type ColumnDefinition,
   type ColumnHasDefault,
@@ -29,8 +26,7 @@ import {
   type ColumnSqlType,
   type ColumnUpdateInput,
   columnResultValue,
-} from './column.ts'
-import type { DeclaredColumnNullability } from './column-nullability.ts'
+} from "./column.ts"
 import type {
   CheckConstraint,
   ForeignKeyConstraint,
@@ -38,12 +34,16 @@ import type {
   KeyConstraint,
   UniqueConstraint,
   SourceConstraintsRecord,
-} from './constraints.ts'
-import type { IndexTerm, SourceIndexesRecord } from './indexes.ts'
-import { materializeSchemaObjectRecord } from './metadata.ts'
-import type { AnyExpression } from '../expressions/types.ts'
-import type { SqlBoolean } from '../core/sql-types.ts'
-import type { OrderTerm } from '../query/clauses/order-by.ts'
+} from "./constraints.ts"
+import type { IndexTerm, SourceIndexesRecord } from "./indexes.ts"
+import { materializeSchemaObjectRecord } from "./metadata.ts"
+import {
+  createSource,
+  exposeColumns,
+  type Source,
+  type SourceColumns,
+  type SourceIdentity,
+} from "./source.ts"
 
 export type TableDefinitions = Record<string, ColumnDefinition<any>>
 
@@ -77,25 +77,19 @@ type OptionalInsertKeys<TDefinitions extends TableDefinitions> = Exclude<
 >
 
 export type TableInsertInput<TDefinitions extends TableDefinitions> = {
-  -readonly [K in RequiredInsertKeys<TDefinitions>]: ColumnInsertInput<
-    TDefinitions[K]
-  >
+  -readonly [K in RequiredInsertKeys<TDefinitions>]: ColumnInsertInput<TDefinitions[K]>
 } & {
-  -readonly [K in OptionalInsertKeys<TDefinitions>]?: ColumnInsertInput<
-    TDefinitions[K]
-  >
+  -readonly [K in OptionalInsertKeys<TDefinitions>]?: ColumnInsertInput<TDefinitions[K]>
 }
 
 export type TableUpdateInput<TDefinitions extends TableDefinitions> = {
-  -readonly [K in keyof TDefinitions as ColumnIsGenerated<
-    TDefinitions[K]
-  > extends true
+  -readonly [K in keyof TDefinitions as ColumnIsGenerated<TDefinitions[K]> extends true
     ? never
     : K]?: ColumnUpdateInput<TDefinitions[K]>
 }
 
 export type TableIdentity<TName extends string> = {
-  readonly sourceKind: 'table'
+  readonly sourceKind: "table"
   readonly tableName: TName
 }
 
@@ -152,10 +146,7 @@ type InvalidConstraintDependencies<
   ColumnDependency<TableIdentity<TName>, string>
 >
 
-type InvalidExpression<
-  TExpression,
-  TName extends string,
-> = TExpression extends AnyExpression
+type InvalidExpression<TExpression, TName extends string> = TExpression extends AnyExpression
   ? Exclude<
       DependenciesOf<TExpression>,
       ColumnDependency<TableIdentity<TName>, string>
@@ -187,7 +178,7 @@ type SameColumnTuple<
     ? true
     : false
 
-type IndexTermExpression<T> = T extends OrderTerm<any> ? T['expression'] : T
+type IndexTermExpression<T> = T extends OrderTerm<any> ? T["expression"] : T
 type IndexColumns<TTerms extends readonly IndexTerm[]> = {
   [K in keyof TTerms]: IndexTermExpression<TTerms[K]>
 }
@@ -199,14 +190,8 @@ type IndexIncludedColumns<TIndex> = TIndex extends {
     : never
   : never
 
-type InvalidIncludedColumns<
-  TIncluded,
-  TName extends string,
-> = TIncluded extends readonly unknown[]
-  ? Exclude<
-      DependenciesOf<TIncluded[number]>,
-      ColumnDependency<TableIdentity<TName>, string>
-    >
+type InvalidIncludedColumns<TIncluded, TName extends string> = TIncluded extends readonly unknown[]
+  ? Exclude<DependenciesOf<TIncluded[number]>, ColumnDependency<TableIdentity<TName>, string>>
   : never
 
 type ConstraintsOf<T> = T extends {
@@ -220,23 +205,22 @@ type IndexesOf<T> = T extends {
   ? TIndexes
   : {}
 
-type HasMatchingConstraint<TColumns, TConstraints> =
-  TConstraints extends SourceConstraintsRecord
-    ? true extends {
-        [K in keyof TConstraints]: TConstraints[K] extends infer TConstraint
-          ? TConstraint extends {
-              readonly kind: 'primary-key' | 'unique'
-              readonly columns: infer TCandidate extends readonly unknown[]
-            }
-            ? TColumns extends readonly unknown[]
-              ? SameColumnTuple<TColumns, TCandidate>
-              : false
+type HasMatchingConstraint<TColumns, TConstraints> = TConstraints extends SourceConstraintsRecord
+  ? true extends {
+      [K in keyof TConstraints]: TConstraints[K] extends infer TConstraint
+        ? TConstraint extends {
+            readonly kind: "primary-key" | "unique"
+            readonly columns: infer TCandidate extends readonly unknown[]
+          }
+          ? TColumns extends readonly unknown[]
+            ? SameColumnTuple<TColumns, TCandidate>
             : false
           : false
-      }[keyof TConstraints]
-      ? true
-      : false
+        : false
+    }[keyof TConstraints]
+    ? true
     : false
+  : false
 
 type HasMatchingIndex<TColumns, TIndexes> = TIndexes extends SourceIndexesRecord
   ? true extends {
@@ -262,11 +246,11 @@ type TargetMetadata<
   TName extends string,
   TConstraints extends SourceConstraintsRecord,
   TIndexes extends SourceIndexesRecord,
-> = [SourceIdentity<TTarget['table']>] extends [TableIdentity<TName>]
-  ? [TableIdentity<TName>] extends [SourceIdentity<TTarget['table']>]
+> = [SourceIdentity<TTarget["table"]>] extends [TableIdentity<TName>]
+  ? [TableIdentity<TName>] extends [SourceIdentity<TTarget["table"]>]
     ? readonly [TConstraints, TIndexes]
-    : readonly [ConstraintsOf<TTarget['table']>, IndexesOf<TTarget['table']>]
-  : readonly [ConstraintsOf<TTarget['table']>, IndexesOf<TTarget['table']>]
+    : readonly [ConstraintsOf<TTarget["table"]>, IndexesOf<TTarget["table"]>]
+  : readonly [ConstraintsOf<TTarget["table"]>, IndexesOf<TTarget["table"]>]
 
 type InvalidForeignKey<
   TConstraint extends ForeignKeyConstraint,
@@ -274,24 +258,19 @@ type InvalidForeignKey<
   TConstraints extends SourceConstraintsRecord,
   TIndexes extends SourceIndexesRecord,
 > =
-  ResolvedTarget<TConstraint['target']> extends infer TTarget
+  ResolvedTarget<TConstraint["target"]> extends infer TTarget
     ? TTarget extends ForeignKeyTarget
       ? Exclude<
-          DependenciesOf<TTarget['columns'][number]>,
-          ColumnDependency<SourceIdentity<TTarget['table']>, string>
+          DependenciesOf<TTarget["columns"][number]>,
+          ColumnDependency<SourceIdentity<TTarget["table"]>, string>
         > extends never
-        ? TargetMetadata<
-            TTarget,
-            TName,
-            TConstraints,
-            TIndexes
-          > extends readonly [infer TTargetConstraints, infer TTargetIndexes]
-          ? HasMatchingConstraint<
-              TTarget['columns'],
-              TTargetConstraints
-            > extends true
+        ? TargetMetadata<TTarget, TName, TConstraints, TIndexes> extends readonly [
+            infer TTargetConstraints,
+            infer TTargetIndexes,
+          ]
+          ? HasMatchingConstraint<TTarget["columns"], TTargetConstraints> extends true
             ? never
-            : HasMatchingIndex<TTarget['columns'], TTargetIndexes> extends true
+            : HasMatchingIndex<TTarget["columns"], TTargetIndexes> extends true
               ? never
               : TConstraint
           : TConstraint
@@ -335,9 +314,7 @@ type InvalidIndex<TIndex, TName extends string> = TIndex extends {
 type InvalidIndexes<
   TName extends string,
   TIndexes extends SourceIndexesRecord,
-> = TIndexes[keyof TIndexes] extends infer TIndex
-  ? InvalidIndex<TIndex, TName>
-  : never
+> = TIndexes[keyof TIndexes] extends infer TIndex ? InvalidIndex<TIndex, TName> : never
 
 type ConstraintValidation<
   TName extends string,
@@ -349,17 +326,10 @@ type ConstraintValidation<
       ? unknown
       : { readonly __invalid_indexes__: InvalidIndexes<TName, TIndexes> }
     : {
-        readonly __invalid_constraints__: InvalidConstraints<
-          TName,
-          TConstraints,
-          TIndexes
-        >
+        readonly __invalid_constraints__: InvalidConstraints<TName, TConstraints, TIndexes>
       }
   : {
-      readonly __invalid_constraint_columns__: InvalidConstraintDependencies<
-        TName,
-        TConstraints
-      >
+      readonly __invalid_constraint_columns__: InvalidConstraintDependencies<TName, TConstraints>
     }
 
 export type TableMetadataCallback<
@@ -368,14 +338,13 @@ export type TableMetadataCallback<
   TConstraints extends SourceConstraintsRecord,
   TIndexes extends SourceIndexesRecord,
 > = (
-  table: Table<TName, TDefinitions>
-) => TableOptions<TConstraints, TIndexes> &
-  ConstraintValidation<TName, TConstraints, TIndexes>
+  table: Table<TName, TDefinitions>,
+) => TableOptions<TConstraints, TIndexes> & ConstraintValidation<TName, TConstraints, TIndexes>
 
-export function table<
-  const TName extends string,
-  const TDefinitions extends TableDefinitions,
->(name: TName, definitions: TDefinitions): Table<TName, TDefinitions>
+export function table<const TName extends string, const TDefinitions extends TableDefinitions>(
+  name: TName,
+  definitions: TDefinitions,
+): Table<TName, TDefinitions>
 export function table<
   const TName extends string,
   const TDefinitions extends TableDefinitions,
@@ -384,7 +353,7 @@ export function table<
 >(
   name: TName,
   definitions: TDefinitions,
-  metadata: TableMetadataCallback<TName, TDefinitions, TConstraints, TIndexes>
+  metadata: TableMetadataCallback<TName, TDefinitions, TConstraints, TIndexes>,
 ): Table<TName, TDefinitions, TConstraints, TIndexes>
 export function table<
   const TName extends string,
@@ -394,37 +363,38 @@ export function table<
 >(
   name: TName,
   definitions: TDefinitions,
-  metadata?: TableMetadataCallback<TName, TDefinitions, TConstraints, TIndexes>
+  metadata?: TableMetadataCallback<TName, TDefinitions, TConstraints, TIndexes>,
 ): Table<TName, TDefinitions, TConstraints, TIndexes> {
   type TIdentity = TableIdentity<TName>
   type TRow = TableRow<TDefinitions>
   type TSqlTypes = TableSqlTypes<TDefinitions>
 
   const source = createSource<TIdentity, TRow, never, TSqlTypes>(
-    'table',
-    context => context.render(identifier(name)),
-    identifier(name)
+    "table",
+    (context) => context.render(identifier(name)),
+    identifier(name),
   )
 
   const sqlNames = resolveSqlNames(
     Object.entries(definitions).map(([fieldName, definition]) => ({
       fieldName,
       sqlName: definition.sqlName,
-    }))
+    })),
   )
   const columns = Object.fromEntries(
-    Object.keys(definitions).map(fieldName => {
+    Object.keys(definitions).map((fieldName) => {
       const sqlName = sqlNames[fieldName]
+
       return [
         fieldName,
         createColumnReference(
           sqlName,
           source.reference,
           fieldName,
-          columnResultValue(definitions[fieldName])
+          columnResultValue(definitions[fieldName]),
         ) as ColumnReference<string, any>,
       ]
-    })
+    }),
   ) as TableColumns<TDefinitions, TIdentity>
 
   Object.assign(source, {
@@ -442,10 +412,13 @@ export function table<
 
   const resolvedMetadata = metadata
     ? metadata(source as Table<TName, TDefinitions>)
-    : ({ constraints: {}, indexes: {} } as TableOptions<TConstraints, TIndexes>)
+    : ({
+        constraints: {},
+        indexes: {},
+      } as TableOptions<TConstraints, TIndexes>)
   const constraints = materializeSchemaObjectRecord(
     resolvedMetadata.constraints,
-    'constraint'
+    "constraint",
   ) as TConstraints
   const indexes = Object.fromEntries(
     Object.entries(resolvedMetadata.indexes).map(([indexName, tableIndex]) => {
@@ -453,20 +426,25 @@ export function table<
         tableIndex.unique &&
         tableIndex.predicate === undefined &&
         tableIndex.terms.every((term: IndexTerm) => {
-          const expression = 'orderKind' in term ? term.expression : term
+          const expression = "orderKind" in term ? term.expression : term
+
           return (
-            expression.expressionKind === 'column' &&
-            definitions[(expression as ColumnReference).fieldName]?.nullable ===
-              false
+            expression.expressionKind === "column" &&
+            definitions[(expression as ColumnReference).fieldName]?.nullable === false
           )
         })
-      return [indexName, Object.freeze({ ...tableIndex, candidateKey })]
-    })
+
+      return [
+        indexName,
+        Object.freeze({
+          ...tableIndex,
+          candidateKey,
+        }),
+      ]
+    }),
   ) as TIndexes
-  const namedIndexes = materializeSchemaObjectRecord(
-    indexes,
-    'index'
-  ) as TIndexes
+  const namedIndexes = materializeSchemaObjectRecord(indexes, "index") as TIndexes
+
   Object.assign(source, {
     ...resolvedMetadata,
     constraints,

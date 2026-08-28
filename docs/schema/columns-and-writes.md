@@ -17,9 +17,9 @@ Use `column<Output, Insert, Update>()` when the driver returns a different type
 from the type the application writes:
 
 ```ts
-import { column, integer, table, text } from 'qubu'
+import { column, integer, table, text } from "qubu"
 
-const accounts = table('accounts', {
+const accounts = table("accounts", {
   id: integer({ generated: true }),
   email: text(),
   nickname: text({ nullable: true, hasDefault: true }),
@@ -36,27 +36,19 @@ The legacy hasDefault and generated flags describe the write contract. Use
 complete metadata when schema tooling also needs the database fact:
 
 ```ts
-import {
-  boolean,
-  generatedColumn,
-  identityColumn,
-  integer,
-  table,
-  text,
-  value,
-} from 'qubu'
-import { defineSchemaExpression } from 'qubu/schema'
+import { boolean, generatedColumn, identityColumn, integer, table, text, value } from "qubu"
+import { defineSchemaExpression } from "qubu/schema"
 
-const currentTimestamp = defineSchemaExpression('function', context => {
-  context.append('CURRENT_TIMESTAMP')
+const currentTimestamp = defineSchemaExpression("function", (context) => {
+  context.append("CURRENT_TIMESTAMP")
 })
 
-const accounts = table('accounts', {
-  id: integer({ identity: identityColumn('always') }),
-  status: text({ default: 'pending' }),
+const accounts = table("accounts", {
+  id: integer({ identity: identityColumn("always") }),
+  status: text({ default: "pending" }),
   active: boolean({ default: true }),
   score: integer({
-    generatedColumn: generatedColumn(value(1), 'stored'),
+    generatedColumn: generatedColumn(value(1), "stored"),
   }),
   createdAt: text({
     default: currentTimestamp,
@@ -90,10 +82,10 @@ Use `$type<T>()` to narrow a helper's TypeScript type without changing its
 runtime column definition:
 
 ```ts
-import { table, text } from 'qubu'
+import { table, text } from "qubu"
 
-const users = table('users', {
-  status: text().$type<'active' | 'disabled'>(),
+const users = table("users", {
+  status: text().$type<"active" | "disabled">(),
 })
 ```
 
@@ -106,14 +98,14 @@ does not validate values at runtime or add a database constraint.
 code. The following example uses the accounts table from the earlier example:
 
 ```ts
-import type { TableInsertInput, TableUpdateInput } from 'qubu'
+import type { TableInsertInput, TableUpdateInput } from "qubu"
 
 type AccountInsert = TableInsertInput<typeof accounts.definitions>
 type AccountUpdate = TableUpdateInput<typeof accounts.definitions>
 
 const insert: AccountInsert = {
-  email: 'ada@example.com',
-  externalScore: '10',
+  email: "ada@example.com",
+  externalScore: "10",
 }
 
 const update: AccountUpdate = {

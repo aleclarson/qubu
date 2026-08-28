@@ -1,27 +1,29 @@
-import type { DialectJson, JsonScalarKind } from '../core/dialect.ts'
-import type { AnyFragment, RenderContext } from '../core/fragment.ts'
+import type { DialectJson, JsonScalarKind } from "../core/dialect.ts"
+import type { AnyFragment, RenderContext } from "../core/fragment.ts"
 
 function jsonPath(path: readonly (string | number)[]) {
   return path.reduce<string>(
     (result, segment) =>
-      typeof segment === 'number'
+      typeof segment === "number"
         ? `${result}[${segment}]`
         : `${result}.${JSON.stringify(segment)}`,
-    '$'
+    "$",
   )
 }
 
 function appendPath(
   context: RenderContext,
   path: readonly (string | number)[],
-  requiredType?: JsonScalarKind
+  requiredType?: JsonScalarKind,
 ) {
   context.append("'")
   context.append(jsonPath(path).replaceAll("'", "''"))
   if (requiredType) {
-    const type = requiredType === 'text' ? 'string' : requiredType
+    const type = requiredType === "text" ? "string" : requiredType
+
     context.append(` ? (@.type() == "${type}")`)
   }
+
   context.append("'")
 }
 
@@ -30,11 +32,11 @@ function renderSqlJsonValue(
   document: AnyFragment,
   path: readonly (string | number)[],
   returning: string,
-  requiredType?: JsonScalarKind
+  requiredType?: JsonScalarKind,
 ) {
-  context.append('JSON_VALUE(')
+  context.append("JSON_VALUE(")
   context.render(document)
-  context.append(', ')
+  context.append(", ")
   appendPath(context, path, requiredType)
   context.append(` RETURNING ${returning} NULL ON EMPTY NULL ON ERROR)`)
 }
@@ -42,58 +44,57 @@ function renderSqlJsonValue(
 export const standardJson: DialectJson = {
   renderScalar(context, document, path, kind) {
     const returning =
-      kind === 'text'
-        ? 'VARCHAR(512)'
-        : kind === 'number'
-          ? 'DOUBLE PRECISION'
-          : 'BOOLEAN'
+      kind === "text" ? "VARCHAR(512)" : kind === "number" ? "DOUBLE PRECISION" : "BOOLEAN"
+
     renderSqlJsonValue(context, document, path, returning, kind)
   },
   renderExists(context, document, path) {
-    context.append('COALESCE(JSON_EXISTS(')
+    context.append("COALESCE(JSON_EXISTS(")
     context.render(document)
-    context.append(', ')
+    context.append(", ")
     appendPath(context, path)
-    context.append(' FALSE ON ERROR), FALSE)')
+    context.append(" FALSE ON ERROR), FALSE)")
   },
 }
 
 function renderPostgresTarget(
   context: RenderContext,
   document: AnyFragment,
-  path: readonly (string | number)[]
+  path: readonly (string | number)[],
 ) {
-  context.append('jsonb_path_query_first(CAST(')
+  context.append("jsonb_path_query_first(CAST(")
   context.render(document)
-  context.append(' AS JSONB), ')
+  context.append(" AS JSONB), ")
   appendPath(context, path)
-  context.append(')')
+  context.append(")")
 }
 
 function postgresType(kind: JsonScalarKind) {
-  return kind === 'text' ? 'string' : kind
+  return kind === "text" ? "string" : kind
 }
 
 export const postgresJson: DialectJson = {
   renderScalar(context, document, path, kind) {
-    context.append('(CASE jsonb_typeof(')
+    context.append("(CASE jsonb_typeof(")
     renderPostgresTarget(context, document, path)
     context.append(`) WHEN '${postgresType(kind)}' THEN `)
-    if (kind !== 'text') context.append('CAST(')
-    context.append('(')
+    if (kind !== "text") {
+      context.append("CAST(")
+    }
+
+    context.append("(")
     renderPostgresTarget(context, document, path)
     context.append(" #>> '{}')")
-    if (kind !== 'text') {
-      context.append(
-        kind === 'number' ? ' AS DOUBLE PRECISION)' : ' AS BOOLEAN)'
-      )
+    if (kind !== "text") {
+      context.append(kind === "number" ? " AS DOUBLE PRECISION)" : " AS BOOLEAN)")
     }
-    context.append(' END)')
+
+    context.append(" END)")
   },
   renderExists(context, document, path) {
-    context.append('COALESCE(jsonb_path_exists(CAST(')
+    context.append("COALESCE(jsonb_path_exists(CAST(")
     context.render(document)
-    context.append(' AS JSONB), ')
+    context.append(" AS JSONB), ")
     appendPath(context, path)
     context.append(", '{}'::JSONB, TRUE), FALSE)")
   },
@@ -102,75 +103,81 @@ export const postgresJson: DialectJson = {
 function renderMySqlExtract(
   context: RenderContext,
   document: AnyFragment,
-  path: readonly (string | number)[]
+  path: readonly (string | number)[],
 ) {
-  context.append('JSON_EXTRACT(')
+  context.append("JSON_EXTRACT(")
   context.render(document)
-  context.append(', ')
+  context.append(", ")
   appendPath(context, path)
-  context.append(')')
+  context.append(")")
 }
 
 function mysqlType(kind: JsonScalarKind) {
-  return kind === 'text' ? 'STRING' : kind === 'number' ? 'INTEGER' : 'BOOLEAN'
+  return kind === "text" ? "STRING" : kind === "number" ? "INTEGER" : "BOOLEAN"
 }
 
 export const mysqlJson: DialectJson = {
   renderScalar(context, document, path, kind) {
-    context.append('(CASE JSON_TYPE(')
+    context.append("(CASE JSON_TYPE(")
     renderMySqlExtract(context, document, path)
     context.append(`) WHEN '${mysqlType(kind)}' THEN `)
-    if (kind === 'boolean') context.append('(')
+    if (kind === "boolean") {
+      context.append("(")
+    }
+
     renderSqlJsonValue(
       context,
       document,
       path,
-      kind === 'text' ? 'CHAR' : kind === 'number' ? 'DOUBLE' : 'CHAR'
+      kind === "text" ? "CHAR" : kind === "number" ? "DOUBLE" : "CHAR",
     )
-    if (kind === 'boolean') context.append(" = 'true')")
-    context.append(' END)')
+    if (kind === "boolean") {
+      context.append(" = 'true')")
+    }
+
+    context.append(" END)")
   },
   renderExists(context, document, path) {
-    context.append('COALESCE(JSON_CONTAINS_PATH(')
+    context.append("COALESCE(JSON_CONTAINS_PATH(")
     context.render(document)
     context.append(", 'one', ")
     appendPath(context, path)
-    context.append('), FALSE)')
+    context.append("), FALSE)")
   },
 }
 
 function renderSqliteExtract(
   context: RenderContext,
   document: AnyFragment,
-  path: readonly (string | number)[]
+  path: readonly (string | number)[],
 ) {
-  context.append('json_extract(')
+  context.append("json_extract(")
   context.render(document)
-  context.append(', ')
+  context.append(", ")
   appendPath(context, path)
-  context.append(')')
+  context.append(")")
 }
 
 function renderSqliteType(
   context: RenderContext,
   document: AnyFragment,
-  path: readonly (string | number)[]
+  path: readonly (string | number)[],
 ) {
-  context.append('json_type(')
+  context.append("json_type(")
   context.render(document)
-  context.append(', ')
+  context.append(", ")
   appendPath(context, path)
-  context.append(')')
+  context.append(")")
 }
 
 export const sqliteJson: DialectJson = {
   renderScalar(context, document, path, kind) {
-    context.append('(CASE ')
+    context.append("(CASE ")
     renderSqliteType(context, document, path)
-    if (kind === 'text') {
+    if (kind === "text") {
       context.append(" WHEN 'text' THEN ")
       renderSqliteExtract(context, document, path)
-    } else if (kind === 'number') {
+    } else if (kind === "number") {
       context.append(" WHEN 'integer' THEN ")
       renderSqliteExtract(context, document, path)
       context.append(" WHEN 'real' THEN ")
@@ -178,11 +185,12 @@ export const sqliteJson: DialectJson = {
     } else {
       context.append(" WHEN 'true' THEN TRUE WHEN 'false' THEN FALSE")
     }
-    context.append(' END)')
+
+    context.append(" END)")
   },
   renderExists(context, document, path) {
-    context.append('(')
+    context.append("(")
     renderSqliteType(context, document, path)
-    context.append(' IS NOT NULL)')
+    context.append(" IS NOT NULL)")
   },
 }

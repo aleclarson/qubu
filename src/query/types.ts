@@ -5,13 +5,13 @@ import {
   type QueryCardinality,
   type ResultMeta,
   type RenderFunction,
-} from '../core/fragment.ts'
-import type { SourceSqlTypes, UnknownSourceSqlTypes } from '../schema/source.ts'
-import type { ResultShape } from '../result.ts'
+} from "../core/fragment.ts"
+import type { ResultShape } from "../result.ts"
+import type { SourceSqlTypes, UnknownSourceSqlTypes } from "../schema/source.ts"
 
 export type Row = Record<string, unknown>
 
-export type QueryKind = 'select' | 'set' | 'insert' | 'update' | 'delete'
+export type QueryKind = "select" | "set" | "insert" | "update" | "delete"
 
 /** Sparse type-level configuration carried by a query. */
 export interface QueryConfig {
@@ -21,33 +21,27 @@ export interface QueryConfig {
   readonly sqlTypes?: unknown
 }
 
-type QueryConfigValue<
-  TConfig,
-  TKey extends PropertyKey,
-  TFallback,
-> = TKey extends keyof TConfig ? TConfig[TKey] : TFallback
+type QueryConfigValue<TConfig, TKey extends PropertyKey, TFallback> = TKey extends keyof TConfig
+  ? TConfig[TKey]
+  : TFallback
 
-type QueryConfigRow<TConfig> = Extract<
-  QueryConfigValue<TConfig, 'row', Row>,
-  object
->
+type QueryConfigRow<TConfig> = Extract<QueryConfigValue<TConfig, "row", Row>, object>
 type QueryConfigCardinality<TConfig> = Extract<
-  QueryConfigValue<TConfig, 'cardinality', QueryCardinality>,
+  QueryConfigValue<TConfig, "cardinality", QueryCardinality>,
   QueryCardinality
 >
-type QueryConfigMetadata<TConfig> = QueryConfigValue<TConfig, 'metadata', never>
+type QueryConfigMetadata<TConfig> = QueryConfigValue<TConfig, "metadata", never>
 type QueryConfigSqlTypes<TConfig> = QueryConfigValue<
   TConfig,
-  'sqlTypes',
+  "sqlTypes",
   SourceSqlTypes<QueryConfigRow<TConfig>>
 >
 
-export interface Query<TConfig extends QueryConfig = {}>
-  extends Fragment<
-    | ResultMeta<readonly QueryConfigRow<TConfig>[]>
-    | CardinalityMeta<QueryConfigCardinality<TConfig>>
-    | QueryConfigMetadata<TConfig>
-  > {
+export interface Query<TConfig extends QueryConfig = {}> extends Fragment<
+  | ResultMeta<readonly QueryConfigRow<TConfig>[]>
+  | CardinalityMeta<QueryConfigCardinality<TConfig>>
+  | QueryConfigMetadata<TConfig>
+> {
   /** @internal Type-level configuration retained for inference. */
   readonly __queryConfig?: TConfig
   readonly queryKind: QueryKind
@@ -65,9 +59,7 @@ export type QueryWithRow<TRow extends object> = Query<{
   readonly metadata: any
   readonly sqlTypes: any
 }>
-export type QueryRow<T> = T extends { readonly row: infer TRow extends object }
-  ? TRow
-  : never
+export type QueryRow<T> = T extends { readonly row: infer TRow extends object } ? TRow : never
 /** Extract the field-to-SQL-domain map retained by a named query projection. */
 export type QuerySqlTypeMap<T> = T extends {
   readonly row: infer TRow extends object
@@ -78,14 +70,14 @@ export type QuerySqlTypeMap<T> = T extends {
 
 export function createQuery<
   TRow extends object,
-  TCardinality extends QueryCardinality = 'many',
+  TCardinality extends QueryCardinality = "many",
   TMetadata = never,
   TSqlTypes = UnknownSourceSqlTypes<TRow>,
 >(
   queryKind: QueryKind,
   row: TRow,
   resultShape: ResultShape,
-  render: RenderFunction
+  render: RenderFunction,
 ): Query<{
   readonly row: TRow
   readonly cardinality: TCardinality
@@ -96,9 +88,7 @@ export function createQuery<
     queryKind,
     row,
     resultShape,
-    ...fragment<
-      ResultMeta<readonly TRow[]> | CardinalityMeta<TCardinality> | TMetadata
-    >(render),
+    ...fragment<ResultMeta<readonly TRow[]> | CardinalityMeta<TCardinality> | TMetadata>(render),
   }) as Query<{
     readonly row: TRow
     readonly cardinality: TCardinality

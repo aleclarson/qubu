@@ -7,10 +7,7 @@
 Import the adapter from the optional snapshot entrypoint:
 
 ```ts
-import {
-  createMysqlSchemaSnapshot,
-  tryCreateMysqlSchemaSnapshot,
-} from 'qubu/snapshot'
+import { createMysqlSchemaSnapshot, tryCreateMysqlSchemaSnapshot } from "qubu/snapshot"
 
 const snapshot = createMysqlSchemaSnapshot(appSchema)
 const result = tryCreateMysqlSchemaSnapshot(appSchema)
@@ -44,7 +41,7 @@ a schema may include a MySQL engine or version-specific feature:
 const result = tryCreateMysqlSchemaSnapshot(appSchema)
 if (!result.ok) {
   for (const issue of result.diagnostics) {
-    console.error(issue.path.join('.'), issue.code, issue.message)
+    console.error(issue.path.join("."), issue.code, issue.message)
   }
 }
 ```

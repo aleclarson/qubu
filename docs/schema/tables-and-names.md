@@ -12,17 +12,17 @@ record keys become logical table IDs and stay stable when a physical SQL name
 changes:
 
 ```ts
-import { integer, schema, table, text } from 'qubu'
+import { integer, schema, table, text } from "qubu"
 
-const accounts = table('account_records', {
+const accounts = table("account_records", {
   id: integer(),
   email: text(),
 })
-const memberships = table('membership_records', {
+const memberships = table("membership_records", {
   accountId: integer(),
 })
 
-const appSchema = schema({ accounts, memberships }, { namespace: 'public' })
+const appSchema = schema({ accounts, memberships }, { namespace: "public" })
 ```
 
 appSchema.registry.accounts.id is "accounts", while the physical table name is
@@ -47,17 +47,14 @@ Write schema keys in camelCase. Qubu converts them to snake_case in SQL, then
 uses the camelCase keys in the returned row:
 
 ```ts
-import { from, select, table, timestamp, uuid } from 'qubu'
+import { from, select, table, timestamp, uuid } from "qubu"
 
-const events = table('events', {
+const events = table("events", {
   userId: uuid(),
   createdAt: timestamp(),
 })
 
-const query = select(
-  { userId: events.userId, createdAt: events.createdAt },
-  from(events)
-)
+const query = select({ userId: events.userId, createdAt: events.createdAt }, from(events))
 ```
 
 The query selects "events"."user_id" and "events"."created_at", then aliases
@@ -76,8 +73,8 @@ Prefer `userId` and `apiKey` when you control the TypeScript name. Use `sqlName`
 the database name does not follow the convention:
 
 ```ts
-const events = table('events', {
-  createdAt: timestamp({ sqlName: 'creation_timestamp' }),
+const events = table("events", {
+  createdAt: timestamp({ sqlName: "creation_timestamp" }),
 })
 ```
 
@@ -89,9 +86,9 @@ their projected names stay snake_case. Only the outer result projection uses
 camelCase aliases. Pass the database relation name explicitly:
 
 ```ts
-import { table, uuid } from 'qubu'
+import { table, uuid } from "qubu"
 
-const accounts = table('user_accounts', {
+const accounts = table("user_accounts", {
   id: uuid(),
 })
 ```

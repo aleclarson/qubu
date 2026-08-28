@@ -1,4 +1,5 @@
-import { expect, test } from 'vitest'
+import { expect, test } from "vitest"
+
 import {
   check,
   eq,
@@ -10,41 +11,41 @@ import {
   table,
   text,
   uniqueConstraint,
-} from '../src/index.ts'
-import { SchemaMetadataValidationError } from '../src/schema/metadata.ts'
-import { validateConstraintDialect } from '../src/schema/constraints.ts'
-import { validateIndexDialect } from '../src/schema/indexes.ts'
+} from "../src/index.ts"
+import { validateConstraintDialect } from "../src/schema/constraints.ts"
+import { validateIndexDialect } from "../src/schema/indexes.ts"
+import { SchemaMetadataValidationError } from "../src/schema/metadata.ts"
 
-test('materializes relational IDs and physical names without changing legacy shape', () => {
+test("materializes relational IDs and physical names without changing legacy shape", () => {
   const accounts = table(
-    'accounts',
+    "accounts",
     {
       id: integer(),
       code: text({ nullable: true }),
       displayName: text(),
     },
-    accounts => ({
+    (accounts) => ({
       constraints: {
         accountsPrimary: primaryKey(accounts.id, {
-          physicalName: 'accounts_pk',
+          physicalName: "accounts_pk",
           deferrable: true,
-          initially: 'deferred',
+          initially: "deferred",
         }),
         accountsCodeUnique: uniqueConstraint(accounts.code, {
-          nulls: 'distinct',
-          physicalName: 'accounts_code_uq',
+          nulls: "distinct",
+          physicalName: "accounts_code_uq",
         }),
-        accountsDisplayCheck: check(eq(accounts.displayName, 'accounts'), {
-          physicalName: 'accounts_display_check',
+        accountsDisplayCheck: check(eq(accounts.displayName, "accounts"), {
+          physicalName: "accounts_display_check",
         }),
       },
       indexes: {
         accountsCodeIndex: index([accounts.code], {
-          physicalName: 'accounts_code_idx',
+          physicalName: "accounts_code_idx",
           include: [accounts.displayName],
         }),
       },
-    })
+    }),
   )
 
   const primary = accounts.constraints.accountsPrimary
@@ -53,39 +54,37 @@ test('materializes relational IDs and physical names without changing legacy sha
   const codeIndex = accounts.indexes.accountsCodeIndex
 
   expect(primary).toMatchObject({
-    kind: 'primary-key',
+    kind: "primary-key",
     columns: [accounts.id],
     deferrable: true,
-    initially: 'deferred',
+    initially: "deferred",
   })
   expect(nullableUnique).toMatchObject({
-    kind: 'unique-constraint',
+    kind: "unique-constraint",
     columns: [accounts.code],
-    nulls: 'distinct',
+    nulls: "distinct",
   })
-  expect(displayCheck.physicalName).toBe('accounts_display_check')
-  expect(primary.id).toBe('accountsPrimary')
-  expect(primary.physicalName).toBe('accounts_pk')
-  expect(nullableUnique.id).toBe('accountsCodeUnique')
-  expect(nullableUnique.physicalName).toBe('accounts_code_uq')
-  expect(codeIndex.id).toBe('accountsCodeIndex')
-  expect(codeIndex.physicalName).toBe('accounts_code_idx')
+  expect(displayCheck.physicalName).toBe("accounts_display_check")
+  expect(primary.id).toBe("accountsPrimary")
+  expect(primary.physicalName).toBe("accounts_pk")
+  expect(nullableUnique.id).toBe("accountsCodeUnique")
+  expect(nullableUnique.physicalName).toBe("accounts_code_uq")
+  expect(codeIndex.id).toBe("accountsCodeIndex")
+  expect(codeIndex.physicalName).toBe("accounts_code_idx")
   expect(codeIndex.includedColumns).toEqual([accounts.displayName])
-  expect(Object.keys(primary)).toEqual([
-    'kind',
-    'columns',
-    'deferrable',
-    'initially',
-  ])
+  expect(Object.keys(primary)).toEqual(["kind", "columns", "deferrable", "initially"])
   expect(Object.isFrozen(primary)).toBe(true)
   expect(Object.isFrozen(codeIndex.includedColumns)).toBe(true)
 })
 
-test('keeps included columns outside unique candidate-key terms', () => {
+test("keeps included columns outside unique candidate-key terms", () => {
   const records = table(
-    'included_candidate_records',
-    { id: integer(), payload: text({ nullable: true }) },
-    records => ({
+    "included_candidate_records",
+    {
+      id: integer(),
+      payload: text({ nullable: true }),
+    },
+    (records) => ({
       constraints: {},
       indexes: {
         identity: index([records.id], {
@@ -93,7 +92,7 @@ test('keeps included columns outside unique candidate-key terms', () => {
           include: [records.payload],
         }),
       },
-    })
+    }),
   )
 
   expect(records.indexes.identity).toMatchObject({
@@ -103,88 +102,77 @@ test('keeps included columns outside unique candidate-key terms', () => {
   })
 })
 
-test('retains complete foreign-key options and validates target dialects', () => {
-  const accounts = table('accounts', { id: integer() }, accounts => ({
+test("retains complete foreign-key options and validates target dialects", () => {
+  const accounts = table("accounts", { id: integer() }, (accounts) => ({
     constraints: { accountsPrimary: primaryKey(accounts.id) },
     indexes: {},
   }))
-  const memberships = table(
-    'memberships',
-    { accountId: integer() },
-    memberships => ({
-      constraints: {
-        accountForeign: foreignKey(
-          [memberships.accountId],
-          references(accounts, accounts.id),
-          {
-            onUpdate: 'cascade',
-            onDelete: 'set-null',
-            match: 'full',
-            deferrable: true,
-            initially: 'deferred',
-            physicalName: 'memberships_account_fk',
-          }
-        ),
-      },
-      indexes: {},
-    })
-  )
+  const memberships = table("memberships", { accountId: integer() }, (memberships) => ({
+    constraints: {
+      accountForeign: foreignKey([memberships.accountId], references(accounts, accounts.id), {
+        onUpdate: "cascade",
+        onDelete: "set-null",
+        match: "full",
+        deferrable: true,
+        initially: "deferred",
+        physicalName: "memberships_account_fk",
+      }),
+    },
+    indexes: {},
+  }))
 
   const foreign = memberships.constraints.accountForeign
-  expect(foreign).toMatchObject({
-    kind: 'foreign-key',
-    onUpdate: 'cascade',
-    onDelete: 'set-null',
-    match: 'full',
-    deferrable: true,
-    initially: 'deferred',
-  })
-  expect(foreign.physicalName).toBe('memberships_account_fk')
 
-  const mysqlDiagnostics = validateConstraintDialect(foreign, 'mysql', [
-    'tables',
-    'memberships',
-    'constraints',
-    'accountForeign',
+  expect(foreign).toMatchObject({
+    kind: "foreign-key",
+    onUpdate: "cascade",
+    onDelete: "set-null",
+    match: "full",
+    deferrable: true,
+    initially: "deferred",
+  })
+  expect(foreign.physicalName).toBe("memberships_account_fk")
+
+  const mysqlDiagnostics = validateConstraintDialect(foreign, "mysql", [
+    "tables",
+    "memberships",
+    "constraints",
+    "accountForeign",
   ])
+
   expect(mysqlDiagnostics).toEqual([
     expect.objectContaining({
-      code: 'unsupported-dialect-option',
-      path: [
-        'tables',
-        'memberships',
-        'constraints',
-        'accountForeign',
-        'deferrable',
-      ],
+      code: "unsupported-dialect-option",
+      path: ["tables", "memberships", "constraints", "accountForeign", "deferrable"],
     }),
   ])
 })
 
-test('reports duplicate physical names and unsupported included columns', () => {
+test("reports duplicate physical names and unsupported included columns", () => {
   expect(() =>
-    table('duplicate_names', { id: integer() }, duplicateNames => ({
+    table("duplicate_names", { id: integer() }, (duplicateNames) => ({
       constraints: {
-        first: primaryKey(duplicateNames.id, { physicalName: 'same_name' }),
+        first: primaryKey(duplicateNames.id, { physicalName: "same_name" }),
         second: check(eq(duplicateNames.id, 1), {
-          physicalName: 'same_name',
+          physicalName: "same_name",
         }),
       },
       indexes: {},
-    }))
+    })),
   ).toThrow(SchemaMetadataValidationError)
 
-  const records = table('records', {
+  const records = table("records", {
     id: integer(),
     payload: text(),
   })
   const included = index([records.id], { include: [records.payload] })
-  const diagnostics = validateIndexDialect(included, 'sqlite')
+  const diagnostics = validateIndexDialect(included, "sqlite")
+
   expect(diagnostics).toEqual([
     expect.objectContaining({
-      code: 'unsupported-dialect-option',
-      path: ['index', 'includedColumns'],
-      dialect: 'sqlite',
+      code: "unsupported-dialect-option",
+      path: ["index", "includedColumns"],
+      dialect: "sqlite",
     }),
   ])
 })

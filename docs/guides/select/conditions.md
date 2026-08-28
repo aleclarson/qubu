@@ -11,14 +11,14 @@ Use `omit` as the other branch of a JavaScript conditional when a `WHERE`,
 `HAVING`, `ORDER BY`, or `DISTINCT` clause is optional:
 
 ```ts
-import { eq, from, omit, select, where } from 'qubu'
+import { eq, from, omit, select, where } from "qubu"
 
 declare const userId: number | undefined
 
 const query = select(
   { id: users.id, name: users.name },
   from(users),
-  userId === undefined ? omit : where(eq(users.id, userId))
+  userId === undefined ? omit : where(eq(users.id, userId)),
 )
 ```
 
@@ -29,14 +29,12 @@ Use the same token inside `and()`, `or()`, and `orderBy()` when individual
 predicates or ordering terms are conditional:
 
 ```ts
-import { and, desc, eq, omit, orderBy, where } from 'qubu'
+import { and, desc, eq, omit, orderBy, where } from "qubu"
 
 declare const includeName: boolean
 declare const newestFirst: boolean
 
-const filter = where(
-  and(eq(users.id, 7), includeName ? eq(users.name, 'Ada') : omit)
-)
+const filter = where(and(eq(users.id, 7), includeName ? eq(users.name, "Ada") : omit))
 const ordering = orderBy(newestFirst ? desc(users.name) : omit)
 ```
 
@@ -56,7 +54,7 @@ const query = select(
     id: users.id,
     email: includeEmail ? users.email : omit,
   },
-  from(users)
+  from(users),
 )
 
 // typeof query.row:
@@ -82,7 +80,7 @@ separate queries when those structural parts differ at runtime.
 Equality with `null` is translated to the SQL null predicate:
 
 ```ts
-import { eq, isDistinctFrom, ne } from 'qubu'
+import { eq, isDistinctFrom, ne } from "qubu"
 
 eq(users.name, null) // ... IS NULL
 ne(users.name, null) // ... IS NOT NULL

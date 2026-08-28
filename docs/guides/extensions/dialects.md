@@ -8,12 +8,12 @@ identifiers, placeholders, or pagination:
 The examples assume a query has already been built.
 
 ```ts
-import { render } from 'qubu'
-import { createDialect } from 'qubu/core'
+import { render } from "qubu"
+import { createDialect } from "qubu/core"
 
 const colonDialect = createDialect({
-  name: 'colon',
-  placeholder: position => ':p' + position,
+  name: "colon",
+  placeholder: (position) => ":p" + position,
 })
 
 render(query, colonDialect)

@@ -9,10 +9,10 @@ import type {
   SnapshotLiteral,
   SnapshotNamingPolicy,
   SnapshotStorage,
-} from './types.ts'
+} from "./types.ts"
 
 /** The stable envelope tag shared by Snapshot v1 and the complete model. */
-export const completeSchemaSnapshotFormat = 'qubu-schema' as const
+export const completeSchemaSnapshotFormat = "qubu-schema" as const
 
 /** The strict format version for the complete catalog/object model. */
 export const completeSchemaSnapshotVersion = 2 as const
@@ -26,36 +26,36 @@ export const schemaSnapshotVersion2 = completeSchemaSnapshotVersion
 
 /** Object families that may appear in a complete canonical snapshot. */
 export type CompleteSnapshotObjectKind =
-  | 'namespace'
-  | 'table'
-  | 'column'
-  | 'constraint'
-  | 'index'
-  | 'view'
-  | 'materialized-view'
-  | 'sequence'
-  | 'enum'
-  | 'domain'
-  | 'collation'
-  | 'trigger'
-  | 'routine'
-  | 'partition'
-  | 'policy'
-  | 'extension'
-  | 'comment'
-  | 'ownership'
-  | 'deferred-object'
-  | 'opaque-object'
+  | "namespace"
+  | "table"
+  | "column"
+  | "constraint"
+  | "index"
+  | "view"
+  | "materialized-view"
+  | "sequence"
+  | "enum"
+  | "domain"
+  | "collation"
+  | "trigger"
+  | "routine"
+  | "partition"
+  | "policy"
+  | "extension"
+  | "comment"
+  | "ownership"
+  | "deferred-object"
+  | "opaque-object"
 
 /** A stable logical object reference used by complete snapshot relations. */
 export interface CompleteSnapshotObjectReference {
-  readonly kind: Exclude<CompleteSnapshotObjectKind, 'namespace'>
+  readonly kind: Exclude<CompleteSnapshotObjectKind, "namespace">
   readonly id: string
 }
 
 /** Source evidence retained without persisting a database catalog key. */
 export interface CompleteSnapshotProvenance {
-  readonly kind: 'catalog' | 'decompiler' | 'create-sql'
+  readonly kind: "catalog" | "decompiler" | "create-sql"
   readonly dialect: string
   readonly path?: readonly (string | number)[]
 }
@@ -69,9 +69,8 @@ export interface CompleteSnapshotPhysicalReference {
 }
 
 /** Namespace identity and selected physical boundary for a snapshot. */
-export interface CompleteSnapshotNamespace
-  extends CompleteSnapshotObjectMetadata {
-  readonly kind: 'postgres-schema' | 'sqlite-database' | 'mysql-database'
+export interface CompleteSnapshotNamespace extends CompleteSnapshotObjectMetadata {
+  readonly kind: "postgres-schema" | "sqlite-database" | "mysql-database"
   readonly name: string
 }
 
@@ -80,13 +79,13 @@ export interface CompleteSnapshotCapabilities {
   readonly generatedColumns: boolean
   readonly identityMetadata: boolean
   readonly checkConstraints: boolean
-  readonly checkConstraintEnforcement: 'enforced' | 'metadata-only' | 'unknown'
+  readonly checkConstraintEnforcement: "enforced" | "metadata-only" | "unknown"
   readonly expressionDecompilation: boolean
   readonly indexExpressions: boolean
   readonly indexPredicates: boolean
   readonly indexIncludedColumns: boolean
   readonly namespaces: boolean
-  readonly visibility: 'complete' | 'limited' | 'unknown'
+  readonly visibility: "complete" | "limited" | "unknown"
   readonly [capability: string]: boolean | string
 }
 
@@ -99,7 +98,7 @@ export interface CompleteSnapshotObjectMetadata {
 
 /** A complete snapshot column, including physical ordinal evidence. */
 export interface CompleteSnapshotColumn extends CompleteSnapshotObjectMetadata {
-  readonly kind: 'column'
+  readonly kind: "column"
   readonly id: string
   readonly physicalName: string
   readonly ordinalPosition: number
@@ -114,41 +113,46 @@ export interface CompleteSnapshotColumn extends CompleteSnapshotObjectMetadata {
 }
 
 /** A richer identity declaration retained beside a column or sequence. */
-export interface CompleteSnapshotIdentity
-  extends CompleteSnapshotObjectMetadata {
-  readonly kind: 'identity'
-  readonly generation: 'always' | 'by-default'
+export interface CompleteSnapshotIdentity extends CompleteSnapshotObjectMetadata {
+  readonly kind: "identity"
+  readonly generation: "always" | "by-default"
   readonly options: Readonly<Record<string, CompleteSnapshotValueFact>>
 }
 
 /** A literal or opaque expression value in complete object metadata. */
 export type CompleteSnapshotValueFact =
-  | { readonly kind: 'literal'; readonly value: SnapshotLiteral }
-  | { readonly kind: 'expression'; readonly expression: SnapshotExpression }
+  | {
+      readonly kind: "literal"
+      readonly value: SnapshotLiteral
+    }
+  | {
+      readonly kind: "expression"
+      readonly expression: SnapshotExpression
+    }
 
 /** An ordered column or expression term in a complete index. */
 export type CompleteSnapshotIndexTerm =
   | {
-      readonly kind: 'column'
+      readonly kind: "column"
       readonly column: string
       readonly position: number
-      readonly direction?: 'ASC' | 'DESC'
-      readonly nulls?: 'FIRST' | 'LAST'
+      readonly direction?: "ASC" | "DESC"
+      readonly nulls?: "FIRST" | "LAST"
       readonly prefixLength?: CompleteSnapshotValueFact
       readonly operatorClass?: string
     }
   | {
-      readonly kind: 'expression'
+      readonly kind: "expression"
       readonly expression: SnapshotExpression
       readonly position: number
-      readonly direction?: 'ASC' | 'DESC'
-      readonly nulls?: 'FIRST' | 'LAST'
+      readonly direction?: "ASC" | "DESC"
+      readonly nulls?: "FIRST" | "LAST"
       readonly operatorClass?: string
     }
 
 /** A complete index with engine-specific method and included-column facts. */
 export interface CompleteSnapshotIndex extends CompleteSnapshotObjectMetadata {
-  readonly kind: 'index'
+  readonly kind: "index"
   readonly id: string
   readonly physicalName: string
   readonly terms: readonly CompleteSnapshotIndexTerm[]
@@ -161,23 +165,21 @@ export interface CompleteSnapshotIndex extends CompleteSnapshotObjectMetadata {
 }
 
 /** A key or uniqueness constraint in a complete table. */
-export interface CompleteSnapshotKeyConstraint
-  extends CompleteSnapshotObjectMetadata {
-  readonly kind: 'primary-key' | 'unique' | 'unique-constraint'
+export interface CompleteSnapshotKeyConstraint extends CompleteSnapshotObjectMetadata {
+  readonly kind: "primary-key" | "unique" | "unique-constraint"
   readonly id: string
   readonly physicalName: string
   readonly columns: readonly string[]
-  readonly nulls?: 'distinct' | 'not-distinct'
+  readonly nulls?: "distinct" | "not-distinct"
   readonly backingIndex?: CompleteSnapshotObjectReference
   readonly deferrable?: boolean
-  readonly initially?: 'immediate' | 'deferred'
+  readonly initially?: "immediate" | "deferred"
   readonly validated?: boolean
 }
 
 /** A foreign key with explicit target object identity and actions. */
-export interface CompleteSnapshotForeignKey
-  extends CompleteSnapshotObjectMetadata {
-  readonly kind: 'foreign-key'
+export interface CompleteSnapshotForeignKey extends CompleteSnapshotObjectMetadata {
+  readonly kind: "foreign-key"
   readonly id: string
   readonly physicalName: string
   readonly columns: readonly string[]
@@ -185,33 +187,22 @@ export interface CompleteSnapshotForeignKey
     readonly table: CompleteSnapshotObjectReference
     readonly columns: readonly string[]
   }
-  readonly onUpdate?:
-    | 'no-action'
-    | 'restrict'
-    | 'cascade'
-    | 'set-null'
-    | 'set-default'
-  readonly onDelete?:
-    | 'no-action'
-    | 'restrict'
-    | 'cascade'
-    | 'set-null'
-    | 'set-default'
-  readonly match?: 'simple' | 'full' | 'partial'
+  readonly onUpdate?: "no-action" | "restrict" | "cascade" | "set-null" | "set-default"
+  readonly onDelete?: "no-action" | "restrict" | "cascade" | "set-null" | "set-default"
+  readonly match?: "simple" | "full" | "partial"
   readonly deferrable?: boolean
-  readonly initially?: 'immediate' | 'deferred'
+  readonly initially?: "immediate" | "deferred"
   readonly validated?: boolean
 }
 
 /** A check constraint whose expression remains tagged data. */
-export interface CompleteSnapshotCheckConstraint
-  extends CompleteSnapshotObjectMetadata {
-  readonly kind: 'check'
+export interface CompleteSnapshotCheckConstraint extends CompleteSnapshotObjectMetadata {
+  readonly kind: "check"
   readonly id: string
   readonly physicalName: string
   readonly expression: SnapshotExpression
   readonly deferrable?: boolean
-  readonly initially?: 'immediate' | 'deferred'
+  readonly initially?: "immediate" | "deferred"
   readonly validated?: boolean
 }
 
@@ -223,7 +214,7 @@ export type CompleteSnapshotConstraint =
 
 /** A complete table record keyed by stable logical identity. */
 export interface CompleteSnapshotTable extends CompleteSnapshotObjectMetadata {
-  readonly kind: 'table'
+  readonly kind: "table"
   readonly id: string
   readonly physicalName: string
   readonly columns: readonly CompleteSnapshotColumn[]
@@ -233,21 +224,20 @@ export interface CompleteSnapshotTable extends CompleteSnapshotObjectMetadata {
 
 /** A view or materialized-view declaration and its output columns. */
 export interface CompleteSnapshotView extends CompleteSnapshotObjectMetadata {
-  readonly kind: 'view' | 'materialized-view'
+  readonly kind: "view" | "materialized-view"
   readonly id: string
   readonly physicalName: string
   readonly columns: readonly CompleteSnapshotColumn[]
   readonly definition: SnapshotExpression
   readonly dependencies?: readonly CompleteSnapshotObjectReference[]
-  readonly checkOption?: 'none' | 'local' | 'cascaded'
+  readonly checkOption?: "none" | "local" | "cascaded"
   readonly securityBarrier?: boolean
   readonly securityInvoker?: boolean
 }
 
 /** A sequence and its exact option facts. */
-export interface CompleteSnapshotSequence
-  extends CompleteSnapshotObjectMetadata {
-  readonly kind: 'sequence'
+export interface CompleteSnapshotSequence extends CompleteSnapshotObjectMetadata {
+  readonly kind: "sequence"
   readonly id: string
   readonly physicalName: string
   readonly storage?: SnapshotStorage
@@ -263,7 +253,7 @@ export interface CompleteSnapshotSequence
 
 /** An ordered enum declaration. */
 export interface CompleteSnapshotEnum extends CompleteSnapshotObjectMetadata {
-  readonly kind: 'enum'
+  readonly kind: "enum"
   readonly id: string
   readonly physicalName: string
   readonly values: readonly {
@@ -275,7 +265,7 @@ export interface CompleteSnapshotEnum extends CompleteSnapshotObjectMetadata {
 
 /** A domain declaration and its base type constraints. */
 export interface CompleteSnapshotDomain extends CompleteSnapshotObjectMetadata {
-  readonly kind: 'domain'
+  readonly kind: "domain"
   readonly id: string
   readonly physicalName: string
   readonly storage: SnapshotStorage
@@ -285,9 +275,8 @@ export interface CompleteSnapshotDomain extends CompleteSnapshotObjectMetadata {
 }
 
 /** Collation behavior that can affect deterministic schema comparison. */
-export interface CompleteSnapshotCollation
-  extends CompleteSnapshotObjectMetadata {
-  readonly kind: 'collation'
+export interface CompleteSnapshotCollation extends CompleteSnapshotObjectMetadata {
+  readonly kind: "collation"
   readonly id: string
   readonly physicalName: string
   readonly provider?: string
@@ -297,15 +286,14 @@ export interface CompleteSnapshotCollation
 }
 
 /** Trigger declaration attached to a table or view. */
-export interface CompleteSnapshotTrigger
-  extends CompleteSnapshotObjectMetadata {
-  readonly kind: 'trigger'
+export interface CompleteSnapshotTrigger extends CompleteSnapshotObjectMetadata {
+  readonly kind: "trigger"
   readonly id: string
   readonly physicalName: string
   readonly table: CompleteSnapshotObjectReference
-  readonly timing: 'before' | 'after' | 'instead-of' | 'unknown'
-  readonly events: readonly ('insert' | 'update' | 'delete' | 'truncate')[]
-  readonly orientation?: 'row' | 'statement'
+  readonly timing: "before" | "after" | "instead-of" | "unknown"
+  readonly events: readonly ("insert" | "update" | "delete" | "truncate")[]
+  readonly orientation?: "row" | "statement"
   readonly condition?: SnapshotExpression
   readonly body: SnapshotExpression
   readonly enabled?: boolean
@@ -314,42 +302,35 @@ export interface CompleteSnapshotTrigger
 /** Routine argument declaration. */
 export interface CompleteSnapshotRoutineParameter {
   readonly name?: string
-  readonly mode?: 'in' | 'out' | 'inout' | 'variadic' | 'table'
+  readonly mode?: "in" | "out" | "inout" | "variadic" | "table"
   readonly storage: SnapshotStorage
   readonly default?: CompleteSnapshotValueFact
   readonly ordinalPosition: number
 }
 
 /** Function, procedure, aggregate, or window routine declaration. */
-export interface CompleteSnapshotRoutine
-  extends CompleteSnapshotObjectMetadata {
-  readonly kind: 'routine'
+export interface CompleteSnapshotRoutine extends CompleteSnapshotObjectMetadata {
+  readonly kind: "routine"
   readonly id: string
   readonly physicalName: string
-  readonly routineKind:
-    | 'function'
-    | 'procedure'
-    | 'aggregate'
-    | 'window'
-    | 'unknown'
+  readonly routineKind: "function" | "procedure" | "aggregate" | "window" | "unknown"
   readonly parameters: readonly CompleteSnapshotRoutineParameter[]
   readonly returnType?: SnapshotStorage
   readonly language?: string
   readonly body?: SnapshotExpression
-  readonly volatility?: 'immutable' | 'stable' | 'volatile' | 'unknown'
-  readonly parallel?: 'safe' | 'restricted' | 'unsafe' | 'unknown'
-  readonly security?: 'invoker' | 'definer' | 'unknown'
+  readonly volatility?: "immutable" | "stable" | "volatile" | "unknown"
+  readonly parallel?: "safe" | "restricted" | "unsafe" | "unknown"
+  readonly security?: "invoker" | "definer" | "unknown"
   readonly dependencies?: readonly CompleteSnapshotObjectReference[]
 }
 
 /** A partition child, its parent, and normalized bound expression. */
-export interface CompleteSnapshotPartition
-  extends CompleteSnapshotObjectMetadata {
-  readonly kind: 'partition'
+export interface CompleteSnapshotPartition extends CompleteSnapshotObjectMetadata {
+  readonly kind: "partition"
   readonly id: string
   readonly physicalName: string
   readonly parent: CompleteSnapshotObjectReference
-  readonly strategy: 'range' | 'list' | 'hash' | 'reference' | 'unknown'
+  readonly strategy: "range" | "list" | "hash" | "reference" | "unknown"
   readonly keyColumns?: readonly string[]
   readonly bound?: SnapshotExpression
   readonly default?: boolean
@@ -357,17 +338,11 @@ export interface CompleteSnapshotPartition
 
 /** A row-level security policy attached to a table. */
 export interface CompleteSnapshotPolicy extends CompleteSnapshotObjectMetadata {
-  readonly kind: 'policy'
+  readonly kind: "policy"
   readonly id: string
   readonly physicalName: string
   readonly table: CompleteSnapshotObjectReference
-  readonly command:
-    | 'all'
-    | 'select'
-    | 'insert'
-    | 'update'
-    | 'delete'
-    | 'unknown'
+  readonly command: "all" | "select" | "insert" | "update" | "delete" | "unknown"
   readonly roles?: readonly string[]
   readonly permissive?: boolean
   readonly using?: SnapshotExpression
@@ -375,9 +350,8 @@ export interface CompleteSnapshotPolicy extends CompleteSnapshotObjectMetadata {
 }
 
 /** An extension object with a typed, versioned payload. */
-export interface CompleteSnapshotExtension
-  extends CompleteSnapshotObjectMetadata {
-  readonly kind: 'extension'
+export interface CompleteSnapshotExtension extends CompleteSnapshotObjectMetadata {
+  readonly kind: "extension"
   readonly id: string
   readonly physicalName: string
   readonly extensionName: string
@@ -388,9 +362,8 @@ export interface CompleteSnapshotExtension
 }
 
 /** A deferred object retained as a reviewable, non-lossy boundary record. */
-export interface CompleteSnapshotDeferredObject
-  extends CompleteSnapshotObjectMetadata {
-  readonly kind: 'deferred-object'
+export interface CompleteSnapshotDeferredObject extends CompleteSnapshotObjectMetadata {
+  readonly kind: "deferred-object"
   readonly id: string
   readonly objectKind: string
   readonly physicalName: string
@@ -399,9 +372,8 @@ export interface CompleteSnapshotDeferredObject
 }
 
 /** An opaque object observed by an adapter but not yet structurally modeled. */
-export interface CompleteSnapshotOpaqueObject
-  extends CompleteSnapshotObjectMetadata {
-  readonly kind: 'opaque-object'
+export interface CompleteSnapshotOpaqueObject extends CompleteSnapshotObjectMetadata {
+  readonly kind: "opaque-object"
   readonly id: string
   readonly objectKind: string
   readonly physicalName: string
@@ -410,9 +382,8 @@ export interface CompleteSnapshotOpaqueObject
 }
 
 /** A comment attached to a stable logical object. */
-export interface CompleteSnapshotComment
-  extends CompleteSnapshotObjectMetadata {
-  readonly kind: 'comment'
+export interface CompleteSnapshotComment extends CompleteSnapshotObjectMetadata {
+  readonly kind: "comment"
   readonly id: string
   readonly physicalName: string
   readonly object: CompleteSnapshotObjectReference
@@ -420,9 +391,8 @@ export interface CompleteSnapshotComment
 }
 
 /** Ownership metadata attached to a stable logical object. */
-export interface CompleteSnapshotOwnership
-  extends CompleteSnapshotObjectMetadata {
-  readonly kind: 'ownership'
+export interface CompleteSnapshotOwnership extends CompleteSnapshotObjectMetadata {
+  readonly kind: "ownership"
   readonly id: string
   readonly physicalName: string
   readonly object: CompleteSnapshotObjectReference
@@ -480,16 +450,19 @@ export type CompleteSchemaSnapshotInput =
 
 /** A complete snapshot decoder result with immutable successful output. */
 export type CompleteSnapshotDecodeResult =
-  | { readonly ok: true; readonly value: CompleteSchemaSnapshot }
+  | {
+      readonly ok: true
+      readonly value: CompleteSchemaSnapshot
+    }
   | {
       readonly ok: false
-      readonly diagnostics: readonly import('./types.ts').SnapshotDiagnostic[]
+      readonly diagnostics: readonly import("./types.ts").SnapshotDiagnostic[]
     }
 
 /** A complete snapshot creation result with immutable successful output. */
 export type CompleteSnapshotCreateResult = CompleteSnapshotDecodeResult
 
-/** v2 aliases kept explicit for consumers that prefer numbered APIs. */
+/** V2 aliases kept explicit for consumers that prefer numbered APIs. */
 export type SchemaSnapshotV2 = CompleteSchemaSnapshot
 export type SchemaSnapshotV2Input = CompleteSchemaSnapshotInput
 export type SchemaSnapshotV2DecodeResult = CompleteSnapshotDecodeResult

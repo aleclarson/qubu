@@ -7,15 +7,15 @@ import type {
   CatalogTable,
   CompleteIntrospectionCatalog,
   IntrospectionCatalog,
-} from './types.ts'
+} from "./types.ts"
 
 /**
- * Materialize every optional object-family collection and deeply freeze the
- * normalized catalog. Catalog text and extension data remain values; this
- * helper never evaluates SQL or assigns persisted logical identities.
+ * Materialize every optional object-family collection and deeply freeze the normalized catalog.
+ * Catalog text and extension data remain values; this helper never evaluates SQL or assigns
+ * persisted logical identities.
  */
 export function createCompleteIntrospectionCatalog(
-  catalog: IntrospectionCatalog
+  catalog: IntrospectionCatalog,
 ): CompleteIntrospectionCatalog {
   const complete: CompleteIntrospectionCatalog = {
     dialect: catalog.dialect,
@@ -39,6 +39,7 @@ export function createCompleteIntrospectionCatalog(
     ownership: [...(catalog.ownership ?? [])].sort(compareId),
     diagnostics: [...catalog.diagnostics],
   }
+
   return deepFreeze(complete)
 }
 
@@ -47,7 +48,7 @@ export const freezeIntrospectionCatalog = createCompleteIntrospectionCatalog
 
 /** Convert a complete catalog back to the optional reader-facing contract. */
 export function toIntrospectionCatalog(
-  catalog: CompleteIntrospectionCatalog
+  catalog: CompleteIntrospectionCatalog,
 ): IntrospectionCatalog {
   return deepFreeze({
     ...catalog,
@@ -57,36 +58,29 @@ export function toIntrospectionCatalog(
 
 function sortTables(tables: readonly CatalogTable[]): readonly CatalogTable[] {
   return [...tables]
-    .map(table =>
+    .map((table) =>
       deepFreeze({
         ...table,
         columns: [...table.columns].sort(compareColumn),
         constraints: [...table.constraints].sort(compareId),
         indexes: [...table.indexes].sort(compareId),
-      })
+      }),
     )
     .sort(compareId)
 }
 
-function sortObjects<T extends { readonly id: string }>(
-  objects: readonly T[]
-): readonly T[] {
+function sortObjects<T extends { readonly id: string }>(objects: readonly T[]): readonly T[] {
   return [...objects].sort(compareId)
 }
 
-function compareId(
-  left: { readonly id: string },
-  right: { readonly id: string }
-): number {
+function compareId(left: { readonly id: string }, right: { readonly id: string }): number {
   return left.id < right.id ? -1 : left.id > right.id ? 1 : 0
 }
 
-function compareDeferred(
-  left: CatalogDeferredObject,
-  right: CatalogDeferredObject
-): number {
+function compareDeferred(left: CatalogDeferredObject, right: CatalogDeferredObject): number {
   const leftId = left.id ?? left.physicalName
   const rightId = right.id ?? right.physicalName
+
   return leftId < rightId ? -1 : leftId > rightId ? 1 : 0
 }
 
@@ -95,21 +89,30 @@ function compareColumn(left: CatalogColumn, right: CatalogColumn): number {
 }
 
 /**
- * Freeze nested catalog values without imposing JSON semantics on bigint or
- * opaque driver values. The normalized contract is expected to contain plain
- * records, arrays, and scalar values; unsupported prototypes are retained but
- * still frozen so the operation remains non-destructive.
+ * Freeze nested catalog values without imposing JSON semantics on bigint or opaque driver values.
+ * The normalized contract is expected to contain plain records, arrays, and scalar values;
+ * unsupported prototypes are retained but still frozen so the operation remains non-destructive.
  */
 function deepFreeze<T>(value: T, seen = new WeakSet<object>()): T {
-  if (value === null || typeof value !== 'object') return value
-  if (seen.has(value)) return value
+  if (value === null || typeof value !== "object") {
+    return value
+  }
+
+  if (seen.has(value)) {
+    return value
+  }
+
   seen.add(value)
   if (Array.isArray(value)) {
-    for (const item of value) deepFreeze(item, seen)
+    for (const item of value) {
+      deepFreeze(item, seen)
+    }
   } else {
-    for (const child of Object.values(value as Record<string, unknown>))
+    for (const child of Object.values(value as Record<string, unknown>)) {
       deepFreeze(child, seen)
+    }
   }
+
   return Object.freeze(value)
 }
 

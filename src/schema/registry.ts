@@ -1,5 +1,5 @@
-import { snakeCaseIdentifier } from '../core/naming.ts'
-import type { AnyTable } from './table.ts'
+import { snakeCaseIdentifier } from "../core/naming.ts"
+import type { AnyTable } from "./table.ts"
 
 /** The first naming-policy version used by schema metadata. */
 export const schemaNamingPolicyVersion = 1 as const
@@ -15,8 +15,8 @@ export interface SchemaNamingPolicy {
 /**
  * The built-in naming policy for schema-generated physical names.
  *
- * Explicit names supplied to `table()` remain unchanged. The policy is used
- * by tooling when it needs a physical name for a logical table ID.
+ * Explicit names supplied to `table()` remain unchanged. The policy is used by tooling when it
+ * needs a physical name for a logical table ID.
  */
 export const defaultSchemaNamingPolicy: SchemaNamingPolicy = Object.freeze({
   version: schemaNamingPolicyVersion,
@@ -38,10 +38,7 @@ export interface SchemaOptions {
 }
 
 /** A physical-name record for one stable registry entry. */
-export interface SchemaTableEntry<
-  TId extends string = string,
-  TTable extends AnyTable = AnyTable,
-> {
+export interface SchemaTableEntry<TId extends string = string, TTable extends AnyTable = AnyTable> {
   /** Stable logical ID taken from the schema registry key. */
   readonly id: TId
   /** The query-facing table declaration retained by the registry. */
@@ -60,7 +57,7 @@ export type SchemaTableNames<TTables extends SchemaTableRecord> = Readonly<{
 
 /** The root model returned by {@link schema}. */
 export interface Schema<TTables extends SchemaTableRecord = SchemaTableRecord> {
-  readonly schemaKind: 'schema'
+  readonly schemaKind: "schema"
   /** Tables keyed by stable logical ID. */
   readonly tables: Readonly<TTables>
   /** Explicit registry entries with logical and physical identity separated. */
@@ -76,11 +73,11 @@ export interface Schema<TTables extends SchemaTableRecord = SchemaTableRecord> {
 /** A structured validation finding produced while constructing a schema. */
 export interface SchemaDiagnostic {
   readonly code:
-    | 'invalid-table-id'
-    | 'duplicate-table-id'
-    | 'duplicate-physical-name'
-    | 'invalid-namespace'
-    | 'generated-name-collision'
+    | "invalid-table-id"
+    | "duplicate-table-id"
+    | "duplicate-physical-name"
+    | "invalid-namespace"
+    | "generated-name-collision"
   readonly message: string
   /** Location of the invalid or conflicting declaration. */
   readonly path: readonly (string | number)[]
@@ -90,26 +87,25 @@ export interface SchemaDiagnostic {
 
 /** Error thrown when a root schema fails registry or naming validation. */
 export class SchemaValidationError extends Error {
-  readonly name = 'SchemaValidationError'
+  readonly name = "SchemaValidationError"
   readonly diagnostics: readonly SchemaDiagnostic[]
   /** Alias matching validation libraries that call findings "issues". */
   readonly issues: readonly SchemaDiagnostic[]
 
   constructor(diagnostics: readonly SchemaDiagnostic[]) {
     const frozenDiagnostics = Object.freeze(
-      diagnostics.map(diagnostic =>
+      diagnostics.map((diagnostic) =>
         Object.freeze({
           ...diagnostic,
           path: Object.freeze([...diagnostic.path]),
           relatedPaths: diagnostic.relatedPaths
-            ? Object.freeze(
-                diagnostic.relatedPaths.map(path => Object.freeze([...path]))
-              )
+            ? Object.freeze(diagnostic.relatedPaths.map((path) => Object.freeze([...path])))
             : undefined,
-        })
-      )
+        }),
+      ),
     )
-    super(frozenDiagnostics.map(diagnostic => diagnostic.message).join('\n'))
+
+    super(frozenDiagnostics.map((diagnostic) => diagnostic.message).join("\n"))
     this.diagnostics = frozenDiagnostics
     this.issues = frozenDiagnostics
   }
@@ -125,14 +121,15 @@ type EntriesToTables<TEntries extends readonly SchemaTableInput[]> = {
 type SchemaInput = SchemaTableRecord | readonly SchemaTableInput[]
 
 function entriesOf(input: SchemaInput): readonly SchemaTableInput[] {
-  if (Array.isArray(input)) return input
+  if (Array.isArray(input)) {
+    return input
+  }
+
   return Object.entries(input)
 }
 
 function validLogicalId(id: string): boolean {
-  return (
-    id.length > 0 && id === id.trim() && !/[.\\/\u0000-\u001f\u007f]/u.test(id)
-  )
+  return id.length > 0 && id === id.trim() && !/[.\\/\u0000-\u001f\u007f]/u.test(id)
 }
 
 function validNamespace(namespace: string): boolean {
@@ -146,7 +143,7 @@ function validNamespace(namespace: string): boolean {
 function validateEntries(
   entries: readonly SchemaTableInput[],
   namespace: string | undefined,
-  namingPolicy: SchemaNamingPolicy
+  namingPolicy: SchemaNamingPolicy,
 ): readonly SchemaDiagnostic[] {
   const diagnostics: SchemaDiagnostic[] = []
   const ids = new Map<string, number>()
@@ -154,14 +151,15 @@ function validateEntries(
   const generatedNames = new Map<string, number>()
 
   for (const [index, [id, table]] of entries.entries()) {
-    const path = ['tables', id] as const
+    const path = ["tables", id] as const
     const previousId = ids.get(id)
+
     if (previousId !== undefined) {
       diagnostics.push({
-        code: 'duplicate-table-id',
+        code: "duplicate-table-id",
         message: `Table ID "${id}" is declared more than once`,
         path,
-        relatedPaths: [['tables', entries[previousId][0]]],
+        relatedPaths: [["tables", entries[previousId][0]]],
       })
     } else {
       ids.set(id, index)
@@ -169,7 +167,7 @@ function validateEntries(
 
     if (!validLogicalId(id)) {
       diagnostics.push({
-        code: 'invalid-table-id',
+        code: "invalid-table-id",
         message: `Table ID "${id}" must be a non-empty logical identifier`,
         path,
       })
@@ -177,14 +175,13 @@ function validateEntries(
 
     const physicalName = table.tableName || namingPolicy.tableName(id)
     const previousPhysicalName = physicalNames.get(physicalName)
+
     if (previousPhysicalName !== undefined) {
       diagnostics.push({
-        code: 'duplicate-physical-name',
+        code: "duplicate-physical-name",
         message: `Tables "${entries[previousPhysicalName][0]}" and "${id}" both use physical name "${physicalName}"`,
-        path: [...path, 'physicalName'],
-        relatedPaths: [
-          ['tables', entries[previousPhysicalName][0], 'physicalName'],
-        ],
+        path: [...path, "physicalName"],
+        relatedPaths: [["tables", entries[previousPhysicalName][0], "physicalName"]],
       })
     } else {
       physicalNames.set(physicalName, index)
@@ -192,14 +189,13 @@ function validateEntries(
 
     const generatedName = namingPolicy.tableName(id)
     const previousGeneratedName = generatedNames.get(generatedName)
+
     if (previousGeneratedName !== undefined) {
       diagnostics.push({
-        code: 'generated-name-collision',
+        code: "generated-name-collision",
         message: `Logical table IDs "${entries[previousGeneratedName][0]}" and "${id}" generate the same physical name "${generatedName}"`,
-        path: [...path, 'generatedName'],
-        relatedPaths: [
-          ['tables', entries[previousGeneratedName][0], 'generatedName'],
-        ],
+        path: [...path, "generatedName"],
+        relatedPaths: [["tables", entries[previousGeneratedName][0], "generatedName"]],
       })
     } else {
       generatedNames.set(generatedName, index)
@@ -208,9 +204,9 @@ function validateEntries(
 
   if (namespace !== undefined && !validNamespace(namespace)) {
     diagnostics.push({
-      code: 'invalid-namespace',
+      code: "invalid-namespace",
       message: `Schema namespace "${namespace}" must be a non-empty identifier without qualification or control characters`,
-      path: ['namespace'],
+      path: ["namespace"],
     })
   }
 
@@ -219,26 +215,26 @@ function validateEntries(
 
 function freezeTableNames(
   entries: readonly SchemaTableInput[],
-  namingPolicy: SchemaNamingPolicy
+  namingPolicy: SchemaNamingPolicy,
 ): Readonly<Record<string, string>> {
   return Object.freeze(
     Object.fromEntries(
-      entries.map(([id, table]) => [
-        id,
-        table.tableName || namingPolicy.tableName(id),
-      ])
-    )
+      entries.map(([id, table]) => [id, table.tableName || namingPolicy.tableName(id)]),
+    ),
   )
 }
 
 function createSchema<TTables extends SchemaTableRecord>(
   entries: readonly SchemaTableInput[],
   tables: TTables,
-  options: SchemaOptions = {}
+  options: SchemaOptions = {},
 ): Schema<TTables> {
   const namingPolicy = options.namingPolicy ?? defaultSchemaNamingPolicy
   const diagnostics = validateEntries(entries, options.namespace, namingPolicy)
-  if (diagnostics.length > 0) throw new SchemaValidationError(diagnostics)
+
+  if (diagnostics.length > 0) {
+    throw new SchemaValidationError(diagnostics)
+  }
 
   const tableNames = freezeTableNames(entries, namingPolicy)
   const registry = Object.freeze(
@@ -250,12 +246,12 @@ function createSchema<TTables extends SchemaTableRecord>(
           table,
           physicalName: tableNames[id],
         }),
-      ])
-    )
+      ]),
+    ),
   ) as SchemaTableRegistry<TTables>
 
   return Object.freeze({
-    schemaKind: 'schema' as const,
+    schemaKind: "schema" as const,
     tables: Object.freeze({ ...tables }),
     registry,
     tableNames: tableNames as SchemaTableNames<TTables>,
@@ -267,39 +263,37 @@ function createSchema<TTables extends SchemaTableRecord>(
 /**
  * Create an immutable root registry keyed by stable logical table IDs.
  *
- * The input keys are logical IDs. Each table keeps the physical name already
- * used by query rendering, so registering a table does not change its row
- * inference, source identity, or generated SQL. The optional namespace is
- * metadata for schema tooling and is not added to ordinary query rendering.
+ * The input keys are logical IDs. Each table keeps the physical name already used by query
+ * rendering, so registering a table does not change its row inference, source identity, or
+ * generated SQL. The optional namespace is metadata for schema tooling and is not added to ordinary
+ * query rendering.
  *
- * @throws {@link SchemaValidationError} when IDs, physical names, namespaces,
- * or generated names collide or are invalid.
+ * @throws {@link SchemaValidationError} When IDs, physical names, namespaces, or generated names
+ *   collide or are invalid.
  */
 export function schema<const TTables extends SchemaTableRecord>(
   tables: TTables,
-  options?: SchemaOptions
+  options?: SchemaOptions,
 ): Schema<TTables>
 /**
- * Tuple input is useful for integrations that need duplicate-ID diagnostics
- * before converting declarations into an object record.
+ * Tuple input is useful for integrations that need duplicate-ID diagnostics before converting
+ * declarations into an object record.
  */
 export function schema<const TEntries extends readonly SchemaTableInput[]>(
   tables: TEntries,
-  options?: SchemaOptions
+  options?: SchemaOptions,
 ): Schema<EntriesToTables<TEntries>>
-export function schema(
-  tables: SchemaInput,
-  options?: SchemaOptions
-): Schema<SchemaTableRecord> {
+export function schema(tables: SchemaInput, options?: SchemaOptions): Schema<SchemaTableRecord> {
   const entries = entriesOf(tables)
   const tableRecord = Object.fromEntries(entries) as SchemaTableRecord
+
   return createSchema(entries, tableRecord, options)
 }
 
 /** Generate a v1 physical name for a logical table ID. */
 export function generatedTableName(
   logicalId: string,
-  namingPolicy: SchemaNamingPolicy = defaultSchemaNamingPolicy
+  namingPolicy: SchemaNamingPolicy = defaultSchemaNamingPolicy,
 ): string {
   return namingPolicy.tableName(logicalId)
 }

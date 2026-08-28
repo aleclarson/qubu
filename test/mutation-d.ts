@@ -1,3 +1,4 @@
+import { withDialectCapability } from "../src/core/index.ts"
 import {
   allowAll,
   type CapabilitiesOf,
@@ -7,15 +8,15 @@ import {
   text,
   update,
   upper,
-} from '../src/index.ts'
-import { withDialectCapability } from '../src/core/index.ts'
+} from "../src/index.ts"
 
-const users = table('users', {
+const users = table("users", {
   id: integer({ generated: true }),
   name: text(),
   email: text({ nullable: true }),
 })
-const posts = table('posts', { name: text() })
+const posts = table("posts", { name: text() })
+
 declare const enabled: boolean
 
 update(
@@ -24,7 +25,7 @@ update(
     name: enabled ? upper(users.name) : omit,
     email: enabled ? null : undefined,
   },
-  allowAll()
+  allowAll(),
 )
 
 update(
@@ -33,15 +34,15 @@ update(
   {
     name: enabled ? upper(posts.name) : omit,
   },
-  allowAll()
+  allowAll(),
 )
 
 const capabilityQuery = update(
   users,
   {
-    name: enabled ? withDialectCapability(upper(users.name), 'ilike') : omit,
+    name: enabled ? withDialectCapability(upper(users.name), "ilike") : omit,
   },
-  allowAll()
+  allowAll(),
 )
 
 type Equal<TLeft, TRight> = [TLeft] extends [TRight]
@@ -52,5 +53,5 @@ type Equal<TLeft, TRight> = [TLeft] extends [TRight]
 type Assert<TCondition extends true> = TCondition
 
 export type ConditionalAssignmentRetainsCapabilities = Assert<
-  Equal<CapabilitiesOf<typeof capabilityQuery>, 'ilike'>
+  Equal<CapabilitiesOf<typeof capabilityQuery>, "ilike">
 >

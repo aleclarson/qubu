@@ -8,13 +8,13 @@ migration journal. Preflight runs before rendering, so a blocked or incompatible
 plan returns diagnostics and no SQL.
 
 ```ts
-import { emitMigrationPlan } from 'qubu/ddl'
-import { postgresSchemaDialect } from 'qubu/snapshot'
+import { emitMigrationPlan } from "qubu/ddl"
+import { postgresSchemaDialect } from "qubu/snapshot"
 
 const result = emitMigrationPlan(plan, postgresSchemaDialect)
 if (!result.ok) {
   // Review result.diagnostics. result.sql is an empty string.
-  throw new Error(result.diagnostics.map(item => item.message).join('\n'))
+  throw new Error(result.diagnostics.map((item) => item.message).join("\n"))
 }
 
 for (const statement of result.statements) {
@@ -44,9 +44,9 @@ produces `transaction-conflict`; no transaction is opened by the emitter.
 
 ```ts
 const result = emitMigrationPlan(plan, postgresSchemaDialect, {
-  transaction: 'managed',
-  lock: 'exclusive',
-  serverVersion: '16',
+  transaction: "managed",
+  lock: "exclusive",
+  serverVersion: "16",
 })
 ```
 

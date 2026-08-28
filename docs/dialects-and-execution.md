@@ -20,8 +20,8 @@ Construct the query without choosing a driver, then render it with the policy
 the adapter expects:
 
 ```ts
-import { render } from 'qubu'
-import { postgresDialect } from 'qubu/postgres'
+import { render } from "qubu"
+import { postgresDialect } from "qubu/postgres"
 
 const standard = render(query)
 const postgres = render(query, postgresDialect())
@@ -40,15 +40,11 @@ capability requirement to the rendering boundary. PostgreSQL's `ilike()` is
 the first such feature:
 
 ```ts
-import { from, like, render, select, where } from 'qubu'
-import { ilike, postgresDialect } from 'qubu/postgres'
-import { sqliteDialect } from 'qubu/sqlite'
+import { from, like, render, select, where } from "qubu"
+import { ilike, postgresDialect } from "qubu/postgres"
+import { sqliteDialect } from "qubu/sqlite"
 
-const postgresQuery = select(
-  { name: users.name },
-  from(users),
-  where(ilike(users.name, '%ada%'))
-)
+const postgresQuery = select({ name: users.name }, from(users), where(ilike(users.name, "%ada%")))
 
 render(postgresQuery, postgresDialect()) // supported
 render(postgresQuery, sqliteDialect()) // TypeScript error
@@ -59,14 +55,10 @@ received from an untyped integration. Use the portable operator when the
 query must render across dialects:
 
 ```ts
-import { from, like, render, select, where } from 'qubu'
-import { sqliteDialect } from 'qubu/sqlite'
+import { from, like, render, select, where } from "qubu"
+import { sqliteDialect } from "qubu/sqlite"
 
-const portableQuery = select(
-  { name: users.name },
-  from(users),
-  where(like(users.name, '%ada%'))
-)
+const portableQuery = select({ name: users.name }, from(users), where(like(users.name, "%ada%")))
 
 render(portableQuery)
 render(portableQuery, sqliteDialect())
@@ -88,15 +80,15 @@ to produce the typed `ExecutionResult`. A `TransactionalQueryAdapter` can also
 pin one driver connection for a callback transaction:
 
 ```ts
-import { qubu } from 'qubu'
-import { postgresDialect } from 'qubu/postgres'
-import type { ExecutionRequest, QueryAdapter } from 'qubu'
+import { qubu } from "qubu"
+import { postgresDialect } from "qubu/postgres"
+import type { ExecutionRequest, QueryAdapter } from "qubu"
 
 declare const driver: {
   query<TRow extends object>(
     text: string,
     parameters: readonly unknown[],
-    options: { signal?: AbortSignal }
+    options: { signal?: AbortSignal },
   ): Promise<{ rows: readonly TRow[]; rowCount: number | null }>
 }
 
@@ -107,13 +99,11 @@ const adapter: QueryAdapter = {
     const result = await driver.query<Record<string, unknown>>(
       statement.text,
       statement.parameters,
-      { signal }
+      { signal },
     )
     return {
       rows: result.rows,
-      ...(queryKind !== 'select' &&
-      queryKind !== 'set' &&
-      result.rowCount !== null
+      ...(queryKind !== "select" && queryKind !== "set" && result.rowCount !== null
         ? { affectedRows: result.rowCount }
         : {}),
     }
@@ -134,9 +124,9 @@ import {
   dateResultDecoder,
   jsonTextResultDecoder,
   timestampResultDecoder,
-} from 'qubu'
-import type { AdapterExecutionResult, QueryAdapter, RenderedQuery } from 'qubu'
-import { sqliteDialect } from 'qubu/sqlite'
+} from "qubu"
+import type { AdapterExecutionResult, QueryAdapter, RenderedQuery } from "qubu"
+import { sqliteDialect } from "qubu/sqlite"
 
 declare const sqliteDriver: {
   execute(statement: RenderedQuery): Promise<AdapterExecutionResult>
@@ -165,10 +155,10 @@ Use a column decoder for a custom stored type, or `mapResult()` for one
 expression. Both override adapter policy for that field:
 
 ```ts
-import { column, mapResult, value } from 'qubu'
+import { column, mapResult, value } from "qubu"
 
-const score = column<number>({ decode: value => Number(value) })
-const decodedTotal = mapResult(value('42'), value => Number(value))
+const score = column<number>({ decode: (value) => Number(value) })
+const decodedTotal = mapResult(value("42"), (value) => Number(value))
 ```
 
 ## Stream read results
@@ -180,20 +170,20 @@ Mutations stay on `execute()` and `executeRows()`, including mutations with
 `RETURNING`.
 
 ```ts
-import { qubu } from 'qubu'
-import type { ExecutionRequest, StreamingQueryAdapter } from 'qubu'
-import { postgresDialect } from 'qubu/postgres'
+import { qubu } from "qubu"
+import type { ExecutionRequest, StreamingQueryAdapter } from "qubu"
+import { postgresDialect } from "qubu/postgres"
 
 declare const driver: {
   query<TRow extends object>(
     text: string,
     parameters: readonly unknown[],
-    options: { signal?: AbortSignal }
+    options: { signal?: AbortSignal },
   ): Promise<{ rows: readonly TRow[]; rowCount: number | null }>
   stream<TRow extends object>(
     text: string,
     parameters: readonly unknown[],
-    options: { signal?: AbortSignal }
+    options: { signal?: AbortSignal },
   ): AsyncIterable<TRow>
 }
 
@@ -203,7 +193,7 @@ const adapter: StreamingQueryAdapter = {
     const result = await driver.query<Record<string, unknown>>(
       request.statement.text,
       request.statement.parameters,
-      { signal: request.signal }
+      { signal: request.signal },
     )
     return {
       rows: result.rows,
@@ -214,7 +204,7 @@ const adapter: StreamingQueryAdapter = {
     return driver.stream<Record<string, unknown>>(
       request.statement.text,
       request.statement.parameters,
-      { signal: request.signal }
+      { signal: request.signal },
     )
   },
 }
@@ -259,10 +249,10 @@ transaction callback receives a streaming client. The adapter must keep its
 cursor and connection valid until the callback's streams finish or close:
 
 ```ts
-declare const transactionalAdapter: import('qubu').StreamingTransactionalQueryAdapter
+declare const transactionalAdapter: import("qubu").StreamingTransactionalQueryAdapter
 const transactionalDb = qubu(transactionalAdapter)
 
-await transactionalDb.transaction(async transaction => {
+await transactionalDb.transaction(async (transaction) => {
   for await (const row of transaction.stream(readQuery)) {
     consume(row)
   }
@@ -281,17 +271,17 @@ standalone `explain()` function and the bound `db.explain()` method render a
 plan request without calling `execute()`:
 
 ```ts
-import { explain, qubu } from 'qubu'
-import type { ExplainableQueryAdapter } from 'qubu'
-import { postgresDialect } from 'qubu/postgres'
+import { explain, qubu } from "qubu"
+import type { ExplainableQueryAdapter } from "qubu"
+import { postgresDialect } from "qubu/postgres"
 
-type PostgresPlanRow = { 'QUERY PLAN': string }
+type PostgresPlanRow = { "QUERY PLAN": string }
 
 declare const driver: {
   query<TRow extends object>(
     text: string,
     parameters: readonly unknown[],
-    options: { signal?: AbortSignal }
+    options: { signal?: AbortSignal },
   ): Promise<{ rows: readonly TRow[] }>
 }
 
@@ -304,7 +294,7 @@ const adapter: ExplainableQueryAdapter<PostgresPlanRow> = {
     const result = await driver.query<PostgresPlanRow>(
       request.statement.text,
       request.statement.parameters,
-      { signal: request.signal }
+      { signal: request.signal },
     )
     return { rows: result.rows }
   },
@@ -369,13 +359,13 @@ Use a transactional adapter when several queries must share one commit or
 rollback boundary:
 
 ```ts
-import { qubu } from 'qubu'
-import type { TransactionalQueryAdapter } from 'qubu'
+import { qubu } from "qubu"
+import type { TransactionalQueryAdapter } from "qubu"
 
 declare const transactionalAdapter: TransactionalQueryAdapter
 const transactionalDb = qubu(transactionalAdapter)
 
-const result = await transactionalDb.transaction(async transaction => {
+const result = await transactionalDb.transaction(async (transaction) => {
   await transaction.execute(firstMutation)
   await transaction.execute(secondMutation)
   return transaction.rows(readQuery)
@@ -400,7 +390,7 @@ The standalone functions remain useful when the adapter varies by call or a
 small module does not need a bound client:
 
 ```ts
-import { execute, executeRows } from 'qubu'
+import { execute, executeRows } from "qubu"
 
 const result = await execute(query, adapter)
 const rows = await executeRows(readQuery, adapter)
@@ -449,13 +439,13 @@ Use `createDialect()` when a driver needs a different policy but the query
 syntax stays portable:
 
 ```ts
-import { render } from 'qubu'
-import { createDialect } from 'qubu/core'
+import { render } from "qubu"
+import { createDialect } from "qubu/core"
 
 const namedParameters = createDialect({
-  name: 'named-parameters',
-  placeholder: position => `:p${position}`,
-  castTypes: { text: 'STRING' },
+  name: "named-parameters",
+  placeholder: (position) => `:p${position}`,
+  castTypes: { text: "STRING" },
 })
 
 const statement = render(query, namedParameters)

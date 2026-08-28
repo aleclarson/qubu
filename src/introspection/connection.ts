@@ -1,4 +1,4 @@
-import type { CatalogDialect, CatalogQueryRow } from './types.ts'
+import type { CatalogDialect, CatalogQueryRow } from "./types.ts"
 
 /** A parameterized statement owned by a catalog adapter. */
 export interface CatalogQuery {
@@ -17,15 +17,14 @@ export interface CatalogQueryOptions {
 /**
  * User-owned catalog query boundary.
  *
- * Qubu does not select a driver, open or close a connection, manage a pool,
- * authenticate, retry, start a transaction, or impose a timeout. The
- * connection only executes fixed, parameterized catalog statements and
- * returns already-decoded row records.
+ * Qubu does not select a driver, open or close a connection, manage a pool, authenticate, retry,
+ * start a transaction, or impose a timeout. The connection only executes fixed, parameterized
+ * catalog statements and returns already-decoded row records.
  */
 export interface CatalogConnection {
   readonly dialect: CatalogDialect
   query<TRow extends CatalogQueryRow = CatalogQueryRow>(
     statement: CatalogQuery,
-    options?: CatalogQueryOptions
+    options?: CatalogQueryOptions,
   ): Promise<readonly TRow[]>
 }

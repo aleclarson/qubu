@@ -6,11 +6,11 @@
 modeled yet. They do not quote identifiers or bind values for you:
 
 ```ts
-import { select } from 'qubu'
-import { unsafeExpression } from 'qubu/core'
+import { select } from "qubu"
+import { unsafeExpression } from "qubu/core"
 
 const query = select({
-  today: unsafeExpression('CURRENT_DATE'),
+  today: unsafeExpression("CURRENT_DATE"),
 })
 ```
 

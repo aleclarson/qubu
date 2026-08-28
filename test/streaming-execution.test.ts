@@ -1,4 +1,7 @@
-import { expect, test } from 'vitest'
+import { expect, test } from "vitest"
+
+import { postgresDialect } from "../src/dialects/postgres.ts"
+import { standardDialect } from "../src/dialects/standard.ts"
 import {
   boolean,
   booleanResultDecoder,
@@ -18,14 +21,12 @@ import {
   type StreamableQuery,
   type StreamingQueryAdapter,
   type StreamingTransactionalQueryAdapter,
-} from '../src/index.ts'
-import { postgresDialect } from '../src/dialects/postgres.ts'
-import { standardDialect } from '../src/dialects/standard.ts'
+} from "../src/index.ts"
 
-const users = table('users', { id: integer() })
+const users = table("users", { id: integer() })
 const query = select({ id: users.id }, from(users), where(eq(users.id, 7)))
 
-test('forwards the rendered stream request and signal to the adapter', async () => {
+test("forwards the rendered stream request and signal to the adapter", async () => {
   let received: ExecutionRequest | undefined
   const adapter: StreamingQueryAdapter = {
     dialect: standardDialect(),
@@ -42,6 +43,7 @@ test('forwards the rendered stream request and signal to the adapter', async () 
   const controller = new AbortController()
 
   const rows: { id: number }[] = []
+
   for await (const row of stream(query, adapter, {
     dialect: postgresDialect(),
     signal: controller.signal,
@@ -54,14 +56,14 @@ test('forwards the rendered stream request and signal to the adapter', async () 
       text: 'SELECT "users"."id" AS "id" FROM "users" WHERE ("users"."id" = $1)',
       parameters: [7],
     },
-    queryKind: 'select',
-    resultShape: { fields: [{ name: 'id' }] },
+    queryKind: "select",
+    resultShape: { fields: [{ name: "id" }] },
     signal: controller.signal,
   })
   expect(rows).toEqual([{ id: 7 }])
 })
 
-test('streams set operations and rejects mutations at runtime', async () => {
+test("streams set operations and rejects mutations at runtime", async () => {
   const requests: ExecutionRequest[] = []
   const adapter: StreamingQueryAdapter = {
     dialect: standardDialect(),
@@ -77,26 +79,24 @@ test('streams set operations and rejects mutations at runtime', async () => {
   }
   const setQuery = unionAll(query, select({ id: users.id }, from(users)))
   const setRows: { id: number }[] = []
-  for await (const row of stream(adapter, setQuery)) setRows.push(row)
 
-  const mutation = insertInto(
-    users,
-    values({ id: 8 }),
-    returning({ id: users.id })
-  )
+  for await (const row of stream(adapter, setQuery)) {
+    setRows.push(row)
+  }
+
+  const mutation = insertInto(users, values({ id: 8 }), returning({ id: users.id }))
+
   expect(() =>
-    stream(mutation as unknown as StreamableQuery<{ id: number }>, adapter)
-  ).toThrowError(
-    'Only SELECT and set-operation queries can be streamed; received insert'
-  )
+    stream(mutation as unknown as StreamableQuery<{ id: number }>, adapter),
+  ).toThrowError("Only SELECT and set-operation queries can be streamed; received insert")
 
   expect(setRows).toEqual([{ id: 7 }])
   expect(requests).toHaveLength(1)
-  expect(requests[0]?.queryKind).toBe('set')
+  expect(requests[0]?.queryKind).toBe("set")
 })
 
-test('decodes streamed set-operation rows lazily', async () => {
-  const flags = table('flags', { active: boolean() })
+test("decodes streamed set-operation rows lazily", async () => {
+  const flags = table("flags", { active: boolean() })
   const left = select({ enabled: flags.active }, from(flags))
   const query = unionAll(left, select({ enabled: flags.active }, from(flags)))
   const adapter: StreamingQueryAdapter = {
@@ -113,12 +113,15 @@ test('decodes streamed set-operation rows lazily', async () => {
   }
 
   const rows = []
-  for await (const row of stream(query, adapter)) rows.push(row)
+
+  for await (const row of stream(query, adapter)) {
+    rows.push(row)
+  }
 
   expect(rows).toEqual([{ enabled: true }])
 })
 
-test('adds stream to a bound client with a streaming adapter', async () => {
+test("adds stream to a bound client with a streaming adapter", async () => {
   const adapter: StreamingQueryAdapter = {
     dialect: standardDialect(),
     async execute<TRow extends object>() {
@@ -133,13 +136,15 @@ test('adds stream to a bound client with a streaming adapter', async () => {
   const db = qubu(adapter)
   const rows: { id: number }[] = []
 
-  for await (const row of db.stream(query)) rows.push(row)
+  for await (const row of db.stream(query)) {
+    rows.push(row)
+  }
 
   expect(db.adapter).toBe(adapter)
   expect(rows).toEqual([{ id: 7 }])
 })
 
-test('forwards abort signals for adapter-owned cancellation', () => {
+test("forwards abort signals for adapter-owned cancellation", () => {
   let received: ExecutionRequest | undefined
   let cancelled = false
   const adapter: StreamingQueryAdapter = {
@@ -150,11 +155,11 @@ test('forwards abort signals for adapter-owned cancellation', () => {
     stream<TRow extends object>(request: ExecutionRequest) {
       received = request
       request.signal?.addEventListener(
-        'abort',
+        "abort",
         () => {
           cancelled = true
         },
-        { once: true }
+        { once: true },
       )
       return (async function* () {
         yield { id: 7 } as TRow
@@ -170,10 +175,10 @@ test('forwards abort signals for adapter-owned cancellation', () => {
   expect(cancelled).toBe(true)
 })
 
-test('delegates iterator cleanup for completion, early close, and failure', async () => {
+test("delegates iterator cleanup for completion, early close, and failure", async () => {
   const events: string[] = []
-  const failure = new Error('row decoding failed')
-  let mode: 'complete' | 'partial' | 'failure' = 'complete'
+  const failure = new Error("row decoding failed")
+  let mode: "complete" | "partial" | "failure" = "complete"
   const adapter: StreamingQueryAdapter = {
     dialect: standardDialect(),
     async execute<TRow extends object>() {
@@ -181,10 +186,14 @@ test('delegates iterator cleanup for completion, early close, and failure', asyn
     },
     stream<TRow extends object>() {
       const currentMode = mode
+
       return (async function* () {
         try {
           yield { id: 7 } as TRow
-          if (currentMode === 'failure') throw failure
+          if (currentMode === "failure") {
+            throw failure
+          }
+
           yield { id: 8 } as TRow
         } finally {
           events.push(`close:${currentMode}`)
@@ -194,25 +203,31 @@ test('delegates iterator cleanup for completion, early close, and failure', asyn
   }
 
   const completeRows: { id: number }[] = []
-  for await (const row of stream(query, adapter)) completeRows.push(row)
 
-  mode = 'partial'
+  for await (const row of stream(query, adapter)) {
+    completeRows.push(row)
+  }
+
+  mode = "partial"
   const iterator = stream(query, adapter)[Symbol.asyncIterator]()
+
   await iterator.next()
   await iterator.return?.()
 
-  mode = 'failure'
+  mode = "failure"
   await expect(
     (async () => {
-      for await (const row of stream(query, adapter)) void row
-    })()
+      for await (const row of stream(query, adapter)) {
+        void row
+      }
+    })(),
   ).rejects.toBe(failure)
 
   expect(completeRows).toEqual([{ id: 7 }, { id: 8 }])
-  expect(events).toEqual(['close:complete', 'close:partial', 'close:failure'])
+  expect(events).toEqual(["close:complete", "close:partial", "close:failure"])
 })
 
-test('closes a transaction stream before the adapter commits', async () => {
+test("closes a transaction stream before the adapter commits", async () => {
   const events: string[] = []
   let streamOpen = false
   const transactionAdapter: StreamingQueryAdapter = {
@@ -227,7 +242,7 @@ test('closes a transaction stream before the adapter commits', async () => {
           yield { id: 7 } as TRow
         } finally {
           streamOpen = false
-          events.push('close')
+          events.push("close")
         }
       })()
     },
@@ -238,22 +253,22 @@ test('closes a transaction stream before the adapter commits', async () => {
       return { rows: [] as readonly TRow[] }
     },
     stream: transactionAdapter.stream,
-    async transaction<T>(
-      callback: (adapter: StreamingQueryAdapter) => Promise<T>
-    ) {
-      events.push('begin')
+    async transaction<T>(callback: (adapter: StreamingQueryAdapter) => Promise<T>) {
+      events.push("begin")
       const result = await callback(transactionAdapter)
+
       expect(streamOpen).toBe(false)
-      events.push('commit')
+      events.push("commit")
       return result
     },
   }
 
-  await qubu(adapter).transaction(async transaction => {
+  await qubu(adapter).transaction(async (transaction) => {
     const iterator = transaction.stream(query)[Symbol.asyncIterator]()
+
     await iterator.next()
     await iterator.return?.()
   })
 
-  expect(events).toEqual(['begin', 'close', 'commit'])
+  expect(events).toEqual(["begin", "close", "commit"])
 })

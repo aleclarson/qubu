@@ -1,4 +1,4 @@
-import { loadFont } from '@remotion/google-fonts/SpaceGrotesk'
+import { loadFont } from "@remotion/google-fonts/SpaceGrotesk"
 import {
   AbsoluteFill,
   Easing,
@@ -6,39 +6,32 @@ import {
   Sequence,
   useCurrentFrame,
   useVideoConfig,
-} from 'remotion'
-import {
-  BigText,
-  CodeWindow,
-  enter,
-  Eyebrow,
-  Pop,
-  Shell,
-  Token,
-  Wordmark,
-} from './components'
-import { colors, shadow } from './theme'
+} from "remotion"
 
-const { fontFamily } = loadFont('normal', { weights: ['400', '500', '700'] })
-const mono = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace'
+import { BigText, CodeWindow, enter, Eyebrow, Pop, Shell, Token, Wordmark } from "./components"
+import { colors, shadow } from "./theme"
+
+const { fontFamily } = loadFont("normal", { weights: ["400", "500", "700"] })
+const mono = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
 
 const Opening = () => {
   const frame = useCurrentFrame()
   const { width, height } = useVideoConfig()
   const portrait = height > width
   const slide = interpolate(frame, [0, 55], [portrait ? 420 : 680, 0], {
-    extrapolateRight: 'clamp',
+    extrapolateRight: "clamp",
     easing: Easing.out(Easing.exp),
   })
+
   return (
     <Shell>
       <Wordmark />
       <div
         style={{
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
           paddingBottom: portrait ? 170 : 70,
         }}
       >
@@ -56,7 +49,7 @@ const Opening = () => {
           style={{
             marginTop: 62,
             height: 14,
-            width: portrait ? '100%' : '72%',
+            width: portrait ? "100%" : "72%",
             borderRadius: 20,
             background: colors.ink,
             transform: `translateX(${slide}px)`,
@@ -65,14 +58,14 @@ const Opening = () => {
       </div>
       <div
         style={{
-          position: 'absolute',
+          position: "absolute",
           right: 0,
           bottom: 0,
           fontSize: portrait ? 160 : 210,
           fontWeight: 800,
           color: colors.blue,
           opacity: 0.09,
-          letterSpacing: '-.08em',
+          letterSpacing: "-.08em",
         }}
       >
         SELECT
@@ -88,68 +81,78 @@ const QueryScene = () => {
   const lines = [
     <>
       <Token tone="blue">const</Token> users = table(
-      <Token tone="coral">'users'</Token>, {'{'}
+      <Token tone="coral">'users'</Token>, {"{"}
     </>,
     <> id: integer(),</>,
     <> name: text(),</>,
-    <>{'}'})</>,
+    <>{"}"})</>,
     <></>,
     <>
       <Token tone="blue">const</Token> query = select(
     </>,
     <>
-      {' '}
-      {'{'} id: users.id, name: users.name {'}'},
+      {" "}
+      {"{"} id: users.id, name: users.name {"}"},
     </>,
     <> from(users),</>,
     <>
-      {' '}
+      {" "}
       where(eq(users.id, <Token tone="mint">42</Token>)),
     </>,
     <>)</>,
   ]
+
   return (
-    <Shell dark>
+    <Shell dark={true}>
       <div
         style={{
-          display: 'grid',
-          gridTemplateColumns: portrait ? '1fr' : '0.75fr 1.25fr',
-          gridAutoRows: portrait ? 'max-content' : undefined,
-          alignContent: portrait ? 'center' : undefined,
+          display: "grid",
+          gridTemplateColumns: portrait ? "1fr" : "0.75fr 1.25fr",
+          gridAutoRows: portrait ? "max-content" : undefined,
+          alignContent: portrait ? "center" : undefined,
           gap: portrait ? 64 : 100,
-          alignItems: 'center',
-          height: '100%',
+          alignItems: "center",
+          height: "100%",
         }}
       >
         <Pop delay={4}>
           <Eyebrow>01 · Values compose</Eyebrow>
-          <BigText style={{ fontSize: portrait ? 82 : 86, marginTop: 30 }}>
+          <BigText
+            style={{
+              fontSize: portrait ? 82 : 86,
+              marginTop: 30,
+            }}
+          >
             A query is a value.
           </BigText>
           <div
             style={{
               fontSize: portrait ? 34 : 30,
               lineHeight: 1.35,
-              color: '#B8BAB7',
+              color: "#B8BAB7",
               marginTop: 42,
               maxWidth: 600,
             }}
           >
-            Tables, expressions, and clauses fit together without a mutable
-            builder.
+            Tables, expressions, and clauses fit together without a mutable builder.
           </div>
         </Pop>
         <Pop delay={12}>
           <CodeWindow
-            style={{ width: '100%' }}
+            style={{ width: "100%" }}
             codeStyle={
               portrait
-                ? { fontSize: 29, lineHeight: 1.42, padding: '34px 38px 42px' }
+                ? {
+                    fontSize: 29,
+                    lineHeight: 1.42,
+                    padding: "34px 38px 42px",
+                  }
                 : undefined
             }
           >
             {lines.map((line, index) => {
               const visible = enter(frame, 18 + index * 5)
+
               return (
                 <div
                   key={index}
@@ -158,7 +161,7 @@ const QueryScene = () => {
                     transform: `translateX(${(1 - visible) * 24}px)`,
                   }}
                 >
-                  {line || '\u00a0'}
+                  {line || "\u00a0"}
                 </div>
               )
             })}
@@ -174,33 +177,39 @@ const TypeScene = () => {
   const { width, height } = useVideoConfig()
   const portrait = height > width
   const wire = interpolate(frame, [30, 85], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
   })
   const cards = [
     {
-      name: 'Source scope',
-      note: 'missing FROM fails the build',
+      name: "Source scope",
+      note: "missing FROM fails the build",
       color: colors.coral,
     },
     {
-      name: 'Result shape',
-      note: '{ id: number; name: string }',
+      name: "Result shape",
+      note: "{ id: number; name: string }",
       color: colors.mint,
     },
     {
-      name: 'Nullability',
-      note: 'joins widen only affected fields',
-      color: '#8DAAFF',
+      name: "Nullability",
+      note: "joins widen only affected fields",
+      color: "#8DAAFF",
     },
   ]
+
   return (
     <Shell>
       <Pop delay={3}>
         <Eyebrow>02 · Types follow the SQL</Eyebrow>
       </Pop>
       <Pop delay={9}>
-        <BigText style={{ fontSize: portrait ? 82 : 90, marginTop: 28 }}>
+        <BigText
+          style={{
+            fontSize: portrait ? 82 : 90,
+            marginTop: 28,
+          }}
+        >
           Catch relational mistakes
           <br />
           before the database.
@@ -208,18 +217,18 @@ const TypeScene = () => {
       </Pop>
       <div
         style={{
-          position: 'relative',
+          position: "relative",
           marginTop: portrait ? 120 : 86,
-          display: 'grid',
-          gridTemplateColumns: portrait ? '1fr' : 'repeat(3, 1fr)',
+          display: "grid",
+          gridTemplateColumns: portrait ? "1fr" : "repeat(3, 1fr)",
           gap: 28,
         }}
       >
         <div
           style={{
-            position: 'absolute',
-            left: portrait ? 36 : '14%',
-            top: portrait ? 20 : '50%',
+            position: "absolute",
+            left: portrait ? 36 : "14%",
+            top: portrait ? 20 : "50%",
             height: portrait ? `calc(${wire * 100}% - 40px)` : 6,
             width: portrait ? 6 : `${wire * 72}%`,
             background: colors.ink,
@@ -230,13 +239,13 @@ const TypeScene = () => {
           <Pop key={card.name} delay={20 + index * 12}>
             <div
               style={{
-                position: 'relative',
+                position: "relative",
                 minHeight: portrait ? 210 : 245,
                 borderRadius: 26,
                 background: colors.white,
-                border: '2px solid rgba(21,23,22,.09)',
+                border: "2px solid rgba(21,23,22,.09)",
                 boxShadow: shadow,
-                padding: portrait ? '38px 42px 38px 92px' : 40,
+                padding: portrait ? "38px 42px 38px 92px" : 40,
               }}
             >
               <div
@@ -245,7 +254,7 @@ const TypeScene = () => {
                   height: 20,
                   borderRadius: 20,
                   background: card.color,
-                  position: 'absolute',
+                  position: "absolute",
                   left: portrait ? 28 : 40,
                   top: portrait ? 48 : 40,
                 }}
@@ -254,7 +263,7 @@ const TypeScene = () => {
                 style={{
                   fontSize: portrait ? 38 : 34,
                   fontWeight: 700,
-                  letterSpacing: '-.035em',
+                  letterSpacing: "-.035em",
                 }}
               >
                 {card.name}
@@ -281,13 +290,19 @@ const TypeScene = () => {
 const ParameterScene = () => {
   const { width, height } = useVideoConfig()
   const portrait = height > width
+
   return (
-    <Shell dark>
+    <Shell dark={true}>
       <Pop delay={3}>
         <Eyebrow>03 · Values become parameters</Eyebrow>
       </Pop>
       <Pop delay={9}>
-        <BigText style={{ fontSize: portrait ? 82 : 92, marginTop: 28 }}>
+        <BigText
+          style={{
+            fontSize: portrait ? 82 : 92,
+            marginTop: 28,
+          }}
+        >
           The value stays
           <br />
           <span style={{ color: colors.mint }}>out of the SQL.</span>
@@ -295,22 +310,22 @@ const ParameterScene = () => {
       </Pop>
       <div
         style={{
-          display: 'grid',
-          gridTemplateColumns: portrait ? '1fr' : '0.8fr 1.2fr',
+          display: "grid",
+          gridTemplateColumns: portrait ? "1fr" : "0.8fr 1.2fr",
           gap: portrait ? 34 : 70,
-          alignItems: 'center',
+          alignItems: "center",
           marginTop: portrait ? 100 : 78,
         }}
       >
         <Pop delay={20}>
           <div
             style={{
-              border: '2px solid #373B39',
+              border: "2px solid #373B39",
               borderRadius: 26,
               padding: portrait ? 40 : 36,
               fontFamily: mono,
               fontSize: portrait ? 30 : 28,
-              background: '#202321',
+              background: "#202321",
             }}
           >
             where(eq(users.id, <span style={{ color: colors.mint }}>42</span>))
@@ -357,12 +372,13 @@ const DialectScene = () => {
   const { width, height } = useVideoConfig()
   const portrait = height > width
   const progress = interpolate(frame, [18, 78], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
     easing: Easing.inOut(Easing.cubic),
   })
+
   return (
-    <Shell accent>
+    <Shell accent={true}>
       <Pop delay={2}>
         <Eyebrow>
           <span style={{ color: colors.mint }}>04 · Render explicitly</span>
@@ -384,14 +400,14 @@ const DialectScene = () => {
       <div
         style={{
           marginTop: portrait ? 120 : 76,
-          display: 'grid',
-          gridTemplateColumns: portrait ? '1fr' : '1fr 1fr',
+          display: "grid",
+          gridTemplateColumns: portrait ? "1fr" : "1fr 1fr",
           gap: 30,
         }}
       >
         {[
-          ['Standard / SQLite', 'WHERE ("users"."id" = ?)'],
-          ['PostgreSQL', 'WHERE ("users"."id" = $1)'],
+          ["Standard / SQLite", 'WHERE ("users"."id" = ?)'],
+          ["PostgreSQL", 'WHERE ("users"."id" = $1)'],
         ].map(([label, sql], index) => (
           <Pop key={label} delay={20 + index * 14}>
             <div
@@ -408,8 +424,8 @@ const DialectScene = () => {
                   fontSize: 21,
                   color: colors.blue,
                   fontWeight: 750,
-                  textTransform: 'uppercase',
-                  letterSpacing: '.12em',
+                  textTransform: "uppercase",
+                  letterSpacing: ".12em",
                 }}
               >
                 {label}
@@ -428,14 +444,14 @@ const DialectScene = () => {
                 style={{
                   height: 7,
                   marginTop: 38,
-                  background: '#E3E1DB',
+                  background: "#E3E1DB",
                   borderRadius: 20,
-                  overflow: 'hidden',
+                  overflow: "hidden",
                 }}
               >
                 <div
                   style={{
-                    height: '100%',
+                    height: "100%",
                     width: `${progress * 100}%`,
                     background: index ? colors.coral : colors.mint,
                   }}
@@ -452,21 +468,27 @@ const DialectScene = () => {
 const ViteScene = () => {
   const { width, height } = useVideoConfig()
   const portrait = height > width
+
   return (
     <Shell>
       <Pop delay={3}>
         <Eyebrow>05 · Optional Vite plugin</Eyebrow>
       </Pop>
       <Pop delay={9}>
-        <BigText style={{ fontSize: portrait ? 84 : 94, marginTop: 28 }}>
+        <BigText
+          style={{
+            fontSize: portrait ? 84 : 94,
+            marginTop: 28,
+          }}
+        >
           Skip the import wall.
         </BigText>
       </Pop>
       <div
         style={{
-          display: 'grid',
-          gridTemplateColumns: portrait ? '1fr' : '1fr 80px 1fr',
-          alignItems: 'center',
+          display: "grid",
+          gridTemplateColumns: portrait ? "1fr" : "1fr 80px 1fr",
+          alignItems: "center",
           gap: portrait ? 28 : 24,
           marginTop: portrait ? 110 : 90,
         }}
@@ -477,7 +499,7 @@ const ViteScene = () => {
               borderRadius: 26,
               padding: portrait ? 42 : 38,
               background: colors.white,
-              border: '2px solid rgba(21,23,22,.09)',
+              border: "2px solid rgba(21,23,22,.09)",
               boxShadow: shadow,
             }}
           >
@@ -486,8 +508,8 @@ const ViteScene = () => {
                 fontSize: 20,
                 color: colors.muted,
                 fontWeight: 700,
-                letterSpacing: '.13em',
-                textTransform: 'uppercase',
+                letterSpacing: ".13em",
+                textTransform: "uppercase",
               }}
             >
               Without the plugin
@@ -501,9 +523,9 @@ const ViteScene = () => {
                 color: colors.muted,
               }}
             >
-              import {'{'} eq, from, integer,
+              import {"{"} eq, from, integer,
               <br />
-              select, table, text, where {'}'}
+              select, table, text, where {"}"}
               <br />
               from <span style={{ color: colors.coral }}>'qubu'</span>
             </div>
@@ -514,8 +536,8 @@ const ViteScene = () => {
           style={{
             fontSize: 50,
             color: colors.blue,
-            textAlign: 'center',
-            transform: portrait ? 'rotate(90deg)' : undefined,
+            textAlign: "center",
+            transform: portrait ? "rotate(90deg)" : undefined,
           }}
         >
           →
@@ -535,8 +557,8 @@ const ViteScene = () => {
                 fontSize: 20,
                 color: colors.mint,
                 fontWeight: 700,
-                letterSpacing: '.13em',
-                textTransform: 'uppercase',
+                letterSpacing: ".13em",
+                textTransform: "uppercase",
               }}
             >
               With the plugin
@@ -554,7 +576,12 @@ const ViteScene = () => {
         </Pop>
       </div>
       <Pop delay={54} style={{ marginTop: portrait ? 82 : 60 }}>
-        <div style={{ color: colors.muted, fontSize: portrait ? 30 : 27 }}>
+        <div
+          style={{
+            color: colors.muted,
+            fontSize: portrait ? 30 : 27,
+          }}
+        >
           It inserts only the Qubu imports that file uses.
         </div>
       </Pop>
@@ -567,22 +594,34 @@ const Finale = () => {
   const { width, height } = useVideoConfig()
   const portrait = height > width
   const orbit = interpolate(frame, [0, 150], [0, 360])
+
   return (
     <Shell>
       <div
         style={{
-          height: '100%',
-          display: 'grid',
-          placeItems: 'center',
-          textAlign: 'center',
+          height: "100%",
+          display: "grid",
+          placeItems: "center",
+          textAlign: "center",
         }}
       >
         <div>
-          <Pop delay={4} style={{ display: 'flex', justifyContent: 'center' }}>
+          <Pop
+            delay={4}
+            style={{
+              display: "flex",
+              justifyContent: "center",
+            }}
+          >
             <Wordmark />
           </Pop>
           <Pop delay={12}>
-            <BigText style={{ fontSize: portrait ? 100 : 118, marginTop: 50 }}>
+            <BigText
+              style={{
+                fontSize: portrait ? 100 : 118,
+                marginTop: 50,
+              }}
+            >
               Qubu builds SQL.
               <br />
               <span style={{ color: colors.blue }}>Your driver runs it.</span>
@@ -603,11 +642,11 @@ const Finale = () => {
             <div
               style={{
                 marginTop: 44,
-                display: 'inline-flex',
-                alignItems: 'center',
+                display: "inline-flex",
+                alignItems: "center",
                 gap: 18,
                 borderRadius: 100,
-                padding: '20px 32px',
+                padding: "20px 32px",
                 background: colors.ink,
                 color: colors.white,
                 fontFamily: mono,
@@ -621,11 +660,11 @@ const Finale = () => {
       </div>
       <div
         style={{
-          position: 'absolute',
+          position: "absolute",
           width: portrait ? 520 : 700,
           height: portrait ? 520 : 700,
           border: `2px solid ${colors.blue}`,
-          borderRadius: '50%',
+          borderRadius: "50%",
           opacity: 0.15,
           right: portrait ? -300 : -250,
           top: portrait ? -250 : -360,
@@ -638,8 +677,8 @@ const Finale = () => {
             height: 34,
             borderRadius: 30,
             background: colors.coral,
-            position: 'absolute',
-            left: '48%',
+            position: "absolute",
+            left: "48%",
             bottom: -17,
           }}
         />

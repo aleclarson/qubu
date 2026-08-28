@@ -8,18 +8,18 @@ Qubu extensions are ordinary fragments. A custom clause supplies a placement,
 render order, and renderer:
 
 ```ts
-import { from, render, select, table, text } from 'qubu'
-import { customClause } from 'qubu/core'
+import { from, render, select, table, text } from "qubu"
+import { customClause } from "qubu/core"
 
-const users = table('users', { name: text() })
+const users = table("users", { name: text() })
 
 const fetchWithTies = customClause({
-  name: 'fetch-with-ties',
+  name: "fetch-with-ties",
   order: 100,
   render(context) {
-    context.append('FETCH FIRST ')
+    context.append("FETCH FIRST ")
     context.parameter(10)
-    context.append(' ROWS WITH TIES')
+    context.append(" ROWS WITH TIES")
   },
 })
 
@@ -41,23 +41,23 @@ shape is known to the application but cannot be declared with `table()`. Its
 table, while `from()` or a join supplies the source to the query scope:
 
 ```ts
-import { from, integer, render, select, text } from 'qubu'
-import { identifier } from 'qubu/core'
-import { customSource } from 'qubu/schema'
+import { from, integer, render, select, text } from "qubu"
+import { identifier } from "qubu/core"
+import { customSource } from "qubu/schema"
 
 const rows = customSource({
-  identity: { sourceKind: 'table-function', name: 'json_each', alias: 'row' },
-  sourceKind: 'table-function',
-  reference: identifier('row'),
+  identity: { sourceKind: "table-function", name: "json_each", alias: "row" },
+  sourceKind: "table-function",
+  reference: identifier("row"),
   columns: {
     key: integer(),
     value: text({ nullable: true }),
   },
   render(context) {
-    context.append('json_each(')
+    context.append("json_each(")
     context.parameter('{"a":1}')
-    context.append(') AS ')
-    context.render(identifier('row'))
+    context.append(") AS ")
+    context.render(identifier("row"))
   },
 })
 

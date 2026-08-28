@@ -1,10 +1,6 @@
-import {
-  fragment,
-  type Fragment,
-  type RenderContext,
-} from '../../core/fragment.ts'
+import { fragment, type Fragment, type RenderContext } from "../../core/fragment.ts"
 
-export type ClausePlacement = 'before-select' | 'after-select'
+export type ClausePlacement = "before-select" | "after-select"
 
 export interface SelectClause<TMetadata = any> extends Fragment<TMetadata> {
   readonly clauseKind: string
@@ -18,7 +14,7 @@ export function createClause<TMetadata = never>(
   clauseKind: string,
   placement: ClausePlacement,
   order: number,
-  render: (context: RenderContext) => void
+  render: (context: RenderContext) => void,
 ): SelectClause<TMetadata> {
   return {
     clauseKind,

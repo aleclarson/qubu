@@ -6,29 +6,26 @@ import {
   type RequiresSourceMeta,
   type RenderFunction,
   type ResultMeta,
-} from '../core/fragment.ts'
-import type { AnySqlType, SqlUnknown } from '../core/sql-types.ts'
-import type { TableDefinitions, TableRow } from './table.ts'
-import type {
-  ColumnDependency,
-  ColumnReference,
-} from '../expressions/column.ts'
-import { createColumnReference } from '../expressions/column.ts'
-import { resolveSqlNames } from '../core/naming.ts'
-import type { SourceConstraintsRecord } from './constraints.ts'
-import { columnResultValue } from './column.ts'
+} from "../core/fragment.ts"
+import { resolveSqlNames } from "../core/naming.ts"
+import type { AnySqlType, SqlUnknown } from "../core/sql-types.ts"
+import type { ColumnDependency, ColumnReference } from "../expressions/column.ts"
+import { createColumnReference } from "../expressions/column.ts"
+import { columnResultValue } from "./column.ts"
+import type { SourceConstraintsRecord } from "./constraints.ts"
+import type { TableDefinitions, TableRow } from "./table.ts"
 
-export const sourceIdentity: unique symbol = Symbol('qubu.source.identity')
+export const sourceIdentity: unique symbol = Symbol("qubu.source.identity")
 
 export type SourceKind =
-  | 'table'
-  | 'table-alias'
-  | 'query-alias'
-  | 'lateral'
-  | 'cte'
-  | 'excluded'
-  | 'custom'
-  | 'table-function'
+  | "table"
+  | "table-alias"
+  | "query-alias"
+  | "lateral"
+  | "cte"
+  | "excluded"
+  | "custom"
+  | "table-function"
 
 /** SQL semantic domains keyed by the application fields of a source row. */
 export type SourceSqlTypes<TRow extends object> = {
@@ -64,48 +61,30 @@ export interface SourceConfig {
   readonly constraints?: SourceConstraintsRecord
 }
 
-type SourceConfigValue<
-  TConfig,
-  TKey extends PropertyKey,
-  TFallback,
-> = TKey extends keyof TConfig ? TConfig[TKey] : TFallback
+type SourceConfigValue<TConfig, TKey extends PropertyKey, TFallback> = TKey extends keyof TConfig
+  ? TConfig[TKey]
+  : TFallback
 
-type SourceConfigIdentity<TConfig> = SourceConfigValue<
-  TConfig,
-  'identity',
-  unknown
->
+type SourceConfigIdentity<TConfig> = SourceConfigValue<TConfig, "identity", unknown>
 type SourceConfigRow<TConfig> = Extract<
-  SourceConfigValue<TConfig, 'row', Record<string, unknown>>,
+  SourceConfigValue<TConfig, "row", Record<string, unknown>>,
   object
 >
-type SourceConfigMetadata<TConfig> = SourceConfigValue<
-  TConfig,
-  'metadata',
-  never
->
+type SourceConfigMetadata<TConfig> = SourceConfigValue<TConfig, "metadata", never>
 type SourceConfigSqlTypes<TConfig> = Extract<
-  SourceConfigValue<
-    TConfig,
-    'sqlTypes',
-    UnknownSourceSqlTypes<SourceConfigRow<TConfig>>
-  >,
+  SourceConfigValue<TConfig, "sqlTypes", UnknownSourceSqlTypes<SourceConfigRow<TConfig>>>,
   SourceSqlTypes<SourceConfigRow<TConfig>>
 >
 type SourceConfigConstraints<TConfig> = Extract<
-  SourceConfigValue<TConfig, 'constraints', {}>,
+  SourceConfigValue<TConfig, "constraints", {}>,
   SourceConstraintsRecord
 >
 
-export interface Source<TConfig extends SourceConfig = {}>
-  extends Fragment<
-    | ResultMeta<readonly SourceConfigRow<TConfig>[]>
-    | ProvidesSourceMeta<
-        SourceConfigIdentity<TConfig>,
-        SourceConfigRow<TConfig>
-      >
-    | SourceConfigMetadata<TConfig>
-  > {
+export interface Source<TConfig extends SourceConfig = {}> extends Fragment<
+  | ResultMeta<readonly SourceConfigRow<TConfig>[]>
+  | ProvidesSourceMeta<SourceConfigIdentity<TConfig>, SourceConfigRow<TConfig>>
+  | SourceConfigMetadata<TConfig>
+> {
   /** @internal Type-level configuration retained for inference. */
   readonly __sourceConfig?: TConfig
   /** @internal SQL domains retained for inference. */
@@ -124,15 +103,10 @@ export interface Source<TConfig extends SourceConfig = {}>
 export type AnySource = Source<any>
 
 /** The source-provision fact carried by a source-producing fragment. */
-export type SourceProvision<T> = Extract<
-  MetadataOf<T>,
-  { readonly kind: 'provides-source' }
->
+export type SourceProvision<T> = Extract<MetadataOf<T>, { readonly kind: "provides-source" }>
 
 export type ProvidedSourceIdentity<T> =
-  SourceProvision<T> extends ProvidesSourceMeta<infer TIdentity, any>
-    ? TIdentity
-    : never
+  SourceProvision<T> extends ProvidesSourceMeta<infer TIdentity, any> ? TIdentity : never
 
 export type ProvidedSourceRow<T> =
   SourceProvision<T> extends ProvidesSourceMeta<any, infer TRow> ? TRow : never
@@ -157,10 +131,7 @@ export type SourceConstraints<T> = T extends {
   ? TConstraints
   : never
 
-export interface CustomSourceOptions<
-  TIdentity,
-  TDefinitions extends TableDefinitions,
-> {
+export interface CustomSourceOptions<TIdentity, TDefinitions extends TableDefinitions> {
   /** The type-level identity used by columns and source-scope validation. */
   readonly identity: TIdentity
   /** The SQL fragment that renders the relation in FROM or JOIN. */
@@ -172,25 +143,22 @@ export interface CustomSourceOptions<
   readonly sourceKind?: SourceKind
 }
 
-export type CustomSource<
-  TIdentity,
-  TDefinitions extends TableDefinitions,
-> = Source<{
+export type CustomSource<TIdentity, TDefinitions extends TableDefinitions> = Source<{
   readonly identity: TIdentity
   readonly row: TableRow<TDefinitions>
-  readonly sqlTypes: import('./table.ts').TableSqlTypes<TDefinitions>
+  readonly sqlTypes: import("./table.ts").TableSqlTypes<TDefinitions>
 }> & {
   readonly identity: TIdentity
   readonly definitions: TDefinitions
   readonly columns: SourceColumns<
     TableRow<TDefinitions>,
     TIdentity,
-    import('./table.ts').TableSqlTypes<TDefinitions>
+    import("./table.ts").TableSqlTypes<TDefinitions>
   >
 } & SourceColumns<
     TableRow<TDefinitions>,
     TIdentity,
-    import('./table.ts').TableSqlTypes<TDefinitions>
+    import("./table.ts").TableSqlTypes<TDefinitions>
   >
 
 export function createSource<
@@ -203,7 +171,7 @@ export function createSource<
   sourceKind: SourceKind,
   render: RenderFunction,
   reference: Fragment<never>,
-  constraints: TConstraints = {} as TConstraints
+  constraints: TConstraints = {} as TConstraints,
 ): Source<{
   readonly identity: TIdentity
   readonly row: TRow
@@ -227,42 +195,38 @@ export function createSource<
 }
 
 /**
- * Create a typed source-producing fragment for a custom FROM relation such as
- * a table-valued function. The renderer owns the relation syntax and may bind
- * values through context.parameter(); the source identity and output columns
- * remain available to the normal FROM/JOIN scope checks.
+ * Create a typed source-producing fragment for a custom FROM relation such as a table-valued
+ * function. The renderer owns the relation syntax and may bind values through context.parameter();
+ * the source identity and output columns remain available to the normal FROM/JOIN scope checks.
  */
-export function customSource<
-  const TIdentity,
-  const TDefinitions extends TableDefinitions,
->(
-  options: CustomSourceOptions<TIdentity, TDefinitions>
+export function customSource<const TIdentity, const TDefinitions extends TableDefinitions>(
+  options: CustomSourceOptions<TIdentity, TDefinitions>,
 ): CustomSource<TIdentity, TDefinitions> {
   type TRow = TableRow<TDefinitions>
-  type TSqlTypes = import('./table.ts').TableSqlTypes<TDefinitions>
+  type TSqlTypes = import("./table.ts").TableSqlTypes<TDefinitions>
   const source = createSource<TIdentity, TRow, never, TSqlTypes>(
-    options.sourceKind ?? 'custom',
+    options.sourceKind ?? "custom",
     options.render,
-    options.reference
+    options.reference,
   )
   const sqlNames = resolveSqlNames(
     Object.entries(options.columns).map(([fieldName, definition]) => ({
       fieldName,
       sqlName: definition.sqlName,
-    }))
+    })),
   )
   const columns = Object.fromEntries(
-    Object.keys(options.columns).map(fieldName => {
+    Object.keys(options.columns).map((fieldName) => {
       return [
         fieldName,
         createColumnReference(
           sqlNames[fieldName],
           source.reference,
           fieldName,
-          columnResultValue(options.columns[fieldName])
+          columnResultValue(options.columns[fieldName]),
         ) as ColumnReference<string, any>,
       ]
-    })
+    }),
   ) as SourceColumns<TRow, TIdentity, TSqlTypes>
 
   Object.assign(source, {
@@ -276,31 +240,31 @@ export function customSource<
 }
 
 /**
- * Add convenient direct column properties without allowing a column name to
- * overwrite the source's rendering or metadata primitives.
+ * Add convenient direct column properties without allowing a column name to overwrite the source's
+ * rendering or metadata primitives.
  */
-export function exposeColumns(
-  target: object,
-  columns: Record<string, unknown>
-) {
+export function exposeColumns(target: object, columns: Record<string, unknown>) {
   const reserved = new Set([
-    'render',
-    'reference',
-    'sourceKind',
-    'columns',
-    'tableName',
-    'definitions',
-    'sqlNames',
-    'alias',
-    'base',
-    'query',
-    'cteName',
-    'identity',
-    'constraints',
+    "render",
+    "reference",
+    "sourceKind",
+    "columns",
+    "tableName",
+    "definitions",
+    "sqlNames",
+    "alias",
+    "base",
+    "query",
+    "cteName",
+    "identity",
+    "constraints",
   ])
 
   for (const [name, column] of Object.entries(columns)) {
-    if (reserved.has(name)) continue
+    if (reserved.has(name)) {
+      continue
+    }
+
     Object.defineProperty(target, name, {
       configurable: true,
       enumerable: true,

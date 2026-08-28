@@ -12,19 +12,19 @@ Read and map one namespace in strict mode, then pass that exact result to the
 generator:
 
 ```ts
-import { writeFile } from 'node:fs/promises'
-import { generateSchemaSource } from 'qubu/codegen'
-import { mapCatalogToSnapshot, readSqliteCatalog } from 'qubu/introspection'
+import { writeFile } from "node:fs/promises"
+import { generateSchemaSource } from "qubu/codegen"
+import { mapCatalogToSnapshot, readSqliteCatalog } from "qubu/introspection"
 
-const catalog = await readSqliteCatalog(connection, { namespace: 'main' })
-const introspection = mapCatalogToSnapshot(catalog, { namespace: 'main' })
+const catalog = await readSqliteCatalog(connection, { namespace: "main" })
+const introspection = mapCatalogToSnapshot(catalog, { namespace: "main" })
 const generated = generateSchemaSource(introspection)
 
 if (!generated.ok) {
-  throw new Error(generated.diagnostics.map(issue => issue.message).join('\n'))
+  throw new Error(generated.diagnostics.map((issue) => issue.message).join("\n"))
 }
 
-await writeFile('src/schema.generated.ts', generated.source, 'utf8')
+await writeFile("src/schema.generated.ts", generated.source, "utf8")
 ```
 
 `writeFile()` belongs to the application; `generateSchemaSource()` only
@@ -48,13 +48,13 @@ the generated module is accepted, its serialized snapshot becomes the identity
 baseline for the next catalog read:
 
 ```ts
-import { mapCatalogToSnapshot } from 'qubu/introspection'
-import { createSqliteSchemaSnapshot } from 'qubu/snapshot'
-import { mainSchema } from './schema.generated.ts'
+import { mapCatalogToSnapshot } from "qubu/introspection"
+import { createSqliteSchemaSnapshot } from "qubu/snapshot"
+import { mainSchema } from "./schema.generated.ts"
 
 const previousSnapshot = createSqliteSchemaSnapshot(mainSchema)
 const next = mapCatalogToSnapshot(nextCatalog, {
-  namespace: 'main',
+  namespace: "main",
   previousSnapshot,
 })
 ```
@@ -75,17 +75,17 @@ Use the controlled callbacks to adopt trusted names or application mappings:
 ```ts
 const generated = generateSchemaSource(introspection, {
   naming(context) {
-    if (context.kind === 'table' && context.physicalName === 'user_records') {
-      return 'users'
+    if (context.kind === "table" && context.physicalName === "user_records") {
+      return "users"
     }
   },
   mapColumn(context) {
-    if (context.columnPhysicalName === 'account_id') {
+    if (context.columnPhysicalName === "account_id") {
       return {
-        output: 'string',
-        insert: 'string',
-        update: 'string',
-        sqlDomain: 'uuid',
+        output: "string",
+        insert: "string",
+        update: "string",
+        sqlDomain: "uuid",
       }
     }
   },

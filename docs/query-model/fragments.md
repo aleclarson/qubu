@@ -54,20 +54,9 @@ Parameter values are not fragment metadata. A renderer calls
 `context.parameter(value)`, and `render()` collects values in placeholder order:
 
 ```ts
-import {
-  and,
-  eq,
-  from,
-  integer,
-  like,
-  render,
-  select,
-  table,
-  text,
-  where,
-} from 'qubu'
+import { and, eq, from, integer, like, render, select, table, text, where } from "qubu"
 
-const users = table('users', {
+const users = table("users", {
   id: integer(),
   name: text(),
 })
@@ -75,7 +64,7 @@ const users = table('users', {
 const query = select(
   { id: users.id },
   from(users),
-  where(and(eq(users.id, 7), like(users.name, '%Ada%')))
+  where(and(eq(users.id, 7), like(users.name, "%Ada%"))),
 )
 
 render(query)

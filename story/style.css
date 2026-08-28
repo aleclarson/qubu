@@ -22,17 +22,8 @@ body,
 
 .slidev-layout {
   background:
-    radial-gradient(
-      circle at 100% 0%,
-      rgba(112, 230, 245, 0.1),
-      transparent 35%
-    ),
-    radial-gradient(
-      circle at 0% 100%,
-      rgba(216, 255, 97, 0.08),
-      transparent 32%
-    ),
-    var(--ink);
+    radial-gradient(circle at 100% 0%, rgba(112, 230, 245, 0.1), transparent 35%),
+    radial-gradient(circle at 0% 100%, rgba(216, 255, 97, 0.08), transparent 32%), var(--ink);
   color: var(--paper);
   font-family:
     Inter,
@@ -40,7 +31,7 @@ body,
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
-    'Segoe UI',
+    "Segoe UI",
     sans-serif;
   padding: 64px 84px;
 }
@@ -112,7 +103,7 @@ body,
 .story-close::before {
   border: 1px solid rgba(216, 255, 97, 0.22);
   border-radius: 50%;
-  content: '';
+  content: "";
   height: 620px;
   position: absolute;
   right: -110px;
@@ -124,7 +115,7 @@ body,
 .story-close::after {
   border: 1px solid rgba(112, 230, 245, 0.16);
   border-radius: 50%;
-  content: '';
+  content: "";
   height: 860px;
   position: absolute;
   right: -230px;
@@ -429,7 +420,7 @@ body,
 .shape-card pre,
 .dialect-code pre {
   color: var(--paper);
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 0.85rem;
   line-height: 1.55;
   margin: 0;
@@ -440,7 +431,7 @@ body,
 .shape-card code,
 .dialect-code code {
   color: var(--paper);
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 0.85rem;
   line-height: 1.55;
 }
@@ -621,7 +612,7 @@ body,
 
 .dialect-item small {
   color: var(--muted);
-  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   font-size: 0.82rem;
   margin-top: 5px;
 }

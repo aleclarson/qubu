@@ -1,6 +1,6 @@
-import { from, groupBy, render, select, sql } from '../src/index.ts'
-import { postgresDialect } from '../src/dialects/postgres.ts'
-import { sqliteDialect } from '../src/dialects/sqlite.ts'
+import { postgresDialect } from "../src/dialects/postgres.ts"
+import { sqliteDialect } from "../src/dialects/sqlite.ts"
+import { from, groupBy, render, select, sql } from "../src/index.ts"
 import type {
   AggregateDependenciesOf,
   CapabilitiesOf,
@@ -19,7 +19,7 @@ import type {
   SqlTypeOf,
   SqlUnknown,
   VisibleDependenciesOf,
-} from '../src/index.ts'
+} from "../src/index.ts"
 import {
   aggregatePostCount,
   correlatedQueryTemplate,
@@ -34,7 +34,7 @@ import {
   untypedTemplate,
   users,
   windowedPostCount,
-} from './sql-template-fixtures.ts'
+} from "./sql-template-fixtures.ts"
 
 type Equal<TLeft, TRight> = [TLeft] extends [TRight]
   ? [TRight] extends [TLeft]
@@ -46,9 +46,9 @@ type Assert<TCondition extends true> = TCondition
 
 type UserIdentity = SourceIdentity<typeof users>
 type PostIdentity = SourceIdentity<typeof posts>
-type UserId = ColumnDependency<UserIdentity, 'id'>
-type UserName = ColumnDependency<UserIdentity, 'name'>
-type PostId = ColumnDependency<PostIdentity, 'id'>
+type UserId = ColumnDependency<UserIdentity, "id">
+type UserName = ColumnDependency<UserIdentity, "name">
+type PostId = ColumnDependency<PostIdentity, "id">
 
 export type TemplateDefaultsAreUnknown = Assert<
   Equal<
@@ -58,10 +58,7 @@ export type TemplateDefaultsAreUnknown = Assert<
 >
 
 export type DeclaredTemplateDomain = Assert<
-  Equal<
-    [OutputOf<typeof normalizedName>, SqlTypeOf<typeof normalizedName>],
-    [string, SqlText]
-  >
+  Equal<[OutputOf<typeof normalizedName>, SqlTypeOf<typeof normalizedName>], [string, SqlText]>
 >
 
 export type TemplateScopeAndDependencies = Assert<
@@ -103,20 +100,24 @@ export type WindowTemplateMetadata = Assert<
   >
 >
 
-export type QueryInterpolationIsASubquery = Assert<
-  Equal<HasSubquery<typeof queryTemplate>, true>
->
+export type QueryInterpolationIsASubquery = Assert<Equal<HasSubquery<typeof queryTemplate>, true>>
 
 export type CorrelatedQueryScopeIsInherited = Assert<
   Equal<RequiresOuterOf<typeof correlatedQueryTemplate>, UserIdentity>
 >
 
 export type TemplateCapabilityRequirements = Assert<
-  Equal<CapabilitiesOf<typeof postgresPredicate>, 'ilike'>
+  Equal<CapabilitiesOf<typeof postgresPredicate>, "ilike">
 >
 
 export type GroupedTemplateOutput = Assert<
-  Equal<typeof groupedTemplateQuery.row, { name: string; postCount: number }>
+  Equal<
+    typeof groupedTemplateQuery.row,
+    {
+      name: string
+      postCount: number
+    }
+  >
 >
 
 render(postgresPredicate, postgresDialect())
@@ -126,7 +127,7 @@ select({ hasPosts: correlatedQueryTemplate }, from(users))
 select(
   { hasPosts: correlatedQueryTemplate },
   // @ts-expect-error A correlated query interpolation retains its outer source requirement.
-  from(posts)
+  from(posts),
 )
 
 // @ts-expect-error The default dialect does not support the inherited ILIKE capability.
@@ -138,17 +139,19 @@ render(postgresPredicate, sqliteDialect())
 select(
   { name: normalizedName },
   // @ts-expect-error A template keeps the source requirement of an interpolated column.
-  from(posts)
+  from(posts),
 )
 
 select(
-  { name: normalizedName, postCount: aggregatePostCount },
+  {
+    name: normalizedName,
+    postCount: aggregatePostCount,
+  },
   // @ts-expect-error The interpolated name dependency must be grouped.
   from(users),
-  groupBy(users.id)
+  groupBy(users.id),
 )
 
 const outputOnly = sql.type<string>()`custom_text(${users.name})`
-export type OutputOnlyDomainRemainsUnknown = Assert<
-  Equal<SqlTypeOf<typeof outputOnly>, SqlUnknown>
->
+
+export type OutputOnlyDomainRemainsUnknown = Assert<Equal<SqlTypeOf<typeof outputOnly>, SqlUnknown>>

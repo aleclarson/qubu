@@ -1,7 +1,6 @@
 {
   "name": "@qubu/adapter-bun-sql",
   "version": "0.4.0",
-  "type": "module",
   "repository": {
     "type": "git",
     "url": "https://github.com/aleclarson/qubu",
@@ -10,19 +9,10 @@
   "files": [
     "dist"
   ],
+  "type": "module",
   "exports": {
     ".": "./src/index.ts",
     "./package.json": "./package.json"
-  },
-  "scripts": {
-    "build": "tsdown",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
-  },
-  "peerDependencies": {
-    "qubu": "^0.4.0"
-  },
-  "devDependencies": {
-    "qubu": "workspace:*"
   },
   "publishConfig": {
     "types": "./dist/index.d.mts",
@@ -30,5 +20,15 @@
       ".": "./dist/index.mjs",
       "./package.json": "./package.json"
     }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "qubu": "workspace:*"
+  },
+  "peerDependencies": {
+    "qubu": "^0.4.0"
   }
 }

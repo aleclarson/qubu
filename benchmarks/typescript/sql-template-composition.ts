@@ -12,8 +12,7 @@ import {
   table,
   text,
   where,
-} from 'qubu'
-import { withDialectCapability } from 'qubu/core'
+} from "qubu"
 import type {
   CapabilitiesOf,
   ColumnDependency,
@@ -28,7 +27,8 @@ import type {
   SqlInteger,
   SqlText,
   SqlTypeOf,
-} from 'qubu'
+} from "qubu"
+import { withDialectCapability } from "qubu/core"
 
 type Equal<TLeft, TRight> = [TLeft] extends [TRight]
   ? [TRight] extends [TLeft]
@@ -38,12 +38,12 @@ type Equal<TLeft, TRight> = [TLeft] extends [TRight]
 
 type Assert<TCondition extends true> = TCondition
 
-export const users = table('template_users', {
+export const users = table("template_users", {
   id: integer(),
   name: text(),
 })
 
-export const posts = table('template_posts', {
+export const posts = table("template_posts", {
   id: integer(),
   authorId: integer(),
   title: text(),
@@ -51,26 +51,15 @@ export const posts = table('template_posts', {
 
 export const normalizedName = sql.type<string, SqlText>()`LOWER(${users.name})`
 
-export const normalizedPostTitle = sql.type<
-  string,
-  SqlText
->()`LOWER(${posts.title})`
+export const normalizedPostTitle = sql.type<string, SqlText>()`LOWER(${posts.title})`
 
-export const aggregatePostCount = sql.type<
-  number,
-  SqlInteger
->()`${count(posts.id)}`
+export const aggregatePostCount = sql.type<number, SqlInteger>()`${count(posts.id)}`
 
-export const windowedPostCount = sql.type<number, SqlInteger>()`${over(
-  count(posts.id),
-  { partitionBy: [users.id] }
-)}`
+export const windowedPostCount = sql.type<number, SqlInteger>()`${over(count(posts.id), {
+  partitionBy: [users.id],
+})}`
 
-export const selectedUserIds = select(
-  { userId: users.id },
-  from(users),
-  groupBy(users.id)
-)
+export const selectedUserIds = select({ userId: users.id }, from(users), groupBy(users.id))
 
 export const queryTemplate = sql`EXISTS (${selectedUserIds})`
 
@@ -78,7 +67,7 @@ export const correlatedPostIds = select(
   { postId: posts.id },
   from(posts),
   correlate(users),
-  where(eq(posts.authorId, users.id))
+  where(eq(posts.authorId, users.id)),
 )
 
 export const correlatedQueryTemplate = sql.type<
@@ -91,11 +80,11 @@ export const nestedTemplate = sql`${normalizedName}`
 export const nestedTypedTemplate = sql.type<
   string,
   SqlText
->()`COALESCE(${nestedTemplate}, ${'unknown'})`
+>()`COALESCE(${nestedTemplate}, ${"unknown"})`
 
 export const postgresPredicate = withDialectCapability(
-  sql.type<boolean, SqlBoolean>()`${users.name} ILIKE ${'%ada%'}`,
-  'ilike'
+  sql.type<boolean, SqlBoolean>()`${users.name} ILIKE ${"%ada%"}`,
+  "ilike",
 )
 
 export const groupedTemplateQuery = select(
@@ -105,35 +94,29 @@ export const groupedTemplateQuery = select(
   },
   from(users),
   leftJoin(posts, eq(users.id, posts.authorId)),
-  groupBy(normalizedName)
+  groupBy(normalizedName),
 )
 
 export const leftJoinedTemplateQuery = select(
   { title: normalizedPostTitle },
   from(users),
-  leftJoin(posts, eq(users.id, posts.authorId))
+  leftJoin(posts, eq(users.id, posts.authorId)),
 )
 
 type UserIdentity = SourceIdentity<typeof users>
 type PostIdentity = SourceIdentity<typeof posts>
-type UserId = ColumnDependency<UserIdentity, 'id'>
-type PostId = ColumnDependency<PostIdentity, 'id'>
+type UserId = ColumnDependency<UserIdentity, "id">
+type PostId = ColumnDependency<PostIdentity, "id">
 
 export type NestedTemplateMetadata = Assert<
   Equal<
-    [
-      OutputOf<typeof nestedTypedTemplate>,
-      SqlTypeOf<typeof nestedTypedTemplate>,
-    ],
+    [OutputOf<typeof nestedTypedTemplate>, SqlTypeOf<typeof nestedTypedTemplate>],
     [string, SqlText]
   >
 >
 
 export type NestedTemplateDependencies = Assert<
-  Equal<
-    DependenciesOf<typeof nestedTypedTemplate>,
-    ColumnDependency<UserIdentity, 'name'>
-  >
+  Equal<DependenciesOf<typeof nestedTypedTemplate>, ColumnDependency<UserIdentity, "name">>
 >
 
 export type WindowedTemplateMetadata = Assert<
@@ -152,7 +135,13 @@ export type CorrelatedTemplateScope = Assert<
 >
 
 export type GroupedTemplateOutput = Assert<
-  Equal<typeof groupedTemplateQuery.row, { name: string; postCount: number }>
+  Equal<
+    typeof groupedTemplateQuery.row,
+    {
+      name: string
+      postCount: number
+    }
+  >
 >
 
 export type LeftJoinedTemplateNullability = Assert<
@@ -164,5 +153,5 @@ export type LeftJoinedTemplateOutput = Assert<
 >
 
 export type CapabilityBearingTemplate = Assert<
-  Equal<CapabilitiesOf<typeof postgresPredicate>, 'ilike'>
+  Equal<CapabilitiesOf<typeof postgresPredicate>, "ilike">
 >

@@ -21,16 +21,16 @@ Declare tables and the root registry with Qubu, then import the converter for
 your database:
 
 ```ts
-import { integer, schema, table, text } from 'qubu'
-import { toPostgresDrizzleSchema } from '@qubu/drizzle/postgres'
+import { integer, schema, table, text } from "qubu"
+import { toPostgresDrizzleSchema } from "@qubu/drizzle/postgres"
 
-const users = table('user_records', {
+const users = table("user_records", {
   id: integer({ generated: true }),
   name: text(),
   nickname: text({ nullable: true }),
 })
 
-const appSchema = schema({ users }, { namespace: 'app' })
+const appSchema = schema({ users }, { namespace: "app" })
 const drizzleTables = toPostgresDrizzleSchema(appSchema)
 ```
 
@@ -54,8 +54,8 @@ Use the converted tables in ordinary Drizzle queries. Table objects do not need
 to be passed to `drizzle()`:
 
 ```ts
-import { eq } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/node-postgres'
+import { eq } from "drizzle-orm"
+import { drizzle } from "drizzle-orm/node-postgres"
 
 const db = drizzle(pool)
 
@@ -74,12 +74,12 @@ Use `sqliteTimestamp()` when an existing SQLite schema stores dates as integer
 Unix timestamps and Drizzle must continue reading and writing `Date` values:
 
 ```ts
-import { schema, table } from 'qubu'
-import { sqliteTimestamp, toSqliteDrizzleSchema } from '@qubu/drizzle/sqlite'
+import { schema, table } from "qubu"
+import { sqliteTimestamp, toSqliteDrizzleSchema } from "@qubu/drizzle/sqlite"
 
-const events = table('events', {
+const events = table("events", {
   createdAt: sqliteTimestamp({
-    mode: 'timestamp',
+    mode: "timestamp",
     defaultFn: () => new Date(),
   }),
 })
@@ -127,11 +127,11 @@ unique constraints, checks, foreign keys, and indexes. Native storage must
 belong to the selected dialect:
 
 ```ts
-import { nativeColumn, schema, table } from 'qubu'
-import { toPostgresDrizzleSchema } from '@qubu/drizzle/postgres'
+import { nativeColumn, schema, table } from "qubu"
+import { toPostgresDrizzleSchema } from "@qubu/drizzle/postgres"
 
-const records = table('records', {
-  handle: nativeColumn('postgresql', 'CITEXT'),
+const records = table("records", {
+  handle: nativeColumn("postgresql", "CITEXT"),
 })
 
 const tables = toPostgresDrizzleSchema(schema({ records }))

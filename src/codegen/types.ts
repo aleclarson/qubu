@@ -1,37 +1,37 @@
-import type { IntrospectionDiagnostic } from '../introspection/diagnostics.ts'
+import type { IntrospectionDiagnostic } from "../introspection/diagnostics.ts"
 import type {
   CatalogClassificationConfidence,
   CatalogDialect,
   CatalogPortableStorageType,
-} from '../introspection/types.ts'
+} from "../introspection/types.ts"
 
 /** TypeScript value types that the controlled source printer can emit. */
 export type CodegenApplicationType =
-  | 'unknown'
-  | 'string'
-  | 'number'
-  | 'boolean'
-  | 'bigint'
-  | 'Date'
-  | 'Uint8Array'
+  | "unknown"
+  | "string"
+  | "number"
+  | "boolean"
+  | "bigint"
+  | "Date"
+  | "Uint8Array"
 
 /** Qubu SQL semantic domains that generated columns can carry. */
 export type CodegenSqlDomain =
-  | 'unknown'
-  | 'integer'
-  | 'decimal'
-  | 'text'
-  | 'boolean'
-  | 'date'
-  | 'timestamp'
-  | 'uuid'
-  | 'json'
-  | 'bigint'
-  | 'binary'
+  | "unknown"
+  | "integer"
+  | "decimal"
+  | "text"
+  | "boolean"
+  | "date"
+  | "timestamp"
+  | "uuid"
+  | "json"
+  | "bigint"
+  | "binary"
 
 /** One logical-name decision exposed to a generator naming callback. */
 export interface CodegenNameContext {
-  readonly kind: 'schema' | 'table' | 'column' | 'constraint' | 'index'
+  readonly kind: "schema" | "table" | "column" | "constraint" | "index"
   readonly physicalName: string
   readonly suggestedName: string
   readonly tablePhysicalName?: string
@@ -67,37 +67,33 @@ export interface CodegenColumnMapping {
 /** Controlled customization points for generated logical names and types. */
 export interface SchemaCodegenOptions {
   /**
-   * Override one suggested camelCase name. The returned value must still be a
-   * safe camelCase logical ID, and table and schema names must be valid export
-   * bindings.
+   * Override one suggested camelCase name. The returned value must still be a safe camelCase
+   * logical ID, and table and schema names must be valid export bindings.
    */
   readonly naming?: (context: CodegenNameContext) => string | undefined
   /**
-   * Override trusted application types or a Qubu SQL domain for one column.
-   * The callback selects from fixed tokens and cannot inject source text.
+   * Override trusted application types or a Qubu SQL domain for one column. The callback selects
+   * from fixed tokens and cannot inject source text.
    */
-  readonly mapColumn?: (
-    context: CodegenColumnContext
-  ) => CodegenColumnMapping | undefined
+  readonly mapColumn?: (context: CodegenColumnContext) => CodegenColumnMapping | undefined
 }
 
 /** Stable generator findings added beside retained introspection diagnostics. */
 export type CodegenDiagnosticCode =
-  | IntrospectionDiagnostic['code']
-  | 'invalid-input'
-  | 'lossy-input'
-  | 'unsupported-snapshot'
-  | 'omitted-fact'
-  | 'unsafe-name'
-  | 'name-collision'
-  | 'invalid-option'
-  | 'unrepresentable-fact'
-  | 'excluded-object-family'
-  | 'unsafe-source'
+  | IntrospectionDiagnostic["code"]
+  | "invalid-input"
+  | "lossy-input"
+  | "unsupported-snapshot"
+  | "omitted-fact"
+  | "unsafe-name"
+  | "name-collision"
+  | "invalid-option"
+  | "unrepresentable-fact"
+  | "excluded-object-family"
+  | "unsafe-source"
 
 /** A path-addressed finding returned by schema source generation. */
-export interface CodegenDiagnostic
-  extends Omit<IntrospectionDiagnostic, 'code'> {
+export interface CodegenDiagnostic extends Omit<IntrospectionDiagnostic, "code"> {
   readonly code: CodegenDiagnosticCode
   readonly relatedPaths?: readonly (readonly (string | number)[])[]
 }

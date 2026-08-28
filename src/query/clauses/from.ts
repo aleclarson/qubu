@@ -1,47 +1,44 @@
-import {
-  type CapabilityMetadataOf,
-  type RequiresOuterMetadataOf,
-} from '../../core/fragment.ts'
-import { createClause, type SelectClause } from './types.ts'
+import { type CapabilityMetadataOf, type RequiresOuterMetadataOf } from "../../core/fragment.ts"
 import type {
   AnySource,
   ProvidedSourceIdentity,
   Source,
   SourceProvision,
-} from '../../schema/source.ts'
+} from "../../schema/source.ts"
+import { createClause, type SelectClause } from "./types.ts"
 
 export interface FromClause<
   TSources extends readonly AnySource[] = readonly AnySource[],
-  TMetadata =
-    | RequiresOuterMetadataOf<TSources[number]>
-    | CapabilityMetadataOf<TSources[number]>,
+  TMetadata = RequiresOuterMetadataOf<TSources[number]> | CapabilityMetadataOf<TSources[number]>,
 > extends SelectClause<TMetadata> {
-  readonly clauseKind: 'from'
+  readonly clauseKind: "from"
   readonly sources: TSources
 }
 
-export function from<
-  const TSources extends readonly [AnySource, ...AnySource[]],
->(
+export function from<const TSources extends readonly [AnySource, ...AnySource[]]>(
   ...sources: TSources
 ): FromClause<
   TSources,
-  | RequiresOuterMetadataOf<TSources[number]>
-  | CapabilityMetadataOf<TSources[number]>
+  RequiresOuterMetadataOf<TSources[number]> | CapabilityMetadataOf<TSources[number]>
 > {
   return Object.assign(
-    createClause('from', 'after-select', 30, context => {
-      context.append('FROM ')
+    createClause("from", "after-select", 30, (context) => {
+      context.append("FROM ")
       sources.forEach((source, index) => {
-        if (index > 0) context.append(', ')
+        if (index > 0) {
+          context.append(", ")
+        }
+
         context.render(source)
       })
     }),
-    { clauseKind: 'from' as const, sources }
+    {
+      clauseKind: "from" as const,
+      sources,
+    },
   ) as FromClause<
     TSources,
-    | RequiresOuterMetadataOf<TSources[number]>
-    | CapabilityMetadataOf<TSources[number]>
+    RequiresOuterMetadataOf<TSources[number]> | CapabilityMetadataOf<TSources[number]>
   >
 }
 
@@ -57,6 +54,4 @@ export type FromSource<T> =
     : never
 
 export type FromScope<T> =
-  T extends FromClause<infer TSources>
-    ? ProvidedSourceIdentity<TSources[number]>
-    : never
+  T extends FromClause<infer TSources> ? ProvidedSourceIdentity<TSources[number]> : never

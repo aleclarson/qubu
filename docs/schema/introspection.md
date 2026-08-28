@@ -37,10 +37,10 @@ queries, authenticate, or start a transaction. Adapt the driver you already
 use to `CatalogConnection`:
 
 ```ts
-import type { CatalogConnection } from 'qubu/introspection'
+import type { CatalogConnection } from "qubu/introspection"
 
 const connection: CatalogConnection = {
-  dialect: 'sqlite',
+  dialect: "sqlite",
   query(statement, options) {
     // Adapt this call to the driver used by the application.
     return db.query(statement, options)
@@ -59,16 +59,16 @@ catalog can later support inspection, source generation, or another snapshot
 format:
 
 ```ts
-import { mapCatalogToSnapshot, readSqliteCatalog } from 'qubu/introspection'
+import { mapCatalogToSnapshot, readSqliteCatalog } from "qubu/introspection"
 
-const catalog = await readSqliteCatalog(connection, { namespace: 'main' })
+const catalog = await readSqliteCatalog(connection, { namespace: "main" })
 const result = mapCatalogToSnapshot(catalog, {
-  namespace: 'main',
-  mode: 'strict',
+  namespace: "main",
+  mode: "strict",
 })
 
 if (!result.ok) {
-  throw new Error(result.diagnostics.map(issue => issue.message).join('\n'))
+  throw new Error(result.diagnostics.map((issue) => issue.message).join("\n"))
 }
 
 result.snapshot.tables // canonical Snapshot v1 data

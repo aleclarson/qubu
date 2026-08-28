@@ -1,14 +1,13 @@
-import { eq as drizzleEq } from 'drizzle-orm'
-import { drizzle as pgDrizzle } from 'drizzle-orm/node-postgres'
-import { drizzle as sqliteProxyDrizzle } from 'drizzle-orm/sqlite-proxy'
-import { getTableConfig as getMysqlTableConfig } from 'drizzle-orm/mysql-core'
-import { getTableConfig as getPgTableConfig } from 'drizzle-orm/pg-core'
-import { getTableConfig as getSqliteTableConfig } from 'drizzle-orm/sqlite-core'
-import { expect, test } from 'vitest'
-import { DrizzleSchemaConversionError } from '@qubu/drizzle'
-import { toMysqlDrizzleSchema } from '@qubu/drizzle/mysql'
-import { toPostgresDrizzleSchema } from '@qubu/drizzle/postgres'
-import { sqliteTimestamp, toSqliteDrizzleSchema } from '@qubu/drizzle/sqlite'
+import { DrizzleSchemaConversionError } from "@qubu/drizzle"
+import { toMysqlDrizzleSchema } from "@qubu/drizzle/mysql"
+import { toPostgresDrizzleSchema } from "@qubu/drizzle/postgres"
+import { sqliteTimestamp, toSqliteDrizzleSchema } from "@qubu/drizzle/sqlite"
+import { eq as drizzleEq } from "drizzle-orm"
+import { getTableConfig as getMysqlTableConfig } from "drizzle-orm/mysql-core"
+import { drizzle as pgDrizzle } from "drizzle-orm/node-postgres"
+import { getTableConfig as getPgTableConfig } from "drizzle-orm/pg-core"
+import { getTableConfig as getSqliteTableConfig } from "drizzle-orm/sqlite-core"
+import { drizzle as sqliteProxyDrizzle } from "drizzle-orm/sqlite-proxy"
 import {
   bigint,
   binary,
@@ -32,9 +31,10 @@ import {
   unique,
   uuid,
   value,
-} from 'qubu'
+} from "qubu"
+import { expect, test } from "vitest"
 
-const portable = table('portable_values', {
+const portable = table("portable_values", {
   integer: integer(),
   numeric: numeric(),
   text: text(),
@@ -47,248 +47,226 @@ const portable = table('portable_values', {
   binary: binary(),
 })
 
-test('builds dialect columns with Qubu physical storage and value modes', () => {
+test("builds dialect columns with Qubu physical storage and value modes", () => {
   const appSchema = schema({ portable })
   const postgres = toPostgresDrizzleSchema(appSchema)
   const mysql = toMysqlDrizzleSchema(appSchema)
   const sqlite = toSqliteDrizzleSchema(appSchema)
 
   expect(
-    getPgTableConfig(postgres.portable).columns.map(column =>
-      column.getSQLType().toUpperCase()
-    )
+    getPgTableConfig(postgres.portable).columns.map((column) => column.getSQLType().toUpperCase()),
   ).toEqual([
-    'INTEGER',
-    'NUMERIC',
-    'TEXT',
-    'BOOLEAN',
-    'DATE',
-    'TIMESTAMP',
-    'UUID',
-    'JSONB',
-    'BIGINT',
-    'BYTEA',
+    "INTEGER",
+    "NUMERIC",
+    "TEXT",
+    "BOOLEAN",
+    "DATE",
+    "TIMESTAMP",
+    "UUID",
+    "JSONB",
+    "BIGINT",
+    "BYTEA",
   ])
   expect(
-    getMysqlTableConfig(mysql.portable).columns.map(column =>
-      column.getSQLType().toUpperCase()
-    )
+    getMysqlTableConfig(mysql.portable).columns.map((column) => column.getSQLType().toUpperCase()),
   ).toEqual([
-    'INT',
-    'DECIMAL',
-    'TEXT',
-    'BOOLEAN',
-    'DATE',
-    'DATETIME',
-    'CHAR(36)',
-    'JSON',
-    'BIGINT',
-    'VARBINARY',
+    "INT",
+    "DECIMAL",
+    "TEXT",
+    "BOOLEAN",
+    "DATE",
+    "DATETIME",
+    "CHAR(36)",
+    "JSON",
+    "BIGINT",
+    "VARBINARY",
   ])
   expect(
-    getSqliteTableConfig(sqlite.portable).columns.map(column =>
-      column.getSQLType().toUpperCase()
-    )
+    getSqliteTableConfig(sqlite.portable).columns.map((column) =>
+      column.getSQLType().toUpperCase(),
+    ),
   ).toEqual([
-    'INTEGER',
-    'NUMERIC',
-    'TEXT',
-    'INTEGER',
-    'TEXT',
-    'TEXT',
-    'TEXT',
-    'TEXT',
-    'INTEGER',
-    'BLOB',
+    "INTEGER",
+    "NUMERIC",
+    "TEXT",
+    "INTEGER",
+    "TEXT",
+    "TEXT",
+    "TEXT",
+    "TEXT",
+    "INTEGER",
+    "BLOB",
   ])
 
-  const instant = new Date('2026-08-23T12:34:56.000Z')
-  expect(sqlite.portable.timestamp.mapToDriverValue(instant)).toBe(
-    '2026-08-23T12:34:56.000Z'
-  )
-  expect(
-    sqlite.portable.timestamp.mapFromDriverValue('2026-08-23T12:34:56.000Z')
-  ).toEqual(instant)
-  expect(sqlite.portable.bigint.mapFromDriverValue('42')).toBe(42n)
-  expect(
-    (postgres.portable.numeric as unknown as { codec: string }).codec
-  ).toBe('numeric:number')
-  expect((mysql.portable.bigint as unknown as { codec: string }).codec).toBe(
-    'bigint'
-  )
+  const instant = new Date("2026-08-23T12:34:56.000Z")
+
+  expect(sqlite.portable.timestamp.mapToDriverValue(instant)).toBe("2026-08-23T12:34:56.000Z")
+  expect(sqlite.portable.timestamp.mapFromDriverValue("2026-08-23T12:34:56.000Z")).toEqual(instant)
+  expect(sqlite.portable.bigint.mapFromDriverValue("42")).toBe(42n)
+  expect((postgres.portable.numeric as unknown as { codec: string }).codec).toBe("numeric:number")
+  expect((mysql.portable.bigint as unknown as { codec: string }).codec).toBe("bigint")
 })
 
-test('preserves SQLite integer timestamp codecs and runtime defaults', () => {
-  const instant = new Date('2026-08-27T12:34:56.000Z')
-  const records = table('timestamp_records', {
+test("preserves SQLite integer timestamp codecs and runtime defaults", () => {
+  const instant = new Date("2026-08-27T12:34:56.000Z")
+  const records = table("timestamp_records", {
     createdAt: sqliteTimestamp({ defaultFn: () => instant }),
-    updatedAt: sqliteTimestamp({ mode: 'timestamp_ms' }),
+    updatedAt: sqliteTimestamp({ mode: "timestamp_ms" }),
   })
   const converted = toSqliteDrizzleSchema(schema({ records }))
   const db = sqliteProxyDrizzle(async () => ({ rows: [] }))
 
-  expect(converted.records.createdAt.getSQLType().toUpperCase()).toBe('INTEGER')
-  expect(converted.records.createdAt.mapToDriverValue(instant)).toBe(
-    instant.getTime() / 1_000
-  )
-  expect(
-    converted.records.createdAt.mapFromDriverValue(instant.getTime() / 1_000)
-  ).toEqual(instant)
-  expect(converted.records.updatedAt.mapToDriverValue(instant)).toBe(
-    instant.getTime()
-  )
-  expect(
-    db.insert(converted.records).values({ updatedAt: instant }).toSQL()
-  ).toEqual({
+  expect(converted.records.createdAt.getSQLType().toUpperCase()).toBe("INTEGER")
+  expect(converted.records.createdAt.mapToDriverValue(instant)).toBe(instant.getTime() / 1_000)
+  expect(converted.records.createdAt.mapFromDriverValue(instant.getTime() / 1_000)).toEqual(instant)
+  expect(converted.records.updatedAt.mapToDriverValue(instant)).toBe(instant.getTime())
+  expect(db.insert(converted.records).values({ updatedAt: instant }).toSQL()).toEqual({
     sql: 'insert into "timestamp_records" ("created_at", "updated_at") values (?, ?)',
     params: [instant.getTime() / 1_000, instant.getTime()],
   })
 })
 
-test('preserves logical keys, SQL names, namespaces, and Drizzle query behavior', () => {
-  const users = table('user_records', {
-    id: integer({ sqlName: 'user_id' }),
+test("preserves logical keys, SQL names, namespaces, and Drizzle query behavior", () => {
+  const users = table("user_records", {
+    id: integer({ sqlName: "user_id" }),
     displayName: text(),
     nickname: text({ nullable: true }),
   })
-  const converted = toPostgresDrizzleSchema(
-    schema({ users }, { namespace: 'app' })
-  )
+  const converted = toPostgresDrizzleSchema(schema({ users }, { namespace: "app" }))
   const config = getPgTableConfig(converted.users)
 
-  expect(config.name).toBe('user_records')
-  expect(config.schema).toBe('app')
-  expect(config.columns.map(column => column.name)).toEqual([
-    'user_id',
-    'display_name',
-    'nickname',
+  expect(config.name).toBe("user_records")
+  expect(config.schema).toBe("app")
+  expect(config.columns.map((column) => column.name)).toEqual([
+    "user_id",
+    "display_name",
+    "nickname",
   ])
-  expect(config.columns.map(column => column.notNull)).toEqual([
-    true,
-    true,
-    false,
-  ])
+  expect(config.columns.map((column) => column.notNull)).toEqual([true, true, false])
 
   const db = pgDrizzle.mock()
+
   expect(
     db
       .select({ id: converted.users.id })
       .from(converted.users)
       .where(drizzleEq(converted.users.id, 7))
-      .toSQL()
+      .toSQL(),
   ).toEqual({
     sql: 'select "user_id" from "app"."user_records" where "app"."user_records"."user_id" = $1',
     params: [7],
   })
 })
 
-test('materializes defaults, generated columns, constraints, and indexes', () => {
+test("materializes defaults, generated columns, constraints, and indexes", () => {
   const accounts = table(
-    'account_records',
+    "account_records",
     {
       id: integer(),
       email: text(),
       score: numeric({ default: 1 }),
       normalizedEmail: text({
         generatedColumn: {
-          kind: 'expression',
-          expression: value('normalized'),
-          mode: 'stored',
+          kind: "expression",
+          expression: value("normalized"),
+          mode: "stored",
         },
       }),
     },
-    account => ({
+    (account) => ({
       constraints: {
-        primary: primaryKey(account.id, { physicalName: 'account_pk' }),
+        primary: primaryKey(account.id, { physicalName: "account_pk" }),
         emailUnique: unique(account.email, {
-          physicalName: 'account_email_unique',
+          physicalName: "account_email_unique",
         }),
         positiveScore: check(eq(account.score, value(1)), {
-          physicalName: 'account_score_check',
+          physicalName: "account_score_check",
         }),
       },
       indexes: {
         emailIndex: index([account.email], {
-          physicalName: 'account_email_idx',
+          physicalName: "account_email_idx",
         }),
       },
-    })
+    }),
   )
   const memberships = table(
-    'membership_records',
-    { id: integer(), accountId: integer() },
-    membership => ({
+    "membership_records",
+    {
+      id: integer(),
+      accountId: integer(),
+    },
+    (membership) => ({
       constraints: {
-        accountForeign: foreignKey(
-          [membership.accountId],
-          references(accounts, accounts.id),
-          {
-            physicalName: 'membership_account_fk',
-            onDelete: 'cascade',
-          }
-        ),
+        accountForeign: foreignKey([membership.accountId], references(accounts, accounts.id), {
+          physicalName: "membership_account_fk",
+          onDelete: "cascade",
+        }),
       },
       indexes: {},
-    })
+    }),
   )
 
-  const converted = toPostgresDrizzleSchema(schema({ memberships, accounts }))
+  const converted = toPostgresDrizzleSchema(
+    schema({
+      memberships,
+      accounts,
+    }),
+  )
   const accountConfig = getPgTableConfig(converted.accounts)
   const membershipConfig = getPgTableConfig(converted.memberships)
 
   expect(converted.accounts.score.hasDefault).toBe(true)
   expect(converted.accounts.score.default).toBe(1)
   expect(converted.accounts.normalizedEmail.generated).toMatchObject({
-    mode: 'stored',
-    type: 'always',
+    mode: "stored",
+    type: "always",
   })
   expect(accountConfig.primaryKeys).toHaveLength(1)
   expect(accountConfig.uniqueConstraints).toHaveLength(1)
   expect(accountConfig.checks).toHaveLength(1)
   expect(accountConfig.indexes).toHaveLength(1)
   expect(membershipConfig.foreignKeys).toHaveLength(1)
-  expect(membershipConfig.foreignKeys[0].reference().foreignTable).toBe(
-    converted.accounts
-  )
-  expect(membershipConfig.foreignKeys[0].onDelete).toBe('cascade')
+  expect(membershipConfig.foreignKeys[0].reference().foreignTable).toBe(converted.accounts)
+  expect(membershipConfig.foreignKeys[0].onDelete).toBe("cascade")
 })
 
-test('uses SQLite inline primary-key metadata for autoincrement identities', () => {
+test("uses SQLite inline primary-key metadata for autoincrement identities", () => {
   const records = table(
-    'identity_records',
+    "identity_records",
     {
       id: integer({
-        identity: identityColumn('by-default', {
-          dialect: { dialect: 'sqlite', autoIncrement: true },
+        identity: identityColumn("by-default", {
+          dialect: {
+            dialect: "sqlite",
+            autoIncrement: true,
+          },
         }),
       }),
     },
-    row => ({
+    (row) => ({
       constraints: { primary: primaryKey(row.id) },
       indexes: {},
-    })
+    }),
   )
   const converted = toSqliteDrizzleSchema(schema({ records }))
   const config = getSqliteTableConfig(converted.records)
 
   expect(converted.records.id.primary).toBe(true)
-  expect(
-    (converted.records.id as unknown as { autoIncrement: boolean })
-      .autoIncrement
-  ).toBe(true)
+  expect((converted.records.id as unknown as { autoIncrement: boolean }).autoIncrement).toBe(true)
   expect(config.primaryKeys).toHaveLength(0)
 })
 
-test('reports storage and Drizzle metadata that cannot be converted', () => {
+test("reports storage and Drizzle metadata that cannot be converted", () => {
   const missingStorage = schema({
-    values: table('missing_storage', { value: column<number>() }),
+    values: table("missing_storage", { value: column<number>() }),
   })
 
   expect(() => toPostgresDrizzleSchema(missingStorage as never)).toThrow(
-    DrizzleSchemaConversionError
+    DrizzleSchemaConversionError,
   )
 
-  const deferred = table('deferred_values', { id: integer() }, row => ({
+  const deferred = table("deferred_values", { id: integer() }, (row) => ({
     constraints: {
       primary: primaryKey(row.id, { deferrable: true }),
     },
@@ -296,6 +274,6 @@ test('reports storage and Drizzle metadata that cannot be converted', () => {
   }))
 
   expect(() => toPostgresDrizzleSchema(schema({ deferred }))).toThrow(
-    /cannot represent deferred constraint/
+    /cannot represent deferred constraint/,
   )
 })

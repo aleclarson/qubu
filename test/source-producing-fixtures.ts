@@ -1,3 +1,4 @@
+import { identifier } from "../src/core/index.ts"
 import {
   count,
   eq,
@@ -9,31 +10,30 @@ import {
   table,
   text,
   where,
-} from '../src/index.ts'
-import { identifier } from '../src/core/index.ts'
-import { customSource } from '../src/schema/index.ts'
+} from "../src/index.ts"
+import { customSource } from "../src/schema/index.ts"
 
-export const users = table('users', {
+export const users = table("users", {
   id: integer(),
 })
 
 export const entries = customSource({
   identity: {
-    sourceKind: 'table-function',
-    name: 'json_each',
-    alias: 'entry',
+    sourceKind: "table-function",
+    name: "json_each",
+    alias: "entry",
   },
-  sourceKind: 'table-function',
-  reference: identifier('entry'),
+  sourceKind: "table-function",
+  reference: identifier("entry"),
   columns: {
     key: integer(),
     value: text({ nullable: true }),
   },
   render(context) {
-    context.append('json_each(')
+    context.append("json_each(")
     context.parameter('{"a":1}')
-    context.append(') AS ')
-    context.render(identifier('entry'))
+    context.append(") AS ")
+    context.render(identifier("entry"))
   },
 })
 
@@ -43,7 +43,7 @@ export const entriesQuery = select(
     value: entries.value,
   },
   from(entries),
-  where(eq(entries.key, 7))
+  where(eq(entries.key, 7)),
 )
 
 export const joinedEntriesClause = leftJoin(entries, eq(users.id, entries.key))
@@ -56,5 +56,5 @@ export const joinedEntriesQuery = select(
   },
   from(users),
   joinedEntriesClause,
-  groupBy(users.id, entries.value)
+  groupBy(users.id, entries.value),
 )

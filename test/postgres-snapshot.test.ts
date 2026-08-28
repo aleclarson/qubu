@@ -1,4 +1,6 @@
-import { expect, test } from 'vitest'
+import { expect, test } from "vitest"
+
+import { postgresDialect } from "../src/dialects/postgres.ts"
 import {
   boolean,
   check,
@@ -19,198 +21,257 @@ import {
   value,
   eq,
   gt,
-} from '../src/index.ts'
-import { unsafeSchemaSql } from '../src/schema/index.ts'
-import { postgresDialect } from '../src/dialects/postgres.ts'
+} from "../src/index.ts"
+import { unsafeSchemaSql } from "../src/schema/index.ts"
 import {
   createPostgresSchemaSnapshot,
   postgresSnapshotAdapter,
   schemaSnapshotDigest,
   tryCreatePostgresSchemaSnapshot,
-} from '../src/snapshot/index.ts'
+} from "../src/snapshot/index.ts"
 
 const accounts = table(
-  'account_records',
+  "account_records",
   {
     id: integer({
-      identity: { kind: 'identity', generation: 'always' },
+      identity: {
+        kind: "identity",
+        generation: "always",
+      },
     }),
-    email: text({ default: 'pending' }),
+    email: text({ default: "pending" }),
     active: boolean({ default: true }),
     profile: json(),
     slug: text({
-      generatedColumn: generatedColumn(value('account'), 'stored'),
+      generatedColumn: generatedColumn(value("account"), "stored"),
     }),
-    handle: nativeColumn('postgresql', 'CITEXT', { nullable: true }),
+    handle: nativeColumn("postgresql", "CITEXT", { nullable: true }),
   },
-  account => ({
+  (account) => ({
     constraints: {
       primary: primaryKey(account.id, {
-        physicalName: 'account_records_pk',
+        physicalName: "account_records_pk",
       }),
       emailKey: unique(account.email, {
-        physicalName: 'account_records_email_key',
+        physicalName: "account_records_email_key",
       }),
       emailConstraint: uniqueConstraint(account.email, {
-        physicalName: 'account_records_email_constraint',
-        nulls: 'distinct',
+        physicalName: "account_records_email_constraint",
+        nulls: "distinct",
       }),
       positive: check(gt(account.id, value(0)), {
-        physicalName: 'account_records_positive',
-        dialect: { dialect: 'postgresql', notValid: true },
+        physicalName: "account_records_positive",
+        dialect: {
+          dialect: "postgresql",
+          notValid: true,
+        },
       }),
     },
     indexes: {
-      emailIndex: index([desc(account.email, 'LAST')], {
-        physicalName: 'account_records_email_idx',
+      emailIndex: index([desc(account.email, "LAST")], {
+        physicalName: "account_records_email_idx",
         include: [account.id],
         where: eq(account.active, value(true)),
         dialect: {
-          dialect: 'postgresql',
-          method: 'btree',
+          dialect: "postgresql",
+          method: "btree",
           concurrently: true,
-          operatorClasses: { email: 'text_ops' },
+          operatorClasses: { email: "text_ops" },
           storageParameters: { fillfactor: 90 },
         },
       }),
     },
-  })
+  }),
 )
 
 const memberships = table(
-  'account_memberships',
+  "account_memberships",
   {
     accountId: integer(),
-    role: text({ default: 'member' }),
+    role: text({ default: "member" }),
   },
-  membership => ({
+  (membership) => ({
     constraints: {
-      accountForeign: foreignKey(
-        [membership.accountId],
-        references(accounts, accounts.id),
-        {
-          onDelete: 'cascade',
-          deferrable: true,
-          initially: 'deferred',
-          dialect: { dialect: 'postgresql', notValid: true },
-        }
-      ),
+      accountForeign: foreignKey([membership.accountId], references(accounts, accounts.id), {
+        onDelete: "cascade",
+        deferrable: true,
+        initially: "deferred",
+        dialect: {
+          dialect: "postgresql",
+          notValid: true,
+        },
+      }),
     },
     indexes: {},
-  })
+  }),
 )
 
-const appSchema = schema({ memberships, accounts }, { namespace: 'public' })
+const appSchema = schema(
+  {
+    memberships,
+    accounts,
+  },
+  { namespace: "public" },
+)
 
-test('serializes PostgreSQL storage, behavior, constraints, indexes, and extensions', () => {
+test("serializes PostgreSQL storage, behavior, constraints, indexes, and extensions", () => {
   const snapshot = createPostgresSchemaSnapshot(appSchema)
-  const accountsTable = snapshot.tables.find(table => table.id === 'accounts')
-  const membershipsTable = snapshot.tables.find(
-    table => table.id === 'memberships'
-  )
+  const accountsTable = snapshot.tables.find((table) => table.id === "accounts")
+  const membershipsTable = snapshot.tables.find((table) => table.id === "memberships")
 
-  expect(snapshot.dialect).toEqual({ name: 'postgresql', version: 1 })
-  expect(snapshot.namespace).toBe('public')
+  expect(snapshot.dialect).toEqual({
+    name: "postgresql",
+    version: 1,
+  })
+  expect(snapshot.namespace).toBe("public")
   expect(accountsTable?.columns).toEqual([
     {
-      id: 'active',
-      physicalName: 'active',
+      id: "active",
+      physicalName: "active",
       nullable: false,
       hasDefault: true,
       generated: false,
-      storage: { kind: 'native', dialect: 'postgresql', type: 'BOOLEAN' },
-      default: { kind: 'literal', value: { kind: 'boolean', value: true } },
+      storage: {
+        kind: "native",
+        dialect: "postgresql",
+        type: "BOOLEAN",
+      },
+      default: {
+        kind: "literal",
+        value: {
+          kind: "boolean",
+          value: true,
+        },
+      },
     },
     {
-      id: 'email',
-      physicalName: 'email',
+      id: "email",
+      physicalName: "email",
       nullable: false,
       hasDefault: true,
       generated: false,
-      storage: { kind: 'native', dialect: 'postgresql', type: 'TEXT' },
-      default: { kind: 'literal', value: { kind: 'string', value: 'pending' } },
+      storage: {
+        kind: "native",
+        dialect: "postgresql",
+        type: "TEXT",
+      },
+      default: {
+        kind: "literal",
+        value: {
+          kind: "string",
+          value: "pending",
+        },
+      },
     },
     {
-      id: 'handle',
-      physicalName: 'handle',
+      id: "handle",
+      physicalName: "handle",
       nullable: true,
       hasDefault: false,
       generated: false,
-      storage: { kind: 'native', dialect: 'postgresql', type: 'CITEXT' },
+      storage: {
+        kind: "native",
+        dialect: "postgresql",
+        type: "CITEXT",
+      },
     },
     {
-      id: 'id',
-      physicalName: 'id',
+      id: "id",
+      physicalName: "id",
       nullable: false,
       hasDefault: false,
       generated: true,
-      storage: { kind: 'native', dialect: 'postgresql', type: 'INTEGER' },
-      identity: { kind: 'identity', generation: 'always' },
+      storage: {
+        kind: "native",
+        dialect: "postgresql",
+        type: "INTEGER",
+      },
+      identity: {
+        kind: "identity",
+        generation: "always",
+      },
     },
     {
-      id: 'profile',
-      physicalName: 'profile',
+      id: "profile",
+      physicalName: "profile",
       nullable: false,
       hasDefault: false,
       generated: false,
-      storage: { kind: 'native', dialect: 'postgresql', type: 'JSONB' },
+      storage: {
+        kind: "native",
+        dialect: "postgresql",
+        type: "JSONB",
+      },
     },
     {
-      id: 'slug',
-      physicalName: 'slug',
+      id: "slug",
+      physicalName: "slug",
       nullable: false,
       hasDefault: false,
       generated: true,
-      storage: { kind: 'native', dialect: 'postgresql', type: 'TEXT' },
+      storage: {
+        kind: "native",
+        dialect: "postgresql",
+        type: "TEXT",
+      },
       generatedColumn: {
-        kind: 'expression',
+        kind: "expression",
         expression: {
-          kind: 'expression',
-          expressionKind: 'value',
+          kind: "expression",
+          expressionKind: "value",
           sql: "'account'",
         },
-        mode: 'stored',
+        mode: "stored",
       },
     },
   ])
   expect(accountsTable?.constraints).toContainEqual(
     expect.objectContaining({
-      id: 'positive',
-      kind: 'check',
-      physicalName: 'account_records_positive',
+      id: "positive",
+      kind: "check",
+      physicalName: "account_records_positive",
       dialect: {
-        dialect: 'postgresql',
+        dialect: "postgresql",
         version: 1,
         data: { notValid: true },
       },
-    })
+    }),
   )
   expect(accountsTable?.indexes[0]).toMatchObject({
-    id: 'emailIndex',
-    physicalName: 'account_records_email_idx',
-    includedColumns: ['id'],
+    id: "emailIndex",
+    physicalName: "account_records_email_idx",
+    includedColumns: ["id"],
     dialect: {
-      dialect: 'postgresql',
+      dialect: "postgresql",
       version: 1,
       data: {
         concurrently: true,
-        method: 'btree',
-        operatorClasses: { email: 'text_ops' },
+        method: "btree",
+        operatorClasses: { email: "text_ops" },
         storageParameters: { fillfactor: 90 },
       },
     },
   })
   expect(membershipsTable?.constraints[0]).toMatchObject({
-    kind: 'foreign-key',
-    target: { table: 'accounts', columns: ['id'] },
+    kind: "foreign-key",
+    target: {
+      table: "accounts",
+      columns: ["id"],
+    },
     deferrable: true,
-    initially: 'deferred',
+    initially: "deferred",
   })
   expect(schemaSnapshotDigest(snapshot)).toMatch(/^fnv1a64:[0-9a-f]{16}$/)
 })
 
-test('keeps PostgreSQL canonical bytes independent of registry order', () => {
-  const reordered = schema({ accounts, memberships }, { namespace: 'public' })
+test("keeps PostgreSQL canonical bytes independent of registry order", () => {
+  const reordered = schema(
+    {
+      accounts,
+      memberships,
+    },
+    { namespace: "public" },
+  )
   const first = createPostgresSchemaSnapshot(appSchema)
   const second = createPostgresSchemaSnapshot(reordered)
 
@@ -218,95 +279,92 @@ test('keeps PostgreSQL canonical bytes independent of registry order', () => {
   expect(schemaSnapshotDigest(first)).toBe(schemaSnapshotDigest(second))
 })
 
-test('shares query and snapshot dialect identity', () => {
-  expect(postgresDialect().name).toBe('postgresql')
-  expect(postgresSnapshotAdapter.dialect.name).toBe('postgresql')
+test("shares query and snapshot dialect identity", () => {
+  expect(postgresDialect().name).toBe("postgresql")
+  expect(postgresSnapshotAdapter.dialect.name).toBe("postgresql")
 
-  const raw = table('raw_defaults', {
+  const raw = table("raw_defaults", {
     value: text({
-      default: unsafeSchemaSql('postgresql', 'CURRENT_DATE'),
+      default: unsafeSchemaSql("postgresql", "CURRENT_DATE"),
     }),
   })
-  expect(
-    createPostgresSchemaSnapshot(schema({ raw })).tables[0]?.columns[0]
-  ).toMatchObject({
+
+  expect(createPostgresSchemaSnapshot(schema({ raw })).tables[0]?.columns[0]).toMatchObject({
     default: {
-      kind: 'expression',
+      kind: "expression",
       expression: {
-        dialect: 'postgresql',
-        sql: 'CURRENT_DATE',
+        dialect: "postgresql",
+        sql: "CURRENT_DATE",
       },
     },
   })
 })
 
-test('reports PostgreSQL capability and naming diagnostics', () => {
-  const virtual = table('virtual_values', {
-    value: text({ generatedColumn: generatedColumn(value('x'), 'virtual') }),
+test("reports PostgreSQL capability and naming diagnostics", () => {
+  const virtual = table("virtual_values", {
+    value: text({ generatedColumn: generatedColumn(value("x"), "virtual") }),
   })
-  const nullable = table(
-    'nullable_values',
-    { value: text({ nullable: true }) },
-    table => ({
-      constraints: {
-        valueConstraint: uniqueConstraint(table.value, {
-          nulls: 'not-distinct',
-        }),
-      },
-      indexes: {},
-    })
-  )
-  const first = table('first_values', { value: text() }, table => ({
+  const nullable = table("nullable_values", { value: text({ nullable: true }) }, (table) => ({
+    constraints: {
+      valueConstraint: uniqueConstraint(table.value, {
+        nulls: "not-distinct",
+      }),
+    },
+    indexes: {},
+  }))
+  const first = table("first_values", { value: text() }, (table) => ({
     constraints: {},
     indexes: {
-      shared: index([table.value], { physicalName: 'shared_index' }),
+      shared: index([table.value], { physicalName: "shared_index" }),
     },
   }))
-  const second = table('second_values', { value: text() }, table => ({
+  const second = table("second_values", { value: text() }, (table) => ({
     constraints: {},
     indexes: {
-      shared: index([table.value], { physicalName: 'shared_index' }),
+      shared: index([table.value], { physicalName: "shared_index" }),
     },
   }))
 
   const result = tryCreatePostgresSchemaSnapshot(
-    schema({ virtual, nullable, first, second })
+    schema({
+      virtual,
+      nullable,
+      first,
+      second,
+    }),
   )
+
   expect(result.ok).toBe(false)
   if (!result.ok) {
     expect(
       result.diagnostics.some(
-        issue =>
-          issue.code === 'unsupported-dialect-option' &&
-          issue.path.includes('generatedColumn')
-      )
+        (issue) =>
+          issue.code === "unsupported-dialect-option" && issue.path.includes("generatedColumn"),
+      ),
     ).toBe(true)
     expect(
       result.diagnostics.some(
-        issue =>
-          issue.code === 'unsupported-dialect-option' &&
-          issue.path.includes('nulls')
-      )
+        (issue) => issue.code === "unsupported-dialect-option" && issue.path.includes("nulls"),
+      ),
     ).toBe(true)
     expect(
-      result.diagnostics.some(issue =>
-        issue.relatedPaths?.some(path => path.includes('indexes'))
-      )
+      result.diagnostics.some((issue) =>
+        issue.relatedPaths?.some((path) => path.includes("indexes")),
+      ),
     ).toBe(true)
   }
 })
 
-test('rejects schema SQL tagged with another dialect name', () => {
-  const raw = table('wrong_tag', {
+test("rejects schema SQL tagged with another dialect name", () => {
+  const raw = table("wrong_tag", {
     value: text({
-      default: unsafeSchemaSql('postgres', 'CURRENT_DATE'),
+      default: unsafeSchemaSql("postgres", "CURRENT_DATE"),
     }),
   })
   const result = tryCreatePostgresSchemaSnapshot(schema({ raw }))
 
   expect(result.ok).toBe(false)
-  if (!result.ok)
-    expect(
-      result.diagnostics.some(issue => issue.code === 'dialect-mismatch')
-    ).toBe(true)
+  if (!result.ok) {
+    expect(result.diagnostics.some((issue) => issue.code === "dialect-mismatch")).toBe(true)
+  }
 })

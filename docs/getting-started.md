@@ -24,9 +24,9 @@ Use `table()` once for each query-facing table. Column helpers describe the
 application values that can be selected and, for mutations, written.
 
 ```ts
-import { integer, table, text } from 'qubu'
+import { integer, table, text } from "qubu"
 
-const users = table('users', {
+const users = table("users", {
   id: integer(),
   name: text(),
   email: text({ nullable: true }),
@@ -44,7 +44,7 @@ it, then renders the normalized statement in SQL order. The example uses the
 `users` table from the previous section.
 
 ```ts
-import { eq, from, render, select, where } from 'qubu'
+import { eq, from, render, select, where } from "qubu"
 
 const query = select(
   {
@@ -52,7 +52,7 @@ const query = select(
     displayName: users.name,
   },
   from(users),
-  where(eq(users.id, 7))
+  where(eq(users.id, 7)),
 )
 
 const statement = render(query)

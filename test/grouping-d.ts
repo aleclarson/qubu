@@ -7,17 +7,8 @@ import type {
   OutputOf,
   SourceIdentity,
   VisibleDependenciesOf,
-} from '../src/index.ts'
-import {
-  all,
-  count,
-  eq,
-  from,
-  groupBy,
-  having,
-  leftJoin,
-  select,
-} from '../src/index.ts'
+} from "../src/index.ts"
+import { all, count, eq, from, groupBy, having, leftJoin, select } from "../src/index.ts"
 import {
   groupedByColumn,
   groupedByColumnClause,
@@ -26,7 +17,7 @@ import {
   groupedWithWindow,
   posts,
   users,
-} from './grouping-fixtures.ts'
+} from "./grouping-fixtures.ts"
 
 type Equal<TLeft, TRight> = [TLeft] extends [TRight]
   ? [TRight] extends [TLeft]
@@ -37,9 +28,9 @@ type Equal<TLeft, TRight> = [TLeft] extends [TRight]
 type Assert<TCondition extends true> = TCondition
 
 type UserIdentity = SourceIdentity<typeof users>
-type UserName = ColumnDependency<UserIdentity, 'name'>
+type UserName = ColumnDependency<UserIdentity, "name">
 type PostIdentity = SourceIdentity<typeof posts>
-type PostId = ColumnDependency<PostIdentity, 'id'>
+type PostId = ColumnDependency<PostIdentity, "id">
 
 export type GroupingKeyFacts = Assert<
   Equal<GroupingKeysOf<typeof groupedByColumnClause>, typeof users.name>
@@ -73,10 +64,7 @@ export type GroupedProjectionDependencies = Assert<
 >
 
 export type ExactExpressionGroupingOutput = Assert<
-  Equal<
-    OutputOf<typeof groupedByExpression>,
-    readonly { displayName: string }[]
-  >
+  Equal<OutputOf<typeof groupedByExpression>, readonly { displayName: string }[]>
 >
 
 export type WindowGroupingOutput = Assert<
@@ -98,7 +86,7 @@ select(
   // @ts-expect-error A selected column must be grouped when the query contains an aggregate.
   from(users),
   leftJoin(posts, eq(users.id, posts.authorId)),
-  groupBy(users.id)
+  groupBy(users.id),
 )
 
 select(
@@ -110,19 +98,19 @@ select(
   from(users),
   leftJoin(posts, eq(users.id, posts.authorId)),
   groupBy(users.name),
-  having(eq(posts.title, 'draft'))
+  having(eq(posts.title, "draft")),
 )
 
 select(
   all(users),
   // @ts-expect-error Every selected column must be grouped in an aggregate query.
   from(users),
-  groupBy(users.id)
+  groupBy(users.id),
 )
 
 select(
   { total: count(users.id) },
   // @ts-expect-error GROUP BY cannot contain an aggregate expression.
   from(users),
-  groupBy(count(users.id))
+  groupBy(count(users.id)),
 )

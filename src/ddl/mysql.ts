@@ -1,29 +1,29 @@
-import { mysqlSchemaDialect } from '../snapshot/mysql.ts'
-import { createDdlEmitter } from './emitter.ts'
-import type { DdlEmission, DdlEmissionOptions, DdlEmitter } from './types.ts'
-import type { MigrationPlan } from '../migration/index.ts'
+import type { MigrationPlan } from "../migration/index.ts"
+import { mysqlSchemaDialect } from "../snapshot/mysql.ts"
+import { createDdlEmitter } from "./emitter.ts"
+import type { DdlEmission, DdlEmissionOptions, DdlEmitter } from "./types.ts"
 
 /** MySQL operation support used by the strict DDL preflight. */
 export const mysqlDdlEmitter: DdlEmitter = createDdlEmitter({
-  dialect: 'mysql',
+  dialect: "mysql",
   supports: new Set([
-    'table',
-    'column',
-    'constraint',
-    'index',
-    'view',
-    'routine',
-    'partition',
-    'trigger',
-    'comment',
-    'generated-column',
+    "table",
+    "column",
+    "constraint",
+    "index",
+    "view",
+    "routine",
+    "partition",
+    "trigger",
+    "comment",
+    "generated-column",
   ]),
 })
 
 /** Emit a reviewed plan with MySQL's schema dialect. */
 export function emitMysqlMigrationPlan(
   plan: MigrationPlan,
-  options?: DdlEmissionOptions
+  options?: DdlEmissionOptions,
 ): DdlEmission {
   return mysqlDdlEmitter.emit(plan, mysqlSchemaDialect, options)
 }

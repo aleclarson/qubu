@@ -9,13 +9,9 @@ The examples use the `users` table from [Build a `SELECT`](overview.md).
 Wrap ordering terms in `orderBy()`:
 
 ```ts
-import { desc, from, orderBy, select } from 'qubu'
+import { desc, from, orderBy, select } from "qubu"
 
-const ordered = select(
-  { id: users.id, name: users.name },
-  from(users),
-  orderBy(desc(users.name))
-)
+const ordered = select({ id: users.id, name: users.name }, from(users), orderBy(desc(users.name)))
 ```
 
 Use `asc()` or `desc()` for each term. The selected dialect controls the
@@ -26,16 +22,7 @@ identifier quoting and any dialect-specific ordering syntax.
 Choose `fetchFirst()` or `offset()` for pagination:
 
 ```ts
-import {
-  desc,
-  eq,
-  fetchFirst,
-  from,
-  offset,
-  orderBy,
-  select,
-  where,
-} from 'qubu'
+import { desc, eq, fetchFirst, from, offset, orderBy, select, where } from "qubu"
 
 const page = select(
   { id: users.id, name: users.name },
@@ -43,7 +30,7 @@ const page = select(
   where(eq(users.id, 7)),
   orderBy(desc(users.name)),
   offset(20),
-  fetchFirst(20)
+  fetchFirst(20),
 )
 ```
 
@@ -54,14 +41,14 @@ pagination. The active dialect decides whether pagination uses standard
 Pair a pagination clause with `omit` when the row bound is optional at runtime:
 
 ```ts
-import { fetchFirst, omit } from 'qubu'
+import { fetchFirst, omit } from "qubu"
 
 declare const pageSize: number | undefined
 
 const page = select(
   { id: users.id, name: users.name },
   from(users),
-  pageSize === undefined ? omit : fetchFirst(pageSize)
+  pageSize === undefined ? omit : fetchFirst(pageSize),
 )
 ```
 

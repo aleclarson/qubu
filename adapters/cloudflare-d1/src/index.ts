@@ -5,8 +5,8 @@ import type {
   ExplainableQueryAdapter,
   ExplainRequest,
   ExplainResult,
-} from 'qubu'
-import { sqliteDialect } from 'qubu/sqlite'
+} from "qubu"
+import { sqliteDialect } from "qubu/sqlite"
 
 export interface D1ResultMeta {
   readonly changes?: number
@@ -32,19 +32,16 @@ export interface D1AdapterOptions {
   readonly encoder?: DriverValueEncoder
 }
 
-export interface D1Adapter
-  extends ExplainableQueryAdapter<Record<string, unknown>> {
+export interface D1Adapter extends ExplainableQueryAdapter<Record<string, unknown>> {
   readonly database: D1Database
 }
 
-const identityEncoder: DriverValueEncoder = { encode: value => value }
+const identityEncoder: DriverValueEncoder = { encode: (value) => value }
 
 /** Adapt one application-owned Cloudflare D1 binding. */
-export function d1Adapter(
-  database: D1Database,
-  options: D1AdapterOptions = {}
-): D1Adapter {
+export function d1Adapter(database: D1Database, options: D1AdapterOptions = {}): D1Adapter {
   const encoder = options.encoder ?? identityEncoder
+
   return {
     database,
     dialect: sqliteDialect(),
@@ -52,21 +49,20 @@ export function d1Adapter(
       throwIfAborted(request.signal)
       const statement = database
         .prepare(request.statement.text)
-        .bind(
-          ...request.statement.parameters.map(value => encoder.encode(value))
-        )
-      if (request.queryKind === 'select' || request.queryKind === 'set') {
+        .bind(...request.statement.parameters.map((value) => encoder.encode(value)))
+
+      if (request.queryKind === "select" || request.queryKind === "set") {
         const result = await statement.all<TRow>()
+
         return { rows: result.results ?? [] }
       }
+
       const result = await statement.run()
+
       return {
         rows: (result.results ?? []) as readonly TRow[],
-        ...(result.meta?.changes === undefined
-          ? {}
-          : { affectedRows: result.meta.changes }),
-        ...(request.queryKind === 'insert' &&
-        result.meta?.last_row_id !== undefined
+        ...(result.meta?.changes === undefined ? {} : { affectedRows: result.meta.changes }),
+        ...(request.queryKind === "insert" && result.meta?.last_row_id !== undefined
           ? { insertId: result.meta.last_row_id }
           : {}),
       } satisfies ExecutionResult<TRow>
@@ -75,10 +71,9 @@ export function d1Adapter(
       throwIfAborted(request.signal)
       const result = await database
         .prepare(request.statement.text)
-        .bind(
-          ...request.statement.parameters.map(value => encoder.encode(value))
-        )
+        .bind(...request.statement.parameters.map((value) => encoder.encode(value)))
         .all<Record<string, unknown>>()
+
       return {
         rows: result.results ?? [],
       } satisfies ExplainResult<Record<string, unknown>>

@@ -1,4 +1,3 @@
-import type { BetterAuthOptions } from 'better-auth/types'
 import {
   createAdapterFactory,
   type AdapterFactoryOptions,
@@ -6,7 +5,8 @@ import {
   type CustomAdapter,
   type DBAdapter,
   type JoinConfig,
-} from 'better-auth/adapters'
+} from "better-auth/adapters"
+import type { BetterAuthOptions } from "better-auth/types"
 import {
   add,
   allowAll,
@@ -47,12 +47,9 @@ import {
   type QueryAdapter,
   type SqlBoolean,
   type TransactionalQueryAdapter,
-} from 'qubu'
-import {
-  betterAuthSchema,
-  type BetterAuthDialect,
-  type BetterAuthQubuSchema,
-} from './schema.ts'
+} from "qubu"
+
+import { betterAuthSchema, type BetterAuthDialect, type BetterAuthQubuSchema } from "./schema.ts"
 
 /** Options for binding Better Auth to a transactional Qubu client. */
 export interface QubuBetterAuthAdapterOptions {
@@ -63,45 +60,44 @@ export interface QubuBetterAuthAdapterOptions {
 type Client = QubuClient<QueryAdapter> | QubuTransactionalClient
 
 /** Create a Better Auth database factory backed only by Qubu boundaries. */
-export function qubuAdapter(
-  client: Client,
-  adapterOptions: QubuBetterAuthAdapterOptions = {}
-) {
+export function qubuAdapter(client: Client, adapterOptions: QubuBetterAuthAdapterOptions = {}) {
   const dialect = assertDialect(client.adapter.dialect.name)
-  if (!('transaction' in client) || typeof client.transaction !== 'function') {
+
+  if (!("transaction" in client) || typeof client.transaction !== "function") {
     throw new TypeError(
-      '@qubu/better-auth requires a transactional Qubu client for atomic single-row operations.'
+      "@qubu/better-auth requires a transactional Qubu client for atomic single-row operations.",
     )
   }
-  const transactional = client as QubuTransactionalClient<
-    TransactionalQueryAdapter,
-    QueryAdapter
-  >
+
+  const transactional = client as QubuTransactionalClient<TransactionalQueryAdapter, QueryAdapter>
+
   return (options: BetterAuthOptions) => {
-    const activeSchema =
-      adapterOptions.schema ?? betterAuthSchema(options, dialect)
+    const activeSchema = adapterOptions.schema ?? betterAuthSchema(options, dialect)
     const factoryOptions: AdapterFactoryOptions = {
       config: {
-        adapterId: 'qubu',
-        adapterName: 'Qubu',
+        adapterId: "qubu",
+        adapterName: "Qubu",
         supportsJSON: false,
-        supportsDates: dialect !== 'sqlite',
-        supportsBooleans: dialect === 'postgresql',
+        supportsDates: dialect !== "sqlite",
+        supportsBooleans: dialect === "postgresql",
         supportsArrays: false,
         supportsNumericIds: true,
-        transaction: callback =>
-          transactional.transaction(scoped => {
+        transaction: (callback) =>
+          transactional.transaction((scoped) => {
             const scopedAdapter: DBAdapter = createAdapterFactory({
-              config: { ...factoryOptions.config, transaction: false },
-              adapter: () =>
-                buildAdapter(scoped, activeSchema, dialect, options, true),
+              config: {
+                ...factoryOptions.config,
+                transaction: false,
+              },
+              adapter: () => buildAdapter(scoped, activeSchema, dialect, options, true),
             })(options)
+
             return callback(scopedAdapter)
           }),
       },
-      adapter: () =>
-        buildAdapter(transactional, activeSchema, dialect, options),
+      adapter: () => buildAdapter(transactional, activeSchema, dialect, options),
     }
+
     return createAdapterFactory(factoryOptions)(options)
   }
 }
@@ -111,7 +107,7 @@ function buildAdapter(
   authSchema: BetterAuthQubuSchema,
   dialect: BetterAuthDialect,
   betterAuthOptions: BetterAuthOptions,
-  transactionActive = false
+  transactionActive = false,
 ): CustomAdapter {
   const findRows = async <T>({
     model,
@@ -127,7 +123,10 @@ function buildAdapter(
     select?: string[]
     limit?: number
     offset?: number
-    sortBy?: { field: string; direction: 'asc' | 'desc' }
+    sortBy?: {
+      field: string
+      direction: "asc" | "desc"
+    }
     join?: JoinConfig
   }) => {
     const target = authSchema.tableFor(model)
@@ -139,66 +138,67 @@ function buildAdapter(
         filters?.length ? where(whereExpression(target, filters)) : omit,
         sortBy
           ? orderBy(
-              sortBy.direction === 'asc'
+              sortBy.direction === "asc"
                 ? asc(column(target, sortBy.field))
-                : desc(column(target, sortBy.field))
+                : desc(column(target, sortBy.field)),
             )
           : omit,
-        typeof skip === 'number' ? offset(skip) : omit,
-        typeof limit === 'number' ? fetchFirst(limit) : omit
-      ) as any
+        typeof skip === "number" ? offset(skip) : omit,
+        typeof limit === "number" ? fetchFirst(limit) : omit,
+      ) as any,
     )
-    if (!join) return rows as T[]
+
+    if (!join) {
+      return rows as T[]
+    }
+
     return (await Promise.all(
-      rows.map(async row => {
+      rows.map(async (row) => {
         const output = { ...row } as Record<string, unknown>
+
         for (const [joinModel, config] of Object.entries(join)) {
           const joined = authSchema.tableFor(joinModel)
           const joinedRows = await client.rows(
             select(
               selection(joined),
               from(joined),
-              where(
-                eq(column(joined, config.on.to), (row as any)[config.on.from])
-              ),
-              fetchFirst(config.limit ?? 100)
-            ) as any
+              where(eq(column(joined, config.on.to), (row as any)[config.on.from])),
+              fetchFirst(config.limit ?? 100),
+            ) as any,
           )
+
           output[joinModel] =
-            config.relation === 'one-to-one'
-              ? (joinedRows[0] ?? null)
-              : joinedRows
+            config.relation === "one-to-one" ? (joinedRows[0] ?? null) : joinedRows
         }
+
         return output
-      })
+      }),
     )) as unknown as T[]
   }
 
   return {
     async create({ model, data, select: fields }) {
       const target = authSchema.tableFor(model)
-      if (dialect === 'mysql') {
+
+      if (dialect === "mysql") {
         const inserted = await client.execute(
-          (insertInto as any)(
-            target,
-            values(mapInsertAssignments(target, data))
-          ) as any
+          (insertInto as any)(target, values(mapInsertAssignments(target, data))) as any,
         )
         const id = data.id ?? inserted.insertId
+
         if (id === undefined) {
-          throw new TypeError(
-            '@qubu/better-auth could not resolve the inserted MySQL row id.'
-          )
+          throw new TypeError("@qubu/better-auth could not resolve the inserted MySQL row id.")
         }
+
         return (
           await findRows({
             model,
             where: [
               {
-                field: 'id',
-                operator: 'eq',
-                connector: 'AND',
-                mode: 'sensitive',
+                field: "id",
+                operator: "eq",
+                connector: "AND",
+                mode: "sensitive",
                 value: id,
               },
             ],
@@ -207,17 +207,24 @@ function buildAdapter(
           })
         )[0] as any
       }
+
       const result = await client.rows(
         (insertInto as any)(
           target,
           values(mapInsertAssignments(target, data)),
-          returning(selection(target, fields))
-        ) as any
+          returning(selection(target, fields)),
+        ) as any,
       )
+
       return result[0] as any
     },
     async findOne(data) {
-      return ((await findRows<any>({ ...data, limit: 1 }))[0] ?? null) as any
+      return ((
+        await findRows<any>({
+          ...data,
+          limit: 1,
+        })
+      )[0] ?? null) as any
     },
     findMany(data) {
       return findRows(data)
@@ -228,20 +235,24 @@ function buildAdapter(
         select(
           { count: count() },
           from(target),
-          filters?.length ? where(whereExpression(target, filters)) : omit
-        ) as any
+          filters?.length ? where(whereExpression(target, filters)) : omit,
+        ) as any,
       )
+
       return Number((rows[0] as any)?.count ?? 0)
     },
     async update({ model, where: filters, update: assignments }) {
-      if (!filters.length) return null
+      if (!filters.length) {
+        return null
+      }
+
       return singleMutation(
         client,
         authSchema.tableFor(model),
         filters,
         assignments as any,
         dialect,
-        transactionActive
+        transactionActive,
       ) as any
     },
     async updateMany({ model, where: filters, update: assignments }) {
@@ -250,65 +261,56 @@ function buildAdapter(
         (update as any)(
           target,
           mapAssignments(target, assignments),
-          filters.length ? where(whereExpression(target, filters)) : allowAll()
-        ) as any
+          filters.length ? where(whereExpression(target, filters)) : allowAll(),
+        ) as any,
       )
+
       return Number(result.affectedRows ?? result.changedRows ?? 0)
     },
     async delete({ model, where: filters }) {
-      if (!filters.length) return
-      await consume(
-        client,
-        authSchema.tableFor(model),
-        filters,
-        dialect,
-        transactionActive
-      )
+      if (!filters.length) {
+        return
+      }
+
+      await consume(client, authSchema.tableFor(model), filters, dialect, transactionActive)
     },
     async deleteMany({ model, where: filters }) {
       const target = authSchema.tableFor(model)
       const result = await client.execute(
         (deleteFrom as any)(
           target,
-          filters.length ? where(whereExpression(target, filters)) : allowAll()
-        ) as any
+          filters.length ? where(whereExpression(target, filters)) : allowAll(),
+        ) as any,
       )
+
       return Number(result.affectedRows ?? 0)
     },
     consumeOne({ model, where: filters }) {
-      if (!filters.length) return Promise.resolve(null)
-      return consume(
-        client,
-        authSchema.tableFor(model),
-        filters,
-        dialect,
-        transactionActive
-      ) as any
+      if (!filters.length) {
+        return Promise.resolve(null)
+      }
+
+      return consume(client, authSchema.tableFor(model), filters, dialect, transactionActive) as any
     },
     incrementOne({ model, where: filters, increment, set }) {
-      if (!filters.length) return Promise.resolve(null)
+      if (!filters.length) {
+        return Promise.resolve(null)
+      }
+
       const target = authSchema.tableFor(model)
-      const assignments = { ...(set ?? {}) }
+      const assignments = { ...set }
+
       for (const [field, delta] of Object.entries(increment)) {
         assignments[field] = add(column(target, field), delta)
       }
-      return singleMutation(
-        client,
-        target,
-        filters,
-        assignments,
-        dialect,
-        transactionActive
-      ) as any
+
+      return singleMutation(client, target, filters, assignments, dialect, transactionActive) as any
     },
     async createSchema({ tables, file }) {
-      const generated = betterAuthSchemaFromMetadataSource(
-        tables,
-        dialect,
-        betterAuthOptions
-      )
+      const generated = betterAuthSchemaFromMetadataSource(tables, dialect, betterAuthOptions)
+
       return {
-        path: file ?? 'auth-schema.ts',
+        path: file ?? "auth-schema.ts",
         code: generated,
         overwrite: true,
       }
@@ -323,48 +325,54 @@ async function singleMutation(
   filters: CleanedWhere[],
   assignments: Record<string, unknown>,
   dialect: BetterAuthDialect,
-  transactionActive: boolean
+  transactionActive: boolean,
 ) {
-  if (dialect !== 'mysql') {
-    const id = column(target, 'id')
+  if (dialect !== "mysql") {
+    const id = column(target, "id")
     const candidate = select(
       { id },
       from(target),
       where(whereExpression(target, filters)),
-      fetchFirst(1)
+      fetchFirst(1),
     )
     const rows = await client.rows(
       update(
         target,
         mapAssignments(target, assignments),
-        (where as any)(
-          and(whereExpression(target, filters), inQuery(id, candidate))
-        ),
-        returning(selection(target))
-      ) as any
+        (where as any)(and(whereExpression(target, filters), inQuery(id, candidate))),
+        returning(selection(target)),
+      ) as any,
     )
+
     return rows[0] ?? null
   }
+
   const mutate = async (scoped: QubuClient) => {
     const row = await lockedRow(scoped, target, filters)
-    if (!row) return null
+
+    if (!row) {
+      return null
+    }
+
     await scoped.execute(
       update(
         target,
         mapAssignments(target, assignments),
-        where(eq(column(target, 'id'), row.id as any))
-      ) as any
+        where(eq(column(target, "id"), row.id as any)),
+      ) as any,
     )
     const refreshed = await scoped.rows(
       select(
         selection(target),
         from(target),
-        where(eq(column(target, 'id'), row.id as any)),
-        fetchFirst(1)
-      ) as any
+        where(eq(column(target, "id"), row.id as any)),
+        fetchFirst(1),
+      ) as any,
     )
+
     return refreshed[0] ?? null
   }
+
   return transactionActive ? mutate(client) : withTransaction(client, mutate)
 }
 
@@ -373,84 +381,77 @@ async function consume(
   target: AnyTable,
   filters: CleanedWhere[],
   dialect: BetterAuthDialect,
-  transactionActive: boolean
+  transactionActive: boolean,
 ) {
-  if (dialect !== 'mysql') {
-    const id = column(target, 'id')
+  if (dialect !== "mysql") {
+    const id = column(target, "id")
     const candidate = select(
       { id },
       from(target),
       where(whereExpression(target, filters)),
-      fetchFirst(1)
+      fetchFirst(1),
     )
     const rows = await client.rows(
-      deleteFrom(
-        target,
-        where(inQuery(id, candidate)),
-        returning(selection(target))
-      ) as any
+      deleteFrom(target, where(inQuery(id, candidate)), returning(selection(target))) as any,
     )
+
     return rows[0] ?? null
   }
+
   const remove = async (scoped: QubuClient) => {
     const row = await lockedRow(scoped, target, filters)
-    if (!row) return null
-    await scoped.execute(
-      deleteFrom(target, where(eq(column(target, 'id'), row.id as any))) as any
-    )
+
+    if (!row) {
+      return null
+    }
+
+    await scoped.execute(deleteFrom(target, where(eq(column(target, "id"), row.id as any))) as any)
     return row
   }
+
   return transactionActive ? remove(client) : withTransaction(client, remove)
 }
 
-async function lockedRow(
-  client: QubuClient,
-  target: AnyTable,
-  filters: CleanedWhere[]
-) {
+async function lockedRow(client: QubuClient, target: AnyTable, filters: CleanedWhere[]) {
   const rows = await client.rows(
     select(
       selection(target),
       from(target),
       where(whereExpression(target, filters)),
       fetchFirst(1),
-      rowLock()
-    ) as any
+      rowLock(),
+    ) as any,
   )
+
   return rows[0] as Record<string, unknown> | undefined
 }
 
-function withTransaction<T>(
-  client: QubuClient,
-  callback: (client: QubuClient) => Promise<T>
-) {
-  if (!('transaction' in client) || typeof client.transaction !== 'function') {
-    throw new TypeError(
-      '@qubu/better-auth atomic operations require transactions.'
-    )
+function withTransaction<T>(client: QubuClient, callback: (client: QubuClient) => Promise<T>) {
+  if (!("transaction" in client) || typeof client.transaction !== "function") {
+    throw new TypeError("@qubu/better-auth atomic operations require transactions.")
   }
+
   return (client as QubuTransactionalClient).transaction(callback)
 }
 
 function selection(target: AnyTable, fields?: string[]) {
   const selected = fields?.length
-    ? fields.map(field => target.sqlNames[field] ?? field)
+    ? fields.map((field) => target.sqlNames[field] ?? field)
     : Object.values(target.sqlNames)
-  return Object.fromEntries(
-    selected.map(field => [field, column(target, field)])
-  )
+
+  return Object.fromEntries(selected.map((field) => [field, column(target, field)]))
 }
 
 function column(target: AnyTable, field: string): any {
   const logicalField =
-    Object.entries(target.sqlNames).find(
-      ([, sqlName]) => sqlName === field
-    )?.[0] ?? (field in target.columns ? field : undefined)
+    Object.entries(target.sqlNames).find(([, sqlName]) => sqlName === field)?.[0] ??
+    (field in target.columns ? field : undefined)
   const result = logicalField ? target.columns[logicalField] : undefined
-  if (!result)
-    throw new TypeError(
-      `Unknown field ${field} on Better Auth model ${target.tableName}.`
-    )
+
+  if (!result) {
+    throw new TypeError(`Unknown field ${field} on Better Auth model ${target.tableName}.`)
+  }
+
   return result
 }
 
@@ -458,32 +459,32 @@ function mapAssignments(target: AnyTable, input: Record<string, unknown>) {
   return Object.fromEntries(
     Object.entries(input).map(([field, value]) => {
       const logicalField =
-        Object.entries(target.sqlNames).find(
-          ([, sqlName]) => sqlName === field
-        )?.[0] ?? (field in target.columns ? field : undefined)
+        Object.entries(target.sqlNames).find(([, sqlName]) => sqlName === field)?.[0] ??
+        (field in target.columns ? field : undefined)
+
       if (!logicalField) {
-        throw new TypeError(
-          `Unknown field ${field} on Better Auth model ${target.tableName}.`
-        )
+        throw new TypeError(`Unknown field ${field} on Better Auth model ${target.tableName}.`)
       }
+
       return [logicalField, value]
-    })
+    }),
   )
 }
 
-function mapInsertAssignments(
-  target: AnyTable,
-  input: Record<string, unknown>
-) {
+function mapInsertAssignments(target: AnyTable, input: Record<string, unknown>) {
   const mapped = mapAssignments(target, input)
+
   for (const [field, definition] of Object.entries(target.definitions)) {
-    if (definition.nullable && !(field in mapped)) mapped[field] = null
+    if (definition.nullable && !(field in mapped)) {
+      mapped[field] = null
+    }
   }
+
   return mapped
 }
 
 function escapeLikePattern(value: string) {
-  return value.replaceAll('!', '!!').replaceAll('%', '!%').replaceAll('_', '!_')
+  return value.replaceAll("!", "!!").replaceAll("%", "!%").replaceAll("_", "!_")
 }
 
 function escapedLike(left: any, pattern: string) {
@@ -492,91 +493,127 @@ function escapedLike(left: any, pattern: string) {
 
 function whereExpression(target: AnyTable, filters: CleanedWhere[]): any {
   let expression: any
+
   for (const filter of filters) {
     const field = column(target, filter.field)
-    const insensitive = filter.mode === 'insensitive'
+    const insensitive = filter.mode === "insensitive"
     const left = insensitive ? lower(field) : field
     const raw = filter.value
     const value = insensitive
-      ? typeof raw === 'string'
+      ? typeof raw === "string"
         ? raw.toLowerCase()
         : Array.isArray(raw)
-          ? raw.map(item =>
-              typeof item === 'string' ? item.toLowerCase() : item
-            )
+          ? raw.map((item) => (typeof item === "string" ? item.toLowerCase() : item))
           : raw
       : raw
     const condition = (() => {
       switch (filter.operator) {
-        case 'eq':
+        case "eq": {
           return value === null ? isNull(field) : eq(left, value as any)
-        case 'ne':
+        }
+
+        case "ne": {
           return value === null ? isNotNull(field) : ne(left, value as any)
-        case 'lt':
+        }
+
+        case "lt": {
           return lt(left, value as any)
-        case 'lte':
+        }
+
+        case "lte": {
           return lte(left, value as any)
-        case 'gt':
+        }
+
+        case "gt": {
           return gt(left, value as any)
-        case 'gte':
+        }
+
+        case "gte": {
           return gte(left, value as any)
-        case 'in':
+        }
+
+        case "in": {
           return inList(left, value as any[])
-        case 'not_in':
+        }
+
+        case "not_in": {
           return notIn(left, value as any[])
-        case 'contains':
+        }
+
+        case "contains": {
           return escapedLike(left, `%${escapeLikePattern(String(value))}%`)
-        case 'starts_with':
+        }
+
+        case "starts_with": {
           return escapedLike(left, `${escapeLikePattern(String(value))}%`)
-        case 'ends_with':
+        }
+
+        case "ends_with": {
           return escapedLike(left, `%${escapeLikePattern(String(value))}`)
+        }
       }
     })()
+
     expression = expression
-      ? filter.connector === 'OR'
+      ? filter.connector === "OR"
         ? or(expression, condition)
         : and(expression, condition)
       : condition
   }
+
   return expression
 }
 
 function assertDialect(dialect: string): BetterAuthDialect {
-  if (dialect === 'postgresql' || dialect === 'mysql' || dialect === 'sqlite')
+  if (dialect === "postgresql" || dialect === "mysql" || dialect === "sqlite") {
     return dialect
+  }
+
   throw new TypeError(
-    `@qubu/better-auth supports PostgreSQL, MySQL, and SQLite; received ${dialect}.`
+    `@qubu/better-auth supports PostgreSQL, MySQL, and SQLite; received ${dialect}.`,
   )
 }
 
 function betterAuthSchemaFromMetadataSource(
   tables: unknown,
   dialect: BetterAuthDialect,
-  options: BetterAuthOptions
+  options: BetterAuthOptions,
 ) {
   const generateId = options.advanced?.database?.generateId
   const schemaOptions =
-    generateId === 'serial' || generateId === 'uuid'
+    generateId === "serial" || generateId === "uuid"
       ? `, { advanced: { database: { generateId: ${JSON.stringify(generateId)} } } }`
-      : ''
+      : ""
+
   return [
     "import { betterAuthSchemaFromTables } from '@qubu/better-auth'",
-    '',
+    "",
     `export const authSchema = betterAuthSchemaFromTables(${serializeMetadata(tables)}, ${JSON.stringify(dialect)}${schemaOptions})`,
-    '',
-  ].join('\n')
+    "",
+  ].join("\n")
 }
 
 function serializeMetadata(value: unknown, indent = 0): string {
-  if (typeof value === 'function') return '() => undefined'
-  if (value === undefined) return 'undefined'
-  if (value === null || typeof value !== 'object') return JSON.stringify(value)
-  if (Array.isArray(value)) {
-    return `[${value.map(item => serializeMetadata(item, indent + 2)).join(', ')}]`
+  if (typeof value === "function") {
+    return "() => undefined"
   }
+
+  if (value === undefined) {
+    return "undefined"
+  }
+
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value)
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => serializeMetadata(item, indent + 2)).join(", ")}]`
+  }
+
   const entries = Object.entries(value).map(
     ([key, item]) =>
-      `${' '.repeat(indent + 2)}${JSON.stringify(key)}: ${serializeMetadata(item, indent + 2)}`
+      `${" ".repeat(indent + 2)}${JSON.stringify(key)}: ${serializeMetadata(item, indent + 2)}`,
   )
-  return `{\n${entries.join(',\n')}\n${' '.repeat(indent)}}`
+
+  return `{\n${entries.join(",\n")}\n${" ".repeat(indent)}}`
 }

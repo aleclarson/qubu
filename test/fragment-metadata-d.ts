@@ -25,7 +25,7 @@ import type {
   SubqueryMeta,
   VisibleDependenciesOf,
   WindowMeta,
-} from '../src/index.ts'
+} from "../src/index.ts"
 import type {
   commaSeparatedColumns,
   coalescedPostTitle,
@@ -46,7 +46,7 @@ import type {
   sourceAwareSequence,
   upperPostTitle,
   users,
-} from './fragment-metadata-fixtures.ts'
+} from "./fragment-metadata-fixtures.ts"
 
 type Equal<TLeft, TRight> = [TLeft] extends [TRight]
   ? [TRight] extends [TLeft]
@@ -61,11 +61,8 @@ type PostIdentity = SourceIdentity<typeof posts>
 
 export type SourceAwareSequenceMetadata = Assert<
   Equal<
-    [
-      RequiresOf<typeof sourceAwareSequence>,
-      DependenciesOf<typeof sourceAwareSequence>,
-    ],
-    [UserIdentity, ColumnDependency<UserIdentity, 'name'>]
+    [RequiresOf<typeof sourceAwareSequence>, DependenciesOf<typeof sourceAwareSequence>],
+    [UserIdentity, ColumnDependency<UserIdentity, "name">]
   >
 >
 
@@ -73,30 +70,20 @@ export type MixedSequenceRequirements = Assert<
   Equal<RequiresOf<typeof mixedSourceSequence>, UserIdentity | PostIdentity>
 >
 
-export type MetadataFreeComposition = Assert<
-  Equal<MetadataOf<typeof metadataFreeSequence>, never>
->
+export type MetadataFreeComposition = Assert<Equal<MetadataOf<typeof metadataFreeSequence>, never>>
 
-export type MetadataFreeOutput = Assert<
-  Equal<OutputOf<typeof metadataFreeSequence>, never>
->
+export type MetadataFreeOutput = Assert<Equal<OutputOf<typeof metadataFreeSequence>, never>>
 
 export type MetadataFreeNullability = Assert<
   Equal<NullabilityOf<typeof metadataFreeSequence>, never>
 >
 
 export type ParenthesizedMetadata = Assert<
-  Equal<
-    DependenciesOf<typeof parenthesizedColumn>,
-    ColumnDependency<PostIdentity, 'title'>
-  >
+  Equal<DependenciesOf<typeof parenthesizedColumn>, ColumnDependency<PostIdentity, "title">>
 >
 
 export type KeywordMetadata = Assert<
-  Equal<
-    DependenciesOf<typeof keywordColumn>,
-    ColumnDependency<PostIdentity, 'title'>
-  >
+  Equal<DependenciesOf<typeof keywordColumn>, ColumnDependency<PostIdentity, "title">>
 >
 
 export type CommaSeparatedRequirements = Assert<
@@ -104,44 +91,27 @@ export type CommaSeparatedRequirements = Assert<
 >
 
 export type ExpressionWrapperMetadata = Assert<
-  Equal<
-    MetadataOf<typeof expressionWrappedColumn>,
-    MetadataOf<typeof posts.title>
-  >
+  Equal<MetadataOf<typeof expressionWrappedColumn>, MetadataOf<typeof posts.title>>
 >
 
 export type SourceRequirementPropagation = Assert<
   Equal<RequiresOf<typeof upperPostTitle>, PostIdentity>
 >
 
-export type UpperPostTitleOutput = Assert<
-  Equal<OutputOf<typeof upperPostTitle>, string>
->
+export type UpperPostTitleOutput = Assert<Equal<OutputOf<typeof upperPostTitle>, string>>
 export type CountOutput = Assert<Equal<OutputOf<typeof countedPostIds>, number>>
-export type CountDistinctOutput = Assert<
-  Equal<OutputOf<typeof distinctPostIds>, number>
->
+export type CountDistinctOutput = Assert<Equal<OutputOf<typeof distinctPostIds>, number>>
 export type CountDependencies = Assert<
-  Equal<
-    DependenciesOf<typeof countedPostIds>,
-    ColumnDependency<PostIdentity, 'id'>
-  >
+  Equal<DependenciesOf<typeof countedPostIds>, ColumnDependency<PostIdentity, "id">>
 >
 export type CountAggregateDependencies = Assert<
-  Equal<
-    AggregateDependenciesOf<typeof countedPostIds>,
-    ColumnDependency<PostIdentity, 'id'>
-  >
+  Equal<AggregateDependenciesOf<typeof countedPostIds>, ColumnDependency<PostIdentity, "id">>
 >
 export type CountVisibleDependencies = Assert<
   Equal<VisibleDependenciesOf<typeof countedPostIds>, never>
 >
-export type NullPredicateOutput = Assert<
-  Equal<OutputOf<typeof nullPredicate>, boolean>
->
-export type NotNullPredicateOutput = Assert<
-  Equal<OutputOf<typeof notNullPredicate>, boolean>
->
+export type NullPredicateOutput = Assert<Equal<OutputOf<typeof nullPredicate>, boolean>>
+export type NotNullPredicateOutput = Assert<Equal<OutputOf<typeof notNullPredicate>, boolean>>
 
 export type NullableJoinMetadata = Assert<
   Equal<
@@ -152,10 +122,7 @@ export type NullableJoinMetadata = Assert<
     ],
     [
       UserIdentity | PostIdentity,
-      (
-        | ColumnDependency<UserIdentity, 'id'>
-        | ColumnDependency<PostIdentity, 'authorId'>
-      ),
+      ColumnDependency<UserIdentity, "id"> | ColumnDependency<PostIdentity, "authorId">,
       PostIdentity,
     ]
   >
@@ -188,10 +155,7 @@ export type JoinComposition = Assert<
     [RequiresOf<typeof leftJoinClause>, DependenciesOf<typeof leftJoinClause>],
     [
       UserIdentity | PostIdentity,
-      (
-        | ColumnDependency<UserIdentity, 'id'>
-        | ColumnDependency<PostIdentity, 'authorId'>
-      ),
+      ColumnDependency<UserIdentity, "id"> | ColumnDependency<PostIdentity, "authorId">,
     ]
   >
 >
@@ -206,9 +170,9 @@ export type SequenceJoinMetadata = Assert<
     [
       UserIdentity | PostIdentity,
       (
-        | ColumnDependency<UserIdentity, 'id'>
-        | ColumnDependency<UserIdentity, 'name'>
-        | ColumnDependency<PostIdentity, 'authorId'>
+        | ColumnDependency<UserIdentity, "id">
+        | ColumnDependency<UserIdentity, "name">
+        | ColumnDependency<PostIdentity, "authorId">
       ),
       PostIdentity,
     ]
@@ -224,9 +188,7 @@ type JoinedRow = {
   postIsPresent: boolean
 }
 
-export type ConcreteSelectionOutput = Assert<
-  Equal<typeof leftJoinedQuery.row, JoinedRow>
->
+export type ConcreteSelectionOutput = Assert<Equal<typeof leftJoinedQuery.row, JoinedRow>>
 
 export type ConcreteQueryOutput = Assert<
   Equal<OutputOf<typeof leftJoinedQuery>, readonly JoinedRow[]>

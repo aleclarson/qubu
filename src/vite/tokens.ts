@@ -2,43 +2,43 @@ export interface QubuToken {
   readonly value: string
   readonly start: number
   readonly end: number
-  readonly kind: 'identifier' | 'punctuator'
+  readonly kind: "identifier" | "punctuator"
 }
 
 const identifierStart = /[A-Za-z_$]/
 const identifierPart = /[A-Za-z0-9_$]/
 const punctuators = [
-  '>>>=',
-  '===',
-  '!==',
-  '**=',
-  '>>>',
-  '&&=',
-  '||=',
-  '??=',
-  '...',
-  '=>',
-  '?.',
-  '==',
-  '!=',
-  '<=',
-  '>=',
-  '++',
-  '--',
-  '&&',
-  '||',
-  '??',
-  '**',
-  '+=',
-  '-=',
-  '*=',
-  '/=',
-  '%=',
-  '&=',
-  '|=',
-  '^=',
-  '<<',
-  '>>',
+  ">>>=",
+  "===",
+  "!==",
+  "**=",
+  ">>>",
+  "&&=",
+  "||=",
+  "??=",
+  "...",
+  "=>",
+  "?.",
+  "==",
+  "!=",
+  "<=",
+  ">=",
+  "++",
+  "--",
+  "&&",
+  "||",
+  "??",
+  "**",
+  "+=",
+  "-=",
+  "*=",
+  "/=",
+  "%=",
+  "&=",
+  "|=",
+  "^=",
+  "<<",
+  ">>",
 ]
 
 export function tokenize(source: string): readonly QubuToken[] {
@@ -53,12 +53,12 @@ export function tokenize(source: string): readonly QubuToken[] {
       continue
     }
 
-    if (source.startsWith('//', cursor)) {
+    if (source.startsWith("//", cursor)) {
       cursor = skipLineComment(source, cursor)
       continue
     }
 
-    if (source.startsWith('/*', cursor)) {
+    if (source.startsWith("/*", cursor)) {
       cursor = skipBlockComment(source, cursor)
       continue
     }
@@ -68,19 +68,21 @@ export function tokenize(source: string): readonly QubuToken[] {
       continue
     }
 
-    if (character === '`') {
+    if (character === "`") {
       cursor = skipTemplate(source, cursor)
       continue
     }
 
     if (isIdentifierStart(character)) {
       const start = cursor
+
       cursor += 1
       while (cursor < source.length && isIdentifierPart(source[cursor])) {
         cursor += 1
       }
+
       tokens.push({
-        kind: 'identifier',
+        kind: "identifier",
         value: source.slice(start, cursor),
         start,
         end: cursor,
@@ -93,12 +95,11 @@ export function tokenize(source: string): readonly QubuToken[] {
       continue
     }
 
-    const punctuator = punctuators.find(value =>
-      source.startsWith(value, cursor)
-    )
+    const punctuator = punctuators.find((value) => source.startsWith(value, cursor))
+
     if (punctuator) {
       tokens.push({
-        kind: 'punctuator',
+        kind: "punctuator",
         value: punctuator,
         start: cursor,
         end: cursor + punctuator.length,
@@ -108,7 +109,7 @@ export function tokenize(source: string): readonly QubuToken[] {
     }
 
     tokens.push({
-      kind: 'punctuator',
+      kind: "punctuator",
       value: character,
       start: cursor,
       end: cursor + 1,
@@ -120,12 +121,14 @@ export function tokenize(source: string): readonly QubuToken[] {
 }
 
 function skipLineComment(source: string, start: number) {
-  const lineEnd = source.indexOf('\n', start + 2)
+  const lineEnd = source.indexOf("\n", start + 2)
+
   return lineEnd === -1 ? source.length : lineEnd + 1
 }
 
 function skipBlockComment(source: string, start: number) {
-  const commentEnd = source.indexOf('*/', start + 2)
+  const commentEnd = source.indexOf("*/", start + 2)
+
   return commentEnd === -1 ? source.length : commentEnd + 2
 }
 
@@ -134,11 +137,15 @@ function skipQuotedString(source: string, start: number) {
   let cursor = start + 1
 
   while (cursor < source.length) {
-    if (source[cursor] === '\\') {
+    if (source[cursor] === "\\") {
       cursor += 2
       continue
     }
-    if (source[cursor] === quote) return cursor + 1
+
+    if (source[cursor] === quote) {
+      return cursor + 1
+    }
+
     cursor += 1
   }
 
@@ -149,11 +156,15 @@ function skipTemplate(source: string, start: number) {
   let cursor = start + 1
 
   while (cursor < source.length) {
-    if (source[cursor] === '\\') {
+    if (source[cursor] === "\\") {
       cursor += 2
       continue
     }
-    if (source[cursor] === '`') return cursor + 1
+
+    if (source[cursor] === "`") {
+      return cursor + 1
+    }
+
     cursor += 1
   }
 
@@ -162,9 +173,11 @@ function skipTemplate(source: string, start: number) {
 
 function skipNumber(source: string, start: number) {
   let cursor = start
+
   while (cursor < source.length && /[A-Za-z0-9._]/.test(source[cursor])) {
     cursor += 1
   }
+
   return cursor
 }
 

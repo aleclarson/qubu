@@ -1,3 +1,4 @@
+import { syntax } from "../src/core/index.ts"
 import {
   alias,
   bigint,
@@ -13,9 +14,7 @@ import {
   text,
   timestamp,
   uuid,
-} from '../src/index.ts'
-import { syntax } from '../src/core/index.ts'
-import { customSource } from '../src/schema/index.ts'
+} from "../src/index.ts"
 import type {
   ColumnDefinition,
   ColumnHasDefault,
@@ -46,7 +45,8 @@ import type {
   SqlUnknown,
   SqlUuid,
   TableLike,
-} from '../src/index.ts'
+} from "../src/index.ts"
+import { customSource } from "../src/schema/index.ts"
 
 type Equal<TLeft, TRight> = [TLeft] extends [TRight]
   ? [TRight] extends [TLeft]
@@ -67,22 +67,19 @@ export type SparseColumnDefinitionDefaults = Assert<
       ColumnHasDefault<MinimalColumn>,
       ColumnIsGenerated<MinimalColumn>,
       ColumnSqlType<MinimalColumn>,
-      MinimalColumn['nullable'],
-      MinimalColumn['storage'],
+      MinimalColumn["nullable"],
+      MinimalColumn["storage"],
     ],
     [string, string, string, false, false, SqlUnknown, false, undefined]
   >
 >
 
 export type ExplicitUndefinedOutputIsPreserved = Assert<
-  Equal<
-    ColumnOutput<ColumnDefinition<{ readonly output: undefined }>>,
-    undefined
-  >
+  Equal<ColumnOutput<ColumnDefinition<{ readonly output: undefined }>>, undefined>
 >
 
 declare const minimalColumn: MinimalColumn
-const narrowedMinimalColumn = minimalColumn.$type<'primary' | 'secondary'>()
+const narrowedMinimalColumn = minimalColumn.$type<"primary" | "secondary">()
 
 export type SparseColumnDependentDefaultsFollowOutput = Assert<
   Equal<
@@ -91,7 +88,7 @@ export type SparseColumnDependentDefaultsFollowOutput = Assert<
       ColumnInsertInput<typeof narrowedMinimalColumn>,
       ColumnUpdateInput<typeof narrowedMinimalColumn>,
     ],
-    ['primary' | 'secondary', 'primary' | 'secondary', 'primary' | 'secondary']
+    ["primary" | "secondary", "primary" | "secondary", "primary" | "secondary"]
   >
 >
 
@@ -100,7 +97,7 @@ type WriteSpecificColumn = ColumnDefinition<{
   readonly insert: number
 }>
 declare const writeSpecificColumn: WriteSpecificColumn
-const narrowedWriteSpecificColumn = writeSpecificColumn.$type<'saved'>()
+const narrowedWriteSpecificColumn = writeSpecificColumn.$type<"saved">()
 
 export type ExplicitColumnOverridesRemainIndependent = Assert<
   Equal<
@@ -109,14 +106,14 @@ export type ExplicitColumnOverridesRemainIndependent = Assert<
       ColumnInsertInput<typeof narrowedWriteSpecificColumn>,
       ColumnUpdateInput<typeof narrowedWriteSpecificColumn>,
     ],
-    ['saved', number, number]
+    ["saved", number, number]
   >
 >
 
 // @ts-expect-error Column nullability must be boolean.
-type InvalidColumnConfig = ColumnDefinition<{ readonly nullable: 'yes' }>
+type InvalidColumnConfig = ColumnDefinition<{ readonly nullable: "yes" }>
 
-const records = table('records', {
+const records = table("records", {
   id: uuid(),
   label: text(),
   nullableLabel: text({ nullable: true }),
@@ -154,33 +151,22 @@ export type RemainingBuiltInColumnDomains = Assert<
       SqlTypeOf<typeof records.largeSequence>,
       SqlTypeOf<typeof records.bytes>,
     ],
-    [
-      SqlDecimal,
-      SqlBoolean,
-      SqlDate,
-      SqlTimestamp,
-      SqlJson<{ ok: boolean }>,
-      SqlBigInt,
-      SqlBinary,
-    ]
+    [SqlDecimal, SqlBoolean, SqlDate, SqlTimestamp, SqlJson<{ ok: boolean }>, SqlBigInt, SqlBinary]
   >
 >
 
 export type TextCapabilities = Assert<
-  SqlText extends SqlTextLike & SqlOrderable & SqlEqualityComparable<'text'>
-    ? true
-    : false
+  SqlText extends SqlTextLike & SqlOrderable & SqlEqualityComparable<"text"> ? true : false
 >
 
-export type UuidIsNotTextLike = Assert<
-  SqlUuid extends SqlTextLike ? false : true
->
+export type UuidIsNotTextLike = Assert<SqlUuid extends SqlTextLike ? false : true>
 
 interface SqlCitext
-  extends SqlSemanticType<'postgres.citext'>,
+  extends
+    SqlSemanticType<"postgres.citext">,
     SqlTextLike,
-    SqlOrderable<'text'>,
-    SqlEqualityComparable<'text'> {}
+    SqlOrderable<"text">,
+    SqlEqualityComparable<"text"> {}
 
 export type KnownCompatibility = Assert<
   Equal<
@@ -198,39 +184,42 @@ export type KnownCompatibility = Assert<
 const citext = column<string, string, string, SqlCitext>()
 const nullableCitext = nullable(citext)
 
-export type CustomColumnDomain = Assert<
-  Equal<ColumnSqlType<typeof nullableCitext>, SqlCitext>
->
+export type CustomColumnDomain = Assert<Equal<ColumnSqlType<typeof nullableCitext>, SqlCitext>>
 
-function applicationStringId<TTable extends TableLike<{ id: string }>>(
-  source: TTable
-) {
+function applicationStringId<TTable extends TableLike<{ id: string }>>(source: TTable) {
   return source
 }
 
 function nonNullTextId<
   TSource extends SourceLike<{
-    id: FieldLike<{ sqlType: SqlTextLike; nullable: false }>
+    id: FieldLike<{
+      sqlType: SqlTextLike
+      nullable: false
+    }>
   }>,
 >(source: TSource) {
   return source
 }
 
-const textIds = table('text_ids', { id: text(), extra: integer() })
-const nullableTextIds = table('nullable_text_ids', {
+const textIds = table("text_ids", {
+  id: text(),
+  extra: integer(),
+})
+const nullableTextIds = table("nullable_text_ids", {
   id: text({ nullable: true }),
 })
-const unknownIds = table('unknown_ids', { id: column<string>() })
-const aliasedTextIds = alias(textIds, 'aliased_text_ids')
+const unknownIds = table("unknown_ids", { id: column<string>() })
+const aliasedTextIds = alias(textIds, "aliased_text_ids")
 const customTextIds = customSource({
-  identity: { sourceKind: 'custom-text-ids' } as const,
-  render: context => context.append('custom_text_ids()'),
-  reference: syntax('custom_text_ids'),
+  identity: { sourceKind: "custom-text-ids" } as const,
+  render: (context) => context.append("custom_text_ids()"),
+  reference: syntax("custom_text_ids"),
   columns: { id: text() },
 })
 
 const sameTable = applicationStringId(textIds)
 const sameAlias = nonNullTextId(aliasedTextIds)
+
 nonNullTextId(textIds)
 nonNullTextId(unknownIds)
 nonNullTextId(customTextIds)
@@ -243,9 +232,7 @@ export type AliasIdentityIsPreserved = Assert<
   Equal<SourceIdentity<typeof sameAlias>, SourceIdentity<typeof aliasedTextIds>>
 >
 
-export type AliasSqlDomainIsPreserved = Assert<
-  Equal<SqlTypeOf<typeof aliasedTextIds.id>, SqlText>
->
+export type AliasSqlDomainIsPreserved = Assert<Equal<SqlTypeOf<typeof aliasedTextIds.id>, SqlText>>
 
 export type CustomSourceSqlDomainIsPreserved = Assert<
   Equal<SqlTypeOf<typeof customTextIds.id>, SqlText>
@@ -263,4 +250,4 @@ nonNullTextId(records)
 nonNullTextId(nullableTextIds)
 
 // @ts-expect-error The required id field is missing.
-nonNullTextId(table('missing_ids', { name: text() }))
+nonNullTextId(table("missing_ids", { name: text() }))

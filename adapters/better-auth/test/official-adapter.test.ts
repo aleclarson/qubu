@@ -1,21 +1,18 @@
-import { DatabaseSync } from 'node:sqlite'
+import { DatabaseSync } from "node:sqlite"
+
 import {
   joinsTestSuite,
   normalTestSuite,
   testAdapter,
   transactionsTestSuite,
-} from '@better-auth/test-utils/adapter'
-import { getMigrations } from 'better-auth/db/migration'
-import { nodeSqliteAdapter } from '@qubu/adapter-node-sqlite'
-import {
-  qubu,
-  type ExecutionRequest,
-  type TransactionalQueryAdapter,
-} from 'qubu'
-import { sqliteDialect } from 'qubu/sqlite'
-import { qubuAdapter } from '@qubu/better-auth'
+} from "@better-auth/test-utils/adapter"
+import { nodeSqliteAdapter } from "@qubu/adapter-node-sqlite"
+import { qubuAdapter } from "@qubu/better-auth"
+import { getMigrations } from "better-auth/db/migration"
+import { qubu, type ExecutionRequest, type TransactionalQueryAdapter } from "qubu"
+import { sqliteDialect } from "qubu/sqlite"
 
-let database = new DatabaseSync(':memory:')
+let database = new DatabaseSync(":memory:")
 const dynamicAdapter: TransactionalQueryAdapter = {
   dialect: sqliteDialect(),
   execute(request: ExecutionRequest) {
@@ -34,8 +31,12 @@ const { execute } = await testAdapter({
   adapter: () => qubuAdapter(qubu(dynamicAdapter)),
   async runMigrations(options) {
     database.close()
-    database = new DatabaseSync(':memory:')
-    const migrations = await getMigrations({ ...options, database })
+    database = new DatabaseSync(":memory:")
+    const migrations = await getMigrations({
+      ...options,
+      database,
+    })
+
     await migrations.runMigrations()
   },
   tests: [normalTestSuite(), joinsTestSuite(), transactionsTestSuite()],

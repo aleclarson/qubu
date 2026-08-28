@@ -1,4 +1,14 @@
-import { expectTypeOf } from 'vitest'
+import { expectTypeOf } from "vitest"
+
+import { mysqlDialect } from "../src/dialects/mysql.ts"
+import {
+  doNothing,
+  doUpdate,
+  excluded,
+  onConflict,
+  postgresDialect,
+} from "../src/dialects/postgres.ts"
+import { sqliteDialect } from "../src/dialects/sqlite.ts"
 import {
   all,
   gt,
@@ -11,47 +21,39 @@ import {
   unique,
   values,
   where,
-} from '../src/index.ts'
-import {
-  doNothing,
-  doUpdate,
-  excluded,
-  onConflict,
-  postgresDialect,
-} from '../src/dialects/postgres.ts'
-import { sqliteDialect } from '../src/dialects/sqlite.ts'
-import { mysqlDialect } from '../src/dialects/mysql.ts'
+} from "../src/index.ts"
 
 const accounts = table(
-  'accounts',
+  "accounts",
   {
     id: integer({ generated: true }),
     email: text(),
     name: text(),
     version: integer(),
   },
-  accounts => ({
+  (accounts) => ({
     constraints: {
       emailKey: unique(accounts.email),
     },
     indexes: {},
-  })
+  }),
 )
-const other = table('other', { name: text() })
+const other = table("other", { name: text() })
 
 const incoming = excluded(accounts)
 const query = insertInto(
   accounts,
-  values({ email: 'ada@example.com', name: 'Ada', version: 2 }),
+  values({
+    email: "ada@example.com",
+    name: "Ada",
+    version: 2,
+  }),
   onConflict(
     accounts,
     accounts.constraints.emailKey,
-    doUpdate(
-      { name: incoming.name },
-      where(gt(incoming.version, accounts.version))
-    )
+    doUpdate({ name: incoming.name }, where(gt(incoming.version, accounts.version))),
   ),
-  returning(all(accounts))
+  returning(all(accounts)),
 )
 
 expectTypeOf(query.row).toEqualTypeOf<{
@@ -69,15 +71,19 @@ render(query, mysqlDialect())
 
 insertInto(
   accounts,
-  values({ email: 'ada@example.com', name: 'Ada', version: 1 }),
-  onConflict(doNothing())
+  values({
+    email: "ada@example.com",
+    name: "Ada",
+    version: 1,
+  }),
+  onConflict(doNothing()),
 )
 
 onConflict(
   accounts,
   accounts.constraints.emailKey,
   // @ts-expect-error DO UPDATE expressions cannot reference an unrelated source.
-  doUpdate({ name: excluded(other).name })
+  doUpdate({ name: excluded(other).name }),
 )
 
 // @ts-expect-error DO UPDATE needs a target table and conflict target.

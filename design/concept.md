@@ -71,7 +71,7 @@ flowchart LR
 Tables are declared once and reused as values:
 
 ```ts
-const users = table('users', {
+const users = table("users", {
   id: integer(),
   name: text(),
   email: text({ nullable: true }),
@@ -87,7 +87,7 @@ const query = select(
     name: users.name,
   },
   from(users),
-  where(eq(users.id, 42))
+  where(eq(users.id, 42)),
 )
 
 const result = render(query)

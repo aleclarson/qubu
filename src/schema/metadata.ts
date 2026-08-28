@@ -1,7 +1,7 @@
-import { snakeCaseIdentifier } from '../core/naming.ts'
+import { snakeCaseIdentifier } from "../core/naming.ts"
 
 /** Dialect identities with first-party schema metadata adapters. */
-export type SchemaDialectName = 'postgresql' | 'sqlite' | 'mysql'
+export type SchemaDialectName = "postgresql" | "sqlite" | "mysql"
 
 /** A dialect-owned extension attached to serializable schema metadata. */
 export interface SchemaDialectExtension<TDialect extends string = string> {
@@ -25,10 +25,10 @@ export interface SchemaObjectIdentity {
 /** Structured diagnostics produced while resolving relational metadata. */
 export interface SchemaMetadataDiagnostic {
   readonly code:
-    | 'invalid-physical-name'
-    | 'duplicate-physical-name'
-    | 'dialect-mismatch'
-    | 'unsupported-dialect-option'
+    | "invalid-physical-name"
+    | "duplicate-physical-name"
+    | "dialect-mismatch"
+    | "unsupported-dialect-option"
   readonly message: string
   readonly path: readonly (string | number)[]
   readonly relatedPaths?: readonly (readonly (string | number)[])[]
@@ -37,25 +37,24 @@ export interface SchemaMetadataDiagnostic {
 
 /** Error raised when relational metadata cannot be represented safely. */
 export class SchemaMetadataValidationError extends TypeError {
-  readonly name = 'SchemaMetadataValidationError'
+  readonly name = "SchemaMetadataValidationError"
   readonly diagnostics: readonly SchemaMetadataDiagnostic[]
   readonly issues: readonly SchemaMetadataDiagnostic[]
 
   constructor(diagnostics: readonly SchemaMetadataDiagnostic[]) {
     const frozenDiagnostics = Object.freeze(
-      diagnostics.map(diagnostic =>
+      diagnostics.map((diagnostic) =>
         Object.freeze({
           ...diagnostic,
           path: Object.freeze([...diagnostic.path]),
           relatedPaths: diagnostic.relatedPaths
-            ? Object.freeze(
-                diagnostic.relatedPaths.map(path => Object.freeze([...path]))
-              )
+            ? Object.freeze(diagnostic.relatedPaths.map((path) => Object.freeze([...path])))
             : undefined,
-        })
-      )
+        }),
+      ),
     )
-    super(frozenDiagnostics.map(diagnostic => diagnostic.message).join('\n'))
+
+    super(frozenDiagnostics.map((diagnostic) => diagnostic.message).join("\n"))
     this.diagnostics = frozenDiagnostics
     this.issues = frozenDiagnostics
   }
@@ -69,40 +68,37 @@ export function generatedSchemaObjectName(id: string): string {
 /** Deep-freeze plain metadata values without introducing executable nodes. */
 export function freezeSchemaMetadata<T>(value: T): T {
   if (Array.isArray(value)) {
-    return Object.freeze(value.map(item => freezeSchemaMetadata(item))) as T
+    return Object.freeze(value.map((item) => freezeSchemaMetadata(item))) as T
   }
-  if (typeof value !== 'object' || value === null) return value
+
+  if (typeof value !== "object" || value === null) {
+    return value
+  }
 
   const frozen = Object.fromEntries(
-    Object.entries(value).map(([key, nested]) => [
-      key,
-      freezeSchemaMetadata(nested),
-    ])
+    Object.entries(value).map(([key, nested]) => [key, freezeSchemaMetadata(nested)]),
   )
+
   return Object.freeze(frozen) as T
 }
 
 /** Check the portable identifier subset used for generated metadata names. */
 export function isValidSchemaObjectName(name: string): boolean {
-  return (
-    name.length > 0 &&
-    name === name.trim() &&
-    !/[.\\/\u0000-\u001f\u007f"']/u.test(name)
-  )
+  return name.length > 0 && name === name.trim() && !/[.\\/\u0000-\u001f\u007f"']/u.test(name)
 }
 
 /**
- * Attach a record key and resolved physical name without changing the
- * enumerable shape of legacy constraint/index values. The properties are
- * still ordinary read-only runtime metadata and are available to snapshot
- * traversals.
+ * Attach a record key and resolved physical name without changing the enumerable shape of legacy
+ * constraint/index values. The properties are still ordinary read-only runtime metadata and are
+ * available to snapshot traversals.
  */
 export function materializeSchemaObjectIdentity<TValue extends object>(
   value: TValue,
   id: string,
-  physicalName?: string
+  physicalName?: string,
 ): TValue & SchemaObjectIdentity {
   const materialized = { ...value } as TValue & SchemaObjectIdentity
+
   Object.defineProperties(materialized, {
     id: {
       configurable: false,
@@ -125,14 +121,12 @@ type NamedMetadataValue = object & {
 }
 
 /**
- * Resolve and validate names for one metadata record. The caller decides
- * whether constraint and index names share a database namespace.
+ * Resolve and validate names for one metadata record. The caller decides whether constraint and
+ * index names share a database namespace.
  */
-export function materializeSchemaObjectRecord<
-  TValue extends NamedMetadataValue,
->(
+export function materializeSchemaObjectRecord<TValue extends NamedMetadataValue>(
   record: Readonly<Record<string, TValue>>,
-  kind: 'constraint' | 'index'
+  kind: "constraint" | "index",
 ): Readonly<Record<string, TValue & SchemaObjectIdentity>> {
   const diagnostics: SchemaMetadataDiagnostic[] = []
   const names = new Map<string, string>()
@@ -140,28 +134,25 @@ export function materializeSchemaObjectRecord<
 
   for (const [id, value] of Object.entries(record)) {
     const physicalName = value.physicalName ?? generatedSchemaObjectName(id)
-    const path = [kind === 'constraint' ? 'constraints' : 'indexes', id]
+    const path = [kind === "constraint" ? "constraints" : "indexes", id]
 
     if (!isValidSchemaObjectName(physicalName)) {
       diagnostics.push({
-        code: 'invalid-physical-name',
+        code: "invalid-physical-name",
         message: `The ${kind} "${id}" has invalid physical name "${physicalName}"`,
-        path: [...path, 'physicalName'],
+        path: [...path, "physicalName"],
       })
     }
 
     const previousId = names.get(physicalName)
+
     if (previousId !== undefined) {
       diagnostics.push({
-        code: 'duplicate-physical-name',
+        code: "duplicate-physical-name",
         message: `The ${kind}s "${previousId}" and "${id}" both use physical name "${physicalName}"`,
-        path: [...path, 'physicalName'],
+        path: [...path, "physicalName"],
         relatedPaths: [
-          [
-            kind === 'constraint' ? 'constraints' : 'indexes',
-            previousId,
-            'physicalName',
-          ],
+          [kind === "constraint" ? "constraints" : "indexes", previousId, "physicalName"],
         ],
       })
     } else {
@@ -182,11 +173,14 @@ export function materializeSchemaObjectRecord<
 export function dialectMismatchDiagnostic(
   extension: SchemaDialectExtension,
   dialect: string,
-  path: readonly (string | number)[]
+  path: readonly (string | number)[],
 ): SchemaMetadataDiagnostic | undefined {
-  if (extension.dialect === dialect) return undefined
+  if (extension.dialect === dialect) {
+    return undefined
+  }
+
   return {
-    code: 'dialect-mismatch',
+    code: "dialect-mismatch",
     message: `Dialect extension belongs to "${extension.dialect}" but the active schema dialect is "${dialect}"`,
     path,
     dialect,
@@ -194,9 +188,7 @@ export function dialectMismatchDiagnostic(
 }
 
 /** Throw a structured error for one or more dialect capability findings. */
-export function assertSchemaDialectSupport(
-  diagnostics: readonly SchemaMetadataDiagnostic[]
-): void {
+export function assertSchemaDialectSupport(diagnostics: readonly SchemaMetadataDiagnostic[]): void {
   if (diagnostics.length > 0) {
     throw new SchemaMetadataValidationError(diagnostics)
   }

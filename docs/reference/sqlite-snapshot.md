@@ -5,10 +5,7 @@
 Import the adapter from the optional snapshot entrypoint:
 
 ```ts
-import {
-  createSqliteSchemaSnapshot,
-  tryCreateSqliteSchemaSnapshot,
-} from 'qubu/snapshot'
+import { createSqliteSchemaSnapshot, tryCreateSqliteSchemaSnapshot } from "qubu/snapshot"
 
 const snapshot = createSqliteSchemaSnapshot(appSchema)
 const result = tryCreateSqliteSchemaSnapshot(appSchema)
@@ -42,7 +39,7 @@ schema may include a feature that depends on a SQLite version or table shape:
 const result = tryCreateSqliteSchemaSnapshot(appSchema)
 if (!result.ok) {
   for (const issue of result.diagnostics) {
-    console.error(issue.path.join('.'), issue.code, issue.message)
+    console.error(issue.path.join("."), issue.code, issue.message)
   }
 }
 ```

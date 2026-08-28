@@ -1,5 +1,5 @@
-import type { CatalogConnection } from './connection.ts'
-import { createIntrospectionDiagnostic } from './diagnostics.ts'
+import type { CatalogConnection } from "./connection.ts"
+import { createIntrospectionDiagnostic } from "./diagnostics.ts"
 import type {
   CatalogCheckConstraint,
   CatalogColumn,
@@ -36,7 +36,7 @@ import type {
   CatalogView,
   IntrospectionCatalog,
   IntrospectionOptions,
-} from './types.ts'
+} from "./types.ts"
 
 /** Fixed server metadata query used by the PostgreSQL catalog reader. */
 export const postgresServerQuery = `
@@ -48,28 +48,30 @@ export const postgresServerQuery = `
 /** Read one PostgreSQL schema into the normalized catalog contract. */
 export async function readPostgresCatalog(
   connection: CatalogConnection,
-  options: IntrospectionOptions
+  options: IntrospectionOptions,
 ): Promise<IntrospectionCatalog> {
-  const diagnostics = [] as IntrospectionCatalog['diagnostics'][number][]
-  if (connection.dialect !== 'postgresql') {
+  const diagnostics = [] as IntrospectionCatalog["diagnostics"][number][]
+
+  if (connection.dialect !== "postgresql") {
     diagnostics.push(
       createIntrospectionDiagnostic({
-        severity: 'error',
-        code: 'dialect-mismatch',
+        severity: "error",
+        code: "dialect-mismatch",
         message: `PostgreSQL catalog reader received a ${connection.dialect} connection`,
-        path: ['connection', 'dialect'],
-        remediation: 'Use a PostgreSQL CatalogConnection with this reader.',
-      })
+        path: ["connection", "dialect"],
+        remediation: "Use a PostgreSQL CatalogConnection with this reader.",
+      }),
     )
     return emptyCatalog(options.namespace, diagnostics)
   }
+
   const serverRows = await query<PostgresServerRow>(
     connection,
     postgresServerQuery,
     [],
     options,
     diagnostics,
-    'server'
+    "server",
   )
   const server = serverInfo(serverRows[0], diagnostics)
   const relationRows = await query<PostgresRelationRow>(
@@ -78,18 +80,17 @@ export async function readPostgresCatalog(
     [options.namespace],
     options,
     diagnostics,
-    'relations'
+    "relations",
   )
-  const relationObjects = relationRows.filter(row => {
+  const relationObjects = relationRows.filter((row) => {
     const kind = text(row.relkind)
-    return kind !== 'i' && kind !== 'I'
+
+    return kind !== "i" && kind !== "I"
   })
   const tables = relationObjects
-    .filter(row => row.relkind === 'r' || row.relkind === 'p')
-    .map(row => relationTable(row))
-  const tableByOid = new Map(
-    tables.map(table => [table.reference?.catalog?.value, table])
-  )
+    .filter((row) => row.relkind === "r" || row.relkind === "p")
+    .map((row) => relationTable(row))
+  const tableByOid = new Map(tables.map((table) => [table.reference?.catalog?.value, table]))
 
   const viewRows = await query<PostgresViewRow>(
     connection,
@@ -97,28 +98,31 @@ export async function readPostgresCatalog(
     [options.namespace],
     options,
     diagnostics,
-    'views'
+    "views",
   )
   const views: CatalogView[] = []
+
   for (const row of viewRows) {
     const view = viewObject(row, options.namespace, diagnostics)
-    if (view.kind === 'deferred-object') {
+
+    if (view.kind === "deferred-object") {
       // A view whose definition cannot be recovered remains visible below in
       // the deferred collection. It must not become a fabricated SQL body.
       continue
     }
+
     views.push(view)
   }
-  const relationReferences = new Map<
-    string | number | undefined,
-    CatalogObjectReference
-  >()
+
+  const relationReferences = new Map<string | number | undefined, CatalogObjectReference>()
+
   for (const table of tables) {
     relationReferences.set(table.reference?.catalog?.value, {
-      kind: 'table',
+      kind: "table",
       id: table.id,
     })
   }
+
   for (const view of views) {
     relationReferences.set(view.reference?.catalog?.value, {
       kind: view.kind,
@@ -132,7 +136,7 @@ export async function readPostgresCatalog(
     [options.namespace],
     options,
     diagnostics,
-    'columns'
+    "columns",
   )
   const identityRows = await query<PostgresIdentityRow>(
     connection,
@@ -140,39 +144,41 @@ export async function readPostgresCatalog(
     [options.namespace],
     options,
     diagnostics,
-    'identities'
+    "identities",
   )
-  const identityOptionsByColumn = new Map<
-    string,
-    Readonly<Record<string, CatalogValueFact>>
-  >()
-  for (const row of identityRows)
+  const identityOptionsByColumn = new Map<string, Readonly<Record<string, CatalogValueFact>>>()
+
+  for (const row of identityRows) {
     identityOptionsByColumn.set(
       columnKey(row.table_oid, row.ordinal_position),
-      identityOptions(row)
+      identityOptions(row),
     )
-  const columnsByTable = groupBy(columnRows, row => row.table_oid)
+  }
+
+  const columnsByTable = groupBy(columnRows, (row) => row.table_oid)
+
   for (const table of tables) {
     const rows = columnsByTable.get(table.reference?.catalog?.value) ?? []
     const columns = rows
       .sort(compareOrdinal)
-      .map(row =>
+      .map((row) =>
         column(
           row,
           table,
           options.namespace,
-          identityOptionsByColumn.get(
-            columnKey(row.table_oid, row.ordinal_position)
-          )
-        )
+          identityOptionsByColumn.get(columnKey(row.table_oid, row.ordinal_position)),
+        ),
       )
+
     ;(table as Mutable<CatalogTable>).columns = columns
   }
+
   for (const view of views) {
     const rows = columnsByTable.get(view.reference?.catalog?.value) ?? []
+
     ;(view as Mutable<CatalogView>).columns = rows
       .sort(compareOrdinal)
-      .map(row => column(row, view, options.namespace))
+      .map((row) => column(row, view, options.namespace))
   }
 
   const indexRows = await query<PostgresIndexRow>(
@@ -181,26 +187,29 @@ export async function readPostgresCatalog(
     [options.namespace],
     options,
     diagnostics,
-    'indexes'
+    "indexes",
   )
   const indexReferences = new Map<string, CatalogEntityRecord>()
+
   for (const row of indexRows) {
     const indexOid = text(row.index_oid)
     const physicalName = text(row.physical_name)
-    if (indexOid && physicalName)
+
+    if (indexOid && physicalName) {
       indexReferences.set(`pg_class:${indexOid}`, {
-        kind: 'index',
+        kind: "index",
         id: stableId(physicalName),
         physicalName,
         reference: reference(
-          'index',
+          "index",
           physicalName,
           options.namespace,
-          'pg_class',
-          'oid',
-          row.index_oid
+          "pg_class",
+          "oid",
+          row.index_oid,
         ),
       })
+    }
   }
 
   const constraintRows = await query<PostgresConstraintRow>(
@@ -209,19 +218,20 @@ export async function readPostgresCatalog(
     [options.namespace],
     options,
     diagnostics,
-    'constraints'
+    "constraints",
   )
-  const constraintsByTable = groupBy(constraintRows, row => row.table_oid)
+  const constraintsByTable = groupBy(constraintRows, (row) => row.table_oid)
+
   for (const table of tables) {
     const rows = constraintsByTable.get(table.reference?.catalog?.value) ?? []
     const columnsByNumber = new Map(
-      (table.columns as readonly CatalogColumn[]).map(column => [
+      (table.columns as readonly CatalogColumn[]).map((column) => [
         column.ordinalPosition,
         column.physicalName,
-      ])
+      ]),
     )
     const constraints = rows
-      .map(row =>
+      .map((row) =>
         constraint(
           row,
           table,
@@ -229,27 +239,26 @@ export async function readPostgresCatalog(
           tableByOid,
           options.namespace,
           diagnostics,
-          indexReferences
-        )
+          indexReferences,
+        ),
       )
       .filter((value): value is CatalogConstraint => value !== undefined)
+
     ;(table as Mutable<CatalogTable>).constraints = constraints
   }
-  const indexesByTable = groupBy(indexRows, row => row.table_oid)
+
+  const indexesByTable = groupBy(indexRows, (row) => row.table_oid)
+
   for (const table of tables) {
     const rows = indexesByTable.get(table.reference?.catalog?.value) ?? []
     const columnsByNumber = new Map(
-      (table.columns as readonly CatalogColumn[]).map(column => [
+      (table.columns as readonly CatalogColumn[]).map((column) => [
         column.ordinalPosition,
         column.physicalName,
-      ])
+      ]),
     )
-    const mappedIndexes = mapIndexes(
-      rows,
-      table,
-      columnsByNumber,
-      options.namespace
-    )
+    const mappedIndexes = mapIndexes(rows, table, columnsByNumber, options.namespace)
+
     ;(table as Mutable<CatalogTable>).indexes = mappedIndexes
   }
 
@@ -259,10 +268,10 @@ export async function readPostgresCatalog(
     [options.namespace],
     options,
     diagnostics,
-    'sequences'
+    "sequences",
   )
-  const sequences = sequenceRows.map(row =>
-    sequenceObject(row, options.namespace, tableByOid, diagnostics)
+  const sequences = sequenceRows.map((row) =>
+    sequenceObject(row, options.namespace, tableByOid, diagnostics),
   )
 
   const enumRows = await query<PostgresEnumRow>(
@@ -271,7 +280,7 @@ export async function readPostgresCatalog(
     [options.namespace],
     options,
     diagnostics,
-    'enums'
+    "enums",
   )
   const enums = mapEnums(enumRows, options.namespace)
 
@@ -281,7 +290,7 @@ export async function readPostgresCatalog(
     [options.namespace],
     options,
     diagnostics,
-    'domains'
+    "domains",
   )
   const domainConstraintRows = await query<PostgresDomainConstraintRow>(
     connection,
@@ -289,13 +298,9 @@ export async function readPostgresCatalog(
     [options.namespace],
     options,
     diagnostics,
-    'domain-constraints'
+    "domain-constraints",
   )
-  const domains = mapDomains(
-    domainRows,
-    domainConstraintRows,
-    options.namespace
-  )
+  const domains = mapDomains(domainRows, domainConstraintRows, options.namespace)
 
   const collationRows = await query<PostgresCollationRow>(
     connection,
@@ -303,11 +308,9 @@ export async function readPostgresCatalog(
     [options.namespace],
     options,
     diagnostics,
-    'collations'
+    "collations",
   )
-  const collations = collationRows.map(row =>
-    collationObject(row, options.namespace)
-  )
+  const collations = collationRows.map((row) => collationObject(row, options.namespace))
 
   const triggerRows = await query<PostgresTriggerRow>(
     connection,
@@ -315,19 +318,19 @@ export async function readPostgresCatalog(
     [options.namespace],
     options,
     diagnostics,
-    'triggers'
+    "triggers",
   )
   const triggers: CatalogTrigger[] = []
   const triggerDeferredObjects: CatalogDeferredObject[] = []
+
   for (const row of triggerRows) {
-    const value = triggerObject(
-      row,
-      options.namespace,
-      relationReferences,
-      diagnostics
-    )
-    if (value.kind === 'deferred-object') triggerDeferredObjects.push(value)
-    else triggers.push(value)
+    const value = triggerObject(row, options.namespace, relationReferences, diagnostics)
+
+    if (value.kind === "deferred-object") {
+      triggerDeferredObjects.push(value)
+    } else {
+      triggers.push(value)
+    }
   }
 
   const routineRows = await query<PostgresRoutineRow>(
@@ -336,7 +339,7 @@ export async function readPostgresCatalog(
     [options.namespace],
     options,
     diagnostics,
-    'routines'
+    "routines",
   )
   const routineParameterRows = await query<PostgresRoutineParameterRow>(
     connection,
@@ -344,14 +347,9 @@ export async function readPostgresCatalog(
     [options.namespace],
     options,
     diagnostics,
-    'routine-parameters'
+    "routine-parameters",
   )
-  const routines = mapRoutines(
-    routineRows,
-    routineParameterRows,
-    options.namespace,
-    diagnostics
-  )
+  const routines = mapRoutines(routineRows, routineParameterRows, options.namespace, diagnostics)
 
   const partitionRows = await query<PostgresPartitionRow>(
     connection,
@@ -359,12 +357,10 @@ export async function readPostgresCatalog(
     [options.namespace],
     options,
     diagnostics,
-    'partitions'
+    "partitions",
   )
   const partitions = partitionRows
-    .map(row =>
-      partitionObject(row, options.namespace, tableByOid, diagnostics)
-    )
+    .map((row) => partitionObject(row, options.namespace, tableByOid, diagnostics))
     .filter((value): value is CatalogPartition => value !== undefined)
 
   const policyRows = await query<PostgresPolicyRow>(
@@ -373,10 +369,10 @@ export async function readPostgresCatalog(
     [options.namespace],
     options,
     diagnostics,
-    'policies'
+    "policies",
   )
   const policies = policyRows
-    .map(row => policyObject(row, options.namespace, tableByOid, diagnostics))
+    .map((row) => policyObject(row, options.namespace, tableByOid, diagnostics))
     .filter((value): value is CatalogPolicy => value !== undefined)
 
   const extensionRows = await query<PostgresExtensionRow>(
@@ -385,52 +381,46 @@ export async function readPostgresCatalog(
     [options.namespace],
     options,
     diagnostics,
-    'extensions'
+    "extensions",
   )
-  const extensionObjects = extensionRows.map(row =>
-    extensionObject(row, options.namespace)
-  )
+  const extensionObjects = extensionRows.map((row) => extensionObject(row, options.namespace))
 
   const typedRelationOids = new Set(
-    [...views, ...sequences].map(object => object.reference?.catalog?.value)
+    [...views, ...sequences].map((object) => object.reference?.catalog?.value),
   )
   const deferredObjects = relationObjects
-    .filter(row => {
+    .filter((row) => {
       const relkind = text(row.relkind)
+
       return (
-        relkind === 'f' ||
-        ((relkind === 'v' || relkind === 'm' || relkind === 'S') &&
-          !typedRelationOids.has(
-            row.oid === undefined ? undefined : text(row.oid)
-          ))
+        relkind === "f" ||
+        ((relkind === "v" || relkind === "m" || relkind === "S") &&
+          !typedRelationOids.has(row.oid === undefined ? undefined : text(row.oid)))
       )
     })
-    .map(row =>
+    .map((row) =>
       deferredObject(
         row,
-        text(row.relkind) === 'f'
-          ? 'foreign-table'
-          : text(row.relkind) === 'v'
-            ? 'view'
-            : text(row.relkind) === 'm'
-              ? 'materialized-view'
-              : 'sequence'
-      )
+        text(row.relkind) === "f"
+          ? "foreign-table"
+          : text(row.relkind) === "v"
+            ? "view"
+            : text(row.relkind) === "m"
+              ? "materialized-view"
+              : "sequence",
+      ),
     )
+
   deferredObjects.push(...triggerDeferredObjects)
   const opaqueObjects = relationObjects
-    .filter(row => {
+    .filter((row) => {
       const kind = text(row.relkind)
+
       return (
-        kind !== 'r' &&
-        kind !== 'p' &&
-        kind !== 'v' &&
-        kind !== 'm' &&
-        kind !== 'S' &&
-        kind !== 'f'
+        kind !== "r" && kind !== "p" && kind !== "v" && kind !== "m" && kind !== "S" && kind !== "f"
       )
     })
-    .map(row => opaqueRelationObject(row, options.namespace, diagnostics))
+    .map((row) => opaqueRelationObject(row, options.namespace, diagnostics))
 
   const metadataRows = await query<PostgresMetadataRow>(
     connection,
@@ -438,7 +428,7 @@ export async function readPostgresCatalog(
     [options.namespace],
     options,
     diagnostics,
-    'comments-and-ownership'
+    "comments-and-ownership",
   )
   const metadata = mapMetadataRows(
     metadataRows,
@@ -457,22 +447,23 @@ export async function readPostgresCatalog(
     opaqueObjects,
     indexReferences,
     relationReferences,
-    diagnostics
+    diagnostics,
   )
+
   opaqueObjects.push(...metadata.opaqueObjects)
 
   return Object.freeze({
-    dialect: 'postgresql',
+    dialect: "postgresql",
     server,
     namespace: {
-      kind: 'postgres-schema' as const,
+      kind: "postgres-schema" as const,
       name: options.namespace,
       reference: reference(
-        'namespace',
+        "namespace",
         options.namespace,
         options.namespace,
-        'pg_namespace',
-        'nspname'
+        "pg_namespace",
+        "nspname",
       ),
     },
     tables: Object.freeze(tables),
@@ -1051,15 +1042,15 @@ interface PostgresMetadataRow extends CatalogQueryRow {
 }
 
 interface CatalogEntityRecord {
-  readonly kind: CatalogObjectReference['kind']
+  readonly kind: CatalogObjectReference["kind"]
   readonly id: string
   readonly physicalName: string
   readonly reference?: CatalogReference
 }
 
 interface MetadataResult {
-  readonly comments: readonly import('./types.ts').CatalogComment[]
-  readonly ownership: readonly import('./types.ts').CatalogOwnership[]
+  readonly comments: readonly import("./types.ts").CatalogComment[]
+  readonly ownership: readonly import("./types.ts").CatalogOwnership[]
   readonly opaqueObjects: readonly CatalogOpaqueObject[]
 }
 
@@ -1070,23 +1061,26 @@ async function query<Row extends Readonly<Record<string, unknown>>>(
   text: string,
   parameters: readonly unknown[],
   options: IntrospectionOptions,
-  diagnostics: IntrospectionCatalog['diagnostics'][number][],
-  operation: string
+  diagnostics: IntrospectionCatalog["diagnostics"][number][],
+  operation: string,
 ): Promise<readonly Row[]> {
   try {
     return await connection.query<Row>(
-      { text, parameters },
-      { signal: options.signal }
+      {
+        text,
+        parameters,
+      },
+      { signal: options.signal },
     )
   } catch {
     diagnostics.push(
       createIntrospectionDiagnostic({
-        severity: 'error',
-        code: 'query-failed',
+        severity: "error",
+        code: "query-failed",
         message: `PostgreSQL catalog query failed while reading ${operation}`,
         path: [operation],
-        remediation: 'Check PostgreSQL permissions and the selected schema.',
-      })
+        remediation: "Check PostgreSQL permissions and the selected schema.",
+      }),
     )
     return []
   }
@@ -1094,77 +1088,83 @@ async function query<Row extends Readonly<Record<string, unknown>>>(
 
 function serverInfo(
   row: PostgresServerRow | undefined,
-  diagnostics: IntrospectionCatalog['diagnostics'][number][]
+  diagnostics: IntrospectionCatalog["diagnostics"][number][],
 ): CatalogServerInfo {
-  const rawVersion = text(row?.server_version) ?? 'unknown'
+  const rawVersion = text(row?.server_version) ?? "unknown"
   const numericVersion = number(row?.server_version_num)
+
   if (!row) {
     diagnostics.push(
       createIntrospectionDiagnostic({
-        severity: 'error',
-        code: 'unsupported-server',
-        message: 'PostgreSQL server version metadata was unavailable',
-        path: ['server'],
-        remediation: 'Provide access to current_setting(server_version_num).',
-      })
+        severity: "error",
+        code: "unsupported-server",
+        message: "PostgreSQL server version metadata was unavailable",
+        path: ["server"],
+        remediation: "Provide access to current_setting(server_version_num).",
+      }),
     )
   }
+
   const major = numericVersion ? Math.floor(numericVersion / 10000) : undefined
   const supported = major !== undefined && major >= 12
+
   if (!supported) {
     diagnostics.push(
       createIntrospectionDiagnostic({
-        severity: 'error',
-        code: 'unsupported-server',
-        message: 'PostgreSQL introspection requires server version 12 or newer',
-        path: ['server', 'version'],
-        remediation: 'Use PostgreSQL 12+ or an adapter capability extension.',
-      })
+        severity: "error",
+        code: "unsupported-server",
+        message: "PostgreSQL introspection requires server version 12 or newer",
+        path: ["server", "version"],
+        remediation: "Use PostgreSQL 12+ or an adapter capability extension.",
+      }),
     )
   }
+
   return {
-    product: 'postgresql',
+    product: "postgresql",
     rawVersion,
     parsedVersion: major === undefined ? undefined : { major },
     capabilities: {
       generatedColumns: supported,
-      identityMetadata:
-        numericVersion !== undefined && numericVersion >= 100000,
+      identityMetadata: numericVersion !== undefined && numericVersion >= 100000,
       checkConstraints: true,
-      checkConstraintEnforcement: 'enforced',
+      checkConstraintEnforcement: "enforced",
       expressionDecompilation: true,
       indexExpressions: true,
       indexPredicates: true,
       indexIncludedColumns: true,
       namespaces: true,
-      visibility: 'complete',
+      visibility: "complete",
     },
   }
 }
 
 function emptyCatalog(
   namespace: string,
-  diagnostics: IntrospectionCatalog['diagnostics'][number][]
+  diagnostics: IntrospectionCatalog["diagnostics"][number][],
 ): IntrospectionCatalog {
   return {
-    dialect: 'postgresql',
+    dialect: "postgresql",
     server: {
-      product: 'postgresql',
-      rawVersion: 'unknown',
+      product: "postgresql",
+      rawVersion: "unknown",
       capabilities: {
         generatedColumns: false,
         identityMetadata: false,
         checkConstraints: false,
-        checkConstraintEnforcement: 'unknown',
+        checkConstraintEnforcement: "unknown",
         expressionDecompilation: false,
         indexExpressions: false,
         indexPredicates: false,
         indexIncludedColumns: false,
         namespaces: false,
-        visibility: 'unknown',
+        visibility: "unknown",
       },
     },
-    namespace: { kind: 'postgres-schema', name: namespace },
+    namespace: {
+      kind: "postgres-schema",
+      name: namespace,
+    },
     tables: [],
     deferredObjects: [],
     diagnostics: Object.freeze(diagnostics),
@@ -1174,113 +1174,113 @@ function emptyCatalog(
 function viewObject(
   row: PostgresViewRow,
   namespace: string,
-  diagnostics: IntrospectionCatalog['diagnostics'][number][]
+  diagnostics: IntrospectionCatalog["diagnostics"][number][],
 ): CatalogView | CatalogDeferredObject {
-  const physicalName = text(row.physical_name) ?? 'unnamed_view'
-  const kind = row.relkind === 'm' ? 'materialized-view' : 'view'
+  const physicalName = text(row.physical_name) ?? "unnamed_view"
+  const kind = row.relkind === "m" ? "materialized-view" : "view"
   const physicalReference = reference(
     kind,
     physicalName,
     text(row.namespace) ?? namespace,
-    'pg_class',
-    'oid',
-    row.oid
+    "pg_class",
+    "oid",
+    row.oid,
   )
   const definition = text(row.definition)
+
   if (definition === undefined) {
     diagnostics.push(
       createIntrospectionDiagnostic({
-        severity: 'warning',
-        code: 'unmodeled-object',
+        severity: "warning",
+        code: "unmodeled-object",
         message: `PostgreSQL ${kind} ${physicalName} has no recoverable definition`,
-        path: ['views', physicalName, 'definition'],
+        path: ["views", physicalName, "definition"],
         physicalReference,
         remediation:
-          'Grant access to pg_get_viewdef before treating this object as migration input.',
-      })
+          "Grant access to pg_get_viewdef before treating this object as migration input.",
+      }),
     )
     return deferredCatalogObject(
-      kind === 'view' ? 'view' : 'materialized-view',
+      kind === "view" ? "view" : "materialized-view",
       physicalName,
       physicalReference,
       [
         {
-          name: 'definition',
-          value: expression(
-            '/* view definition unavailable */',
-            'decompiler',
-            physicalReference
-          ),
+          name: "definition",
+          value: expression("/* view definition unavailable */", "decompiler", physicalReference),
         },
-      ]
+      ],
     )
   }
+
   const options = stringArray(row.reloptions)
-  const checkOption: CatalogView['checkOption'] = (() => {
+  const checkOption: CatalogView["checkOption"] = (() => {
     const value = text(row.check_option)?.toLowerCase()
-    return value === 'none' || value === 'local' || value === 'cascaded'
-      ? value
-      : undefined
+
+    return value === "none" || value === "local" || value === "cascaded" ? value : undefined
   })()
+
   return {
     kind,
     id: stableId(physicalName),
-    identitySource: 'physical-name',
+    identitySource: "physical-name",
     physicalName,
     columns: [],
-    definition: expression(definition, 'decompiler', physicalReference),
-    ...(checkOption === 'local' || checkOption === 'cascaded'
+    definition: expression(definition, "decompiler", physicalReference),
+    ...(checkOption === "local" || checkOption === "cascaded"
       ? { checkOption }
-      : checkOption === 'none'
-        ? { checkOption: 'none' as const }
+      : checkOption === "none"
+        ? { checkOption: "none" as const }
         : {}),
-    ...(booleanOption(options, 'security_barrier') === undefined
+    ...(booleanOption(options, "security_barrier") === undefined
       ? {}
-      : { securityBarrier: booleanOption(options, 'security_barrier') }),
-    ...(booleanOption(options, 'security_invoker') === undefined
+      : { securityBarrier: booleanOption(options, "security_barrier") }),
+    ...(booleanOption(options, "security_invoker") === undefined
       ? {}
-      : { securityInvoker: booleanOption(options, 'security_invoker') }),
+      : { securityInvoker: booleanOption(options, "security_invoker") }),
     reference: physicalReference,
   }
 }
 
 function columnKey(tableOid: unknown, ordinalPosition: unknown): string {
-  return `${text(tableOid) ?? 'unknown'}:${number(ordinalPosition) ?? 0}`
+  return `${text(tableOid) ?? "unknown"}:${number(ordinalPosition) ?? 0}`
 }
 
-function compareOrdinal(
-  left: PostgresColumnRow,
-  right: PostgresColumnRow
-): number {
-  return (
-    (number(left.ordinal_position) ?? 0) - (number(right.ordinal_position) ?? 0)
-  )
+function compareOrdinal(left: PostgresColumnRow, right: PostgresColumnRow): number {
+  return (number(left.ordinal_position) ?? 0) - (number(right.ordinal_position) ?? 0)
 }
 
-function identityOptions(
-  row: PostgresIdentityRow
-): Readonly<Record<string, CatalogValueFact>> {
+function identityOptions(row: PostgresIdentityRow): Readonly<Record<string, CatalogValueFact>> {
   const options: Record<string, CatalogValueFact> = {}
+
   for (const [key, value] of [
-    ['start', row.seqstart],
-    ['increment', row.seqincrement],
-    ['minimum', row.seqmin],
-    ['maximum', row.seqmax],
-    ['cache', row.seqcache],
+    ["start", row.seqstart],
+    ["increment", row.seqincrement],
+    ["minimum", row.seqmin],
+    ["maximum", row.seqmax],
+    ["cache", row.seqcache],
   ] as const) {
     const fact = literalFact(value)
-    if (fact !== undefined) options[key] = fact
+
+    if (fact !== undefined) {
+      options[key] = fact
+    }
   }
-  if (row.seqcycle !== undefined)
+
+  if (row.seqcycle !== undefined) {
     options.cycle = {
-      kind: 'literal',
+      kind: "literal",
       value: boolean(row.seqcycle),
     }
-  if (text(row.sequence_type) !== undefined)
+  }
+
+  if (text(row.sequence_type) !== undefined) {
     options.type = {
-      kind: 'literal',
+      kind: "literal",
       value: text(row.sequence_type) as string,
     }
+  }
+
   return options
 }
 
@@ -1288,65 +1288,64 @@ function sequenceObject(
   row: PostgresSequenceRow,
   namespace: string,
   tableByOid: ReadonlyMap<string | number | undefined, CatalogTable>,
-  diagnostics: IntrospectionCatalog['diagnostics'][number][]
+  diagnostics: IntrospectionCatalog["diagnostics"][number][],
 ): CatalogSequence {
-  const physicalName =
-    text(row.physical_name) ?? `sequence_${text(row.oid) ?? 'unknown'}`
+  const physicalName = text(row.physical_name) ?? `sequence_${text(row.oid) ?? "unknown"}`
   const physicalReference = reference(
-    'sequence',
+    "sequence",
     physicalName,
     text(row.namespace) ?? namespace,
-    'pg_class',
-    'oid',
-    row.oid
+    "pg_class",
+    "oid",
+    row.oid,
   )
   const ownedTable = tableByOid.get(text(row.owned_table_oid))
   const ownedBy = ownedTable
     ? ({
-        kind: 'table' as const,
+        kind: "table" as const,
         id: ownedTable.id,
       } satisfies CatalogObjectReference)
     : undefined
   const ownedTableOid = text(row.owned_table_oid)
   const ownedColumnPosition = number(row.owned_column_position)
+
   if (ownedTableOid !== undefined && ownedBy === undefined) {
     diagnostics.push(
       createIntrospectionDiagnostic({
-        severity: 'warning',
-        code: 'unresolved-reference',
+        severity: "warning",
+        code: "unresolved-reference",
         message: `PostgreSQL sequence ${physicalName} has an ownership target outside the selected schema`,
-        path: ['sequences', physicalName, 'ownedBy'],
+        path: ["sequences", physicalName, "ownedBy"],
         physicalReference,
         remediation:
-          'Select the owning table schema or inspect the retained ownership catalog reference.',
-      })
+          "Select the owning table schema or inspect the retained ownership catalog reference.",
+      }),
     )
   }
+
   const data: Record<string, CatalogData> = {}
-  if (ownedTableOid !== undefined) data.ownedTableOid = ownedTableOid
-  if (ownedColumnPosition !== undefined)
+
+  if (ownedTableOid !== undefined) {
+    data.ownedTableOid = ownedTableOid
+  }
+
+  if (ownedColumnPosition !== undefined) {
     data.ownedColumnPosition = ownedColumnPosition
+  }
+
   return {
-    kind: 'sequence',
+    kind: "sequence",
     id: stableId(physicalName),
-    identitySource: 'physical-name',
+    identitySource: "physical-name",
     physicalName,
     storage: storage(row.native_type),
-    ...(factIfPresent(row.seqstart) === undefined
-      ? {}
-      : { start: factIfPresent(row.seqstart) }),
+    ...(factIfPresent(row.seqstart) === undefined ? {} : { start: factIfPresent(row.seqstart) }),
     ...(factIfPresent(row.seqincrement) === undefined
       ? {}
       : { increment: factIfPresent(row.seqincrement) }),
-    ...(factIfPresent(row.seqmin) === undefined
-      ? {}
-      : { minimum: factIfPresent(row.seqmin) }),
-    ...(factIfPresent(row.seqmax) === undefined
-      ? {}
-      : { maximum: factIfPresent(row.seqmax) }),
-    ...(factIfPresent(row.seqcache) === undefined
-      ? {}
-      : { cache: factIfPresent(row.seqcache) }),
+    ...(factIfPresent(row.seqmin) === undefined ? {} : { minimum: factIfPresent(row.seqmin) }),
+    ...(factIfPresent(row.seqmax) === undefined ? {} : { maximum: factIfPresent(row.seqmax) }),
+    ...(factIfPresent(row.seqcache) === undefined ? {} : { cache: factIfPresent(row.seqcache) }),
     ...(row.seqcycle === undefined || row.seqcycle === null
       ? {}
       : { cycle: boolean(row.seqcycle) }),
@@ -1355,7 +1354,7 @@ function sequenceObject(
       ? {}
       : {
           dialect: {
-            dialect: 'postgresql' as const,
+            dialect: "postgresql" as const,
             version: 1,
             data,
           } satisfies CatalogDialectExtension,
@@ -1364,59 +1363,58 @@ function sequenceObject(
   }
 }
 
-function mapEnums(
-  rows: readonly PostgresEnumRow[],
-  namespace: string
-): readonly CatalogEnum[] {
+function mapEnums(rows: readonly PostgresEnumRow[], namespace: string): readonly CatalogEnum[] {
   const groups = new Map<string, PostgresEnumRow[]>()
+
   for (const row of rows) {
-    const key = text(row.oid) ?? text(row.physical_name) ?? 'unknown'
+    const key = text(row.oid) ?? text(row.physical_name) ?? "unknown"
     const values = groups.get(key) ?? []
+
     values.push(row)
     groups.set(key, values)
   }
-  return [...groups.values()].map(enumRows => {
+
+  return [...groups.values()].map((enumRows) => {
     const first = enumRows[0]!
-    const physicalName =
-      text(first.physical_name) ?? `enum_${text(first.oid) ?? 'unknown'}`
+    const physicalName = text(first.physical_name) ?? `enum_${text(first.oid) ?? "unknown"}`
     const physicalReference = reference(
-      'enum',
+      "enum",
       physicalName,
       text(first.namespace) ?? namespace,
-      'pg_type',
-      'oid',
-      first.oid
+      "pg_type",
+      "oid",
+      first.oid,
     )
     const values: CatalogEnumValue[] = [...enumRows]
       .sort(
         (left, right) =>
-          (number(left.ordinal_position) ?? 0) -
-          (number(right.ordinal_position) ?? 0)
+          (number(left.ordinal_position) ?? 0) - (number(right.ordinal_position) ?? 0),
       )
       .map((row, index) => ({
-        value: text(row.value) ?? '',
+        value: text(row.value) ?? "",
         // pg_enum uses float4 so a label inserted between two existing labels
         // can have a fractional sort order. Snapshot v2 stores the observed
         // order as a canonical integer position and keeps the catalog OID in
         // provenance.
         ordinalPosition: index + 1,
         provenance: {
-          kind: 'catalog' as const,
-          dialect: 'postgresql' as const,
+          kind: "catalog" as const,
+          dialect: "postgresql" as const,
           reference: reference(
-            'enum',
+            "enum",
             physicalName,
             text(row.namespace) ?? namespace,
-            'pg_enum',
-            'oid',
-            row.value_oid
+            "pg_enum",
+            "oid",
+            row.value_oid,
           ),
         },
       }))
+
     return {
-      kind: 'enum',
+      kind: "enum",
       id: stableId(physicalName),
-      identitySource: 'physical-name',
+      identitySource: "physical-name",
       physicalName,
       values,
       reference: physicalReference,
@@ -1427,68 +1425,67 @@ function mapEnums(
 function mapDomains(
   rows: readonly PostgresDomainRow[],
   constraintRows: readonly PostgresDomainConstraintRow[],
-  namespace: string
+  namespace: string,
 ): readonly CatalogDomain[] {
-  const constraintsByDomain = groupBy(
-    constraintRows,
-    row => text(row.domain_oid) ?? 'unknown'
-  )
-  return rows.map(row => {
-    const physicalName =
-      text(row.physical_name) ?? `domain_${text(row.oid) ?? 'unknown'}`
+  const constraintsByDomain = groupBy(constraintRows, (row) => text(row.domain_oid) ?? "unknown")
+
+  return rows.map((row) => {
+    const physicalName = text(row.physical_name) ?? `domain_${text(row.oid) ?? "unknown"}`
     const physicalReference = reference(
-      'domain',
+      "domain",
       physicalName,
       text(row.namespace) ?? namespace,
-      'pg_type',
-      'oid',
-      row.oid
+      "pg_type",
+      "oid",
+      row.oid,
     )
-    const domainConstraints = (
-      constraintsByDomain.get(text(row.oid)) ?? []
-    ).map(constraintRow => {
-      const constraintName =
-        text(constraintRow.physical_name) ??
-        `domain_constraint_${text(constraintRow.oid) ?? 'unknown'}`
-      const constraintReference = reference(
-        'constraint',
-        constraintName,
-        text(row.namespace) ?? namespace,
-        'pg_constraint',
-        'oid',
-        constraintRow.oid
-      )
-      return {
-        kind: 'check' as const,
-        id: stableId(constraintName),
-        identitySource: 'physical-name' as const,
-        physicalName: constraintName,
-        expression: expression(
-          text(constraintRow.definition) ?? 'CHECK (true)',
-          'decompiler',
-          constraintReference
-        ),
-        deferrable:
-          constraintRow.condeferrable === undefined
-            ? undefined
-            : boolean(constraintRow.condeferrable),
-        initially:
-          constraintRow.condeferred === undefined
-            ? undefined
-            : boolean(constraintRow.condeferred)
-              ? ('deferred' as const)
-              : ('immediate' as const),
-        validated:
-          constraintRow.convalidated === undefined
-            ? undefined
-            : boolean(constraintRow.convalidated),
-        reference: constraintReference,
-      } satisfies CatalogCheckConstraint
-    })
+    const domainConstraints = (constraintsByDomain.get(text(row.oid)) ?? []).map(
+      (constraintRow) => {
+        const constraintName =
+          text(constraintRow.physical_name) ??
+          `domain_constraint_${text(constraintRow.oid) ?? "unknown"}`
+        const constraintReference = reference(
+          "constraint",
+          constraintName,
+          text(row.namespace) ?? namespace,
+          "pg_constraint",
+          "oid",
+          constraintRow.oid,
+        )
+
+        return {
+          kind: "check" as const,
+          id: stableId(constraintName),
+          identitySource: "physical-name" as const,
+          physicalName: constraintName,
+          expression: expression(
+            text(constraintRow.definition) ?? "CHECK (true)",
+            "decompiler",
+            constraintReference,
+          ),
+          deferrable:
+            constraintRow.condeferrable === undefined
+              ? undefined
+              : boolean(constraintRow.condeferrable),
+          initially:
+            constraintRow.condeferred === undefined
+              ? undefined
+              : boolean(constraintRow.condeferred)
+                ? ("deferred" as const)
+                : ("immediate" as const),
+          validated:
+            constraintRow.convalidated === undefined
+              ? undefined
+              : boolean(constraintRow.convalidated),
+          reference: constraintReference,
+        } satisfies CatalogCheckConstraint
+      },
+    )
+
     return {
-      kind: 'domain',
+      kind: "domain",
       id: stableId(physicalName),
-      identitySource: 'physical-name',
+      identitySource: "physical-name",
       physicalName,
       storage: storage(row.native_type),
       ...(row.nullable === undefined || row.nullable === null
@@ -1497,9 +1494,7 @@ function mapDomains(
       ...(factIfPresent(row.default_expression) === undefined
         ? {}
         : { default: factIfPresent(row.default_expression) }),
-      ...(domainConstraints.length === 0
-        ? {}
-        : { constraints: domainConstraints }),
+      ...(domainConstraints.length === 0 ? {} : { constraints: domainConstraints }),
       reference: physicalReference,
     }
   })
@@ -1507,42 +1502,32 @@ function mapDomains(
 
 function collationObject(
   row: PostgresCollationRow,
-  namespace: string
-): import('./types.ts').CatalogCollation {
-  const physicalName =
-    text(row.physical_name) ?? `collation_${text(row.oid) ?? 'unknown'}`
+  namespace: string,
+): import("./types.ts").CatalogCollation {
+  const physicalName = text(row.physical_name) ?? `collation_${text(row.oid) ?? "unknown"}`
+
   return {
-    kind: 'collation',
+    kind: "collation",
     id: stableId(physicalName),
-    identitySource: 'physical-name',
+    identitySource: "physical-name",
     physicalName,
-    ...(text(row.collprovider) === undefined
-      ? {}
-      : { provider: text(row.collprovider) }),
-    ...((text(row.colliculocale) ??
-      text(row.collcollate) ??
-      text(row.collctype)) === undefined
+    ...(text(row.collprovider) === undefined ? {} : { provider: text(row.collprovider) }),
+    ...((text(row.colliculocale) ?? text(row.collcollate) ?? text(row.collctype)) === undefined
       ? {}
       : {
-          locale:
-            text(row.colliculocale) ??
-            text(row.collcollate) ??
-            text(row.collctype),
+          locale: text(row.colliculocale) ?? text(row.collcollate) ?? text(row.collctype),
         }),
-    ...(row.collisdeterministic === undefined ||
-    row.collisdeterministic === null
+    ...(row.collisdeterministic === undefined || row.collisdeterministic === null
       ? {}
       : { deterministic: boolean(row.collisdeterministic) }),
-    ...(text(row.collversion) === undefined
-      ? {}
-      : { version: text(row.collversion) }),
+    ...(text(row.collversion) === undefined ? {} : { version: text(row.collversion) }),
     reference: reference(
-      'collation',
+      "collation",
       physicalName,
       text(row.namespace) ?? namespace,
-      'pg_collation',
-      'oid',
-      row.oid
+      "pg_collation",
+      "oid",
+      row.oid,
     ),
   }
 }
@@ -1550,45 +1535,42 @@ function collationObject(
 function triggerObject(
   row: PostgresTriggerRow,
   namespace: string,
-  relationReferences: ReadonlyMap<
-    string | number | undefined,
-    CatalogObjectReference
-  >,
-  diagnostics: IntrospectionCatalog['diagnostics'][number][]
+  relationReferences: ReadonlyMap<string | number | undefined, CatalogObjectReference>,
+  diagnostics: IntrospectionCatalog["diagnostics"][number][],
 ): CatalogTrigger | CatalogDeferredObject {
-  const physicalName =
-    text(row.physical_name) ?? `trigger_${text(row.oid) ?? 'unknown'}`
+  const physicalName = text(row.physical_name) ?? `trigger_${text(row.oid) ?? "unknown"}`
   const physicalReference = reference(
-    'trigger',
+    "trigger",
     physicalName,
     text(row.namespace) ?? namespace,
-    'pg_trigger',
-    'oid',
-    row.oid
+    "pg_trigger",
+    "oid",
+    row.oid,
   )
   const table = relationReferences.get(text(row.table_oid))
   const definition = text(row.definition)
+
   if (table === undefined || definition === undefined) {
     diagnostics.push(
       createIntrospectionDiagnostic({
-        severity: 'warning',
-        code: table === undefined ? 'unresolved-reference' : 'unmodeled-object',
+        severity: "warning",
+        code: table === undefined ? "unresolved-reference" : "unmodeled-object",
         message:
           table === undefined
             ? `PostgreSQL trigger ${physicalName} has no selected parent relation`
             : `PostgreSQL trigger ${physicalName} has no recoverable definition`,
-        path: ['triggers', physicalName],
+        path: ["triggers", physicalName],
         physicalReference,
         remediation:
-          'Retain the deferred trigger until its parent relation and definition are visible.',
-      })
+          "Retain the deferred trigger until its parent relation and definition are visible.",
+      }),
     )
-    return deferredCatalogObject('trigger', physicalName, physicalReference, [
+    return deferredCatalogObject("trigger", physicalName, physicalReference, [
       ...(table === undefined
         ? [
             {
-              name: 'tableOid',
-              value: text(row.table_oid) ?? 'unknown',
+              name: "tableOid",
+              value: text(row.table_oid) ?? "unknown",
             },
           ]
         : []),
@@ -1596,22 +1578,23 @@ function triggerObject(
         ? []
         : [
             {
-              name: 'definition',
-              value: expression(definition, 'decompiler', physicalReference),
+              name: "definition",
+              value: expression(definition, "decompiler", physicalReference),
             },
           ]),
     ])
   }
+
   const triggerType = number(row.trigger_type) ?? 0
-  const timing =
-    triggerType & 64 ? 'instead-of' : triggerType & 2 ? 'before' : 'after'
+  const timing = triggerType & 64 ? "instead-of" : triggerType & 2 ? "before" : "after"
   const events = triggerEvents(triggerType)
-  const mode = triggerType & 1 ? ('row' as const) : ('statement' as const)
+  const mode = triggerType & 1 ? ("row" as const) : ("statement" as const)
   const enabled = triggerEnabled(row.tgenabled)
+
   return {
-    kind: 'trigger',
+    kind: "trigger",
     id: stableId(physicalName),
-    identitySource: 'physical-name',
+    identitySource: "physical-name",
     physicalName,
     table,
     timing,
@@ -1620,13 +1603,9 @@ function triggerObject(
     ...(text(row.condition) === undefined
       ? {}
       : {
-          condition: expression(
-            text(row.condition)!,
-            'decompiler',
-            physicalReference
-          ),
+          condition: expression(text(row.condition)!, "decompiler", physicalReference),
         }),
-    body: expression(definition, 'decompiler', physicalReference),
+    body: expression(definition, "decompiler", physicalReference),
     ...(enabled === undefined ? {} : { enabled }),
     reference: physicalReference,
   }
@@ -1636,90 +1615,82 @@ function mapRoutines(
   rows: readonly PostgresRoutineRow[],
   parameterRows: readonly PostgresRoutineParameterRow[],
   namespace: string,
-  diagnostics: IntrospectionCatalog['diagnostics'][number][]
+  diagnostics: IntrospectionCatalog["diagnostics"][number][],
 ): readonly CatalogRoutine[] {
-  const parametersByRoutine = groupBy(
-    parameterRows,
-    row => text(row.routine_oid) ?? 'unknown'
-  )
+  const parametersByRoutine = groupBy(parameterRows, (row) => text(row.routine_oid) ?? "unknown")
   const names = new Map<string, number>()
+
   for (const row of rows) {
-    const name =
-      text(row.physical_name) ?? `routine_${text(row.oid) ?? 'unknown'}`
+    const name = text(row.physical_name) ?? `routine_${text(row.oid) ?? "unknown"}`
+
     names.set(name, (names.get(name) ?? 0) + 1)
   }
-  return rows.map(row => {
-    const physicalName =
-      text(row.physical_name) ?? `routine_${text(row.oid) ?? 'unknown'}`
+
+  return rows.map((row) => {
+    const physicalName = text(row.physical_name) ?? `routine_${text(row.oid) ?? "unknown"}`
     const physicalReference = reference(
-      'routine',
+      "routine",
       physicalName,
       text(row.namespace) ?? namespace,
-      'pg_proc',
-      'oid',
-      row.oid
+      "pg_proc",
+      "oid",
+      row.oid,
     )
     const identityArguments = text(row.identity_arguments)
     const defaultArguments = text(row.argument_defaults)
+
     if (defaultArguments !== undefined) {
       diagnostics.push(
         createIntrospectionDiagnostic({
-          severity: 'info',
-          code: 'unmodeled-object',
+          severity: "info",
+          code: "unmodeled-object",
           message: `PostgreSQL routine ${physicalName} retains its argument defaults as opaque catalog text`,
-          path: ['routines', physicalName, 'argumentDefaults'],
+          path: ["routines", physicalName, "argumentDefaults"],
           physicalReference,
           remediation:
-            'Review routine argument defaults before using the complete snapshot for migration planning.',
-        })
+            "Review routine argument defaults before using the complete snapshot for migration planning.",
+        }),
       )
     }
+
     if (text(row.definition) === undefined) {
       diagnostics.push(
         createIntrospectionDiagnostic({
-          severity: 'warning',
-          code: 'unmodeled-object',
+          severity: "warning",
+          code: "unmodeled-object",
           message: `PostgreSQL routine ${physicalName} has no recoverable definition`,
-          path: ['routines', physicalName, 'definition'],
+          path: ["routines", physicalName, "definition"],
           physicalReference,
           remediation:
-            'Grant access to pg_get_functiondef before treating this routine as migration input.',
-        })
+            "Grant access to pg_get_functiondef before treating this routine as migration input.",
+        }),
       )
     }
+
     const routineUnknownFields = [
       ...(identityArguments === undefined
         ? []
         : [
             {
-              name: 'identityArguments',
-              value: expression(
-                identityArguments,
-                'decompiler',
-                physicalReference
-              ),
+              name: "identityArguments",
+              value: expression(identityArguments, "decompiler", physicalReference),
             },
           ]),
       ...(defaultArguments === undefined
         ? []
         : [
             {
-              name: 'argumentDefaults',
-              value: expression(
-                defaultArguments,
-                'decompiler',
-                physicalReference
-              ),
+              name: "argumentDefaults",
+              value: expression(defaultArguments, "decompiler", physicalReference),
             },
           ]),
     ]
     const parameters = (parametersByRoutine.get(text(row.oid)) ?? [])
       .sort(
         (left, right) =>
-          (number(left.ordinal_position) ?? 0) -
-          (number(right.ordinal_position) ?? 0)
+          (number(left.ordinal_position) ?? 0) - (number(right.ordinal_position) ?? 0),
       )
-      .map(parameter => ({
+      .map((parameter) => ({
         ...(text(parameter.parameter_name) === undefined
           ? {}
           : { name: text(parameter.parameter_name) }),
@@ -1729,36 +1700,29 @@ function mapRoutines(
         storage: storage(parameter.native_type),
         ordinalPosition: number(parameter.ordinal_position) ?? 0,
         provenance: {
-          kind: 'catalog' as const,
-          dialect: 'postgresql' as const,
+          kind: "catalog" as const,
+          dialect: "postgresql" as const,
           reference: physicalReference,
         },
       }))
+
     return {
-      kind: 'routine',
+      kind: "routine",
       id: stableId(
         (names.get(physicalName) ?? 0) < 2 || identityArguments === undefined
           ? physicalName
-          : `${physicalName}_${identityArguments.replace(/[^a-zA-Z0-9_]+/g, '_')}`
+          : `${physicalName}_${identityArguments.replace(/[^a-zA-Z0-9_]+/g, "_")}`,
       ),
-      identitySource: 'physical-name',
+      identitySource: "physical-name",
       physicalName,
       routineKind: routineKind(row.prokind),
       parameters,
-      ...(text(row.return_type) === undefined
-        ? {}
-        : { returnType: storage(row.return_type) }),
-      ...(text(row.language) === undefined
-        ? {}
-        : { language: text(row.language) }),
+      ...(text(row.return_type) === undefined ? {} : { returnType: storage(row.return_type) }),
+      ...(text(row.language) === undefined ? {} : { language: text(row.language) }),
       ...(text(row.definition) === undefined
         ? {}
         : {
-            body: expression(
-              text(row.definition)!,
-              'decompiler',
-              physicalReference
-            ),
+            body: expression(text(row.definition)!, "decompiler", physicalReference),
           }),
       ...(routineVolatility(row.provolatile) === undefined
         ? {}
@@ -1769,13 +1733,9 @@ function mapRoutines(
       ...(row.prosecdef === undefined || row.prosecdef === null
         ? {}
         : {
-            security: boolean(row.prosecdef)
-              ? ('definer' as const)
-              : ('invoker' as const),
+            security: boolean(row.prosecdef) ? ("definer" as const) : ("invoker" as const),
           }),
-      ...(routineUnknownFields.length === 0
-        ? {}
-        : { unknownFields: routineUnknownFields }),
+      ...(routineUnknownFields.length === 0 ? {} : { unknownFields: routineUnknownFields }),
       reference: physicalReference,
     }
   })
@@ -1785,61 +1745,55 @@ function partitionObject(
   row: PostgresPartitionRow,
   namespace: string,
   tableByOid: ReadonlyMap<string | number | undefined, CatalogTable>,
-  diagnostics: IntrospectionCatalog['diagnostics'][number][]
+  diagnostics: IntrospectionCatalog["diagnostics"][number][],
 ): CatalogPartition {
   const physicalName =
-    text(row.physical_name) ??
-    `partition_${text(row.partition_oid) ?? 'unknown'}`
+    text(row.physical_name) ?? `partition_${text(row.partition_oid) ?? "unknown"}`
   const physicalReference = reference(
-    'partition',
+    "partition",
     physicalName,
     text(row.namespace) ?? namespace,
-    'pg_class',
-    'oid',
-    row.partition_oid
+    "pg_class",
+    "oid",
+    row.partition_oid,
   )
   const parent = tableByOid.get(text(row.parent_oid))
+
   if (parent === undefined) {
     diagnostics.push(
       createIntrospectionDiagnostic({
-        severity: 'error',
-        code: 'unresolved-reference',
+        severity: "error",
+        code: "unresolved-reference",
         message: `PostgreSQL partition ${physicalName} has no parent table in the selected schema`,
-        path: ['partitions', physicalName, 'parent'],
+        path: ["partitions", physicalName, "parent"],
         physicalReference,
-        remediation:
-          'Select the parent table schema before mapping partitions.',
-      })
+        remediation: "Select the parent table schema before mapping partitions.",
+      }),
     )
   }
+
   const parentReference = parent
     ? ({
-        kind: 'table' as const,
+        kind: "table" as const,
         id: parent.id,
       } satisfies CatalogObjectReference)
     : ({
-        kind: 'table' as const,
-        id: stableId(`missing_parent_${text(row.parent_oid) ?? 'unknown'}`),
+        kind: "table" as const,
+        id: stableId(`missing_parent_${text(row.parent_oid) ?? "unknown"}`),
       } satisfies CatalogObjectReference)
-  const keyColumns = partitionKeyColumns(
-    row.key_attributes,
-    parent?.columns ?? []
-  )
+  const keyColumns = partitionKeyColumns(row.key_attributes, parent?.columns ?? [])
   const bound = text(row.bound)
+
   return {
-    kind: 'partition',
+    kind: "partition",
     id: stableId(physicalName),
-    identitySource: 'physical-name',
+    identitySource: "physical-name",
     physicalName,
     parent: parentReference,
     strategy: partitionStrategy(row.partstrat),
     ...(keyColumns.length === 0 ? {} : { keyColumns }),
-    ...(bound === undefined
-      ? {}
-      : { bound: expression(bound, 'decompiler', physicalReference) }),
-    ...(bound !== undefined && /^default$/i.test(bound.trim())
-      ? { default: true }
-      : {}),
+    ...(bound === undefined ? {} : { bound: expression(bound, "decompiler", physicalReference) }),
+    ...(bound !== undefined && /^default$/i.test(bound.trim()) ? { default: true } : {}),
     reference: physicalReference,
   }
 }
@@ -1848,112 +1802,100 @@ function policyObject(
   row: PostgresPolicyRow,
   namespace: string,
   tableByOid: ReadonlyMap<string | number | undefined, CatalogTable>,
-  diagnostics: IntrospectionCatalog['diagnostics'][number][]
+  diagnostics: IntrospectionCatalog["diagnostics"][number][],
 ): CatalogPolicy {
-  const physicalName =
-    text(row.physical_name) ?? `policy_${text(row.oid) ?? 'unknown'}`
+  const physicalName = text(row.physical_name) ?? `policy_${text(row.oid) ?? "unknown"}`
   const physicalReference = reference(
-    'policy',
+    "policy",
     physicalName,
     text(row.namespace) ?? namespace,
-    'pg_policy',
-    'oid',
-    row.oid
+    "pg_policy",
+    "oid",
+    row.oid,
   )
   const table = tableByOid.get(text(row.table_oid))
-  if (table === undefined)
+
+  if (table === undefined) {
     diagnostics.push(
       createIntrospectionDiagnostic({
-        severity: 'error',
-        code: 'unresolved-reference',
+        severity: "error",
+        code: "unresolved-reference",
         message: `PostgreSQL policy ${physicalName} has no selected table`,
-        path: ['policies', physicalName, 'table'],
+        path: ["policies", physicalName, "table"],
         physicalReference,
-        remediation:
-          'Select the policy table schema before mapping row-level security.',
-      })
+        remediation: "Select the policy table schema before mapping row-level security.",
+      }),
     )
+  }
+
   return {
-    kind: 'policy',
+    kind: "policy",
     id: stableId(physicalName),
-    identitySource: 'physical-name',
+    identitySource: "physical-name",
     physicalName,
     table: table
       ? ({
-          kind: 'table' as const,
+          kind: "table" as const,
           id: table.id,
         } satisfies CatalogObjectReference)
       : ({
-          kind: 'table' as const,
-          id: stableId(`missing_table_${text(row.table_oid) ?? 'unknown'}`),
+          kind: "table" as const,
+          id: stableId(`missing_table_${text(row.table_oid) ?? "unknown"}`),
         } satisfies CatalogObjectReference),
     command: policyCommand(row.polcmd),
-    ...(stringArray(row.roles).length === 0
-      ? {}
-      : { roles: stringArray(row.roles) }),
+    ...(stringArray(row.roles).length === 0 ? {} : { roles: stringArray(row.roles) }),
     ...(row.polpermissive === undefined || row.polpermissive === null
       ? {}
       : { permissive: boolean(row.polpermissive) }),
     ...(text(row.using_expression) === undefined
       ? {}
       : {
-          using: expression(
-            text(row.using_expression)!,
-            'decompiler',
-            physicalReference
-          ),
+          using: expression(text(row.using_expression)!, "decompiler", physicalReference),
         }),
     ...(text(row.check_expression) === undefined
       ? {}
       : {
-          check: expression(
-            text(row.check_expression)!,
-            'decompiler',
-            physicalReference
-          ),
+          check: expression(text(row.check_expression)!, "decompiler", physicalReference),
         }),
     reference: physicalReference,
   }
 }
 
-function extensionObject(
-  row: PostgresExtensionRow,
-  namespace: string
-): CatalogExtensionObject {
-  const physicalName =
-    text(row.physical_name) ?? `extension_${text(row.oid) ?? 'unknown'}`
+function extensionObject(row: PostgresExtensionRow, namespace: string): CatalogExtensionObject {
+  const physicalName = text(row.physical_name) ?? `extension_${text(row.oid) ?? "unknown"}`
   const physicalReference = reference(
-    'extension',
+    "extension",
     physicalName,
     text(row.namespace) ?? namespace,
-    'pg_extension',
-    'oid',
-    row.oid
+    "pg_extension",
+    "oid",
+    row.oid,
   )
   const data: Record<string, CatalogData> = {
     relocatable: boolean(row.extrelocatable),
   }
   const configuration: Record<string, CatalogData> = {}
-  if (text(row.config_relations) !== undefined)
+
+  if (text(row.config_relations) !== undefined) {
     configuration.relations = text(row.config_relations)!
-  if (text(row.config_conditions) !== undefined)
+  }
+
+  if (text(row.config_conditions) !== undefined) {
     configuration.conditions = text(row.config_conditions)!
+  }
+
   return {
-    kind: 'extension',
+    kind: "extension",
     id: stableId(physicalName),
-    identitySource: 'physical-name',
+    identitySource: "physical-name",
     physicalName,
     extensionName: physicalName,
-    ...(text(row.extversion) === undefined
-      ? {}
-      : { extensionVersion: text(row.extversion) }),
-    ...(text(row.namespace) === undefined
-      ? {}
-      : { schema: text(row.namespace) }),
+    ...(text(row.extversion) === undefined ? {} : { extensionVersion: text(row.extversion) }),
+    ...(text(row.namespace) === undefined ? {} : { schema: text(row.namespace) }),
     data,
     ...(Object.keys(configuration).length === 0 ? {} : { configuration }),
     dialect: {
-      dialect: 'postgresql',
+      dialect: "postgresql",
       version: 1,
       data: { relocatable: boolean(row.extrelocatable) },
     },
@@ -1962,16 +1904,16 @@ function extensionObject(
 }
 
 function deferredCatalogObject(
-  objectKind: CatalogDeferredObject['objectKind'],
+  objectKind: CatalogDeferredObject["objectKind"],
   physicalName: string,
   physicalReference: CatalogReference,
-  unknownFields: CatalogDeferredObject['unknownFields'] = []
+  unknownFields: CatalogDeferredObject["unknownFields"] = [],
 ): CatalogDeferredObject {
   return {
-    kind: 'deferred-object',
+    kind: "deferred-object",
     objectKind,
     id: stableId(`deferred_${objectKind}_${physicalName}`),
-    identitySource: 'physical-name',
+    identitySource: "physical-name",
     physicalName,
     reference: physicalReference,
     ...(unknownFields.length === 0 ? {} : { unknownFields }),
@@ -1979,175 +1921,247 @@ function deferredCatalogObject(
 }
 
 function triggerEvents(
-  triggerType: number
-): readonly ('insert' | 'update' | 'delete' | 'truncate')[] {
-  const events: ('insert' | 'update' | 'delete' | 'truncate')[] = []
-  if (triggerType & 4) events.push('insert')
-  if (triggerType & 8) events.push('delete')
-  if (triggerType & 16) events.push('update')
-  if (triggerType & 32) events.push('truncate')
+  triggerType: number,
+): readonly ("insert" | "update" | "delete" | "truncate")[] {
+  const events: ("insert" | "update" | "delete" | "truncate")[] = []
+
+  if (triggerType & 4) {
+    events.push("insert")
+  }
+
+  if (triggerType & 8) {
+    events.push("delete")
+  }
+
+  if (triggerType & 16) {
+    events.push("update")
+  }
+
+  if (triggerType & 32) {
+    events.push("truncate")
+  }
+
   return events.sort()
 }
 
 function triggerEnabled(value: unknown): boolean | undefined {
   const code = text(value)?.toUpperCase()
-  if (code === 'D') return false
-  if (code === 'O' || code === 'R' || code === 'A') return true
+
+  if (code === "D") {
+    return false
+  }
+
+  if (code === "O" || code === "R" || code === "A") {
+    return true
+  }
+
   return undefined
 }
 
-function routineKind(value: unknown): CatalogRoutine['routineKind'] {
+function routineKind(value: unknown): CatalogRoutine["routineKind"] {
   return (
     (
       {
-        f: 'function',
-        p: 'procedure',
-        a: 'aggregate',
-        w: 'window',
+        f: "function",
+        p: "procedure",
+        a: "aggregate",
+        w: "window",
       } as const
-    )[text(value) as 'f' | 'p' | 'a' | 'w'] ?? 'unknown'
+    )[text(value) as "f" | "p" | "a" | "w"] ?? "unknown"
   )
 }
 
-function routineParameterMode(value: unknown): CatalogRoutineParameter['mode'] {
+function routineParameterMode(value: unknown): CatalogRoutineParameter["mode"] {
   return (
     {
-      i: 'in',
-      o: 'out',
-      b: 'inout',
-      v: 'variadic',
-      t: 'table',
+      i: "in",
+      o: "out",
+      b: "inout",
+      v: "variadic",
+      t: "table",
     } as const
-  )[text(value) as 'i' | 'o' | 'b' | 'v' | 't']
+  )[text(value) as "i" | "o" | "b" | "v" | "t"]
 }
 
-function routineVolatility(value: unknown): CatalogRoutine['volatility'] {
-  return ({ i: 'immutable', s: 'stable', v: 'volatile' } as const)[
-    text(value) as 'i' | 's' | 'v'
-  ]
-}
-
-function routineParallel(value: unknown): CatalogRoutine['parallel'] {
-  return ({ s: 'safe', r: 'restricted', u: 'unsafe' } as const)[
-    text(value) as 's' | 'r' | 'u'
-  ]
-}
-
-function partitionStrategy(value: unknown): CatalogPartition['strategy'] {
+function routineVolatility(value: unknown): CatalogRoutine["volatility"] {
   return (
-    ({ r: 'range', l: 'list', h: 'hash' } as const)[
-      text(value) as 'r' | 'l' | 'h'
-    ] ?? 'unknown'
-  )
+    {
+      i: "immutable",
+      s: "stable",
+      v: "volatile",
+    } as const
+  )[text(value) as "i" | "s" | "v"]
 }
 
-function partitionKeyColumns(
-  value: unknown,
-  columns: readonly CatalogColumn[]
-): readonly string[] {
-  const byOrdinal = new Map(
-    columns.map(column => [column.ordinalPosition, column.physicalName])
-  )
-  return integerArray(value)
-    .filter(position => position > 0)
-    .map(position => byOrdinal.get(position) ?? `attnum_${position}`)
+function routineParallel(value: unknown): CatalogRoutine["parallel"] {
+  return (
+    {
+      s: "safe",
+      r: "restricted",
+      u: "unsafe",
+    } as const
+  )[text(value) as "s" | "r" | "u"]
 }
 
-function policyCommand(value: unknown): CatalogPolicy['command'] {
+function partitionStrategy(value: unknown): CatalogPartition["strategy"] {
   return (
     (
       {
-        '*': 'all',
-        r: 'select',
-        a: 'insert',
-        w: 'update',
-        d: 'delete',
+        r: "range",
+        l: "list",
+        h: "hash",
       } as const
-    )[text(value) as '*' | 'r' | 'a' | 'w' | 'd'] ?? 'unknown'
+    )[text(value) as "r" | "l" | "h"] ?? "unknown"
+  )
+}
+
+function partitionKeyColumns(value: unknown, columns: readonly CatalogColumn[]): readonly string[] {
+  const byOrdinal = new Map(columns.map((column) => [column.ordinalPosition, column.physicalName]))
+
+  return integerArray(value)
+    .filter((position) => position > 0)
+    .map((position) => byOrdinal.get(position) ?? `attnum_${position}`)
+}
+
+function policyCommand(value: unknown): CatalogPolicy["command"] {
+  return (
+    (
+      {
+        "*": "all",
+        r: "select",
+        a: "insert",
+        w: "update",
+        d: "delete",
+      } as const
+    )[text(value) as "*" | "r" | "a" | "w" | "d"] ?? "unknown"
   )
 }
 
 function storage(value: unknown): CatalogStorageType {
-  return { nativeType: text(value) ?? 'unknown' }
+  return { nativeType: text(value) ?? "unknown" }
 }
 
-function factIfPresent(
-  value: unknown
-): CatalogLiteralFact | CatalogValueFact | undefined {
-  if (value === undefined || value === null) return undefined
+function factIfPresent(value: unknown): CatalogLiteralFact | CatalogValueFact | undefined {
+  if (value === undefined || value === null) {
+    return undefined
+  }
+
   return literalFact(value)
 }
 
 function literalFact(value: unknown): CatalogLiteralFact | undefined {
-  if (value === undefined) return undefined
-  if (value === null) return { kind: 'literal', value: null }
-  if (typeof value === 'boolean') return { kind: 'literal', value }
-  if (typeof value === 'bigint') return { kind: 'literal', value }
-  if (typeof value === 'number')
+  if (value === undefined) {
+    return undefined
+  }
+
+  if (value === null) {
+    return {
+      kind: "literal",
+      value: null,
+    }
+  }
+
+  if (typeof value === "boolean") {
+    return {
+      kind: "literal",
+      value,
+    }
+  }
+
+  if (typeof value === "bigint") {
+    return {
+      kind: "literal",
+      value,
+    }
+  }
+
+  if (typeof value === "number") {
     return Number.isFinite(value)
-      ? { kind: 'literal', value }
-      : { kind: 'literal', value: String(value) }
+      ? {
+          kind: "literal",
+          value,
+        }
+      : {
+          kind: "literal",
+          value: String(value),
+        }
+  }
+
   const textValue = String(value)
+
   if (/^[+-]?\d+$/.test(textValue.trim())) {
     try {
       const integerValue = BigInt(textValue)
+
       if (
         integerValue > BigInt(Number.MAX_SAFE_INTEGER) ||
         integerValue < BigInt(Number.MIN_SAFE_INTEGER)
-      )
-        return { kind: 'literal', value: integerValue }
+      ) {
+        return {
+          kind: "literal",
+          value: integerValue,
+        }
+      }
     } catch {
       // Keep a driver value that is not a valid integer as catalog text.
     }
   }
+
   const numericValue = Number(textValue)
-  return textValue.trim() !== '' && Number.isFinite(numericValue)
-    ? { kind: 'literal', value: numericValue }
-    : { kind: 'literal', value: textValue }
+
+  return textValue.trim() !== "" && Number.isFinite(numericValue)
+    ? {
+        kind: "literal",
+        value: numericValue,
+      }
+    : {
+        kind: "literal",
+        value: textValue,
+      }
 }
 
 function relationTable(row: PostgresRelationRow): CatalogTable {
-  const physicalName = text(row.relname) ?? 'unnamed_table'
+  const physicalName = text(row.relname) ?? "unnamed_table"
+
   return {
-    kind: 'table',
+    kind: "table",
     id: stableId(physicalName),
-    identitySource: 'physical-name',
+    identitySource: "physical-name",
     physicalName,
-    reference: reference(
-      'table',
-      physicalName,
-      text(row.namespace),
-      'pg_class',
-      'oid',
-      row.oid
-    ),
+    reference: reference("table", physicalName, text(row.namespace), "pg_class", "oid", row.oid),
     columns: [],
     constraints: [],
     indexes: [],
     unknownFields: boolean(row.relispartition)
-      ? [{ name: 'partitioned', value: true }]
+      ? [
+          {
+            name: "partitioned",
+            value: true,
+          },
+        ]
       : undefined,
   }
 }
 
 function deferredObject(
   row: PostgresRelationRow,
-  objectKind: CatalogDeferredObject['objectKind'] = 'other'
+  objectKind: CatalogDeferredObject["objectKind"] = "other",
 ): CatalogDeferredObject {
-  const physicalName = text(row.relname) ?? 'unnamed_object'
+  const physicalName = text(row.relname) ?? "unnamed_object"
+
   return {
-    kind: 'deferred-object',
+    kind: "deferred-object",
     objectKind,
     id: stableId(`deferred:${objectKind}:${physicalName}`),
-    identitySource: 'physical-name',
+    identitySource: "physical-name",
     physicalName,
     reference: reference(
-      'deferred-object',
+      "deferred-object",
       physicalName,
       text(row.namespace),
-      'pg_class',
-      'oid',
-      row.oid
+      "pg_class",
+      "oid",
+      row.oid,
     ),
   }
 }
@@ -2155,33 +2169,33 @@ function deferredObject(
 function opaqueRelationObject(
   row: PostgresRelationRow,
   namespace: string,
-  diagnostics: IntrospectionCatalog['diagnostics'][number][]
+  diagnostics: IntrospectionCatalog["diagnostics"][number][],
 ): CatalogOpaqueObject {
-  const physicalName = text(row.relname) ?? 'unnamed_object'
-  const relkind = text(row.relkind) ?? 'unknown'
+  const physicalName = text(row.relname) ?? "unnamed_object"
+  const relkind = text(row.relkind) ?? "unknown"
   const physicalReference = reference(
-    'opaque-object',
+    "opaque-object",
     physicalName,
     text(row.namespace) ?? namespace,
-    'pg_class',
-    'oid',
-    row.oid
+    "pg_class",
+    "oid",
+    row.oid,
   )
+
   diagnostics.push(
     createIntrospectionDiagnostic({
-      severity: 'warning',
-      code: 'unmodeled-object',
+      severity: "warning",
+      code: "unmodeled-object",
       message: `PostgreSQL relation ${physicalName} (${relkind}) was retained as an opaque object`,
-      path: ['opaqueObjects', physicalName],
+      path: ["opaqueObjects", physicalName],
       physicalReference,
-      remediation:
-        'Inspect the opaque object before treating it as migration input.',
-    })
+      remediation: "Inspect the opaque object before treating it as migration input.",
+    }),
   )
   return {
-    kind: 'opaque-object',
+    kind: "opaque-object",
     id: stableId(`relation:${relkind}:${physicalName}`),
-    identitySource: 'physical-name',
+    identitySource: "physical-name",
     physicalName,
     objectKind: `postgres-relation:${relkind}`,
     data: {
@@ -2196,53 +2210,54 @@ function column(
   row: PostgresColumnRow,
   table: CatalogTable | CatalogView,
   namespace: string,
-  identityOptionValues?: Readonly<Record<string, CatalogValueFact>>
+  identityOptionValues?: Readonly<Record<string, CatalogValueFact>>,
 ): CatalogColumn {
-  const physicalName = text(row.physical_name) ?? 'unnamed_column'
+  const physicalName = text(row.physical_name) ?? "unnamed_column"
   const defaultExpression = text(row.default_expression)
   const identityValue = text(row.attidentity)
   const generatedValue = text(row.attgenerated)
   const identity: CatalogIdentity | undefined =
-    identityValue === 'a' || identityValue === 'd'
+    identityValue === "a" || identityValue === "d"
       ? {
-          kind: 'identity',
-          generation: identityValue === 'a' ? 'always' : 'by-default',
+          kind: "identity",
+          generation: identityValue === "a" ? "always" : "by-default",
           options: identityOptionValues ?? {},
         }
       : undefined
-  const generated: CatalogColumn['generated'] =
-    (generatedValue === 's' || generatedValue === 'v') && defaultExpression
+  const generated: CatalogColumn["generated"] =
+    (generatedValue === "s" || generatedValue === "v") && defaultExpression
       ? {
-          kind: 'generated',
-          mode: generatedValue === 's' ? 'stored' : 'virtual',
+          kind: "generated",
+          mode: generatedValue === "s" ? "stored" : "virtual",
           expression: sql(defaultExpression, namespace, table, physicalName),
         }
       : undefined
-  const ordinaryDefault: CatalogColumn['default'] =
+  const ordinaryDefault: CatalogColumn["default"] =
     defaultExpression && !identity && !generated
       ? {
-          kind: 'expression',
+          kind: "expression",
           expression: sql(defaultExpression, namespace, table, physicalName),
         }
       : undefined
+
   return {
-    kind: 'column',
+    kind: "column",
     id: stableId(physicalName),
-    identitySource: 'physical-name',
+    identitySource: "physical-name",
     physicalName,
     ordinalPosition: number(row.ordinal_position) ?? 0,
     nullable: boolean(row.nullable),
-    storage: { nativeType: text(row.native_type) ?? 'unknown' },
+    storage: { nativeType: text(row.native_type) ?? "unknown" },
     ...(ordinaryDefault ? { default: ordinaryDefault } : {}),
     ...(generated ? { generated } : {}),
     identity,
     reference: reference(
-      'column',
+      "column",
       physicalName,
       namespace,
-      'pg_attribute',
-      'attrelid',
-      row.table_oid
+      "pg_attribute",
+      "attrelid",
+      row.table_oid,
     ),
   }
 }
@@ -2253,102 +2268,103 @@ function constraint(
   columnsByNumber: ReadonlyMap<number, string>,
   tableByOid: ReadonlyMap<string | number | undefined, CatalogTable>,
   namespace: string,
-  diagnostics: IntrospectionCatalog['diagnostics'][number][],
-  indexReferences: ReadonlyMap<string, CatalogEntityRecord>
+  diagnostics: IntrospectionCatalog["diagnostics"][number][],
+  indexReferences: ReadonlyMap<string, CatalogEntityRecord>,
 ): CatalogConstraint | undefined {
   const kind = text(row.contype)
-  const physicalName =
-    text(row.physical_name) ?? `constraint_${text(row.oid) ?? 'unknown'}`
+  const physicalName = text(row.physical_name) ?? `constraint_${text(row.oid) ?? "unknown"}`
   const numbers = integerArray(row.conkey)
   const columns = numbers.map(
-    numberValue => columnsByNumber.get(numberValue) ?? `attnum_${numberValue}`
+    (numberValue) => columnsByNumber.get(numberValue) ?? `attnum_${numberValue}`,
   )
   const common = {
     id: stableId(physicalName),
-    identitySource: 'physical-name' as const,
+    identitySource: "physical-name" as const,
     physicalName,
     deferrable: boolean(row.condeferrable),
-    initially: boolean(row.condeferred)
-      ? ('deferred' as const)
-      : ('immediate' as const),
+    initially: boolean(row.condeferred) ? ("deferred" as const) : ("immediate" as const),
     validated: boolean(row.convalidated),
-    reference: reference(
-      'constraint',
-      physicalName,
-      namespace,
-      'pg_constraint',
-      'oid',
-      row.oid
-    ),
+    reference: reference("constraint", physicalName, namespace, "pg_constraint", "oid", row.oid),
     dialect:
       row.convalidated === false
         ? {
-            dialect: 'postgresql' as const,
+            dialect: "postgresql" as const,
             version: 1,
             data: { notValid: true },
           }
         : undefined,
   }
   const backingOid = text(row.backing_index_oid)
-  const backing = backingOid
-    ? indexReferences.get(`pg_class:${backingOid}`)
-    : undefined
+  const backing = backingOid ? indexReferences.get(`pg_class:${backingOid}`) : undefined
   const backingIndex = backing
-    ? ({ kind: 'index', id: backing.id } satisfies CatalogObjectReference)
+    ? ({
+        kind: "index",
+        id: backing.id,
+      } satisfies CatalogObjectReference)
     : undefined
-  if (kind === 'p')
+
+  if (kind === "p") {
     return {
-      kind: 'primary-key',
+      kind: "primary-key",
       ...common,
       columns,
       ...(backingIndex === undefined ? {} : { backingIndex }),
     } satisfies CatalogPrimaryKeyConstraint
-  if (kind === 'u') {
+  }
+
+  if (kind === "u") {
     return {
-      kind: 'unique',
+      kind: "unique",
       ...common,
       columns,
-      nulls: boolean(row.indnullsnotdistinct) ? 'not-distinct' : 'distinct',
+      nulls: boolean(row.indnullsnotdistinct) ? "not-distinct" : "distinct",
       ...(backingIndex === undefined ? {} : { backingIndex }),
     } satisfies CatalogUniqueConstraint
   }
-  if (kind === 'c') {
+
+  if (kind === "c") {
     return {
-      kind: 'check',
+      kind: "check",
       ...common,
-      expression: sql(
-        text(row.definition) ?? 'CHECK (true)',
-        namespace,
-        table,
-        physicalName
-      ),
+      expression: sql(text(row.definition) ?? "CHECK (true)", namespace, table, physicalName),
     } satisfies CatalogCheckConstraint
   }
-  if (kind !== 'f') return undefined
+
+  if (kind !== "f") {
+    return undefined
+  }
+
   const targetTable = tableByOid.get(text(row.target_table_oid))
+
   if (!targetTable) {
     diagnostics.push(
       createIntrospectionDiagnostic({
-        severity: 'error',
-        code: 'unresolved-reference',
-        message: `PostgreSQL foreign key target ${text(row.target_table_oid) ?? 'unknown'} was not found`,
-        path: ['tables', table.id, 'constraints', physicalName],
-      })
+        severity: "error",
+        code: "unresolved-reference",
+        message: `PostgreSQL foreign key target ${text(row.target_table_oid) ?? "unknown"} was not found`,
+        path: ["tables", table.id, "constraints", physicalName],
+      }),
     )
     return undefined
   }
+
   const targetNumbers = integerArray(row.confkey)
-  const targetColumns = targetNumbers.map(numberValue => {
+  const targetColumns = targetNumbers.map((numberValue) => {
     const targetColumn = (targetTable.columns as readonly CatalogColumn[]).find(
-      column => column.ordinalPosition === numberValue
+      (column) => column.ordinalPosition === numberValue,
     )
+
     return targetColumn?.physicalName ?? `attnum_${numberValue}`
   })
+
   return {
-    kind: 'foreign-key',
+    kind: "foreign-key",
     ...common,
     columns,
-    target: { table: targetTable.physicalName, columns: targetColumns },
+    target: {
+      table: targetTable.physicalName,
+      columns: targetColumns,
+    },
     onUpdate: referentialAction(row.confupdtype),
     onDelete: referentialAction(row.confdeltype),
     match: matchType(row.confmatchtype),
@@ -2359,38 +2375,45 @@ function mapIndexes(
   rows: readonly PostgresIndexRow[],
   table: CatalogTable,
   columnsByNumber: ReadonlyMap<number, string>,
-  namespace: string
+  namespace: string,
 ): readonly CatalogIndex[] {
   const grouped = new Map<string, PostgresIndexRow[]>()
+
   for (const row of rows) {
-    const key = text(row.index_oid) ?? text(row.physical_name) ?? 'unknown'
+    const key = text(row.index_oid) ?? text(row.physical_name) ?? "unknown"
     const existing = grouped.get(key) ?? []
+
     existing.push(row)
     grouped.set(key, existing)
   }
-  return [...grouped.values()].map(indexRows => {
+
+  return [...grouped.values()].map((indexRows) => {
     const orderedRows = [...indexRows].sort(
-      (left, right) =>
-        (number(left.position) ?? 0) - (number(right.position) ?? 0)
+      (left, right) => (number(left.position) ?? 0) - (number(right.position) ?? 0),
     )
     const first = orderedRows[0]
-    const physicalName =
-      text(first.physical_name) ?? `index_${text(first.index_oid) ?? 'unknown'}`
+    const physicalName = text(first.physical_name) ?? `index_${text(first.index_oid) ?? "unknown"}`
     const keyCount = number(first.indnkeyatts) ?? indexRows.length
     const terms: CatalogIndexTerm[] = []
     const includedColumns: string[] = []
+
     for (const row of orderedRows) {
       const position = number(row.position) ?? 0
       const attnum = number(row.attnum) ?? 0
       const columnName = attnum > 0 ? columnsByNumber.get(attnum) : undefined
+
       if (position > keyCount) {
-        if (columnName) includedColumns.push(columnName)
+        if (columnName) {
+          includedColumns.push(columnName)
+        }
+
         continue
       }
+
       terms.push(
         columnName
           ? {
-              kind: 'column',
+              kind: "column",
               column: columnName,
               position,
               ...indexTermOptions(row, text(first.method)),
@@ -2399,25 +2422,26 @@ function mapIndexes(
                 : { operatorClass: text(row.operator_class) }),
             }
           : {
-              kind: 'expression',
+              kind: "expression",
               expression: sql(
-                text(row.term_definition) ?? '/* expression unavailable */',
+                text(row.term_definition) ?? "/* expression unavailable */",
                 namespace,
                 table,
-                physicalName
+                physicalName,
               ),
               position,
               ...indexTermOptions(row, text(first.method)),
               ...(text(row.operator_class) === undefined
                 ? {}
                 : { operatorClass: text(row.operator_class) }),
-            }
+            },
       )
     }
+
     return {
-      kind: 'index',
+      kind: "index",
       id: stableId(physicalName),
-      identitySource: 'physical-name',
+      identitySource: "physical-name",
       physicalName,
       unique: boolean(first.indisunique),
       terms,
@@ -2427,21 +2451,14 @@ function mapIndexes(
       includedColumns: includedColumns.length > 0 ? includedColumns : undefined,
       method: text(first.method),
       dialect:
-        text(first.method) && text(first.method) !== 'btree'
+        text(first.method) && text(first.method) !== "btree"
           ? {
-              dialect: 'postgresql' as const,
+              dialect: "postgresql" as const,
               version: 1,
               data: { method: text(first.method) as string },
             }
           : undefined,
-      reference: reference(
-        'index',
-        physicalName,
-        namespace,
-        'pg_class',
-        'oid',
-        first.index_oid
-      ),
+      reference: reference("index", physicalName, namespace, "pg_class", "oid", first.index_oid),
     } satisfies CatalogIndex
   })
 }
@@ -2460,7 +2477,7 @@ function mapMetadataRows(
   sequences: readonly CatalogSequence[],
   enums: readonly CatalogEnum[],
   domains: readonly CatalogDomain[],
-  collations: readonly import('./types.ts').CatalogCollation[],
+  collations: readonly import("./types.ts").CatalogCollation[],
   routines: readonly CatalogRoutine[],
   triggers: readonly CatalogTrigger[],
   policies: readonly CatalogPolicy[],
@@ -2468,11 +2485,8 @@ function mapMetadataRows(
   deferredObjects: readonly CatalogDeferredObject[],
   opaqueObjects: readonly CatalogOpaqueObject[],
   indexReferences: ReadonlyMap<string, CatalogEntityRecord>,
-  relationReferences: ReadonlyMap<
-    string | number | undefined,
-    CatalogObjectReference
-  >,
-  diagnostics: IntrospectionCatalog['diagnostics'][number][]
+  relationReferences: ReadonlyMap<string | number | undefined, CatalogObjectReference>,
+  diagnostics: IntrospectionCatalog["diagnostics"][number][],
 ): MetadataResult {
   const targets = new Map<string, MetadataTarget>()
   const add = (
@@ -2480,241 +2494,339 @@ function mapMetadataRows(
     oid: unknown,
     object: CatalogObjectReference,
     physicalName: string,
-    objectReference?: CatalogReference
+    objectReference?: CatalogReference,
   ): void => {
     const ref =
-      objectReference ??
-      reference(object.kind, physicalName, namespace, relation, 'oid', oid)
+      objectReference ?? reference(object.kind, physicalName, namespace, relation, "oid", oid)
+
     targets.set(metadataKey(relation, oid, 0), {
       object,
       reference: ref,
       physicalName,
     })
   }
-  for (const table of tables)
-    if (table.reference?.catalog !== undefined)
-      add(
-        'pg_class',
-        table.reference.catalog.value,
-        { kind: 'table', id: table.id },
-        table.physicalName,
-        table.reference
-      )
-  for (const view of views)
-    if (view.reference?.catalog !== undefined)
-      add(
-        'pg_class',
-        view.reference.catalog.value,
-        { kind: view.kind, id: view.id },
-        view.physicalName,
-        view.reference
-      )
-  for (const sequence of sequences)
-    if (sequence.reference?.catalog !== undefined)
-      add(
-        'pg_class',
-        sequence.reference.catalog.value,
-        { kind: 'sequence', id: sequence.id },
-        sequence.physicalName,
-        sequence.reference
-      )
-  for (const deferred of deferredObjects)
-    if (deferred.reference?.catalog !== undefined && deferred.id !== undefined)
-      add(
-        'pg_class',
-        deferred.reference.catalog.value,
-        { kind: 'deferred-object', id: deferred.id },
-        deferred.physicalName,
-        deferred.reference
-      )
-  for (const opaque of opaqueObjects)
-    if (opaque.reference?.catalog !== undefined)
-      add(
-        'pg_class',
-        opaque.reference.catalog.value,
-        { kind: 'opaque-object', id: opaque.id },
-        opaque.physicalName,
-        opaque.reference
-      )
-  for (const index of indexReferences.values())
-    if (index.reference?.catalog !== undefined)
-      add(
-        'pg_class',
-        index.reference.catalog.value,
-        { kind: 'index', id: index.id },
-        index.physicalName,
-        index.reference
-      )
-  for (const enumObject of enums)
-    if (enumObject.reference?.catalog !== undefined)
-      add(
-        'pg_type',
-        enumObject.reference.catalog.value,
-        { kind: 'enum', id: enumObject.id },
-        enumObject.physicalName,
-        enumObject.reference
-      )
-  for (const domain of domains)
-    if (domain.reference?.catalog !== undefined)
-      add(
-        'pg_type',
-        domain.reference.catalog.value,
-        { kind: 'domain', id: domain.id },
-        domain.physicalName,
-        domain.reference
-      )
-  for (const collation of collations)
-    if (collation.reference?.catalog !== undefined)
-      add(
-        'pg_collation',
-        collation.reference.catalog.value,
-        { kind: 'collation', id: collation.id },
-        collation.physicalName,
-        collation.reference
-      )
-  for (const routine of routines)
-    if (routine.reference?.catalog !== undefined)
-      add(
-        'pg_proc',
-        routine.reference.catalog.value,
-        { kind: 'routine', id: routine.id },
-        routine.physicalName,
-        routine.reference
-      )
-  for (const trigger of triggers)
-    if (trigger.reference?.catalog !== undefined)
-      add(
-        'pg_trigger',
-        trigger.reference.catalog.value,
-        { kind: 'trigger', id: trigger.id },
-        trigger.physicalName,
-        trigger.reference
-      )
-  for (const policy of policies)
-    if (policy.reference?.catalog !== undefined)
-      add(
-        'pg_policy',
-        policy.reference.catalog.value,
-        { kind: 'policy', id: policy.id },
-        policy.physicalName,
-        policy.reference
-      )
-  for (const extension of extensions)
-    if (extension.reference?.catalog !== undefined)
-      add(
-        'pg_extension',
-        extension.reference.catalog.value,
-        { kind: 'extension', id: extension.id },
-        extension.physicalName,
-        extension.reference
-      )
-  for (const table of tables)
-    addNestedColumns(targets, 'pg_class', table, namespace)
-  for (const view of views)
-    addNestedColumns(targets, 'pg_class', view, namespace)
+
   for (const table of tables) {
-    for (const constraint of table.constraints)
-      if (constraint.reference?.catalog !== undefined)
-        targets.set(
-          metadataKey('pg_constraint', constraint.reference.catalog.value, 0),
-          {
-            object: { kind: 'constraint', id: constraint.id },
-            reference: constraint.reference,
-            physicalName: constraint.physicalName ?? constraint.id,
-          }
-        )
+    if (table.reference?.catalog !== undefined) {
+      add(
+        "pg_class",
+        table.reference.catalog.value,
+        {
+          kind: "table",
+          id: table.id,
+        },
+        table.physicalName,
+        table.reference,
+      )
+    }
   }
-  for (const domain of domains)
-    for (const constraint of domain.constraints ?? [])
-      if (constraint.reference?.catalog !== undefined)
-        targets.set(
-          metadataKey('pg_constraint', constraint.reference.catalog.value, 0),
-          {
-            object: { kind: 'constraint', id: constraint.id },
-            reference: constraint.reference,
-            physicalName: constraint.physicalName ?? constraint.id,
-          }
-        )
+
+  for (const view of views) {
+    if (view.reference?.catalog !== undefined) {
+      add(
+        "pg_class",
+        view.reference.catalog.value,
+        {
+          kind: view.kind,
+          id: view.id,
+        },
+        view.physicalName,
+        view.reference,
+      )
+    }
+  }
+
+  for (const sequence of sequences) {
+    if (sequence.reference?.catalog !== undefined) {
+      add(
+        "pg_class",
+        sequence.reference.catalog.value,
+        {
+          kind: "sequence",
+          id: sequence.id,
+        },
+        sequence.physicalName,
+        sequence.reference,
+      )
+    }
+  }
+
+  for (const deferred of deferredObjects) {
+    if (deferred.reference?.catalog !== undefined && deferred.id !== undefined) {
+      add(
+        "pg_class",
+        deferred.reference.catalog.value,
+        {
+          kind: "deferred-object",
+          id: deferred.id,
+        },
+        deferred.physicalName,
+        deferred.reference,
+      )
+    }
+  }
+
+  for (const opaque of opaqueObjects) {
+    if (opaque.reference?.catalog !== undefined) {
+      add(
+        "pg_class",
+        opaque.reference.catalog.value,
+        {
+          kind: "opaque-object",
+          id: opaque.id,
+        },
+        opaque.physicalName,
+        opaque.reference,
+      )
+    }
+  }
+
+  for (const index of indexReferences.values()) {
+    if (index.reference?.catalog !== undefined) {
+      add(
+        "pg_class",
+        index.reference.catalog.value,
+        {
+          kind: "index",
+          id: index.id,
+        },
+        index.physicalName,
+        index.reference,
+      )
+    }
+  }
+
+  for (const enumObject of enums) {
+    if (enumObject.reference?.catalog !== undefined) {
+      add(
+        "pg_type",
+        enumObject.reference.catalog.value,
+        {
+          kind: "enum",
+          id: enumObject.id,
+        },
+        enumObject.physicalName,
+        enumObject.reference,
+      )
+    }
+  }
+
+  for (const domain of domains) {
+    if (domain.reference?.catalog !== undefined) {
+      add(
+        "pg_type",
+        domain.reference.catalog.value,
+        {
+          kind: "domain",
+          id: domain.id,
+        },
+        domain.physicalName,
+        domain.reference,
+      )
+    }
+  }
+
+  for (const collation of collations) {
+    if (collation.reference?.catalog !== undefined) {
+      add(
+        "pg_collation",
+        collation.reference.catalog.value,
+        {
+          kind: "collation",
+          id: collation.id,
+        },
+        collation.physicalName,
+        collation.reference,
+      )
+    }
+  }
+
+  for (const routine of routines) {
+    if (routine.reference?.catalog !== undefined) {
+      add(
+        "pg_proc",
+        routine.reference.catalog.value,
+        {
+          kind: "routine",
+          id: routine.id,
+        },
+        routine.physicalName,
+        routine.reference,
+      )
+    }
+  }
+
+  for (const trigger of triggers) {
+    if (trigger.reference?.catalog !== undefined) {
+      add(
+        "pg_trigger",
+        trigger.reference.catalog.value,
+        {
+          kind: "trigger",
+          id: trigger.id,
+        },
+        trigger.physicalName,
+        trigger.reference,
+      )
+    }
+  }
+
+  for (const policy of policies) {
+    if (policy.reference?.catalog !== undefined) {
+      add(
+        "pg_policy",
+        policy.reference.catalog.value,
+        {
+          kind: "policy",
+          id: policy.id,
+        },
+        policy.physicalName,
+        policy.reference,
+      )
+    }
+  }
+
+  for (const extension of extensions) {
+    if (extension.reference?.catalog !== undefined) {
+      add(
+        "pg_extension",
+        extension.reference.catalog.value,
+        {
+          kind: "extension",
+          id: extension.id,
+        },
+        extension.physicalName,
+        extension.reference,
+      )
+    }
+  }
+
+  for (const table of tables) {
+    addNestedColumns(targets, "pg_class", table, namespace)
+  }
+
+  for (const view of views) {
+    addNestedColumns(targets, "pg_class", view, namespace)
+  }
+
+  for (const table of tables) {
+    for (const constraint of table.constraints) {
+      if (constraint.reference?.catalog !== undefined) {
+        targets.set(metadataKey("pg_constraint", constraint.reference.catalog.value, 0), {
+          object: {
+            kind: "constraint",
+            id: constraint.id,
+          },
+          reference: constraint.reference,
+          physicalName: constraint.physicalName ?? constraint.id,
+        })
+      }
+    }
+  }
+
+  for (const domain of domains) {
+    for (const constraint of domain.constraints ?? []) {
+      if (constraint.reference?.catalog !== undefined) {
+        targets.set(metadataKey("pg_constraint", constraint.reference.catalog.value, 0), {
+          object: {
+            kind: "constraint",
+            id: constraint.id,
+          },
+          reference: constraint.reference,
+          physicalName: constraint.physicalName ?? constraint.id,
+        })
+      }
+    }
+  }
+
   // Trigger and policy rows can be commented on even when the server exposes
   // them through a catalog relation that is not part of pg_class.
   void relationReferences
 
-  const comments: import('./types.ts').CatalogComment[] = []
-  const ownership: import('./types.ts').CatalogOwnership[] = []
+  const comments: import("./types.ts").CatalogComment[] = []
+  const ownership: import("./types.ts").CatalogOwnership[] = []
   const opaque: CatalogOpaqueObject[] = []
+
   for (const [index, row] of rows.entries()) {
-    const relation = text(row.catalog_relation) ?? 'unknown'
+    const relation = text(row.catalog_relation) ?? "unknown"
     const oid = text(row.object_oid)
     const subid = number(row.object_subid) ?? 0
     const target = targets.get(metadataKey(relation, oid, subid))
+
     if (target === undefined) {
       const unknownReference = reference(
-        'opaque-object',
-        text(row.object_name) ?? `metadata_${oid ?? 'unknown'}`,
+        "opaque-object",
+        text(row.object_name) ?? `metadata_${oid ?? "unknown"}`,
         text(row.namespace) ?? namespace,
         relation,
-        'oid',
-        oid
+        "oid",
+        oid,
       )
+
       diagnostics.push(
         createIntrospectionDiagnostic({
-          severity: 'warning',
-          code: 'unmodeled-object',
-          message: `PostgreSQL metadata row for ${text(row.object_name) ?? 'unknown object'} could not be attached to a normalized object`,
-          path: ['metadata', index],
+          severity: "warning",
+          code: "unmodeled-object",
+          message: `PostgreSQL metadata row for ${text(row.object_name) ?? "unknown object"} could not be attached to a normalized object`,
+          path: ["metadata", index],
           physicalReference: unknownReference,
           remediation:
-            'Inspect the retained opaque metadata record before using it as migration input.',
-        })
+            "Inspect the retained opaque metadata record before using it as migration input.",
+        }),
       )
       opaque.push({
-        kind: 'opaque-object',
-        id: stableId(`metadata_${relation}_${oid ?? 'unknown'}_${subid}`),
-        identitySource: 'physical-name',
-        physicalName: text(row.object_name) ?? `metadata_${oid ?? 'unknown'}`,
-        objectKind: `postgres-metadata:${text(row.object_kind) ?? 'unknown'}`,
+        kind: "opaque-object",
+        id: stableId(`metadata_${relation}_${oid ?? "unknown"}_${subid}`),
+        identitySource: "physical-name",
+        physicalName: text(row.object_name) ?? `metadata_${oid ?? "unknown"}`,
+        objectKind: `postgres-metadata:${text(row.object_kind) ?? "unknown"}`,
         data: {
           catalogRelation: relation,
-          objectOid: oid ?? 'unknown',
+          objectOid: oid ?? "unknown",
           objectSubid: subid,
-          ...(text(row.description) === undefined
-            ? {}
-            : { description: text(row.description) }),
+          ...(text(row.description) === undefined ? {} : { description: text(row.description) }),
           ...(text(row.owner) === undefined ? {} : { owner: text(row.owner) }),
         },
         reference: unknownReference,
       })
       continue
     }
+
     const description = text(row.description)
-    if (description !== undefined)
+
+    if (description !== undefined) {
       comments.push({
-        kind: 'comment',
+        kind: "comment",
         id: stableId(`${target.object.kind}_${target.object.id}_comment`),
         object: target.object,
         text: description,
         reference: target.reference,
         provenance: {
-          kind: 'catalog',
-          dialect: 'postgresql',
+          kind: "catalog",
+          dialect: "postgresql",
           reference: target.reference,
         },
       })
+    }
+
     const owner = text(row.owner)
-    if (owner !== undefined)
+
+    if (owner !== undefined) {
       ownership.push({
-        kind: 'ownership',
+        kind: "ownership",
         id: stableId(`${target.object.kind}_${target.object.id}_ownership`),
         object: target.object,
         owner,
         reference: target.reference,
         provenance: {
-          kind: 'catalog',
-          dialect: 'postgresql',
+          kind: "catalog",
+          dialect: "postgresql",
           reference: target.reference,
         },
       })
+    }
   }
+
   return {
     comments,
     ownership,
@@ -2726,41 +2838,45 @@ function addNestedColumns(
   targets: Map<string, MetadataTarget>,
   relation: string,
   owner: CatalogTable | CatalogView,
-  namespace: string
+  namespace: string,
 ): void {
   const tableOid = owner.reference?.catalog?.value
-  if (tableOid === undefined) return
+
+  if (tableOid === undefined) {
+    return
+  }
+
   for (const column of owner.columns) {
     targets.set(metadataKey(relation, tableOid, column.ordinalPosition), {
-      object: { kind: 'column', id: column.id },
+      object: {
+        kind: "column",
+        id: column.id,
+      },
       reference:
         column.reference ??
-        reference(
-          'column',
-          column.physicalName,
-          namespace,
-          'pg_attribute',
-          'attrelid',
-          tableOid
-        ),
+        reference("column", column.physicalName, namespace, "pg_attribute", "attrelid", tableOid),
       physicalName: column.physicalName,
     })
   }
 }
 
 function metadataKey(relation: string, oid: unknown, subid: unknown): string {
-  return `${relation}:${text(oid) ?? 'unknown'}:${number(subid) ?? 0}`
+  return `${relation}:${text(oid) ?? "unknown"}:${number(subid) ?? 0}`
 }
 
 function indexTermOptions(
   row: PostgresIndexRow,
-  method: string | undefined
-): Pick<CatalogIndexTerm, 'direction' | 'nulls'> {
+  method: string | undefined,
+): Pick<CatalogIndexTerm, "direction" | "nulls"> {
   const option = number(row.indoption)
-  if (method !== 'btree' || option === undefined) return {}
+
+  if (method !== "btree" || option === undefined) {
+    return {}
+  }
+
   return {
-    direction: option & 1 ? 'DESC' : 'ASC',
-    nulls: option & 2 ? 'FIRST' : 'LAST',
+    direction: option & 1 ? "DESC" : "ASC",
+    nulls: option & 2 ? "FIRST" : "LAST",
   }
 }
 
@@ -2768,49 +2884,40 @@ function sql(
   textValue: string,
   namespace: string,
   owner: CatalogTable | CatalogView,
-  name: string
+  name: string,
 ) {
   return expression(
     textValue,
-    'decompiler',
+    "decompiler",
     owner.reference ??
-      reference(
-        'table',
-        name,
-        namespace,
-        'pg_class',
-        'relname',
-        owner.physicalName
-      )
+      reference("table", name, namespace, "pg_class", "relname", owner.physicalName),
   )
 }
 
 function expression(
   textValue: string,
-  provenanceKind: 'catalog' | 'decompiler' | 'create-sql',
-  physicalReference?: CatalogReference
+  provenanceKind: "catalog" | "decompiler" | "create-sql",
+  physicalReference?: CatalogReference,
 ): CatalogSqlExpression {
   return {
-    kind: 'sql',
-    dialect: 'postgresql',
+    kind: "sql",
+    dialect: "postgresql",
     text: textValue,
     provenance: {
       kind: provenanceKind,
-      dialect: 'postgresql',
-      ...(physicalReference === undefined
-        ? {}
-        : { reference: physicalReference }),
+      dialect: "postgresql",
+      ...(physicalReference === undefined ? {} : { reference: physicalReference }),
     },
   }
 }
 
 function reference(
-  kind: CatalogReference['kind'],
+  kind: CatalogReference["kind"],
   name: string,
   namespace: string | undefined,
   relation: string,
   key: string,
-  value: unknown = name
+  value: unknown = name,
 ): CatalogReference {
   return {
     kind,
@@ -2819,32 +2926,37 @@ function reference(
     catalog: {
       relation,
       key,
-      value: typeof value === 'number' ? value : String(value),
+      value: typeof value === "number" ? value : String(value),
     },
   }
 }
 
 function stableId(value: string): string {
-  if (value.length > 0 && !/[.\\\u0000-\u001f\u007f]/.test(value)) return value
+  if (value.length > 0 && !/[.\\\u0000-\u001f\u007f]/.test(value)) {
+    return value
+  }
+
   let hash = 2166136261
+
   for (let index = 0; index < value.length; index += 1) {
     hash ^= value.charCodeAt(index)
     hash = Math.imul(hash, 16777619)
   }
+
   return `introspected_${(hash >>> 0).toString(16)}`
 }
 
-function groupBy<Row>(
-  rows: readonly Row[],
-  key: (row: Row) => unknown
-): Map<unknown, Row[]> {
+function groupBy<Row>(rows: readonly Row[], key: (row: Row) => unknown): Map<unknown, Row[]> {
   const result = new Map<unknown, Row[]>()
+
   for (const row of rows) {
     const value = key(row)
     const group = result.get(value) ?? []
+
     group.push(row)
     result.set(value, group)
   }
+
   return result
 }
 
@@ -2853,83 +2965,121 @@ function text(value: unknown): string | undefined {
 }
 
 function number(value: unknown): number | undefined {
-  if (typeof value === 'number' && Number.isFinite(value)) return value
-  if (typeof value === 'string' && value.trim() !== '') {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === "string" && value.trim() !== "") {
     const parsed = Number(value)
+
     return Number.isFinite(parsed) ? parsed : undefined
   }
+
   return undefined
 }
 
 function boolean(value: unknown): boolean {
-  return value === true || value === 't' || value === 'true' || value === 1
+  return value === true || value === "t" || value === "true" || value === 1
 }
 
 function stringArray(value: unknown): string[] {
-  if (Array.isArray(value))
-    return value
-      .map(item => text(item))
-      .filter((item): item is string => item !== undefined)
+  if (Array.isArray(value)) {
+    return value.map((item) => text(item)).filter((item): item is string => item !== undefined)
+  }
+
   const source = text(value)?.trim()
-  if (source === undefined || source === '') return []
-  if (source.startsWith('{') && source.endsWith('}')) {
+
+  if (source === undefined || source === "") {
+    return []
+  }
+
+  if (source.startsWith("{") && source.endsWith("}")) {
     const values: string[] = []
-    let current = ''
+    let current = ""
     let quoted = false
     let escaped = false
+
     for (const character of source.slice(1, -1)) {
       if (escaped) {
         current += character
         escaped = false
-      } else if (character === '\\' && quoted) escaped = true
-      else if (character === '"') quoted = !quoted
-      else if (character === ',' && !quoted) {
+      } else if (character === "\\" && quoted) {
+        escaped = true
+      } else if (character === '"') {
+        quoted = !quoted
+      } else if (character === "," && !quoted) {
         values.push(current)
-        current = ''
-      } else current += character
+        current = ""
+      } else {
+        current += character
+      }
     }
-    if (current !== '' || source !== '{}') values.push(current)
-    return values.filter(value => value !== '')
+
+    if (current !== "" || source !== "{}") {
+      values.push(current)
+    }
+
+    return values.filter((value) => value !== "")
   }
+
   return source
-    .split(',')
-    .map(item => item.trim())
-    .filter(item => item !== '')
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item !== "")
 }
 
-function booleanOption(
-  options: readonly string[],
-  name: string
-): boolean | undefined {
-  const value = options.find(option => option.startsWith(`${name}=`))
-  if (value === undefined) return undefined
+function booleanOption(options: readonly string[], name: string): boolean | undefined {
+  const value = options.find((option) => option.startsWith(`${name}=`))
+
+  if (value === undefined) {
+    return undefined
+  }
+
   const setting = value.slice(name.length + 1).toLowerCase()
-  if (setting === 'true' || setting === 'on' || setting === 'yes') return true
-  if (setting === 'false' || setting === 'off' || setting === 'no') return false
+
+  if (setting === "true" || setting === "on" || setting === "yes") {
+    return true
+  }
+
+  if (setting === "false" || setting === "off" || setting === "no") {
+    return false
+  }
+
   return undefined
 }
 
 function integerArray(value: unknown): number[] {
-  if (Array.isArray(value)) return value.map(item => number(item) ?? 0)
-  const parsed = text(value)?.replace(/[{}]/g, '').trim()
-  if (!parsed) return []
-  return parsed.split(',').map(item => number(item.trim()) ?? 0)
+  if (Array.isArray(value)) {
+    return value.map((item) => number(item) ?? 0)
+  }
+
+  const parsed = text(value)?.replace(/[{}]/g, "").trim()
+
+  if (!parsed) {
+    return []
+  }
+
+  return parsed.split(",").map((item) => number(item.trim()) ?? 0)
 }
 
-function referentialAction(
-  value: unknown
-): CatalogForeignKeyConstraint['onUpdate'] {
+function referentialAction(value: unknown): CatalogForeignKeyConstraint["onUpdate"] {
   return (
     {
-      a: 'no-action',
-      r: 'restrict',
-      c: 'cascade',
-      n: 'set-null',
-      d: 'set-default',
+      a: "no-action",
+      r: "restrict",
+      c: "cascade",
+      n: "set-null",
+      d: "set-default",
     } as const
-  )[text(value) as 'a']
+  )[text(value) as "a"]
 }
 
-function matchType(value: unknown): CatalogForeignKeyConstraint['match'] {
-  return ({ s: 'simple', f: 'full', p: 'partial' } as const)[text(value) as 's']
+function matchType(value: unknown): CatalogForeignKeyConstraint["match"] {
+  return (
+    {
+      s: "simple",
+      f: "full",
+      p: "partial",
+    } as const
+  )[text(value) as "s"]
 }

@@ -1,43 +1,35 @@
-import type {
-  HasAggregate,
-  HasSubquery,
-  HasWindow,
-  OutputOf,
-} from '../core/fragment.ts'
-import type { ColumnReference } from '../expressions/column.ts'
-import type { AnyExpression } from '../expressions/types.ts'
-import type { OrderTerm } from '../query/clauses/order-by.ts'
+import type { HasAggregate, HasSubquery, HasWindow, OutputOf } from "../core/fragment.ts"
+import type { ColumnReference } from "../expressions/column.ts"
+import type { AnyExpression } from "../expressions/types.ts"
+import type { OrderTerm } from "../query/clauses/order-by.ts"
+import type { DeclaredColumnNullabilityOf } from "./column-nullability.ts"
 import type {
   SchemaDialectExtension,
   SchemaObjectIdentity,
   SchemaObjectNameOptions,
-} from './metadata.ts'
-import type { DeclaredColumnNullabilityOf } from './column-nullability.ts'
-import { dialectMismatchDiagnostic, freezeSchemaMetadata } from './metadata.ts'
+} from "./metadata.ts"
+import { dialectMismatchDiagnostic, freezeSchemaMetadata } from "./metadata.ts"
 
 export type IndexTerm = AnyExpression | OrderTerm<any>
 
 /** PostgreSQL-specific index method and storage metadata. */
-export interface PostgresIndexExtension
-  extends SchemaDialectExtension<'postgresql'> {
-  readonly method?: 'btree' | 'hash' | 'gist' | 'spgist' | 'gin' | 'brin'
+export interface PostgresIndexExtension extends SchemaDialectExtension<"postgresql"> {
+  readonly method?: "btree" | "hash" | "gist" | "spgist" | "gin" | "brin"
   readonly concurrently?: boolean
   readonly operatorClasses?: Readonly<Record<string, string>>
-  readonly storageParameters?: Readonly<
-    Record<string, string | number | boolean>
-  >
+  readonly storageParameters?: Readonly<Record<string, string | number | boolean>>
 }
 
 /** SQLite-specific index metadata retained for a future adapter. */
-export interface SqliteIndexExtension extends SchemaDialectExtension<'sqlite'> {
+export interface SqliteIndexExtension extends SchemaDialectExtension<"sqlite"> {
   readonly auto?: boolean
 }
 
 /** MySQL-specific index algorithm, locking, and parser metadata. */
-export interface MysqlIndexExtension extends SchemaDialectExtension<'mysql'> {
-  readonly algorithm?: 'default' | 'inplace' | 'copy'
-  readonly lock?: 'default' | 'none' | 'shared' | 'exclusive'
-  readonly using?: 'btree' | 'hash' | 'rtree'
+export interface MysqlIndexExtension extends SchemaDialectExtension<"mysql"> {
+  readonly algorithm?: "default" | "inplace" | "copy"
+  readonly lock?: "default" | "none" | "shared" | "exclusive"
+  readonly using?: "btree" | "hash" | "rtree"
   readonly parser?: string
   readonly keyBlockSize?: number
 }
@@ -51,9 +43,7 @@ export type IndexDialectExtension =
 
 export interface IndexOptions<
   TPredicate extends AnyExpression | undefined = AnyExpression | undefined,
-  TExtension extends IndexDialectExtension | undefined =
-    | IndexDialectExtension
-    | undefined,
+  TExtension extends IndexDialectExtension | undefined = IndexDialectExtension | undefined,
 > extends SchemaObjectNameOptions {
   readonly unique?: boolean
   readonly where?: TPredicate
@@ -63,12 +53,9 @@ export interface IndexOptions<
   readonly dialect?: TExtension
 }
 
-type IndexTermExpression<TTerm> =
-  TTerm extends OrderTerm<any> ? TTerm['expression'] : TTerm
+type IndexTermExpression<TTerm> = TTerm extends OrderTerm<any> ? TTerm["expression"] : TTerm
 
-type IsNullableIndexColumn<TColumn> = [
-  DeclaredColumnNullabilityOf<TColumn>,
-] extends [never]
+type IsNullableIndexColumn<TColumn> = [DeclaredColumnNullabilityOf<TColumn>] extends [never]
   ? null extends OutputOf<TColumn>
     ? true
     : false
@@ -101,13 +88,11 @@ type BooleanOption<TValue> = [Extract<TValue, true>] extends [never]
     ? true
     : boolean
 
-type UniqueOption<TOptions> = 'unique' extends keyof TOptions
-  ? BooleanOption<TOptions['unique']>
+type UniqueOption<TOptions> = "unique" extends keyof TOptions
+  ? BooleanOption<TOptions["unique"]>
   : false
 
-type PredicateOption<TOptions> = 'where' extends keyof TOptions
-  ? TOptions['where']
-  : undefined
+type PredicateOption<TOptions> = "where" extends keyof TOptions ? TOptions["where"] : undefined
 
 type DialectOption<TOptions> = TOptions extends {
   readonly dialect?: infer TDialect
@@ -117,18 +102,13 @@ type DialectOption<TOptions> = TOptions extends {
     : TDialect
   : undefined
 
-type PredicatePresence<TOptions> = [
-  Exclude<PredicateOption<TOptions>, undefined>,
-] extends [never]
+type PredicatePresence<TOptions> = [Exclude<PredicateOption<TOptions>, undefined>] extends [never]
   ? false
   : undefined extends PredicateOption<TOptions>
     ? boolean
     : true
 
-type IsCandidateKey<
-  TTerms extends readonly IndexTerm[],
-  TOptions extends IndexOptions<any>,
-> =
+type IsCandidateKey<TTerms extends readonly IndexTerm[], TOptions extends IndexOptions<any>> =
   UniqueOption<TOptions> extends infer TUnique
     ? PredicatePresence<TOptions> extends infer THasPredicate
       ? AllEligibleColumns<TTerms> extends infer TEligible
@@ -154,7 +134,7 @@ export interface TableIndex<
   TTerms extends readonly IndexTerm[] = any,
   TOptions extends IndexOptions<any> = any,
 > extends SchemaObjectIdentity {
-  readonly kind: 'index'
+  readonly kind: "index"
   readonly terms: TTerms
   readonly unique: UniqueOption<TOptions>
   readonly predicate: PredicateOption<TOptions>
@@ -169,7 +149,7 @@ export interface TableIndex<
 
 /** The widened index shape accepted by source metadata records. */
 export interface SourceIndex {
-  readonly kind: 'index'
+  readonly kind: "index"
   readonly terms: readonly IndexTerm[]
   readonly unique: boolean
   readonly predicate: AnyExpression | undefined
@@ -181,50 +161,50 @@ export interface SourceIndex {
 export type SourceIndexesRecord = Readonly<Record<string, SourceIndex>>
 
 /**
- * Validate portable and dialect-owned index facts for one target adapter.
- * Unsupported features are reported as data so a serializer can aggregate
- * diagnostics instead of failing during traversal with an opaque exception.
+ * Validate portable and dialect-owned index facts for one target adapter. Unsupported features are
+ * reported as data so a serializer can aggregate diagnostics instead of failing during traversal
+ * with an opaque exception.
  */
 export function validateIndexDialect(
   indexMetadata: SourceIndex,
   dialect: string,
-  path: readonly (string | number)[] = ['index']
+  path: readonly (string | number)[] = ["index"],
 ) {
-  const diagnostics = [] as import('./metadata.ts').SchemaMetadataDiagnostic[]
+  const diagnostics = [] as import("./metadata.ts").SchemaMetadataDiagnostic[]
   const extension = indexMetadata.dialect
+
   if (extension !== undefined) {
-    const mismatch = dialectMismatchDiagnostic(extension, dialect, [
-      ...path,
-      'dialect',
-    ])
-    if (mismatch !== undefined) diagnostics.push(mismatch)
+    const mismatch = dialectMismatchDiagnostic(extension, dialect, [...path, "dialect"])
+
+    if (mismatch !== undefined) {
+      diagnostics.push(mismatch)
+    }
   }
 
   if (
-    (dialect === 'sqlite' || dialect === 'mysql') &&
+    (dialect === "sqlite" || dialect === "mysql") &&
     indexMetadata.includedColumns !== undefined &&
     indexMetadata.includedColumns.length > 0
   ) {
     diagnostics.push({
-      code: 'unsupported-dialect-option',
+      code: "unsupported-dialect-option",
       message: `${dialect} indexes do not support included columns`,
-      path: [...path, 'includedColumns'],
+      path: [...path, "includedColumns"],
       dialect,
     })
   }
 
   const mysqlKeyBlockSize =
-    extension?.dialect === 'mysql'
-      ? (extension as MysqlIndexExtension).keyBlockSize
-      : undefined
+    extension?.dialect === "mysql" ? (extension as MysqlIndexExtension).keyBlockSize : undefined
+
   if (
     mysqlKeyBlockSize !== undefined &&
     (!Number.isInteger(mysqlKeyBlockSize) || mysqlKeyBlockSize <= 0)
   ) {
     diagnostics.push({
-      code: 'unsupported-dialect-option',
-      message: 'MySQL index keyBlockSize must be a positive integer',
-      path: [...path, 'dialect', 'keyBlockSize'],
+      code: "unsupported-dialect-option",
+      message: "MySQL index keyBlockSize must be a positive integer",
+      path: [...path, "dialect", "keyBlockSize"],
       dialect,
     })
   }
@@ -244,9 +224,9 @@ type ValidIndexExpression<T> = T extends AnyExpression
 
 type InvalidIndexTerms<TTerms extends readonly IndexTerm[]> = {
   [K in keyof TTerms]: TTerms[K] extends OrderTerm<any>
-    ? TTerms[K] extends { readonly nulls: 'FIRST' | 'LAST' }
+    ? TTerms[K] extends { readonly nulls: "FIRST" | "LAST" }
       ? TTerms[K]
-      : ValidIndexExpression<TTerms[K]['expression']> extends never
+      : ValidIndexExpression<TTerms[K]["expression"]> extends never
         ? TTerms[K]
         : never
     : ValidIndexExpression<TTerms[K]> extends never
@@ -266,18 +246,20 @@ export function index<
   const TOptions extends IndexOptions<any> = {},
 >(
   terms: TTerms & IndexTermsValidation<NoInfer<TTerms>>,
-  options?: TOptions
+  options?: TOptions,
 ): TableIndex<TTerms, TOptions> {
   const resolvedOptions = options ?? ({} as TOptions)
   const candidateKey =
     resolvedOptions.unique === true &&
     resolvedOptions.where === undefined &&
-    terms.every(term => {
-      const expression = 'orderKind' in term ? term.expression : term
-      return expression.expressionKind === 'column'
+    terms.every((term) => {
+      const expression = "orderKind" in term ? term.expression : term
+
+      return expression.expressionKind === "column"
     })
+
   return Object.freeze({
-    kind: 'index',
+    kind: "index",
     terms: Object.freeze([...terms]),
     unique: resolvedOptions.unique === true,
     predicate: resolvedOptions.where,

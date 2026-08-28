@@ -20,45 +20,38 @@ import {
   text,
   unique,
   value,
-} from 'qubu'
+} from "qubu"
 
-const accounts = table(
-  'accounts',
-  { id: integer(), slug: text() },
-  accounts => ({
-    constraints: {
-      accountsPrimary: primaryKey(accounts.id),
-    },
-    indexes: {
-      accountsSlug: index([accounts.slug], { unique: true }),
-    },
-  })
-)
+const accounts = table("accounts", { id: integer(), slug: text() }, (accounts) => ({
+  constraints: {
+    accountsPrimary: primaryKey(accounts.id),
+  },
+  indexes: {
+    accountsSlug: index([accounts.slug], { unique: true }),
+  },
+}))
 
 const memberships = table(
-  'memberships',
+  "memberships",
   {
     id: integer(),
     accountId: integer(),
     slug: text(),
     displayName: text(),
   },
-  memberships => ({
+  (memberships) => ({
     constraints: {
       membershipsPrimary: primaryKey(memberships.id),
       membershipsUnique: unique(memberships.accountId, memberships.slug),
-      membershipsAccount: foreignKey(
-        [memberships.accountId],
-        references(accounts, accounts.id)
-      ),
-      membershipsCheck: check(eq(memberships.slug, value('public'))),
+      membershipsAccount: foreignKey([memberships.accountId], references(accounts, accounts.id)),
+      membershipsCheck: check(eq(memberships.slug, value("public"))),
     },
     indexes: {
       membershipsAccountSlug: index([memberships.accountId, memberships.slug], {
         unique: true,
       }),
     },
-  })
+  }),
 )
 ```
 
@@ -81,21 +74,17 @@ Use `uniqueConstraint()` when the database enforces uniqueness but the rule shou
 not prove a functional dependency:
 
 ```ts
-import { table, text, uniqueConstraint } from 'qubu'
+import { table, text, uniqueConstraint } from "qubu"
 
-const accounts = table(
-  'accounts',
-  { email: text({ nullable: true }) },
-  accounts => ({
-    constraints: {
-      emailUnique: uniqueConstraint(accounts.email, {
-        nulls: 'distinct',
-        physicalName: 'accounts_email_key',
-      }),
-    },
-    indexes: {},
-  })
-)
+const accounts = table("accounts", { email: text({ nullable: true }) }, (accounts) => ({
+  constraints: {
+    emailUnique: uniqueConstraint(accounts.email, {
+      nulls: "distinct",
+      physicalName: "accounts_email_key",
+    }),
+  },
+  indexes: {},
+}))
 ```
 
 `nulls: 'distinct'` describes the common rule where multiple NULLs do not
@@ -115,20 +104,15 @@ eligible unique index. Options such as onUpdate, onDelete, match, deferrable,
 and initially remain metadata:
 
 ```ts
-const memberships = table(
-  'memberships',
-  { accountId: integer() },
-  memberships => ({
-    constraints: {
-      accountForeign: foreignKey(
-        [memberships.accountId],
-        references(accounts, accounts.id),
-        { onDelete: 'cascade', onUpdate: 'cascade' }
-      ),
-    },
-    indexes: {},
-  })
-)
+const memberships = table("memberships", { accountId: integer() }, (memberships) => ({
+  constraints: {
+    accountForeign: foreignKey([memberships.accountId], references(accounts, accounts.id), {
+      onDelete: "cascade",
+      onUpdate: "cascade",
+    }),
+  },
+  indexes: {},
+}))
 ```
 
 Use the preliminary callback table for direct self-references. Wrap the target
@@ -145,12 +129,12 @@ Grouping every column in a declared candidate key lets Qubu select other
 columns from that source:
 
 ```ts
-import { count, from, groupBy, select } from 'qubu'
+import { count, from, groupBy, select } from "qubu"
 
 const summary = select(
   { displayName: memberships.displayName, total: count() },
   from(memberships),
-  groupBy(memberships.accountId, memberships.slug)
+  groupBy(memberships.accountId, memberships.slug),
 )
 ```
 

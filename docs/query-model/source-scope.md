@@ -13,12 +13,12 @@ Qubu reports a missing source when a query selects a column from a table that
 does not appear in the query:
 
 ```ts
-import { from, integer, select, table, text } from 'qubu'
+import { from, integer, select, table, text } from "qubu"
 
-const users = table('users', {
+const users = table("users", {
   id: integer(),
 })
-const posts = table('posts', {
+const posts = table("posts", {
   id: integer(),
   title: text(),
 })
@@ -31,12 +31,12 @@ Add the source that owns the column, or join it with a condition that refers to
 both sources:
 
 ```ts
-import { eq, from, innerJoin, integer, select, table } from 'qubu'
+import { eq, from, innerJoin, integer, select, table } from "qubu"
 
-const users = table('users', {
+const users = table("users", {
   id: integer(),
 })
-const posts = table('posts', {
+const posts = table("posts", {
   id: integer(),
   authorId: integer(),
 })
@@ -44,7 +44,7 @@ const posts = table('posts', {
 const query = select(
   { userId: users.id, postId: posts.id },
   from(users),
-  innerJoin(posts, eq(users.id, posts.authorId))
+  innerJoin(posts, eq(users.id, posts.authorId)),
 )
 ```
 
@@ -54,14 +54,14 @@ Aliases, CTEs, derived queries, and custom sources expose new source identities.
 Use their columns after wrapping the original source:
 
 ```ts
-import { alias, from, integer, select, table, text } from 'qubu'
+import { alias, from, integer, select, table, text } from "qubu"
 
-const users = table('users', {
+const users = table("users", {
   id: integer(),
   name: text(),
 })
 
-const author = alias(users, 'author')
+const author = alias(users, "author")
 const query = select({ name: author.name }, from(author))
 ```
 
@@ -72,10 +72,10 @@ The same rule applies to a CTE or derived query. A query's selected row becomes
 the set of columns exposed by its new source:
 
 ```ts
-import { alias, from, lower, select } from 'qubu'
+import { alias, from, lower, select } from "qubu"
 
 const names = select({ name: lower(users.name) }, from(users))
-const namesSource = alias(names, 'names')
+const namesSource = alias(names, "names")
 
 const query = select({ name: namesSource.name }, from(namesSource))
 ```
@@ -90,35 +90,31 @@ Use `customSource()` for a table-valued function or another relation that
 definitions, and complete relation renderer:
 
 ```ts
-import { eq, from, integer, select, text, where } from 'qubu'
-import { identifier } from 'qubu/core'
-import { customSource } from 'qubu/schema'
+import { eq, from, integer, select, text, where } from "qubu"
+import { identifier } from "qubu/core"
+import { customSource } from "qubu/schema"
 
 const entries = customSource({
   identity: {
-    sourceKind: 'table-function',
-    name: 'json_each',
-    alias: 'entry',
+    sourceKind: "table-function",
+    name: "json_each",
+    alias: "entry",
   },
-  sourceKind: 'table-function',
-  reference: identifier('entry'),
+  sourceKind: "table-function",
+  reference: identifier("entry"),
   columns: {
     key: integer(),
     value: text({ nullable: true }),
   },
   render(context) {
-    context.append('json_each(')
+    context.append("json_each(")
     context.parameter('{"a":1}')
-    context.append(') AS ')
-    context.render(identifier('entry'))
+    context.append(") AS ")
+    context.render(identifier("entry"))
   },
 })
 
-const query = select(
-  { value: entries.value },
-  from(entries),
-  where(eq(entries.key, 7))
-)
+const query = select({ value: entries.value }, from(entries), where(eq(entries.key, 7)))
 ```
 
 `identity` is the type-level source key. `reference` is the SQL qualifier used
@@ -135,20 +131,10 @@ Use `correlate()` when an inner query intentionally reads a source from its
 enclosing query. The provision changes type checking but emits no SQL:
 
 ```ts
-import {
-  correlate,
-  crossJoin,
-  eq,
-  from,
-  integer,
-  lateral,
-  select,
-  table,
-  where,
-} from 'qubu'
+import { correlate, crossJoin, eq, from, integer, lateral, select, table, where } from "qubu"
 
-const users = table('users', { id: integer() })
-const posts = table('posts', {
+const users = table("users", { id: integer() })
+const posts = table("posts", {
   id: integer(),
   authorId: integer(),
 })
@@ -157,15 +143,11 @@ const recentPost = select(
   { id: posts.id },
   from(posts),
   correlate(users),
-  where(eq(posts.authorId, users.id))
+  where(eq(posts.authorId, users.id)),
 )
 
-const recent = lateral(recentPost, 'recent_post')
-const query = select(
-  { userId: users.id, postId: recent.id },
-  from(users),
-  crossJoin(recent)
-)
+const recent = lateral(recentPost, "recent_post")
+const query = select({ userId: users.id, postId: recent.id }, from(users), crossJoin(recent))
 ```
 
 The inner query consumes `posts` locally. The enclosing `users` source satisfies

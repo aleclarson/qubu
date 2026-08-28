@@ -9,20 +9,9 @@ These examples are design targets and product-facing demonstrations. They should
 The first impression should be ordinary SQL with the ceremony removed—not a maze of generic parameters.
 
 ```ts
-import {
-  desc,
-  eq,
-  fetchFirst,
-  from,
-  integer,
-  orderBy,
-  select,
-  table,
-  text,
-  where,
-} from 'qubu'
+import { desc, eq, fetchFirst, from, integer, orderBy, select, table, text, where } from "qubu"
 
-const users = table('users', {
+const users = table("users", {
   id: integer(),
   name: text(),
 })
@@ -35,7 +24,7 @@ const query = select(
   from(users),
   where(eq(users.id, 42)),
   orderBy(desc(users.name)),
-  fetchFirst(20)
+  fetchFirst(20),
 )
 
 // inferred row: { id: number; displayName: string }
@@ -52,10 +41,10 @@ children; for example, `sequence()` retains source requirements without
 pretending that its arbitrary SQL text has a new result type:
 
 ```ts
-import { sequence, syntax } from 'qubu/core'
-import type { RequiresOf } from 'qubu'
+import { sequence, syntax } from "qubu/core"
+import type { RequiresOf } from "qubu"
 
-const reusable = sequence([users.name, syntax('COLLATE "C"')], ' ')
+const reusable = sequence([users.name, syntax('COLLATE "C"')], " ")
 // RequiresOf<typeof reusable> is the identity of `users`
 ```
 
@@ -68,14 +57,14 @@ placeholder order by `render()`.
 A column carries the identity of the source that provides it. The compiler can explain a missing `FROM`/`JOIN` source without requiring a manually authored query-state type.
 
 ```ts
-const posts = table('posts', {
+const posts = table("posts", {
   id: integer(),
   authorId: integer(),
 })
 
 select(
   { name: users.name },
-  from(posts)
+  from(posts),
   //       ~~~~~~~~~
   // Type error: users is not available in this query scope
 )
@@ -84,11 +73,7 @@ select(
 Adding the missing source fixes the query naturally:
 
 ```ts
-select(
-  { name: users.name },
-  from(users),
-  innerJoin(posts, eq(users.id, posts.authorId))
-)
+select({ name: users.name }, from(users), innerJoin(posts, eq(users.id, posts.authorId)))
 ```
 
 **The feeling:** “The compiler understands the relational mistake, not just the syntax.”
@@ -99,19 +84,11 @@ The output of one query becomes the input surface of the next query without a mo
 
 ```ts
 const activeUsers = cte(
-  'active_users',
-  select(
-    { id: users.id, name: users.name },
-    from(users),
-    where(isNotNull(users.email))
-  )
+  "active_users",
+  select({ id: users.id, name: users.name }, from(users), where(isNotNull(users.email))),
 )
 
-const report = select(
-  { displayName: activeUsers.name },
-  withCte(activeUsers),
-  from(activeUsers)
-)
+const report = select({ displayName: activeUsers.name }, withCte(activeUsers), from(activeUsers))
 
 // activeUsers.name is inferred as string
 // report.row is inferred as { displayName: string }
@@ -128,7 +105,7 @@ const query = select(
   { id: users.id, name: users.name },
   orderBy(desc(users.name)),
   where(eq(users.id, 42)),
-  from(users)
+  from(users),
 )
 ```
 
@@ -148,8 +125,8 @@ ORDER BY "users"."name" DESC
 Dialect differences stay at the rendering boundary. Query construction does not fork when the placeholder syntax changes.
 
 ```ts
-import { render } from 'qubu'
-import { postgresDialect } from 'qubu/postgres'
+import { render } from "qubu"
+import { postgresDialect } from "qubu/postgres"
 
 const standardSql = render(query)
 const postgresSql = render(query, postgresDialect())
@@ -165,15 +142,15 @@ postgresSql.text // ... WHERE ("users"."id" = $1)
 A custom clause can participate in the same composition model as built-ins.
 
 ```ts
-import { customClause } from 'qubu/core'
+import { customClause } from "qubu/core"
 
 const fetchWithTies = customClause({
-  name: 'fetch-with-ties',
+  name: "fetch-with-ties",
   order: 100,
   render(context) {
-    context.append('FETCH FIRST ')
+    context.append("FETCH FIRST ")
     context.parameter(10)
-    context.append(' ROWS WITH TIES')
+    context.append(" ROWS WITH TIES")
   },
 })
 
@@ -190,11 +167,7 @@ Values look like values in source code and remain bound parameters in the output
 
 ```ts
 const search = "O'Reilly"
-const query = select(
-  { name: users.name },
-  from(users),
-  where(like(users.name, `%${search}%`))
-)
+const query = select({ name: users.name }, from(users), where(like(users.name, `%${search}%`)))
 
 render(query)
 // text:       ... WHERE ("users"."name" LIKE ?)
@@ -224,18 +197,14 @@ That small center makes the rest of Qubu extensible. Expressions, clauses, CTEs,
 The module can declare its intent once and keep the query itself focused on SQL:
 
 ```ts
-'use qubu'
+"use qubu"
 
-const users = table('users', {
+const users = table("users", {
   id: integer(),
   name: text(),
 })
 
-const query = select(
-  { id: users.id, name: users.name },
-  from(users),
-  where(eq(users.id, 42))
-)
+const query = select({ id: users.id, name: users.name }, from(users), where(eq(users.id, 42)))
 ```
 
 The Vite plugin injects only the referenced named imports, while `qubu/globals` gives the TypeScript compiler the same ambient API.

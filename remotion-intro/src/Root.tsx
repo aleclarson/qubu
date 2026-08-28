@@ -1,5 +1,6 @@
-import { Composition } from 'remotion'
-import { QubuIntro } from './QubuIntro'
+import { Composition } from "remotion"
+
+import { QubuIntro } from "./QubuIntro"
 
 const fps = 30
 const durationInFrames = 900

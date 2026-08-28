@@ -11,8 +11,8 @@ Add the plugin to Vite and add the matching ambient declarations to TypeScript:
 
 ```ts
 // vite.config.ts
-import { defineConfig } from 'vite'
-import { qubu } from 'qubu/vite'
+import { defineConfig } from "vite"
+import { qubu } from "qubu/vite"
 
 export default defineConfig({
   plugins: [qubu()],
@@ -36,24 +36,20 @@ ambient value and type declarations for the TypeScript compiler.
 Put the directive in the module's initial directive prologue:
 
 ```ts
-'use qubu'
+"use qubu"
 
-const users = table('users', {
+const users = table("users", {
   id: integer(),
   name: text(),
 })
 
-const query = select(
-  { id: users.id, name: users.name },
-  from(users),
-  where(eq(users.id, 42))
-)
+const query = select({ id: users.id, name: users.name }, from(users), where(eq(users.id, 42)))
 ```
 
 Conceptually, the transform adds the imports that this module references:
 
 ```ts
-import { eq, from, integer, select, table, text, where } from 'qubu'
+import { eq, from, integer, select, table, text, where } from "qubu"
 ```
 
 Existing imports remain valid. The transform does not rewrite member properties,
@@ -63,10 +59,10 @@ strings, comments, or names outside the public Qubu global catalog.
 
 ```ts
 qubu({
-  module: 'qubu',
-  include: id => id.includes('/src/'),
+  module: "qubu",
+  include: (id) => id.includes("/src/"),
   exclude: /\.stories\./,
-  globals: ['select', 'from', 'where', 'eq', 'table'],
+  globals: ["select", "from", "where", "eq", "table"],
 })
 ```
 

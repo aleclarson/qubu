@@ -1,1 +1,1 @@
-export { default } from '../tsdown.config.ts'
+export { default } from "../tsdown.config.ts"

@@ -1,7 +1,6 @@
 {
   "name": "@qubu/drizzle",
   "version": "0.4.0",
-  "type": "module",
   "repository": {
     "type": "git",
     "url": "https://github.com/aleclarson/qubu",
@@ -10,25 +9,13 @@
   "files": [
     "dist"
   ],
+  "type": "module",
   "exports": {
     ".": "./src/index.ts",
     "./mysql": "./src/mysql.ts",
     "./postgres": "./src/postgres.ts",
     "./sqlite": "./src/sqlite.ts",
     "./package.json": "./package.json"
-  },
-  "scripts": {
-    "build": "tsdown",
-    "test": "vitest --run",
-    "typecheck": "vitest --typecheck --run"
-  },
-  "peerDependencies": {
-    "drizzle-orm": "^1.0.0-rc.4",
-    "qubu": "^0.4.0"
-  },
-  "devDependencies": {
-    "drizzle-orm": "1.0.0-rc.4",
-    "qubu": "workspace:*"
   },
   "publishConfig": {
     "exports": {
@@ -50,5 +37,18 @@
       },
       "./package.json": "./package.json"
     }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest --run",
+    "typecheck": "vitest --typecheck --run"
+  },
+  "devDependencies": {
+    "drizzle-orm": "1.0.0-rc.4",
+    "qubu": "workspace:*"
+  },
+  "peerDependencies": {
+    "drizzle-orm": "^1.0.0-rc.4",
+    "qubu": "^0.4.0"
   }
 }

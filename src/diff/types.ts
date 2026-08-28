@@ -1,12 +1,8 @@
 import type {
   CompleteSchemaSnapshot,
   CompleteSnapshotObjectKind,
-} from '../snapshot/complete-types.ts'
-import type {
-  SchemaSnapshot,
-  SnapshotDialect,
-  SnapshotJsonValue,
-} from '../snapshot/types.ts'
+} from "../snapshot/complete-types.ts"
+import type { SchemaSnapshot, SnapshotDialect, SnapshotJsonValue } from "../snapshot/types.ts"
 
 /** Object families understood by the snapshot diff engine. */
 export type SnapshotDiffObjectKind = CompleteSnapshotObjectKind
@@ -27,9 +23,8 @@ export interface SnapshotRenameTarget {
 /**
  * An explicit, serializable physical-rename mapping.
  *
- * `namespace` and `kind` are part of the key. A hint never crosses either
- * boundary, and a hint is only authoritative after both targets resolve to
- * exactly one object.
+ * `namespace` and `kind` are part of the key. A hint never crosses either boundary, and a hint is
+ * only authoritative after both targets resolve to exactly one object.
  */
 export interface SnapshotRenameHint {
   readonly namespace?: string
@@ -48,15 +43,15 @@ export type SnapshotDiffInput =
 /** Evidence attached to an object, match, operation, or diagnostic. */
 export interface SnapshotDiffEvidence {
   readonly kind:
-    | 'logical-id'
-    | 'physical-name'
-    | 'physical-reference'
-    | 'provenance'
-    | 'dialect'
-    | 'canonical'
-    | 'explicit-hint'
-    | 'structural'
-    | 'ambiguity'
+    | "logical-id"
+    | "physical-name"
+    | "physical-reference"
+    | "provenance"
+    | "dialect"
+    | "canonical"
+    | "explicit-hint"
+    | "structural"
+    | "ambiguity"
   readonly path?: SnapshotDiffPath
   readonly value?: SnapshotJsonValue
   readonly message?: string
@@ -96,11 +91,7 @@ export interface SnapshotDiffPropertyChange {
 }
 
 /** Categories of emitted diff operations. */
-export type SnapshotDiffOperationType =
-  | 'add'
-  | 'remove'
-  | 'property-change'
-  | 'physical-rename'
+export type SnapshotDiffOperationType = "add" | "remove" | "property-change" | "physical-rename"
 
 /** A diff operation. All variants retain both object identity and evidence. */
 export interface SnapshotDiffOperation {
@@ -123,14 +114,14 @@ export interface SnapshotDiffOperation {
   readonly physicalName?: string
   readonly changedProperties?: readonly SnapshotDiffPropertyChange[]
   readonly evidence: readonly SnapshotDiffEvidence[]
-  readonly source: 'stable-id' | 'explicit-hint'
+  readonly source: "stable-id" | "explicit-hint"
   readonly destructive: boolean
 }
 
 /** A conservative structural match suggestion. It is never an operation. */
 export interface SnapshotRenameSuggestion {
-  readonly type: 'rename-suggestion'
-  readonly operation: 'rename-suggestion'
+  readonly type: "rename-suggestion"
+  readonly operation: "rename-suggestion"
   readonly kind: SnapshotDiffObjectKind
   readonly objectKind: SnapshotDiffObjectKind
   readonly namespace?: string
@@ -142,21 +133,21 @@ export interface SnapshotRenameSuggestion {
 
 /** Diagnostic categories emitted by snapshot comparison and hint validation. */
 export type SnapshotDiffDiagnosticCode =
-  | 'ambiguous'
-  | 'destructive'
-  | 'unsupported'
-  | 'unknown'
-  | 'lossy'
-  | 'invalid-snapshot'
-  | 'invalid-rename-hint'
-  | 'rename-conflict'
-  | 'dialect-mismatch'
+  | "ambiguous"
+  | "destructive"
+  | "unsupported"
+  | "unknown"
+  | "lossy"
+  | "invalid-snapshot"
+  | "invalid-rename-hint"
+  | "rename-conflict"
+  | "dialect-mismatch"
 
 /** A path-addressed diff diagnostic with object and dialect context. */
 export interface SnapshotDiffDiagnostic {
   readonly code: SnapshotDiffDiagnosticCode
   readonly category: SnapshotDiffDiagnosticCode
-  readonly severity: 'error' | 'warning'
+  readonly severity: "error" | "warning"
   readonly message: string
   readonly path: SnapshotDiffPath
   readonly relatedPaths?: readonly SnapshotDiffPath[]

@@ -1,5 +1,5 @@
-import type { CatalogConnection } from './connection.ts'
-import { createIntrospectionDiagnostic } from './diagnostics.ts'
+import type { CatalogConnection } from "./connection.ts"
+import { createIntrospectionDiagnostic } from "./diagnostics.ts"
 import type {
   CatalogCheckConstraint,
   CatalogColumn,
@@ -29,7 +29,7 @@ import type {
   CatalogView,
   IntrospectionCatalog,
   IntrospectionOptions,
-} from './types.ts'
+} from "./types.ts"
 
 export const mysqlServerQuery = `SELECT VERSION() AS version, @@version_comment AS version_comment`
 export const mysqlTablesQuery = `
@@ -196,27 +196,29 @@ export const mysqlEventsQuery = `
 /** Read one MySQL database into the normalized catalog contract. */
 export async function readMysqlCatalog(
   connection: CatalogConnection,
-  options: IntrospectionOptions
+  options: IntrospectionOptions,
 ): Promise<IntrospectionCatalog> {
-  const diagnostics = [] as IntrospectionCatalog['diagnostics'][number][]
-  if (connection.dialect !== 'mysql') {
+  const diagnostics = [] as IntrospectionCatalog["diagnostics"][number][]
+
+  if (connection.dialect !== "mysql") {
     diagnostics.push(
       createIntrospectionDiagnostic({
-        severity: 'error',
-        code: 'dialect-mismatch',
-        message: 'MySQL catalog reading requires a MySQL CatalogConnection',
-        path: ['connection', 'dialect'],
-      })
+        severity: "error",
+        code: "dialect-mismatch",
+        message: "MySQL catalog reading requires a MySQL CatalogConnection",
+        path: ["connection", "dialect"],
+      }),
     )
     return emptyCatalog(options.namespace, diagnostics)
   }
+
   const serverRows = await query<MySqlServerRow>(
     connection,
     mysqlServerQuery,
     [],
     options,
     diagnostics,
-    'server'
+    "server",
   )
   const server = serverInfo(serverRows[0], diagnostics)
   const tableRows = await query<MySqlTableRow>(
@@ -225,173 +227,203 @@ export async function readMysqlCatalog(
     [options.namespace],
     options,
     diagnostics,
-    'tables'
+    "tables",
   )
   const tables = tableRows
-    .filter(row => text(row.table_type) === 'BASE TABLE')
-    .map(row => table(row, options.namespace))
+    .filter((row) => text(row.table_type) === "BASE TABLE")
+    .map((row) => table(row, options.namespace))
   const deferredObjects: CatalogDeferredObject[] = []
   const opaqueObjects: CatalogOpaqueObject[] = []
   const views: CatalogView[] = []
   const comments: CatalogComment[] = []
-  const tableByName = new Map(tables.map(item => [item.physicalName, item]))
+  const tableByName = new Map(tables.map((item) => [item.physicalName, item]))
   const viewRows = await query<MySqlViewRow>(
     connection,
     mysqlViewsQuery,
     [options.namespace],
     options,
     diagnostics,
-    'views'
+    "views",
   )
-  const viewRowsByName = new Map(
-    viewRows.map(row => [text(row.table_name) ?? '', row])
-  )
+  const viewRowsByName = new Map(viewRows.map((row) => [text(row.table_name) ?? "", row]))
+
   for (const row of tableRows.filter(
-    currentRow => text(currentRow.table_type) !== 'BASE TABLE'
+    (currentRow) => text(currentRow.table_type) !== "BASE TABLE",
   )) {
     const kind = text(row.table_type)?.toUpperCase()
-    if (kind === 'VIEW' || kind === 'SYSTEM VIEW') {
+
+    if (kind === "VIEW" || kind === "SYSTEM VIEW") {
       const mapped = viewObject(
         row,
-        viewRowsByName.get(text(row.table_name) ?? ''),
+        viewRowsByName.get(text(row.table_name) ?? ""),
         options.namespace,
-        diagnostics
+        diagnostics,
       )
-      if (mapped.kind === 'deferred-object') deferredObjects.push(mapped)
-      else views.push(mapped)
+
+      if (mapped.kind === "deferred-object") {
+        deferredObjects.push(mapped)
+      } else {
+        views.push(mapped)
+      }
     } else {
       const mapped = deferred(row, options.namespace)
+
       deferredObjects.push(mapped)
       diagnostics.push(
         createIntrospectionDiagnostic({
-          severity: 'warning',
-          code: 'unmodeled-object',
-          message: `MySQL object ${mapped.physicalName} (${kind ?? 'unknown'}) is retained as a deferred record`,
-          path: ['deferredObjects', mapped.physicalName],
+          severity: "warning",
+          code: "unmodeled-object",
+          message: `MySQL object ${mapped.physicalName} (${kind ?? "unknown"}) is retained as a deferred record`,
+          path: ["deferredObjects", mapped.physicalName],
           physicalReference: mapped.reference,
-          remediation:
-            'Inspect the deferred record before using it as migration input.',
-        })
+          remediation: "Inspect the deferred record before using it as migration input.",
+        }),
       )
     }
   }
+
   const relationByName = new Map<string, CatalogObjectReference>()
-  for (const currentTable of tables)
+
+  for (const currentTable of tables) {
     relationByName.set(currentTable.physicalName, {
-      kind: 'table',
+      kind: "table",
       id: currentTable.id,
     })
-  for (const view of views)
-    relationByName.set(view.physicalName, { kind: 'view', id: view.id })
+  }
+
+  for (const view of views) {
+    relationByName.set(view.physicalName, {
+      kind: "view",
+      id: view.id,
+    })
+  }
+
   const columnRows = await query<MySqlColumnRow>(
     connection,
     mysqlColumnsQuery,
     [options.namespace],
     options,
     diagnostics,
-    'columns'
+    "columns",
   )
+
   for (const currentTable of tables) {
-    const rows = columnRows.filter(
-      row => text(row.table_name) === currentTable.physicalName
-    )
-    ;(currentTable as Mutable<CatalogTable>).columns = rows.map(row =>
-      column(row, currentTable, options.namespace)
+    const rows = columnRows.filter((row) => text(row.table_name) === currentTable.physicalName)
+
+    ;(currentTable as Mutable<CatalogTable>).columns = rows.map((row) =>
+      column(row, currentTable, options.namespace),
     )
   }
+
   for (const view of views) {
-    const rows = columnRows.filter(
-      row => text(row.table_name) === view.physicalName
-    )
-    ;(view as Mutable<CatalogView>).columns = rows.map(row =>
-      column(row, view, options.namespace)
+    const rows = columnRows.filter((row) => text(row.table_name) === view.physicalName)
+
+    ;(view as Mutable<CatalogView>).columns = rows.map((row) =>
+      column(row, view, options.namespace),
     )
   }
+
   const keyRows = await query<MySqlKeyRow>(
     connection,
     mysqlKeyUsageQuery,
     [options.namespace],
     options,
     diagnostics,
-    'constraints'
+    "constraints",
   )
+
   for (const currentTable of tables) {
-    const rows = keyRows.filter(
-      row => text(row.table_name) === currentTable.physicalName
-    )
+    const rows = keyRows.filter((row) => text(row.table_name) === currentTable.physicalName)
+
     ;(currentTable as Mutable<CatalogTable>).constraints = constraints(
       currentTable,
       rows,
       tableByName,
       options.namespace,
-      diagnostics
+      diagnostics,
     )
   }
+
   const checkRows = await query<MySqlCheckRow>(
     connection,
     mysqlChecksQuery,
     [options.namespace],
     options,
     diagnostics,
-    'checks'
+    "checks",
   )
   const constraintsByTable = new Map<string, CatalogConstraint[]>()
+
   for (const currentTable of tables) {
     constraintsByTable.set(currentTable.physicalName, [
       ...(currentTable.constraints as readonly CatalogConstraint[]),
     ])
   }
+
   for (const row of checkRows) {
-    const currentTable = tableByName.get(text(row.table_name) ?? '')
-    if (!currentTable) continue
-    const physicalName =
-      text(row.constraint_name) ?? `check_${currentTable.physicalName}`
+    const currentTable = tableByName.get(text(row.table_name) ?? "")
+
+    if (!currentTable) {
+      continue
+    }
+
+    const physicalName = text(row.constraint_name) ?? `check_${currentTable.physicalName}`
     const check: CatalogCheckConstraint = {
-      kind: 'check',
+      kind: "check",
       id: stableId(physicalName),
-      identitySource: 'physical-name',
+      identitySource: "physical-name",
       physicalName,
       expression: sql(
-        text(row.check_clause) ?? 'true',
+        text(row.check_clause) ?? "true",
         options.namespace,
         currentTable,
-        physicalName
+        physicalName,
       ),
       dialect:
-        text(row.enforced)?.toUpperCase() === 'NO'
-          ? { dialect: 'mysql', version: 1, data: { enforced: false } }
+        text(row.enforced)?.toUpperCase() === "NO"
+          ? {
+              dialect: "mysql",
+              version: 1,
+              data: { enforced: false },
+            }
           : undefined,
     }
+
     constraintsByTable.get(currentTable.physicalName)?.push(check)
   }
+
   for (const currentTable of tables) {
     ;(currentTable as Mutable<CatalogTable>).constraints =
       constraintsByTable.get(currentTable.physicalName) ?? []
   }
+
   const statRows = await query<MySqlStatisticsRow>(
     connection,
     mysqlStatisticsQuery,
     [options.namespace],
     options,
     diagnostics,
-    'statistics'
+    "statistics",
   )
   const grouped = new Map<string, MySqlStatisticsRow[]>()
+
   for (const row of statRows) {
-    const key = `${text(row.table_name) ?? ''}\u0000${text(row.index_name) ?? ''}`
+    const key = `${text(row.table_name) ?? ""}\u0000${text(row.index_name) ?? ""}`
     const group = grouped.get(key) ?? []
+
     group.push(row)
     grouped.set(key, group)
   }
+
   for (const rows of grouped.values()) {
-    const currentTable = tableByName.get(text(rows[0].table_name) ?? '')
-    if (!currentTable) continue
-    const mappedIndex = mapIndex(
-      rows,
-      currentTable,
-      options.namespace,
-      diagnostics
-    )
+    const currentTable = tableByName.get(text(rows[0].table_name) ?? "")
+
+    if (!currentTable) {
+      continue
+    }
+
+    const mappedIndex = mapIndex(rows, currentTable, options.namespace, diagnostics)
+
     if (mappedIndex) {
       ;(currentTable as Mutable<CatalogTable>).indexes = [
         ...(currentTable.indexes as readonly CatalogIndex[]),
@@ -399,13 +431,14 @@ export async function readMysqlCatalog(
       ]
     }
   }
+
   const routineRows = await query<MySqlRoutineRow>(
     connection,
     mysqlRoutinesQuery,
     [options.namespace],
     options,
     diagnostics,
-    'routines'
+    "routines",
   )
   const routineParameterRows = await query<MySqlRoutineParameterRow>(
     connection,
@@ -413,24 +446,31 @@ export async function readMysqlCatalog(
     [options.namespace],
     options,
     diagnostics,
-    'routine-parameters'
+    "routine-parameters",
   )
   const routineParameters = new Map<string, MySqlRoutineParameterRow[]>()
+
   for (const row of routineParameterRows) {
-    const name = text(row.routine_name) ?? 'unknown'
+    const name = text(row.routine_name) ?? "unknown"
     const group = routineParameters.get(name) ?? []
+
     group.push(row)
     routineParameters.set(name, group)
   }
-  const routines = routineRows.map(row => {
+
+  const routines = routineRows.map((row) => {
     const routine = routineObject(
       row,
-      routineParameters.get(text(row.routine_name) ?? '') ?? [],
-      options.namespace
+      routineParameters.get(text(row.routine_name) ?? "") ?? [],
+      options.namespace,
     )
-    if (routine.comment) comments.push(routine.comment)
+
+    if (routine.comment) {
+      comments.push(routine.comment)
+    }
+
     relationByName.set(routine.physicalName, {
-      kind: 'routine',
+      kind: "routine",
       id: routine.id,
     })
     return routine
@@ -442,21 +482,18 @@ export async function readMysqlCatalog(
     [options.namespace],
     options,
     diagnostics,
-    'triggers'
+    "triggers",
   )
   const triggers: CatalogTrigger[] = []
-  for (const rows of groupRows(
-    triggerRows,
-    row => text(row.trigger_name) ?? 'unknown'
-  )) {
-    const mapped = triggerObject(
-      rows,
-      relationByName,
-      options.namespace,
-      diagnostics
-    )
-    if (mapped.kind === 'trigger') triggers.push(mapped)
-    else deferredObjects.push(mapped)
+
+  for (const rows of groupRows(triggerRows, (row) => text(row.trigger_name) ?? "unknown")) {
+    const mapped = triggerObject(rows, relationByName, options.namespace, diagnostics)
+
+    if (mapped.kind === "trigger") {
+      triggers.push(mapped)
+    } else {
+      deferredObjects.push(mapped)
+    }
   }
 
   const partitionRows = await query<MySqlPartitionRow>(
@@ -465,20 +502,21 @@ export async function readMysqlCatalog(
     [options.namespace],
     options,
     diagnostics,
-    'partitions'
+    "partitions",
   )
   const partitions: CatalogPartition[] = []
+
   for (const row of partitionRows) {
-    const mapped = partitionObject(
-      row,
-      tableByName,
-      options.namespace,
-      diagnostics
-    )
-    if (mapped.kind === 'partition') {
+    const mapped = partitionObject(row, tableByName, options.namespace, diagnostics)
+
+    if (mapped.kind === "partition") {
       partitions.push(mapped)
-      if (mapped.comment) comments.push(mapped.comment)
-    } else deferredObjects.push(mapped)
+      if (mapped.comment) {
+        comments.push(mapped.comment)
+      }
+    } else {
+      deferredObjects.push(mapped)
+    }
   }
 
   const collationRows = await query<MySqlCollationRow>(
@@ -487,20 +525,21 @@ export async function readMysqlCatalog(
     [options.namespace, options.namespace],
     options,
     diagnostics,
-    'collations'
+    "collations",
   )
   const usedCollations = new Set(
     [
-      ...tableRows.map(row => text(row.table_collation)),
-      ...columnRows.map(row => text(row.collation_name)),
-    ].filter((value): value is string => value !== undefined)
+      ...tableRows.map((row) => text(row.table_collation)),
+      ...columnRows.map((row) => text(row.collation_name)),
+    ].filter((value): value is string => value !== undefined),
   )
   const collations = collationRows
-    .filter(row => {
+    .filter((row) => {
       const name = text(row.collation_name)
+
       return name !== undefined && usedCollations.has(name)
     })
-    .map(row => collationObject(row, options.namespace))
+    .map((row) => collationObject(row, options.namespace))
 
   const eventRows = await query<MySqlEventRow>(
     connection,
@@ -508,98 +547,124 @@ export async function readMysqlCatalog(
     [options.namespace],
     options,
     diagnostics,
-    'events'
+    "events",
   )
+
   for (const row of eventRows) {
     const event = opaqueEvent(row, options.namespace)
+
     opaqueObjects.push(event)
     diagnostics.push(
       createIntrospectionDiagnostic({
-        severity: 'warning',
-        code: 'unmodeled-object',
+        severity: "warning",
+        code: "unmodeled-object",
         message: `MySQL event ${event.physicalName} is retained as opaque data`,
-        path: ['opaqueObjects', event.physicalName],
+        path: ["opaqueObjects", event.physicalName],
         physicalReference: event.reference,
-        remediation:
-          'Inspect the event definition before treating it as migration input.',
-      })
+        remediation: "Inspect the event definition before treating it as migration input.",
+      }),
     )
     const eventComment = text(row.event_comment)
-    if (eventComment !== undefined && eventComment !== '')
+
+    if (eventComment !== undefined && eventComment !== "") {
       comments.push(
         objectComment(
-          { kind: 'opaque-object', id: event.id },
+          {
+            kind: "opaque-object",
+            id: event.id,
+          },
           eventComment,
           event.reference,
-          options.namespace
-        )
+          options.namespace,
+        ),
       )
+    }
   }
 
   for (const currentTable of tables) {
-    const source = tableRows.find(
-      row => text(row.table_name) === currentTable.physicalName
-    )
+    const source = tableRows.find((row) => text(row.table_name) === currentTable.physicalName)
     const tableComment = text(source?.table_comment)
-    if (tableComment !== undefined && tableComment !== '')
+
+    if (tableComment !== undefined && tableComment !== "") {
       comments.push(
         objectComment(
-          { kind: 'table', id: currentTable.id },
+          {
+            kind: "table",
+            id: currentTable.id,
+          },
           tableComment,
           currentTable.reference,
-          options.namespace
-        )
+          options.namespace,
+        ),
       )
+    }
+
     for (const currentColumn of currentTable.columns) {
       const columnSource = columnRows.find(
-        row =>
+        (row) =>
           text(row.table_name) === currentTable.physicalName &&
-          text(row.column_name) === currentColumn.physicalName
+          text(row.column_name) === currentColumn.physicalName,
       )
       const columnComment = text(columnSource?.column_comment)
-      if (columnComment !== undefined && columnComment !== '')
+
+      if (columnComment !== undefined && columnComment !== "") {
         comments.push(
           objectComment(
-            { kind: 'column', id: currentColumn.id },
+            {
+              kind: "column",
+              id: currentColumn.id,
+            },
             columnComment,
             currentColumn.reference,
-            options.namespace
-          )
+            options.namespace,
+          ),
         )
+      }
     }
   }
+
   for (const view of views) {
-    const source = tableRows.find(
-      row => text(row.table_name) === view.physicalName
-    )
+    const source = tableRows.find((row) => text(row.table_name) === view.physicalName)
     const viewComment = text(source?.table_comment)
-    if (viewComment !== undefined && viewComment !== '')
+
+    if (viewComment !== undefined && viewComment !== "") {
       comments.push(
         objectComment(
-          { kind: view.kind, id: view.id },
+          {
+            kind: view.kind,
+            id: view.id,
+          },
           viewComment,
           view.reference,
-          options.namespace
-        )
+          options.namespace,
+        ),
       )
+    }
+
     for (const currentColumn of view.columns) {
       const columnSource = columnRows.find(
-        row =>
+        (row) =>
           text(row.table_name) === view.physicalName &&
-          text(row.column_name) === currentColumn.physicalName
+          text(row.column_name) === currentColumn.physicalName,
       )
       const columnComment = text(columnSource?.column_comment)
-      if (columnComment !== undefined && columnComment !== '')
+
+      if (columnComment !== undefined && columnComment !== "") {
         comments.push(
           objectComment(
-            { kind: 'column', id: currentColumn.id },
+            {
+              kind: "column",
+              id: currentColumn.id,
+            },
             columnComment,
             currentColumn.reference,
-            options.namespace
-          )
+            options.namespace,
+          ),
         )
+      }
     }
   }
+
   const capabilities = {
     generatedColumns: server.capabilities.generatedColumns,
     identityMetadata: server.capabilities.identityMetadata,
@@ -631,17 +696,17 @@ export async function readMysqlCatalog(
     tableEngines: true,
     generatedColumnModes: true,
     selectedNamespace: options.namespace,
-    productFamily: server.product === 'mariadb' ? 'mariadb' : 'mysql8',
+    productFamily: server.product === "mariadb" ? "mariadb" : "mysql8",
   }
   const namespace = {
-    kind: 'mysql-database' as const,
+    kind: "mysql-database" as const,
     name: options.namespace,
     reference: reference(
-      'namespace',
+      "namespace",
       options.namespace,
       options.namespace,
-      'INFORMATION_SCHEMA.SCHEMATA',
-      'SCHEMA_NAME'
+      "INFORMATION_SCHEMA.SCHEMATA",
+      "SCHEMA_NAME",
     ),
     dialect: mysqlExtension({
       selectedNamespace: options.namespace,
@@ -658,9 +723,13 @@ export async function readMysqlCatalog(
       extensions: false,
     }),
   }
+
   return Object.freeze({
-    dialect: 'mysql' as const,
-    server: { ...server, capabilities: serverCapabilities },
+    dialect: "mysql" as const,
+    server: {
+      ...server,
+      capabilities: serverCapabilities,
+    },
     namespace,
     tables: Object.freeze(tables),
     views: Object.freeze(views),
@@ -828,24 +897,26 @@ async function query<Row extends CatalogQueryRow>(
   textValue: string,
   parameters: readonly unknown[],
   options: IntrospectionOptions,
-  diagnostics: IntrospectionCatalog['diagnostics'][number][],
-  operation: string
+  diagnostics: IntrospectionCatalog["diagnostics"][number][],
+  operation: string,
 ): Promise<readonly Row[]> {
   try {
     return await connection.query<Row>(
-      { text: textValue, parameters },
-      { signal: options.signal }
+      {
+        text: textValue,
+        parameters,
+      },
+      { signal: options.signal },
     )
   } catch {
     diagnostics.push(
       createIntrospectionDiagnostic({
-        severity: 'error',
-        code: 'query-failed',
+        severity: "error",
+        code: "query-failed",
         message: `MySQL catalog query failed while reading ${operation}`,
         path: [operation],
-        remediation:
-          'Check Information Schema permissions and the selected database.',
-      })
+        remediation: "Check Information Schema permissions and the selected database.",
+      }),
     )
     return []
   }
@@ -853,84 +924,90 @@ async function query<Row extends CatalogQueryRow>(
 
 function serverInfo(
   row: MySqlServerRow | undefined,
-  diagnostics: IntrospectionCatalog['diagnostics'][number][]
+  diagnostics: IntrospectionCatalog["diagnostics"][number][],
 ): CatalogServerInfo {
-  const rawVersion = text(row?.version) ?? 'unknown'
-  const comment = text(row?.version_comment) ?? ''
+  const rawVersion = text(row?.version) ?? "unknown"
+  const comment = text(row?.version_comment) ?? ""
   const mariadb = /mariadb/i.test(rawVersion) || /mariadb/i.test(comment)
   const parts = rawVersion.match(/(\d+)\.(\d+)(?:\.(\d+))?/)
   const major = parts ? Number(parts[1]) : undefined
   const minor = parts ? Number(parts[2]) : undefined
+
   if (mariadb) {
     diagnostics.push(
       createIntrospectionDiagnostic({
-        severity: 'error',
-        code: 'unsupported-product',
-        message:
-          'MariaDB requires a dedicated catalog adapter and is not treated as MySQL',
-        path: ['server', 'product'],
-      })
+        severity: "error",
+        code: "unsupported-product",
+        message: "MariaDB requires a dedicated catalog adapter and is not treated as MySQL",
+        path: ["server", "product"],
+      }),
     )
   }
+
   const supported =
     !mariadb &&
     major === 8 &&
     ((minor ?? 0) > 0 || ((minor ?? 0) === 0 && Number(parts?.[3] ?? 0) >= 16))
+
   if (!supported && !mariadb) {
     diagnostics.push(
       createIntrospectionDiagnostic({
-        severity: 'error',
-        code: 'unsupported-server',
-        message: 'MySQL introspection requires MySQL 8.0 or newer',
-        path: ['server', 'version'],
-      })
+        severity: "error",
+        code: "unsupported-server",
+        message: "MySQL introspection requires MySQL 8.0 or newer",
+        path: ["server", "version"],
+      }),
     )
   }
+
   return {
-    product: mariadb ? 'mariadb' : 'mysql',
+    product: mariadb ? "mariadb" : "mysql",
     rawVersion,
     parsedVersion:
       major === undefined
         ? undefined
-        : { major, minor, patch: parts?.[3] ? Number(parts[3]) : undefined },
+        : {
+            major,
+            minor,
+            patch: parts?.[3] ? Number(parts[3]) : undefined,
+          },
     capabilities: {
       generatedColumns: supported,
       identityMetadata: supported,
       checkConstraints: supported,
-      checkConstraintEnforcement: supported ? 'enforced' : 'unknown',
+      checkConstraintEnforcement: supported ? "enforced" : "unknown",
       expressionDecompilation: false,
       indexExpressions: supported,
       indexPredicates: false,
       indexIncludedColumns: false,
       namespaces: true,
-      visibility: 'complete',
+      visibility: "complete",
       mysql8: supported,
     },
   }
 }
 
 function table(row: MySqlTableRow, namespace: string): CatalogTable {
-  const physicalName = text(row.table_name) ?? 'unnamed_table'
+  const physicalName = text(row.table_name) ?? "unnamed_table"
+
   return {
-    kind: 'table',
+    kind: "table",
     id: stableId(physicalName),
-    identitySource: 'physical-name',
+    identitySource: "physical-name",
     physicalName,
     reference: reference(
-      'table',
+      "table",
       physicalName,
       namespace,
-      'INFORMATION_SCHEMA.TABLES',
-      'TABLE_NAME'
+      "INFORMATION_SCHEMA.TABLES",
+      "TABLE_NAME",
     ),
     columns: [],
     constraints: [],
     indexes: [],
     dialect: mysqlExtension({
       ...(text(row.engine) === undefined ? {} : { engine: text(row.engine)! }),
-      ...(text(row.table_collation) === undefined
-        ? {}
-        : { collation: text(row.table_collation)! }),
+      ...(text(row.table_collation) === undefined ? {} : { collation: text(row.table_collation)! }),
       ...(text(row.create_options) === undefined
         ? {}
         : { createOptions: text(row.create_options)! }),
@@ -938,32 +1015,28 @@ function table(row: MySqlTableRow, namespace: string): CatalogTable {
   }
 }
 
-function deferred(
-  row: MySqlTableRow,
-  namespace: string
-): CatalogDeferredObject {
-  const physicalName = text(row.table_name) ?? 'unnamed_object'
+function deferred(row: MySqlTableRow, namespace: string): CatalogDeferredObject {
+  const physicalName = text(row.table_name) ?? "unnamed_object"
+
   return {
-    kind: 'deferred-object',
-    id: stableId(`deferred:${text(row.table_type) ?? 'other'}:${physicalName}`),
-    identitySource: 'physical-name',
+    kind: "deferred-object",
+    id: stableId(`deferred:${text(row.table_type) ?? "other"}:${physicalName}`),
+    identitySource: "physical-name",
     objectKind:
-      text(row.table_type)?.toUpperCase() === 'VIEW' ||
-      text(row.table_type)?.toUpperCase() === 'SYSTEM VIEW'
-        ? 'view'
-        : 'other',
+      text(row.table_type)?.toUpperCase() === "VIEW" ||
+      text(row.table_type)?.toUpperCase() === "SYSTEM VIEW"
+        ? "view"
+        : "other",
     physicalName,
     reference: reference(
-      'deferred-object',
+      "deferred-object",
       physicalName,
       namespace,
-      'INFORMATION_SCHEMA.TABLES',
-      'TABLE_NAME'
+      "INFORMATION_SCHEMA.TABLES",
+      "TABLE_NAME",
     ),
     dialect: mysqlExtension({
-      ...(text(row.table_type) === undefined
-        ? {}
-        : { tableType: text(row.table_type)! }),
+      ...(text(row.table_type) === undefined ? {} : { tableType: text(row.table_type)! }),
       ...(text(row.engine) === undefined ? {} : { engine: text(row.engine)! }),
     }),
   }
@@ -972,31 +1045,30 @@ function deferred(
 function column(
   row: MySqlColumnRow,
   table: CatalogTable | CatalogView,
-  namespace: string
+  namespace: string,
 ): CatalogColumn {
-  const physicalName = text(row.column_name) ?? 'unnamed_column'
-  const extra = text(row.extra) ?? ''
+  const physicalName = text(row.column_name) ?? "unnamed_column"
+  const extra = text(row.extra) ?? ""
   const generationExpression = text(row.generation_expression)
   const generated =
-    generationExpression !== undefined &&
-    (/GENERATED/i.test(extra) || generationExpression !== '')
+    generationExpression !== undefined && (/GENERATED/i.test(extra) || generationExpression !== "")
       ? {
-          kind: 'generated' as const,
+          kind: "generated" as const,
           mode: /VIRTUAL/i.test(extra)
-            ? ('virtual' as const)
+            ? ("virtual" as const)
             : /STORED/i.test(extra)
-              ? ('stored' as const)
-              : ('unknown' as const),
+              ? ("stored" as const)
+              : ("unknown" as const),
           expression: sql(generationExpression, namespace, table, physicalName),
         }
       : undefined
   const identity: CatalogIdentity | undefined = /auto_increment/i.test(extra)
     ? {
-        kind: 'identity',
-        generation: 'by-default',
+        kind: "identity",
+        generation: "by-default",
         options: {},
         dialect: {
-          dialect: 'mysql',
+          dialect: "mysql",
           version: 1,
           data: { autoIncrement: true },
         },
@@ -1005,20 +1077,24 @@ function column(
   const onUpdateMatch = extra.match(/on update\s+(.+)$/i)
   const defaultText = text(row.column_default)
   const defaultValue = literal(defaultText, text(row.data_type))
+
   return {
-    kind: 'column',
+    kind: "column",
     id: stableId(physicalName),
-    identitySource: 'physical-name',
+    identitySource: "physical-name",
     physicalName,
     ordinalPosition: number(row.ordinal_position) ?? 0,
-    nullable: text(row.is_nullable)?.toUpperCase() !== 'NO',
-    storage: { nativeType: text(row.column_type) ?? 'unknown' },
+    nullable: text(row.is_nullable)?.toUpperCase() !== "NO",
+    storage: { nativeType: text(row.column_type) ?? "unknown" },
     default:
       defaultValue !== undefined
-        ? { kind: 'literal', value: defaultValue }
+        ? {
+            kind: "literal",
+            value: defaultValue,
+          }
         : defaultText !== undefined
           ? {
-              kind: 'expression',
+              kind: "expression",
               expression: sql(defaultText, namespace, table, physicalName),
             }
           : undefined,
@@ -1028,23 +1104,19 @@ function column(
       ? sql(onUpdateMatch[1], namespace, table, physicalName)
       : undefined,
     dialect: mysqlExtension({
-      ...(text(row.data_type) === undefined
-        ? {}
-        : { dataType: text(row.data_type)! }),
+      ...(text(row.data_type) === undefined ? {} : { dataType: text(row.data_type)! }),
       ...(text(row.character_set_name) === undefined
         ? {}
         : { characterSet: text(row.character_set_name)! }),
-      ...(text(row.collation_name) === undefined
-        ? {}
-        : { collation: text(row.collation_name)! }),
-      ...(extra === '' ? {} : { extra }),
+      ...(text(row.collation_name) === undefined ? {} : { collation: text(row.collation_name)! }),
+      ...(extra === "" ? {} : { extra }),
     }),
     reference: reference(
-      'column',
+      "column",
       physicalName,
       namespace,
-      'INFORMATION_SCHEMA.COLUMNS',
-      'COLUMN_NAME'
+      "INFORMATION_SCHEMA.COLUMNS",
+      "COLUMN_NAME",
     ),
   }
 }
@@ -1054,86 +1126,100 @@ function constraints(
   rows: readonly MySqlKeyRow[],
   tableByName: ReadonlyMap<string, CatalogTable>,
   namespace: string,
-  diagnostics: IntrospectionCatalog['diagnostics'][number][]
+  diagnostics: IntrospectionCatalog["diagnostics"][number][],
 ): CatalogConstraint[] {
   const grouped = new Map<string, MySqlKeyRow[]>()
+
   for (const row of rows) {
-    const key = text(row.constraint_name) ?? 'unknown'
+    const key = text(row.constraint_name) ?? "unknown"
     const group = grouped.get(key) ?? []
+
     group.push(row)
     grouped.set(key, group)
   }
+
   const result: CatalogConstraint[] = []
+
   for (const [physicalName, group] of grouped) {
     const first = group[0]
     const columns = group
       .sort(
         (left, right) =>
-          (number(left.ordinal_position) ?? 0) -
-          (number(right.ordinal_position) ?? 0)
+          (number(left.ordinal_position) ?? 0) - (number(right.ordinal_position) ?? 0),
       )
-      .map(row => text(row.column_name) ?? 'unknown')
+      .map((row) => text(row.column_name) ?? "unknown")
     const common = {
       id: stableId(physicalName),
-      identitySource: 'physical-name' as const,
+      identitySource: "physical-name" as const,
       physicalName,
       reference: reference(
-        'constraint',
+        "constraint",
         physicalName,
         namespace,
-        'INFORMATION_SCHEMA.TABLE_CONSTRAINTS',
-        'CONSTRAINT_NAME'
+        "INFORMATION_SCHEMA.TABLE_CONSTRAINTS",
+        "CONSTRAINT_NAME",
       ),
     }
     const type = text(first.constraint_type)
-    if (type === 'PRIMARY KEY') {
+
+    if (type === "PRIMARY KEY") {
       result.push({
-        kind: 'primary-key',
+        kind: "primary-key",
         ...common,
         columns,
       } satisfies CatalogPrimaryKeyConstraint)
       continue
     }
-    if (type === 'UNIQUE') {
+
+    if (type === "UNIQUE") {
       result.push({
-        kind: 'unique',
+        kind: "unique",
         ...common,
         columns,
-        nulls: 'distinct',
+        nulls: "distinct",
       } satisfies CatalogUniqueConstraint)
       continue
     }
-    if (type !== 'FOREIGN KEY') continue
-    const targetTableName = text(first.referenced_table_name) ?? 'unknown'
+
+    if (type !== "FOREIGN KEY") {
+      continue
+    }
+
+    const targetTableName = text(first.referenced_table_name) ?? "unknown"
+
     if (!tableByName.has(targetTableName)) {
       diagnostics.push(
         createIntrospectionDiagnostic({
-          severity: 'error',
-          code: 'unresolved-reference',
+          severity: "error",
+          code: "unresolved-reference",
           message: `MySQL foreign key target ${targetTableName} was not found`,
-          path: [table.id, 'constraints', physicalName],
-        })
+          path: [table.id, "constraints", physicalName],
+        }),
       )
     }
+
     result.push({
-      kind: 'foreign-key',
+      kind: "foreign-key",
       ...common,
       columns,
       target: {
         table: targetTableName,
-        columns: group.map(
-          row => text(row.referenced_column_name) ?? 'unknown'
-        ),
+        columns: group.map((row) => text(row.referenced_column_name) ?? "unknown"),
       },
       onUpdate: action(first.update_rule),
       onDelete: action(first.delete_rule),
       match: match(first.match_option),
       dialect:
-        text(first.enforced)?.toUpperCase() === 'NO'
-          ? { dialect: 'mysql', version: 1, data: { enforced: false } }
+        text(first.enforced)?.toUpperCase() === "NO"
+          ? {
+              dialect: "mysql",
+              version: 1,
+              data: { enforced: false },
+            }
           : undefined,
     } satisfies CatalogForeignKeyConstraint)
   }
+
   return result
 }
 
@@ -1141,86 +1227,90 @@ function mapIndex(
   rows: readonly MySqlStatisticsRow[],
   table: CatalogTable,
   namespace: string,
-  diagnostics: IntrospectionCatalog['diagnostics'][number][]
+  diagnostics: IntrospectionCatalog["diagnostics"][number][],
 ): CatalogIndex | undefined {
   const first = rows[0]
   const physicalName = text(first.index_name)
-  if (!physicalName) return undefined
+
+  if (!physicalName) {
+    return undefined
+  }
+
   const terms: CatalogIndexTerm[] = []
+
   for (const row of rows) {
     const expression = text(row.expression)
     const columnName = text(row.column_name)
+
     if (!expression && !columnName) {
       diagnostics.push(
         createIntrospectionDiagnostic({
-          severity: 'error',
-          code: 'unsupported-feature',
+          severity: "error",
+          code: "unsupported-feature",
           message: `MySQL index ${physicalName} has an unrepresented term`,
-          path: [table.id, 'indexes', physicalName],
-        })
+          path: [table.id, "indexes", physicalName],
+        }),
       )
       continue
     }
+
     terms.push(
       expression
         ? {
-            kind: 'expression',
+            kind: "expression",
             expression: sql(expression, namespace, table, physicalName),
             position: number(row.seq_in_index) ?? 0,
           }
         : {
-            kind: 'column',
+            kind: "column",
             column: columnName as string,
             position: number(row.seq_in_index) ?? 0,
-            direction: text(row.collation) === 'D' ? 'DESC' : 'ASC',
+            direction: text(row.collation) === "D" ? "DESC" : "ASC",
             prefixLength:
               row.sub_part === null || row.sub_part === undefined
                 ? undefined
                 : {
-                    kind: 'literal',
-                    value: number(row.sub_part) ?? text(row.sub_part) ?? '',
+                    kind: "literal",
+                    value: number(row.sub_part) ?? text(row.sub_part) ?? "",
                   },
-          }
+          },
     )
     if (row.sub_part !== null && row.sub_part !== undefined) {
       diagnostics.push(
         createIntrospectionDiagnostic({
-          severity: 'warning',
-          code: 'lossy-mapping',
+          severity: "warning",
+          code: "lossy-mapping",
           message: `MySQL index prefix length for ${physicalName} is retained only in catalog rows`,
-          path: [table.id, 'indexes', physicalName],
-        })
+          path: [table.id, "indexes", physicalName],
+        }),
       )
     }
   }
+
   return {
-    kind: 'index',
+    kind: "index",
     id: stableId(physicalName),
-    identitySource: 'physical-name',
+    identitySource: "physical-name",
     physicalName,
     unique: number(first.non_unique) === 0,
     terms,
     method: text(first.index_type),
     dialect: mysqlExtension({
-      ...(text(first.index_type) === undefined
-        ? {}
-        : { indexType: text(first.index_type)! }),
+      ...(text(first.index_type) === undefined ? {} : { indexType: text(first.index_type)! }),
       ...(text(first.is_visible) === undefined
         ? {}
-        : { visible: text(first.is_visible)!.toUpperCase() !== 'NO' }),
-      ...(text(first.comment) === undefined
-        ? {}
-        : { comment: text(first.comment)! }),
+        : { visible: text(first.is_visible)!.toUpperCase() !== "NO" }),
+      ...(text(first.comment) === undefined ? {} : { comment: text(first.comment)! }),
       ...(text(first.index_comment) === undefined
         ? {}
         : { indexComment: text(first.index_comment)! }),
     }),
     reference: reference(
-      'index',
+      "index",
       physicalName,
       namespace,
-      'INFORMATION_SCHEMA.STATISTICS',
-      'INDEX_NAME'
+      "INFORMATION_SCHEMA.STATISTICS",
+      "INDEX_NAME",
     ),
   }
 }
@@ -1229,64 +1319,68 @@ function viewObject(
   tableRow: MySqlTableRow,
   viewRow: MySqlViewRow | undefined,
   namespace: string,
-  diagnostics: IntrospectionCatalog['diagnostics'][number][]
+  diagnostics: IntrospectionCatalog["diagnostics"][number][],
 ): CatalogView | CatalogDeferredObject {
-  const physicalName = text(tableRow.table_name) ?? 'unnamed_view'
+  const physicalName = text(tableRow.table_name) ?? "unnamed_view"
   const physicalReference = reference(
-    'view',
+    "view",
     physicalName,
     namespace,
-    'INFORMATION_SCHEMA.VIEWS',
-    'TABLE_NAME'
+    "INFORMATION_SCHEMA.VIEWS",
+    "TABLE_NAME",
   )
   const definition = text(viewRow?.view_definition)
-  if (definition === undefined || definition.trim() === '') {
+
+  if (definition === undefined || definition.trim() === "") {
     diagnostics.push(
       createIntrospectionDiagnostic({
-        severity: 'error',
-        code: 'expression-parse-failed',
+        severity: "error",
+        code: "expression-parse-failed",
         message: `MySQL view ${physicalName} has no recoverable definition`,
-        path: ['views', physicalName, 'definition'],
+        path: ["views", physicalName, "definition"],
         physicalReference,
         remediation:
-          'Grant the metadata privilege needed to read INFORMATION_SCHEMA.VIEWS.VIEW_DEFINITION.',
-      })
+          "Grant the metadata privilege needed to read INFORMATION_SCHEMA.VIEWS.VIEW_DEFINITION.",
+      }),
     )
     return {
-      kind: 'deferred-object',
+      kind: "deferred-object",
       id: stableId(`view:${physicalName}`),
-      identitySource: 'physical-name',
-      objectKind: 'view',
+      identitySource: "physical-name",
+      objectKind: "view",
       physicalName,
       reference: physicalReference,
       dialect: mysqlExtension({
-        reason: 'definition-unavailable',
-        ...(text(viewRow?.definer) === undefined
-          ? {}
-          : { definer: text(viewRow?.definer)! }),
+        reason: "definition-unavailable",
+        ...(text(viewRow?.definer) === undefined ? {} : { definer: text(viewRow?.definer)! }),
       }),
     }
   }
+
   const checkOption = normalizeCheckOption(viewRow?.check_option)
   const securityType = text(viewRow?.security_type)?.toUpperCase()
   const view: CatalogView = {
-    kind: 'view',
+    kind: "view",
     id: stableId(physicalName),
-    identitySource: 'physical-name',
+    identitySource: "physical-name",
     physicalName,
     columns: [],
     definition: sql(
       definition,
       namespace,
-      { kind: 'view', physicalName, reference: physicalReference },
-      physicalName
+      {
+        kind: "view",
+        physicalName,
+        reference: physicalReference,
+      },
+      physicalName,
     ),
     ...(checkOption === undefined ? {} : { checkOption }),
-    ...(securityType === 'INVOKER' ? { securityInvoker: true } : {}),
+    ...(securityType === "INVOKER" ? { securityInvoker: true } : {}),
     reference: physicalReference,
     provenance: {
-      kind: 'catalog',
-      dialect: 'mysql',
+      kind: "catalog",
+      dialect: "mysql",
       reference: physicalReference,
     },
     dialect: mysqlExtension({
@@ -1294,58 +1388,53 @@ function viewObject(
         ? {}
         : { isUpdatable: text(viewRow?.is_updatable)! }),
       ...(securityType === undefined ? {} : { securityType }),
-      ...(text(viewRow?.definer) === undefined
-        ? {}
-        : { definer: text(viewRow?.definer)! }),
+      ...(text(viewRow?.definer) === undefined ? {} : { definer: text(viewRow?.definer)! }),
     }),
   }
+
   return view
 }
 
 function routineObject(
   row: MySqlRoutineRow,
   parameterRows: readonly MySqlRoutineParameterRow[],
-  namespace: string
+  namespace: string,
 ): CatalogRoutine {
-  const physicalName = text(row.routine_name) ?? 'unnamed_routine'
+  const physicalName = text(row.routine_name) ?? "unnamed_routine"
   const physicalReference = reference(
-    'routine',
+    "routine",
     physicalName,
     namespace,
-    'INFORMATION_SCHEMA.ROUTINES',
-    'ROUTINE_NAME'
+    "INFORMATION_SCHEMA.ROUTINES",
+    "ROUTINE_NAME",
   )
   const parameters = parameterRows
-    .filter(row => (number(row.ordinal_position) ?? 0) > 0)
+    .filter((row) => (number(row.ordinal_position) ?? 0) > 0)
     .sort(
-      (left, right) =>
-        (number(left.ordinal_position) ?? 0) -
-        (number(right.ordinal_position) ?? 0)
+      (left, right) => (number(left.ordinal_position) ?? 0) - (number(right.ordinal_position) ?? 0),
     )
     .map(routineParameter)
   const definition = text(row.routine_definition)
   const returnType = text(row.data_type)
   const routine: CatalogRoutine = {
-    kind: 'routine',
+    kind: "routine",
     id: stableId(physicalName),
-    identitySource: 'physical-name',
+    identitySource: "physical-name",
     physicalName,
     routineKind:
-      text(row.routine_type)?.toUpperCase() === 'FUNCTION'
-        ? 'function'
-        : text(row.routine_type)?.toUpperCase() === 'PROCEDURE'
-          ? 'procedure'
-          : 'unknown',
+      text(row.routine_type)?.toUpperCase() === "FUNCTION"
+        ? "function"
+        : text(row.routine_type)?.toUpperCase() === "PROCEDURE"
+          ? "procedure"
+          : "unknown",
     parameters,
-    ...(returnType === undefined || returnType.toUpperCase() === 'VOID'
+    ...(returnType === undefined || returnType.toUpperCase() === "VOID"
       ? {}
       : { returnType: storage(row.data_type, row.dtd_identifier) }),
-    ...(text(row.external_language) === undefined &&
-    text(row.routine_body) === undefined
+    ...(text(row.external_language) === undefined && text(row.routine_body) === undefined
       ? {}
       : {
-          language:
-            text(row.external_language) ?? text(row.routine_body) ?? 'unknown',
+          language: text(row.external_language) ?? text(row.routine_body) ?? "unknown",
         }),
     ...(definition === undefined
       ? {}
@@ -1353,51 +1442,59 @@ function routineObject(
           body: sql(
             definition,
             namespace,
-            { kind: 'routine', physicalName, reference: physicalReference },
-            physicalName
+            {
+              kind: "routine",
+              physicalName,
+              reference: physicalReference,
+            },
+            physicalName,
           ),
         }),
-    volatility: 'unknown',
+    volatility: "unknown",
     ...(text(row.security_type) === undefined
       ? {}
       : { security: routineSecurity(row.security_type) }),
     reference: physicalReference,
     provenance: {
-      kind: 'catalog',
-      dialect: 'mysql',
+      kind: "catalog",
+      dialect: "mysql",
       reference: physicalReference,
     },
     dialect: mysqlExtension({
       ...(text(row.is_deterministic) === undefined
         ? {}
         : {
-            deterministic: text(row.is_deterministic)!.toUpperCase() === 'YES',
+            deterministic: text(row.is_deterministic)!.toUpperCase() === "YES",
           }),
       ...(text(row.sql_data_access) === undefined
         ? {}
         : { sqlDataAccess: text(row.sql_data_access)! }),
-      ...(text(row.sql_mode) === undefined
-        ? {}
-        : { sqlMode: text(row.sql_mode)! }),
+      ...(text(row.sql_mode) === undefined ? {} : { sqlMode: text(row.sql_mode)! }),
     }),
   }
   const commentText = text(row.routine_comment)
-  if (commentText === undefined || commentText === '') return routine
+
+  if (commentText === undefined || commentText === "") {
+    return routine
+  }
+
   return {
     ...routine,
     comment: objectComment(
-      { kind: 'routine', id: routine.id },
+      {
+        kind: "routine",
+        id: routine.id,
+      },
       commentText,
       physicalReference,
-      namespace
+      namespace,
     ),
   }
 }
 
-function routineParameter(
-  row: MySqlRoutineParameterRow
-): CatalogRoutineParameter {
+function routineParameter(row: MySqlRoutineParameterRow): CatalogRoutineParameter {
   const parameterName = text(row.parameter_name)
+
   return {
     ...(parameterName === undefined ? {} : { name: parameterName }),
     ...(routineParameterMode(row.parameter_mode) === undefined
@@ -1412,46 +1509,51 @@ function triggerObject(
   rows: readonly MySqlTriggerRow[],
   relations: ReadonlyMap<string, CatalogObjectReference>,
   namespace: string,
-  diagnostics: IntrospectionCatalog['diagnostics'][number][]
+  diagnostics: IntrospectionCatalog["diagnostics"][number][],
 ): CatalogTrigger | CatalogDeferredObject {
   const first = rows[0]
-  const physicalName = text(first.trigger_name) ?? 'unnamed_trigger'
+  const physicalName = text(first.trigger_name) ?? "unnamed_trigger"
   const physicalReference = reference(
-    'trigger',
+    "trigger",
     physicalName,
     namespace,
-    'INFORMATION_SCHEMA.TRIGGERS',
-    'TRIGGER_NAME'
+    "INFORMATION_SCHEMA.TRIGGERS",
+    "TRIGGER_NAME",
   )
   const tableName = text(first.table_name)
   const target = tableName === undefined ? undefined : relations.get(tableName)
   const body = text(first.action_statement)
-  if (target === undefined || body === undefined || body.trim() === '') {
-    if (target === undefined)
+
+  if (target === undefined || body === undefined || body.trim() === "") {
+    if (target === undefined) {
       diagnostics.push(
         createIntrospectionDiagnostic({
-          severity: 'error',
-          code: 'unresolved-reference',
-          message: `MySQL trigger ${physicalName} target ${tableName ?? 'unknown'} was not found`,
-          path: ['triggers', physicalName, 'table'],
+          severity: "error",
+          code: "unresolved-reference",
+          message: `MySQL trigger ${physicalName} target ${tableName ?? "unknown"} was not found`,
+          path: ["triggers", physicalName, "table"],
           physicalReference,
-        })
+        }),
       )
-    if (body === undefined || body.trim() === '')
+    }
+
+    if (body === undefined || body.trim() === "") {
       diagnostics.push(
         createIntrospectionDiagnostic({
-          severity: 'error',
-          code: 'expression-parse-failed',
+          severity: "error",
+          code: "expression-parse-failed",
           message: `MySQL trigger ${physicalName} has no recoverable body`,
-          path: ['triggers', physicalName, 'body'],
+          path: ["triggers", physicalName, "body"],
           physicalReference,
-        })
+        }),
       )
+    }
+
     return {
-      kind: 'deferred-object',
+      kind: "deferred-object",
       id: stableId(`trigger:${physicalName}`),
-      identitySource: 'physical-name',
-      objectKind: 'trigger',
+      identitySource: "physical-name",
+      objectKind: "trigger",
       physicalName,
       reference: physicalReference,
       dialect: mysqlExtension({
@@ -1460,21 +1562,20 @@ function triggerObject(
       }),
     }
   }
+
   const timing = triggerTiming(first.action_timing)
   const events = [
     ...new Set(
       rows
-        .map(row => triggerEvent(row.event_manipulation))
-        .filter(
-          (value): value is CatalogTrigger['events'][number] =>
-            value !== undefined
-        )
+        .map((row) => triggerEvent(row.event_manipulation))
+        .filter((value): value is CatalogTrigger["events"][number] => value !== undefined),
     ),
-  ] as CatalogTrigger['events']
+  ] as CatalogTrigger["events"]
+
   return {
-    kind: 'trigger',
+    kind: "trigger",
     id: stableId(physicalName),
-    identitySource: 'physical-name',
+    identitySource: "physical-name",
     physicalName,
     table: target,
     timing,
@@ -1486,29 +1587,33 @@ function triggerObject(
           condition: sql(
             text(first.action_condition)!,
             namespace,
-            { kind: 'trigger', physicalName, reference: physicalReference },
-            physicalName
+            {
+              kind: "trigger",
+              physicalName,
+              reference: physicalReference,
+            },
+            physicalName,
           ),
         }),
     body: sql(
       body,
       namespace,
-      { kind: 'trigger', physicalName, reference: physicalReference },
-      physicalName
+      {
+        kind: "trigger",
+        physicalName,
+        reference: physicalReference,
+      },
+      physicalName,
     ),
     reference: physicalReference,
     provenance: {
-      kind: 'catalog',
-      dialect: 'mysql',
+      kind: "catalog",
+      dialect: "mysql",
       reference: physicalReference,
     },
     dialect: mysqlExtension({
-      ...(text(first.definer) === undefined
-        ? {}
-        : { definer: text(first.definer)! }),
-      ...(text(first.sql_mode) === undefined
-        ? {}
-        : { sqlMode: text(first.sql_mode)! }),
+      ...(text(first.definer) === undefined ? {} : { definer: text(first.definer)! }),
+      ...(text(first.sql_mode) === undefined ? {} : { sqlMode: text(first.sql_mode)! }),
       ...(number(first.action_order) === undefined
         ? {}
         : { actionOrder: number(first.action_order)! }),
@@ -1520,9 +1625,9 @@ function partitionObject(
   row: MySqlPartitionRow,
   tables: ReadonlyMap<string, CatalogTable>,
   namespace: string,
-  diagnostics: IntrospectionCatalog['diagnostics'][number][]
+  diagnostics: IntrospectionCatalog["diagnostics"][number][],
 ): CatalogPartition | CatalogDeferredObject {
-  const tableName = text(row.table_name) ?? 'unknown'
+  const tableName = text(row.table_name) ?? "unknown"
   const partitionName = text(row.partition_name)
   const subpartitionName = text(row.subpartition_name)
   const physicalName =
@@ -1532,61 +1637,66 @@ function partitionObject(
         ? partitionName
         : `${partitionName}/${subpartitionName}`
   const physicalReference = reference(
-    'partition',
+    "partition",
     physicalName,
     namespace,
-    'INFORMATION_SCHEMA.PARTITIONS',
-    'PARTITION_NAME'
+    "INFORMATION_SCHEMA.PARTITIONS",
+    "PARTITION_NAME",
   )
   const parent = tables.get(tableName)
+
   if (parent === undefined) {
     diagnostics.push(
       createIntrospectionDiagnostic({
-        severity: 'error',
-        code: 'unresolved-reference',
+        severity: "error",
+        code: "unresolved-reference",
         message: `MySQL partition ${physicalName} parent table ${tableName} was not found`,
-        path: ['partitions', physicalName, 'parent'],
+        path: ["partitions", physicalName, "parent"],
         physicalReference,
-      })
+      }),
     )
     return {
-      kind: 'deferred-object',
+      kind: "deferred-object",
       id: stableId(`partition:${tableName}:${physicalName}`),
-      identitySource: 'physical-name',
-      objectKind: 'partition',
+      identitySource: "physical-name",
+      objectKind: "partition",
       physicalName,
       reference: physicalReference,
       dialect: mysqlExtension({ tableName }),
     }
   }
-  const method =
-    text(row.subpartition_method) ?? text(row.partition_method) ?? 'UNKNOWN'
+
+  const method = text(row.subpartition_method) ?? text(row.partition_method) ?? "UNKNOWN"
   const strategy = partitionStrategy(method)
-  if (strategy === 'unknown')
+
+  if (strategy === "unknown") {
     diagnostics.push(
       createIntrospectionDiagnostic({
-        severity: 'warning',
-        code: 'unsupported-feature',
+        severity: "warning",
+        code: "unsupported-feature",
         message: `MySQL partition method ${method} is retained with an unknown normalized strategy`,
-        path: ['partitions', physicalName, 'strategy'],
+        path: ["partitions", physicalName, "strategy"],
         physicalReference,
-      })
+      }),
     )
+  }
+
   const boundText =
     text(row.partition_description) ??
     text(row.subpartition_expression) ??
     text(row.partition_expression)
   const expression = text(row.partition_expression)
   const partition: CatalogPartition = {
-    kind: 'partition',
+    kind: "partition",
     id: stableId(`partition:${tableName}:${physicalName}`),
-    identitySource: 'physical-name',
+    identitySource: "physical-name",
     physicalName,
-    parent: { kind: 'table', id: parent.id },
+    parent: {
+      kind: "table",
+      id: parent.id,
+    },
     strategy,
-    ...(expression === undefined
-      ? {}
-      : { keyColumns: partitionKeyColumns(expression) }),
+    ...(expression === undefined ? {} : { keyColumns: partitionKeyColumns(expression) }),
     ...(boundText === undefined
       ? {}
       : {
@@ -1609,94 +1719,86 @@ function partitionObject(
     }),
   }
   const commentText = text(row.partition_comment)
-  if (commentText === undefined || commentText === '') return partition
+
+  if (commentText === undefined || commentText === "") {
+    return partition
+  }
+
   return {
     ...partition,
     comment: objectComment(
-      { kind: 'partition', id: partition.id },
+      {
+        kind: "partition",
+        id: partition.id,
+      },
       commentText,
       physicalReference,
-      namespace
+      namespace,
     ),
   }
 }
 
 function collationObject(
   row: MySqlCollationRow,
-  namespace: string
-): import('./types.ts').CatalogCollation {
-  const physicalName = text(row.collation_name) ?? 'unknown_collation'
+  namespace: string,
+): import("./types.ts").CatalogCollation {
+  const physicalName = text(row.collation_name) ?? "unknown_collation"
+
   return {
-    kind: 'collation',
+    kind: "collation",
     id: stableId(physicalName),
-    identitySource: 'physical-name',
+    identitySource: "physical-name",
     physicalName,
     reference: reference(
-      'collation',
+      "collation",
       physicalName,
       namespace,
-      'INFORMATION_SCHEMA.COLLATIONS',
-      'COLLATION_NAME'
+      "INFORMATION_SCHEMA.COLLATIONS",
+      "COLLATION_NAME",
     ),
     dialect: mysqlExtension({
       ...(text(row.character_set_name) === undefined
         ? {}
         : { characterSet: text(row.character_set_name)! }),
-      ...(number(row.collation_id) === undefined
-        ? {}
-        : { id: number(row.collation_id)! }),
-      ...(text(row.is_default) === undefined
-        ? {}
-        : { isDefault: text(row.is_default)! === 'Yes' }),
+      ...(number(row.collation_id) === undefined ? {} : { id: number(row.collation_id)! }),
+      ...(text(row.is_default) === undefined ? {} : { isDefault: text(row.is_default)! === "Yes" }),
       ...(text(row.is_compiled) === undefined
         ? {}
-        : { isCompiled: text(row.is_compiled)! === 'Yes' }),
-      ...(number(row.sort_length) === undefined
-        ? {}
-        : { sortLength: number(row.sort_length)! }),
-      ...(text(row.pad_attribute) === undefined
-        ? {}
-        : { padAttribute: text(row.pad_attribute)! }),
+        : { isCompiled: text(row.is_compiled)! === "Yes" }),
+      ...(number(row.sort_length) === undefined ? {} : { sortLength: number(row.sort_length)! }),
+      ...(text(row.pad_attribute) === undefined ? {} : { padAttribute: text(row.pad_attribute)! }),
     }),
   }
 }
 
-function opaqueEvent(
-  row: MySqlEventRow,
-  namespace: string
-): CatalogOpaqueObject {
-  const physicalName = text(row.event_name) ?? 'unnamed_event'
+function opaqueEvent(row: MySqlEventRow, namespace: string): CatalogOpaqueObject {
+  const physicalName = text(row.event_name) ?? "unnamed_event"
   const physicalReference = reference(
-    'opaque-object',
+    "opaque-object",
     physicalName,
     namespace,
-    'INFORMATION_SCHEMA.EVENTS',
-    'EVENT_NAME'
+    "INFORMATION_SCHEMA.EVENTS",
+    "EVENT_NAME",
   )
   const definition = text(row.event_definition) ?? text(row.event_body)
+
   return {
-    kind: 'opaque-object',
+    kind: "opaque-object",
     id: stableId(`event:${physicalName}`),
-    identitySource: 'physical-name',
-    objectKind: 'event',
+    identitySource: "physical-name",
+    objectKind: "event",
     physicalName,
     data: {
-      ...(text(row.event_type) === undefined
-        ? {}
-        : { eventType: text(row.event_type)! }),
+      ...(text(row.event_type) === undefined ? {} : { eventType: text(row.event_type)! }),
       ...(text(row.status) === undefined ? {} : { status: text(row.status)! }),
-      ...(text(row.execute_at) === undefined
-        ? {}
-        : { executeAt: text(row.execute_at)! }),
+      ...(text(row.execute_at) === undefined ? {} : { executeAt: text(row.execute_at)! }),
       ...(text(row.interval_value) === undefined
         ? {}
         : { intervalValue: text(row.interval_value)! }),
       ...(text(row.interval_field) === undefined
         ? {}
         : { intervalField: text(row.interval_field)! }),
-      ...(text(row.definer) === undefined
-        ? {}
-        : { definer: text(row.definer)! }),
+      ...(text(row.definer) === undefined ? {} : { definer: text(row.definer)! }),
     } satisfies CatalogData & Record<string, CatalogData>,
     ...(definition === undefined
       ? {}
@@ -1705,20 +1807,20 @@ function opaqueEvent(
             definition,
             namespace,
             {
-              kind: 'opaque-object',
+              kind: "opaque-object",
               physicalName,
               reference: physicalReference,
             },
-            physicalName
+            physicalName,
           ),
         }),
     reference: physicalReference,
     provenance: {
-      kind: 'catalog',
-      dialect: 'mysql',
+      kind: "catalog",
+      dialect: "mysql",
       reference: physicalReference,
     },
-    dialect: mysqlExtension({ objectKind: 'event' }),
+    dialect: mysqlExtension({ objectKind: "event" }),
   }
 }
 
@@ -1726,130 +1828,123 @@ function objectComment(
   object: CatalogObjectReference,
   comment: string,
   physicalReference: CatalogReference | undefined,
-  namespace: string
+  namespace: string,
 ): CatalogComment {
   return {
-    kind: 'comment',
+    kind: "comment",
     id: stableId(`${object.kind}_${object.id}_comment`),
     object,
     text: comment,
     reference: physicalReference,
     provenance: {
-      kind: 'catalog',
-      dialect: 'mysql',
+      kind: "catalog",
+      dialect: "mysql",
       reference: physicalReference,
-      path: ['namespace', namespace],
+      path: ["namespace", namespace],
     },
   }
 }
 
-function groupRows<Row>(
-  rows: readonly Row[],
-  keyOf: (row: Row) => string
-): Row[][] {
+function groupRows<Row>(rows: readonly Row[], keyOf: (row: Row) => string): Row[][] {
   const groups = new Map<string, Row[]>()
+
   for (const row of rows) {
     const key = keyOf(row)
     const group = groups.get(key) ?? []
+
     group.push(row)
     groups.set(key, group)
   }
+
   return [...groups.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([, group]) => group)
 }
 
-function mysqlExtension(
-  data: Record<string, CatalogData>
-): CatalogDialectExtension {
-  return { dialect: 'mysql', version: 1, data }
+function mysqlExtension(data: Record<string, CatalogData>): CatalogDialectExtension {
+  return {
+    dialect: "mysql",
+    version: 1,
+    data,
+  }
 }
 
 function storage(dataType: unknown, declaration: unknown): CatalogStorageType {
-  return { nativeType: text(declaration) ?? text(dataType) ?? 'unknown' }
+  return { nativeType: text(declaration) ?? text(dataType) ?? "unknown" }
 }
 
-function normalizeCheckOption(
-  value: unknown
-): CatalogView['checkOption'] | undefined {
+function normalizeCheckOption(value: unknown): CatalogView["checkOption"] | undefined {
   const normalized = text(value)?.toLowerCase()
-  return normalized === 'none' || normalized === undefined
+
+  return normalized === "none" || normalized === undefined
     ? normalized === undefined
       ? undefined
-      : 'none'
-    : normalized === 'local'
-      ? 'local'
-      : normalized === 'cascaded'
-        ? 'cascaded'
+      : "none"
+    : normalized === "local"
+      ? "local"
+      : normalized === "cascaded"
+        ? "cascaded"
         : undefined
 }
 
-function routineSecurity(value: unknown): CatalogRoutine['security'] {
-  return text(value)?.toLowerCase() === 'invoker'
-    ? 'invoker'
-    : text(value)?.toLowerCase() === 'definer'
-      ? 'definer'
-      : 'unknown'
+function routineSecurity(value: unknown): CatalogRoutine["security"] {
+  return text(value)?.toLowerCase() === "invoker"
+    ? "invoker"
+    : text(value)?.toLowerCase() === "definer"
+      ? "definer"
+      : "unknown"
 }
 
-function routineParameterMode(
-  value: unknown
-): CatalogRoutineParameter['mode'] | undefined {
+function routineParameterMode(value: unknown): CatalogRoutineParameter["mode"] | undefined {
   const normalized = text(value)?.toLowerCase()
-  return normalized === 'in'
-    ? 'in'
-    : normalized === 'out'
-      ? 'out'
-      : normalized === 'inout'
-        ? 'inout'
+
+  return normalized === "in"
+    ? "in"
+    : normalized === "out"
+      ? "out"
+      : normalized === "inout"
+        ? "inout"
         : undefined
 }
 
-function triggerTiming(value: unknown): CatalogTrigger['timing'] {
+function triggerTiming(value: unknown): CatalogTrigger["timing"] {
   const normalized = text(value)?.toLowerCase()
-  return normalized === 'before'
-    ? 'before'
-    : normalized === 'after'
-      ? 'after'
-      : 'unknown'
+
+  return normalized === "before" ? "before" : normalized === "after" ? "after" : "unknown"
 }
 
-function triggerEvent(
-  value: unknown
-): CatalogTrigger['events'][number] | undefined {
+function triggerEvent(value: unknown): CatalogTrigger["events"][number] | undefined {
   const normalized = text(value)?.toLowerCase()
-  return normalized === 'insert' ||
-    normalized === 'update' ||
-    normalized === 'delete'
+
+  return normalized === "insert" || normalized === "update" || normalized === "delete"
     ? normalized
     : undefined
 }
 
-function triggerOrientation(value: unknown): CatalogTrigger['orientation'] {
+function triggerOrientation(value: unknown): CatalogTrigger["orientation"] {
   const normalized = text(value)?.toLowerCase()
-  return normalized === 'row'
-    ? 'row'
-    : normalized === 'statement'
-      ? 'statement'
-      : undefined
+
+  return normalized === "row" ? "row" : normalized === "statement" ? "statement" : undefined
 }
 
-function partitionStrategy(value: string): CatalogPartition['strategy'] {
+function partitionStrategy(value: string): CatalogPartition["strategy"] {
   const normalized = value.toLowerCase()
-  return normalized === 'range'
-    ? 'range'
-    : normalized === 'list'
-      ? 'list'
-      : normalized === 'hash'
-        ? 'hash'
-        : 'unknown'
+
+  return normalized === "range"
+    ? "range"
+    : normalized === "list"
+      ? "list"
+      : normalized === "hash"
+        ? "hash"
+        : "unknown"
 }
 
 function partitionKeyColumns(expression: string): readonly string[] {
   const values = expression
-    .split(',')
-    .map(value => value.trim())
-    .filter(value => /^[A-Za-z_][A-Za-z0-9_$]*$/.test(value))
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value) => /^[A-Za-z_][A-Za-z0-9_$]*$/.test(value))
+
   return values
 }
 
@@ -1857,88 +1952,114 @@ function sql(
   textValue: string,
   namespace: string,
   table: {
-    readonly kind: CatalogReference['kind']
+    readonly kind: CatalogReference["kind"]
     readonly physicalName: string
     readonly reference?: CatalogReference
   },
-  name: string
+  name: string,
 ) {
   return {
-    kind: 'sql' as const,
-    dialect: 'mysql' as const,
+    kind: "sql" as const,
+    dialect: "mysql" as const,
     text: textValue,
     provenance: {
-      kind: 'catalog' as const,
-      dialect: 'mysql' as const,
+      kind: "catalog" as const,
+      dialect: "mysql" as const,
       reference:
         table.reference ??
         reference(
           table.kind,
           name,
           namespace,
-          'INFORMATION_SCHEMA',
-          'TABLE_NAME',
-          table.physicalName
+          "INFORMATION_SCHEMA",
+          "TABLE_NAME",
+          table.physicalName,
         ),
     },
   }
 }
 
 function reference(
-  kind: CatalogReference['kind'],
+  kind: CatalogReference["kind"],
   name: string,
   namespace: string,
   relation: string,
   key: string,
-  value: string | number = name
+  value: string | number = name,
 ): CatalogReference {
-  return { kind, name, namespace, catalog: { relation, key, value } }
+  return {
+    kind,
+    name,
+    namespace,
+    catalog: {
+      relation,
+      key,
+      value,
+    },
+  }
 }
 
-function literal(
-  value: string | undefined,
-  dataType?: string
-): CatalogScalar | undefined {
-  if (value === undefined) return undefined
-  if (value.toUpperCase() === 'NULL') return null
-  if (value.toUpperCase() === 'TRUE') return true
-  if (value.toUpperCase() === 'FALSE') return false
-  if (/^-?(?:\d+\.?\d*|\.\d+)$/.test(value)) return Number(value)
-  if (/^'(?:''|[^'])*'$/.test(value))
+function literal(value: string | undefined, dataType?: string): CatalogScalar | undefined {
+  if (value === undefined) {
+    return undefined
+  }
+
+  if (value.toUpperCase() === "NULL") {
+    return null
+  }
+
+  if (value.toUpperCase() === "TRUE") {
+    return true
+  }
+
+  if (value.toUpperCase() === "FALSE") {
+    return false
+  }
+
+  if (/^-?(?:\d+\.?\d*|\.\d+)$/.test(value)) {
+    return Number(value)
+  }
+
+  if (/^'(?:''|[^'])*'$/.test(value)) {
     return value.slice(1, -1).replace(/''/g, "'")
+  }
+
   if (
-    value === '' ||
-    /^(?:char|varchar|text|tinytext|mediumtext|longtext|enum|set)$/i.test(
-      dataType ?? ''
-    )
-  )
+    value === "" ||
+    /^(?:char|varchar|text|tinytext|mediumtext|longtext|enum|set)$/i.test(dataType ?? "")
+  ) {
     return value
+  }
+
   return undefined
 }
 
 function emptyCatalog(
   namespace: string,
-  diagnostics: IntrospectionCatalog['diagnostics']
+  diagnostics: IntrospectionCatalog["diagnostics"],
 ): IntrospectionCatalog {
   return {
-    dialect: 'mysql',
+    dialect: "mysql",
     server: {
-      product: 'mysql',
-      rawVersion: 'unknown',
+      product: "mysql",
+      rawVersion: "unknown",
       capabilities: {
         generatedColumns: false,
         identityMetadata: false,
         checkConstraints: false,
-        checkConstraintEnforcement: 'unknown',
+        checkConstraintEnforcement: "unknown",
         expressionDecompilation: false,
         indexExpressions: false,
         indexPredicates: false,
         indexIncludedColumns: false,
         namespaces: true,
-        visibility: 'unknown',
+        visibility: "unknown",
       },
     },
-    namespace: { kind: 'mysql-database', name: namespace },
+    namespace: {
+      kind: "mysql-database",
+      name: namespace,
+    },
     tables: [],
     deferredObjects: [],
     diagnostics,
@@ -1946,12 +2067,17 @@ function emptyCatalog(
 }
 
 function stableId(value: string): string {
-  if (value && !/[.\\\u0000-\u001f\u007f]/.test(value)) return value
+  if (value && !/[.\\\u0000-\u001f\u007f]/.test(value)) {
+    return value
+  }
+
   let hash = 2166136261
+
   for (const character of value) {
     hash ^= character.charCodeAt(0)
     hash = Math.imul(hash, 16777619)
   }
+
   return `introspected_${(hash >>> 0).toString(16)}`
 }
 
@@ -1960,27 +2086,33 @@ function text(value: unknown): string | undefined {
 }
 
 function number(value: unknown): number | undefined {
-  if (typeof value === 'number' && Number.isFinite(value)) return value
-  if (typeof value === 'string' && value.trim() !== '') {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === "string" && value.trim() !== "") {
     const result = Number(value)
+
     return Number.isFinite(result) ? result : undefined
   }
+
   return undefined
 }
 
-function action(value: unknown): CatalogForeignKeyConstraint['onUpdate'] {
+function action(value: unknown): CatalogForeignKeyConstraint["onUpdate"] {
   const normalized = text(value)?.toLowerCase()
-  return normalized === 'cascade'
-    ? 'cascade'
-    : normalized === 'restrict'
-      ? 'restrict'
-      : normalized === 'set null'
-        ? 'set-null'
-        : normalized === 'set default'
-          ? 'set-default'
-          : 'no-action'
+
+  return normalized === "cascade"
+    ? "cascade"
+    : normalized === "restrict"
+      ? "restrict"
+      : normalized === "set null"
+        ? "set-null"
+        : normalized === "set default"
+          ? "set-default"
+          : "no-action"
 }
 
-function match(value: unknown): CatalogForeignKeyConstraint['match'] {
-  return text(value)?.toLowerCase() === 'full' ? 'full' : 'simple'
+function match(value: unknown): CatalogForeignKeyConstraint["match"] {
+  return text(value)?.toLowerCase() === "full" ? "full" : "simple"
 }

@@ -9,11 +9,11 @@ substitution as a parameter. This includes strings, numbers, objects, arrays,
 and `null`:
 
 ```ts
-import { integer, render, sql, table, text } from 'qubu'
+import { integer, render, sql, table, text } from "qubu"
 
-const users = table('users', { name: text() })
-const posts = table('posts', { id: integer() })
-const search = 'Ada%'
+const users = table("users", { name: text() })
+const posts = table("posts", { id: integer() })
+const search = "Ada%"
 const predicate = sql`${users.name} LIKE ${search}`
 
 render(predicate)
@@ -33,16 +33,12 @@ statement. Parameters keep one placeholder sequence across nested templates
 and queries:
 
 ```ts
-import { eq, from, render, select, sql, where } from 'qubu'
-import { postgresDialect } from 'qubu/postgres'
+import { eq, from, render, select, sql, where } from "qubu"
+import { postgresDialect } from "qubu/postgres"
 
-const selectedNames = select(
-  { displayName: users.name },
-  from(users),
-  where(eq(users.name, 'Ada'))
-)
+const selectedNames = select({ displayName: users.name }, from(users), where(eq(users.name, "Ada")))
 
-const exists = sql`EXISTS (${selectedNames}) AND ${users.name} <> ${'root'}`
+const exists = sql`EXISTS (${selectedNames}) AND ${users.name} <> ${"root"}`
 
 render(exists, postgresDialect())
 // {
@@ -62,8 +58,8 @@ An unannotated template has application output `unknown` and SQL domain
 named projection:
 
 ```ts
-import { from, select, sql } from 'qubu'
-import type { SqlText } from 'qubu'
+import { from, select, sql } from "qubu"
+import type { SqlText } from "qubu"
 
 const normalizedName = sql.type<string, SqlText>()`LOWER(${users.name})`
 
@@ -98,11 +94,11 @@ Do not use a dotted string as an identifier. Pass each part to
 syntax that cannot use a fixed template segment:
 
 ```ts
-import { sql } from 'qubu'
-import { identifier, unsafeExpression } from 'qubu/core'
+import { sql } from "qubu"
+import { identifier, unsafeExpression } from "qubu/core"
 
-const sortColumn = 'display_name'
-const direction = 'DESC' as const
+const sortColumn = "display_name"
+const direction = "DESC" as const
 
 const ordering = sql`ORDER BY ${identifier(sortColumn)} ${unsafeExpression(direction)}`
 ```
@@ -120,8 +116,8 @@ those facts from unchecked template text.
 Use a built-in expression as the substitution when its semantics matter:
 
 ```ts
-import { count, sql } from 'qubu'
-import type { SqlInteger } from 'qubu'
+import { count, sql } from "qubu"
+import type { SqlInteger } from "qubu"
 
 const postCount = sql.type<number, SqlInteger>()`${count(posts.id)}`
 ```
@@ -140,13 +136,13 @@ Declare a capability when the template text itself uses dialect-specific
 syntax:
 
 ```ts
-import { sql } from 'qubu'
-import { withDialectCapability } from 'qubu/core'
-import type { SqlBoolean } from 'qubu'
+import { sql } from "qubu"
+import { withDialectCapability } from "qubu/core"
+import type { SqlBoolean } from "qubu"
 
 const postgresMatch = withDialectCapability(
   sql.type<boolean, SqlBoolean>()`${users.name} ILIKE ${search}`,
-  'ilike'
+  "ilike",
 )
 ```
 

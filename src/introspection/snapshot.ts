@@ -1,5 +1,5 @@
-import { assertSchemaSnapshot } from '../snapshot/decode.ts'
-import { sqliteStorageAffinity } from '../snapshot/sqlite.ts'
+import { assertSchemaSnapshot } from "../snapshot/decode.ts"
+import { sqliteStorageAffinity } from "../snapshot/sqlite.ts"
 import type {
   SchemaSnapshot,
   SnapshotCheckConstraint,
@@ -20,15 +20,9 @@ import type {
   SnapshotTable,
   SnapshotUniqueConstraint,
   SnapshotJsonValue,
-} from '../snapshot/types.ts'
-import {
-  createIntrospectionDiagnostic,
-  type IntrospectionDiagnostic,
-} from './diagnostics.ts'
-import {
-  introspectedPhysicalIdentityPolicy,
-  type CatalogIdentityEntityKind,
-} from './identity.ts'
+} from "../snapshot/types.ts"
+import { createIntrospectionDiagnostic, type IntrospectionDiagnostic } from "./diagnostics.ts"
+import { introspectedPhysicalIdentityPolicy, type CatalogIdentityEntityKind } from "./identity.ts"
 import type {
   CatalogColumn,
   CatalogConstraint,
@@ -49,22 +43,25 @@ import type {
   IntrospectionOptions,
   IntrospectionResult,
   IntrospectionSuccess,
-} from './types.ts'
+} from "./types.ts"
 
 /** Construct and validate a canonical Snapshot v1 from a normalized catalog. */
 export function mapCatalogToSnapshot(
   catalog: IntrospectionCatalog,
-  options: IntrospectionOptions
+  options: IntrospectionOptions,
 ): IntrospectionResult {
-  const mode = options.mode ?? 'strict'
+  const mode = options.mode ?? "strict"
   const diagnostics = [...catalog.diagnostics]
   const tables = catalog.tables
-    .map(table => mapTable(catalog, table, options, mode, diagnostics))
+    .map((table) => mapTable(catalog, table, options, mode, diagnostics))
     .sort(compareById)
   const snapshot: SchemaSnapshot = {
-    format: 'qubu-schema',
+    format: "qubu-schema",
     version: 1,
-    dialect: { name: catalog.dialect, version: 1 },
+    dialect: {
+      name: catalog.dialect,
+      version: 1,
+    },
     namingPolicy: {
       name: introspectedPhysicalIdentityPolicy.name,
       version: introspectedPhysicalIdentityPolicy.version,
@@ -73,15 +70,14 @@ export function mapCatalogToSnapshot(
     tables,
   }
 
-  if (mode === 'strict' && diagnostics.some(isError)) {
+  if (mode === "strict" && diagnostics.some(isError)) {
     return failure(catalog, diagnostics)
   }
 
   try {
     const value = assertSchemaSnapshot(snapshot)
     const lossy =
-      mode === 'lossy' &&
-      diagnostics.some(diagnostic => diagnostic.severity === 'warning')
+      mode === "lossy" && diagnostics.some((diagnostic) => diagnostic.severity === "warning")
     const result: IntrospectionSuccess = {
       ok: true,
       catalog,
@@ -89,21 +85,22 @@ export function mapCatalogToSnapshot(
       diagnostics: Object.freeze(diagnostics),
       lossy,
     }
+
     return Object.freeze(result)
   } catch (error) {
-    const severity = mode === 'strict' ? 'error' : 'warning'
+    const severity = mode === "strict" ? "error" : "warning"
+
     diagnostics.push(
       createIntrospectionDiagnostic({
         severity,
-        code: 'invalid-catalog-row',
+        code: "invalid-catalog-row",
         message:
           error instanceof Error
             ? `Catalog facts could not form Snapshot v1: ${error.message}`
-            : 'Catalog facts could not form Snapshot v1',
+            : "Catalog facts could not form Snapshot v1",
         path: [],
-        remediation:
-          'Inspect the catalog diagnostics and unsupported features.',
-      })
+        remediation: "Inspect the catalog diagnostics and unsupported features.",
+      }),
     )
     return failure(catalog, diagnostics)
   }
@@ -114,51 +111,30 @@ function mapTable(
   table: CatalogTable,
   options: IntrospectionOptions,
   mode: IntrospectionMode,
-  diagnostics: IntrospectionDiagnostic[]
+  diagnostics: IntrospectionDiagnostic[],
 ): SnapshotTable {
-  const tableId = resolveId(
-    'table',
-    table.id,
-    table.physicalName,
-    undefined,
-    options
-  )
+  const tableId = resolveId("table", table.id, table.physicalName, undefined, options)
   const columnIds = new Map(
-    table.columns.map(column => [
+    table.columns.map((column) => [
       column.physicalName,
-      resolveId(
-        'column',
-        column.id,
-        column.physicalName,
-        table.physicalName,
-        options
-      ),
-    ])
+      resolveId("column", column.id, column.physicalName, table.physicalName, options),
+    ]),
   )
   const columns = [...table.columns]
     .sort((left, right) => left.ordinalPosition - right.ordinalPosition)
-    .map(column =>
-      mapColumn(catalog.dialect, table, column, options, diagnostics)
-    )
+    .map((column) => mapColumn(catalog.dialect, table, column, options, diagnostics))
     .sort(compareById)
   const constraints = [...table.constraints]
-    .map(constraint =>
-      mapConstraint(
-        catalog,
-        table,
-        constraint,
-        columnIds,
-        options,
-        mode,
-        diagnostics
-      )
+    .map((constraint) =>
+      mapConstraint(catalog, table, constraint, columnIds, options, mode, diagnostics),
     )
     .filter((value): value is SnapshotConstraint => value !== undefined)
     .sort(compareById)
   const indexes = [...table.indexes]
-    .map(index => mapIndex(table, index, columnIds, options, mode, diagnostics))
+    .map((index) => mapIndex(table, index, columnIds, options, mode, diagnostics))
     .filter((value): value is SnapshotIndex => value !== undefined)
     .sort(compareById)
+
   return {
     id: tableId,
     physicalName: table.physicalName,
@@ -173,38 +149,22 @@ function mapColumn(
   table: CatalogTable,
   column: CatalogColumn,
   options: IntrospectionOptions,
-  diagnostics: IntrospectionDiagnostic[]
+  diagnostics: IntrospectionDiagnostic[],
 ): SnapshotColumn {
-  const defaultValue = column.default
-    ? mapDefault(column.default, column, diagnostics)
-    : undefined
+  const defaultValue = column.default ? mapDefault(column.default, column, diagnostics) : undefined
   const generated = column.generated
-    ? mapGenerated(
-        column.generated,
-        column,
-        options.mode ?? 'strict',
-        diagnostics
-      )
+    ? mapGenerated(column.generated, column, options.mode ?? "strict", diagnostics)
     : undefined
-  const identity = column.identity
-    ? mapIdentity(column.identity, column, diagnostics)
-    : undefined
+  const identity = column.identity ? mapIdentity(column.identity, column, diagnostics) : undefined
   const storage: SnapshotStorage = {
-    kind: 'native',
+    kind: "native",
     dialect,
     type: column.storage.nativeType,
-    ...(dialect === 'sqlite'
-      ? { affinity: sqliteStorageAffinity(column.storage.nativeType) }
-      : {}),
+    ...(dialect === "sqlite" ? { affinity: sqliteStorageAffinity(column.storage.nativeType) } : {}),
   }
+
   return {
-    id: resolveId(
-      'column',
-      column.id,
-      column.physicalName,
-      table.physicalName,
-      options
-    ),
+    id: resolveId("column", column.id, column.physicalName, table.physicalName, options),
     physicalName: column.physicalName,
     nullable: column.nullable,
     hasDefault: defaultValue !== undefined,
@@ -224,62 +184,65 @@ function mapConstraint(
   columnIds: ReadonlyMap<string, string>,
   options: IntrospectionOptions,
   mode: IntrospectionMode,
-  diagnostics: IntrospectionDiagnostic[]
+  diagnostics: IntrospectionDiagnostic[],
 ): SnapshotConstraint | undefined {
   const physicalName = constraint.physicalName ?? constraint.id
-  const id = resolveId(
-    'constraint',
-    constraint.id,
-    physicalName,
-    table.physicalName,
-    options
-  )
-  if (constraint.kind === 'check') {
+  const id = resolveId("constraint", constraint.id, physicalName, table.physicalName, options)
+
+  if (constraint.kind === "check") {
     const result: SnapshotCheckConstraint = {
       id,
-      kind: 'check',
+      kind: "check",
       physicalName,
       expression: mapExpression(constraint.expression),
       deferrable: constraint.deferrable,
       initially: constraint.initially,
       dialect: mapExtension(constraint.dialect),
     }
+
     return result
   }
-  const columns = constraint.columns.map(column => {
+
+  const columns = constraint.columns.map((column) => {
     const value = columnIds.get(column)
-    if (value) return value
+
+    if (value) {
+      return value
+    }
+
     addIssue(
       mode,
       diagnostics,
-      'unresolved-reference',
+      "unresolved-reference",
       `Constraint column ${column} was not found`,
-      constraint
+      constraint,
     )
     return column
   })
-  if (constraint.kind === 'primary-key') {
+
+  if (constraint.kind === "primary-key") {
     const result: SnapshotKeyConstraint = {
       id,
-      kind: 'primary-key',
+      kind: "primary-key",
       physicalName,
       columns,
       deferrable: constraint.deferrable,
       initially: constraint.initially,
       dialect: mapExtension(constraint.dialect),
     }
+
     return result
   }
-  if (constraint.kind === 'unique') {
+
+  if (constraint.kind === "unique") {
     const nullable = constraint.columns.some(
-      column =>
-        table.columns.find(candidate => candidate.physicalName === column)
-          ?.nullable
+      (column) => table.columns.find((candidate) => candidate.physicalName === column)?.nullable,
     )
-    if (nullable || constraint.nulls === 'not-distinct') {
+
+    if (nullable || constraint.nulls === "not-distinct") {
       const result: SnapshotUniqueConstraint = {
         id,
-        kind: 'unique-constraint',
+        kind: "unique-constraint",
         physicalName,
         columns,
         nulls: constraint.nulls,
@@ -287,67 +250,64 @@ function mapConstraint(
         initially: constraint.initially,
         dialect: mapExtension(constraint.dialect),
       }
+
       return result
     }
+
     const result: SnapshotKeyConstraint = {
       id,
-      kind: 'unique',
+      kind: "unique",
       physicalName,
       columns,
       deferrable: constraint.deferrable,
       initially: constraint.initially,
       dialect: mapExtension(constraint.dialect),
     }
+
     return result
   }
 
   const targetTable = catalog.tables.find(
-    candidate => candidate.physicalName === constraint.target.table
+    (candidate) => candidate.physicalName === constraint.target.table,
   )
+
   if (!targetTable) {
     addIssue(
       mode,
       diagnostics,
-      'unresolved-reference',
+      "unresolved-reference",
       `Foreign key target table ${constraint.target.table} was not found`,
-      constraint
+      constraint,
     )
     return undefined
   }
-  const targetId = resolveId(
-    'table',
-    targetTable.id,
-    targetTable.physicalName,
-    undefined,
-    options
-  )
-  const targetColumns = constraint.target.columns.map(column => {
-    const target = targetTable.columns.find(
-      candidate => candidate.physicalName === column
-    )
-    if (target)
-      return resolveId(
-        'column',
-        target.id,
-        target.physicalName,
-        targetTable.physicalName,
-        options
-      )
+
+  const targetId = resolveId("table", targetTable.id, targetTable.physicalName, undefined, options)
+  const targetColumns = constraint.target.columns.map((column) => {
+    const target = targetTable.columns.find((candidate) => candidate.physicalName === column)
+
+    if (target) {
+      return resolveId("column", target.id, target.physicalName, targetTable.physicalName, options)
+    }
+
     addIssue(
       mode,
       diagnostics,
-      'unresolved-reference',
+      "unresolved-reference",
       `Foreign key target column ${column} was not found`,
-      constraint
+      constraint,
     )
     return column
   })
   const result: SnapshotForeignKey = {
     id,
-    kind: 'foreign-key',
+    kind: "foreign-key",
     physicalName,
     columns,
-    target: { table: targetId, columns: targetColumns },
+    target: {
+      table: targetId,
+      columns: targetColumns,
+    },
     onUpdate: constraint.onUpdate,
     onDelete: constraint.onDelete,
     match: constraint.match,
@@ -355,6 +315,7 @@ function mapConstraint(
     initially: constraint.initially,
     dialect: mapExtension(constraint.dialect),
   }
+
   return result
 }
 
@@ -364,29 +325,27 @@ function mapIndex(
   columnIds: ReadonlyMap<string, string>,
   options: IntrospectionOptions,
   mode: IntrospectionMode,
-  diagnostics: IntrospectionDiagnostic[]
+  diagnostics: IntrospectionDiagnostic[],
 ): SnapshotIndex | undefined {
   const physicalName = index.physicalName ?? index.id
-  const id = resolveId(
-    'index',
-    index.id,
-    physicalName,
-    table.physicalName,
-    options
-  )
+  const id = resolveId("index", index.id, physicalName, table.physicalName, options)
   const terms = [...index.terms]
     .sort((left, right) => left.position - right.position)
-    .map(term => mapIndexTerm(term, columnIds, index, mode, diagnostics))
+    .map((term) => mapIndexTerm(term, columnIds, index, mode, diagnostics))
     .filter((value): value is SnapshotIndexTerm => value !== undefined)
-  const includedColumns = index.includedColumns?.map(column => {
+  const includedColumns = index.includedColumns?.map((column) => {
     const value = columnIds.get(column)
-    if (value) return value
+
+    if (value) {
+      return value
+    }
+
     addIssue(
       mode,
       diagnostics,
-      'unresolved-reference',
+      "unresolved-reference",
       `Index column ${column} was not found`,
-      index
+      index,
     )
     return column
   })
@@ -394,14 +353,14 @@ function mapIndex(
     index.unique &&
     index.predicate === undefined &&
     index.terms.every(
-      term =>
-        term.kind === 'column' &&
-        table.columns.find(column => column.physicalName === term.column)
-          ?.nullable === false
+      (term) =>
+        term.kind === "column" &&
+        table.columns.find((column) => column.physicalName === term.column)?.nullable === false,
     )
+
   return {
     id,
-    kind: 'index',
+    kind: "index",
     physicalName,
     terms,
     unique: index.unique,
@@ -417,50 +376,59 @@ function mapIndexTerm(
   columnIds: ReadonlyMap<string, string>,
   index: CatalogIndex,
   mode: IntrospectionMode,
-  diagnostics: IntrospectionDiagnostic[]
+  diagnostics: IntrospectionDiagnostic[],
 ): SnapshotIndexTerm | undefined {
   let expression: SnapshotIndexTermExpression
-  if (term.kind === 'column') {
+
+  if (term.kind === "column") {
     const column = columnIds.get(term.column)
+
     if (!column) {
       addIssue(
         mode,
         diagnostics,
-        'unresolved-reference',
+        "unresolved-reference",
         `Index column ${term.column} was not found`,
-        index
+        index,
       )
       return undefined
     }
-    expression = { kind: 'column', column }
+
+    expression = {
+      kind: "column",
+      column,
+    }
     if (term.prefixLength !== undefined || term.operatorClass !== undefined) {
       addIssue(
         mode,
         diagnostics,
-        'unsupported-feature',
-        'Index term metadata is not represented by Snapshot v1',
-        index
+        "unsupported-feature",
+        "Index term metadata is not represented by Snapshot v1",
+        index,
       )
     }
   } else {
     expression = {
-      kind: 'expression',
+      kind: "expression",
       expression: mapExpression(term.expression),
     }
     if (term.operatorClass !== undefined) {
       addIssue(
         mode,
         diagnostics,
-        'unsupported-feature',
-        'Index operator classes are not represented by Snapshot v1',
-        index
+        "unsupported-feature",
+        "Index operator classes are not represented by Snapshot v1",
+        index,
       )
     }
   }
-  if (term.direction === undefined && term.nulls === undefined)
+
+  if (term.direction === undefined && term.nulls === undefined) {
     return expression
+  }
+
   return {
-    kind: 'order',
+    kind: "order",
     expression,
     direction: term.direction,
     nulls: term.nulls,
@@ -470,42 +438,52 @@ function mapIndexTerm(
 function mapDefault(
   value: CatalogValueFact,
   owner: CatalogColumn,
-  diagnostics: IntrospectionDiagnostic[]
+  diagnostics: IntrospectionDiagnostic[],
 ): SnapshotDefault {
-  if (value.kind === 'literal')
-    return { kind: 'literal', value: mapLiteral(value) }
+  if (value.kind === "literal") {
+    return {
+      kind: "literal",
+      value: mapLiteral(value),
+    }
+  }
+
   if (value.expression.text.trim().length === 0) {
     diagnostics.push(
       createIntrospectionDiagnostic({
-        severity: 'error',
-        code: 'invalid-catalog-row',
-        message: 'A default expression was empty',
-        path: [owner.id, 'default'],
-        remediation: 'Return the database expression or omit the default fact.',
-      })
+        severity: "error",
+        code: "invalid-catalog-row",
+        message: "A default expression was empty",
+        path: [owner.id, "default"],
+        remediation: "Return the database expression or omit the default fact.",
+      }),
     )
   }
-  return { kind: 'expression', expression: mapExpression(value.expression) }
+
+  return {
+    kind: "expression",
+    expression: mapExpression(value.expression),
+  }
 }
 
 function mapGenerated(
   value: CatalogGeneratedColumn,
   owner: CatalogColumn,
   mode: IntrospectionMode,
-  diagnostics: IntrospectionDiagnostic[]
+  diagnostics: IntrospectionDiagnostic[],
 ): SnapshotGeneratedColumn {
-  if (value.mode === 'unknown') {
+  if (value.mode === "unknown") {
     addIssue(
       mode,
       diagnostics,
-      'unsupported-feature',
-      'Generated-column storage mode was not recovered',
-      owner
+      "unsupported-feature",
+      "Generated-column storage mode was not recovered",
+      owner,
     )
-    return { kind: 'external' }
+    return { kind: "external" }
   }
+
   return {
-    kind: 'expression',
+    kind: "expression",
     expression: mapExpression(value.expression),
     mode: value.mode,
   }
@@ -514,22 +492,22 @@ function mapGenerated(
 function mapIdentity(
   value: CatalogIdentity,
   owner: CatalogColumn,
-  diagnostics: IntrospectionDiagnostic[]
+  diagnostics: IntrospectionDiagnostic[],
 ): SnapshotIdentity {
   if (Object.keys(value.options).length > 0) {
     diagnostics.push(
       createIntrospectionDiagnostic({
-        severity: 'warning',
-        code: 'lossy-mapping',
-        message: 'Identity sequence options are not represented by Snapshot v1',
-        path: [owner.id, 'identity'],
-        remediation:
-          'Use the normalized catalog for options or add a typed dialect extension.',
-      })
+        severity: "warning",
+        code: "lossy-mapping",
+        message: "Identity sequence options are not represented by Snapshot v1",
+        path: [owner.id, "identity"],
+        remediation: "Use the normalized catalog for options or add a typed dialect extension.",
+      }),
     )
   }
+
   return {
-    kind: 'identity',
+    kind: "identity",
     generation: value.generation,
     dialect: mapExtension(value.dialect),
   }
@@ -537,30 +515,54 @@ function mapIdentity(
 
 function mapExpression(value: CatalogSqlExpression): SnapshotExpression {
   return {
-    kind: 'expression',
+    kind: "expression",
     // Catalog SQL has no Qubu expression semantics. Keep it explicitly unsafe
     // so the dialect tag remains valid at the Snapshot v1 boundary.
-    expressionKind: 'unsafe',
-    sql: value.text.replace(/\r\n?/g, '\n').trim(),
+    expressionKind: "unsafe",
+    sql: value.text.replace(/\r\n?/g, "\n").trim(),
     dialect: value.dialect,
   }
 }
 
 function mapLiteral(value: CatalogLiteralFact): SnapshotLiteral {
-  if (value.value === null) return { kind: 'null' }
-  if (typeof value.value === 'boolean')
-    return { kind: 'boolean', value: value.value }
-  if (typeof value.value === 'bigint')
-    return { kind: 'bigint', value: value.value.toString() }
-  if (typeof value.value === 'number')
-    return { kind: 'number', value: String(value.value) }
-  return { kind: 'string', value: value.value }
+  if (value.value === null) {
+    return { kind: "null" }
+  }
+
+  if (typeof value.value === "boolean") {
+    return {
+      kind: "boolean",
+      value: value.value,
+    }
+  }
+
+  if (typeof value.value === "bigint") {
+    return {
+      kind: "bigint",
+      value: value.value.toString(),
+    }
+  }
+
+  if (typeof value.value === "number") {
+    return {
+      kind: "number",
+      value: String(value.value),
+    }
+  }
+
+  return {
+    kind: "string",
+    value: value.value,
+  }
 }
 
 function mapExtension(
-  value: CatalogDialectExtension | undefined
+  value: CatalogDialectExtension | undefined,
 ): SnapshotDialectExtension | undefined {
-  if (!value) return undefined
+  if (!value) {
+    return undefined
+  }
+
   return {
     dialect: value.dialect,
     version: value.version,
@@ -569,13 +571,20 @@ function mapExtension(
 }
 
 function toSnapshotData(value: CatalogData): SnapshotJsonValue {
-  if (typeof value === 'bigint') return { $bigint: value.toString() }
-  if (Array.isArray(value)) return value.map(toSnapshotData)
-  if (value !== null && typeof value === 'object') {
+  if (typeof value === "bigint") {
+    return { $bigint: value.toString() }
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(toSnapshotData)
+  }
+
+  if (value !== null && typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value).map(([key, child]) => [key, toSnapshotData(child)])
+      Object.entries(value).map(([key, child]) => [key, toSnapshotData(child)]),
     )
   }
+
   return value
 }
 
@@ -584,69 +593,81 @@ function resolveId(
   currentId: string,
   physicalName: string,
   tablePhysicalName: string | undefined,
-  options: IntrospectionOptions
+  options: IntrospectionOptions,
 ): string {
   const hint = options.identityHints?.find(
-    candidate =>
+    (candidate) =>
       candidate.kind === kind &&
       candidate.physicalName === physicalName &&
-      candidate.tablePhysicalName === tablePhysicalName
+      candidate.tablePhysicalName === tablePhysicalName,
   )
-  if (hint) return hint.logicalId
+
+  if (hint) {
+    return hint.logicalId
+  }
+
   const previous = options.previousSnapshot
+
   if (previous) {
     const table = tablePhysicalName
-      ? previous.tables.find(
-          candidate => candidate.physicalName === tablePhysicalName
-        )
-      : previous.tables.find(
-          candidate => candidate.physicalName === physicalName
-        )
-    if (kind === 'table' && table) return table.id
-    if (table && kind === 'column') {
-      const column = table.columns.find(
-        candidate => candidate.physicalName === physicalName
-      )
-      if (column) return column.id
+      ? previous.tables.find((candidate) => candidate.physicalName === tablePhysicalName)
+      : previous.tables.find((candidate) => candidate.physicalName === physicalName)
+
+    if (kind === "table" && table) {
+      return table.id
     }
-    if (table && kind === 'constraint') {
+
+    if (table && kind === "column") {
+      const column = table.columns.find((candidate) => candidate.physicalName === physicalName)
+
+      if (column) {
+        return column.id
+      }
+    }
+
+    if (table && kind === "constraint") {
       const constraint = table.constraints.find(
-        candidate => candidate.physicalName === physicalName
+        (candidate) => candidate.physicalName === physicalName,
       )
-      if (constraint) return constraint.id
+
+      if (constraint) {
+        return constraint.id
+      }
     }
-    if (table && kind === 'index') {
-      const index = table.indexes.find(
-        candidate => candidate.physicalName === physicalName
-      )
-      if (index) return index.id
+
+    if (table && kind === "index") {
+      const index = table.indexes.find((candidate) => candidate.physicalName === physicalName)
+
+      if (index) {
+        return index.id
+      }
     }
   }
+
   return currentId || physicalName
 }
 
 function addIssue(
   mode: IntrospectionMode,
   diagnostics: IntrospectionDiagnostic[],
-  code: IntrospectionDiagnostic['code'],
+  code: IntrospectionDiagnostic["code"],
   message: string,
-  owner: { readonly id?: string }
+  owner: { readonly id?: string },
 ): void {
   diagnostics.push(
     createIntrospectionDiagnostic({
-      severity: mode === 'strict' ? 'error' : 'warning',
+      severity: mode === "strict" ? "error" : "warning",
       code,
       message,
       path: owner.id ? [owner.id] : [],
-      remediation:
-        'Use lossy mode or add a typed dialect mapping for this feature.',
-    })
+      remediation: "Use lossy mode or add a typed dialect mapping for this feature.",
+    }),
   )
 }
 
 function failure(
   catalog: IntrospectionCatalog,
-  diagnostics: readonly IntrospectionDiagnostic[]
+  diagnostics: readonly IntrospectionDiagnostic[],
 ): IntrospectionFailure {
   return Object.freeze({
     ok: false,
@@ -656,13 +677,10 @@ function failure(
   })
 }
 
-function compareById(
-  left: { readonly id: string },
-  right: { readonly id: string }
-): number {
+function compareById(left: { readonly id: string }, right: { readonly id: string }): number {
   return left.id.localeCompare(right.id)
 }
 
 function isError(value: IntrospectionDiagnostic): boolean {
-  return value.severity === 'error'
+  return value.severity === "error"
 }

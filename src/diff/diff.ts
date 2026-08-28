@@ -1,19 +1,8 @@
-import {
-  canonicalJson,
-  schemaSnapshotDigest,
-  toSnapshotJsonValue,
-} from '../snapshot/canonical.ts'
-import {
-  completeSchemaSnapshotDigest,
-  decodeCompleteSchemaSnapshot,
-} from '../snapshot/complete.ts'
-import type { CompleteSchemaSnapshot } from '../snapshot/complete-types.ts'
-import { decodeSchemaSnapshot } from '../snapshot/decode.ts'
-import type {
-  SchemaSnapshot,
-  SnapshotDiagnostic,
-  SnapshotJsonValue,
-} from '../snapshot/types.ts'
+import { canonicalJson, schemaSnapshotDigest, toSnapshotJsonValue } from "../snapshot/canonical.ts"
+import type { CompleteSchemaSnapshot } from "../snapshot/complete-types.ts"
+import { completeSchemaSnapshotDigest, decodeCompleteSchemaSnapshot } from "../snapshot/complete.ts"
+import { decodeSchemaSnapshot } from "../snapshot/decode.ts"
+import type { SchemaSnapshot, SnapshotDiagnostic, SnapshotJsonValue } from "../snapshot/types.ts"
 import type {
   SnapshotDiff,
   SnapshotDiffDecodeResult,
@@ -31,7 +20,7 @@ import type {
   SnapshotRenameHintResult,
   SnapshotRenameSuggestion,
   SnapshotRenameTarget,
-} from './types.ts'
+} from "./types.ts"
 
 type JsonRecord = Record<string, unknown>
 type SnapshotRecord = { readonly [key: string]: SnapshotJsonValue }
@@ -55,59 +44,60 @@ interface DecodedSnapshot {
 interface Match {
   readonly before: InternalObject
   readonly after: InternalObject
-  readonly source: 'stable-id' | 'explicit-hint'
+  readonly source: "stable-id" | "explicit-hint"
   readonly evidence: readonly SnapshotDiffEvidence[]
 }
 
 const objectKinds = new Set<SnapshotDiffObjectKind>([
-  'namespace',
-  'table',
-  'column',
-  'constraint',
-  'index',
-  'view',
-  'materialized-view',
-  'sequence',
-  'enum',
-  'domain',
-  'collation',
-  'trigger',
-  'routine',
-  'partition',
-  'policy',
-  'extension',
-  'comment',
-  'ownership',
-  'deferred-object',
-  'opaque-object',
+  "namespace",
+  "table",
+  "column",
+  "constraint",
+  "index",
+  "view",
+  "materialized-view",
+  "sequence",
+  "enum",
+  "domain",
+  "collation",
+  "trigger",
+  "routine",
+  "partition",
+  "policy",
+  "extension",
+  "comment",
+  "ownership",
+  "deferred-object",
+  "opaque-object",
 ])
 
 const operationOrder = new Map([
-  ['remove', 0],
-  ['physical-rename', 1],
-  ['property-change', 2],
-  ['add', 3],
+  ["remove", 0],
+  ["physical-rename", 1],
+  ["property-change", 2],
+  ["add", 3],
 ])
 
 /**
  * Compare Snapshot v1 or v2 values and return immutable, reviewable data.
  *
- * The function never opens a connection, renders SQL, or turns a heuristic
- * match into a rename. Invalid input and malformed hints are represented by
- * diagnostics in the returned value.
+ * The function never opens a connection, renders SQL, or turns a heuristic match into a rename.
+ * Invalid input and malformed hints are represented by diagnostics in the returned value.
  */
 export function diffSnapshots(
   beforeInput: SnapshotDiffInput,
   afterInput: SnapshotDiffInput,
-  options: SnapshotDiffOptions = {}
+  options: SnapshotDiffOptions = {},
 ): SnapshotDiff {
   const diagnostics: SnapshotDiffDiagnostic[] = []
   const before = decodeSnapshot(beforeInput)
   const after = decodeSnapshot(afterInput)
+
   diagnostics.push(...before.diagnostics, ...after.diagnostics)
 
   const hints = options.renameHints ?? options.renames ?? []
   const hintResult = validateSnapshotRenameHints(hints)
+
   diagnostics.push(...hintResult.diagnostics)
   const validHints = hintResult.value
 
@@ -148,23 +138,29 @@ export function diffSnapshots(
 
   const left = before.snapshot
   const right = after.snapshot
-  if (left.value.dialect.name !== right.value.dialect.name)
+
+  if (left.value.dialect.name !== right.value.dialect.name) {
     diagnostics.push(
       diffDiagnostic(
-        'dialect-mismatch',
+        "dialect-mismatch",
         `Snapshots use different dialects: "${left.value.dialect.name}" and "${right.value.dialect.name}"`,
         [],
-        { dialect: right.value.dialect }
-      )
+        { dialect: right.value.dialect },
+      ),
     )
+  }
 
   const beforeByKey = groupByKey(left.records)
   const afterByKey = groupByKey(right.records)
+
   for (const [key, records] of [...beforeByKey, ...afterByKey]) {
-    if (records.length < 2) continue
+    if (records.length < 2) {
+      continue
+    }
+
     diagnostics.push(
       diffDiagnostic(
-        'ambiguous',
+        "ambiguous",
         `Multiple ${records[0]!.object.kind} records share one logical identity; stable matching is disabled for this key`,
         records[0]!.object.path,
         {
@@ -173,112 +169,102 @@ export function diffSnapshots(
           logicalId: records[0]!.object.id,
           physicalName: records[0]!.object.physicalName,
           dialect: records[0]!.object.dialect,
-          relatedPaths: records.slice(1).map(record => record.object.path),
+          relatedPaths: records.slice(1).map((record) => record.object.path),
           evidence: [
-            evidence(
-              'ambiguity',
-              undefined,
-              undefined,
-              undefined,
-              `Duplicate stable key ${key}`
-            ),
+            evidence("ambiguity", undefined, undefined, undefined, `Duplicate stable key ${key}`),
           ],
-        }
-      )
+        },
+      ),
     )
   }
+
   const usedBefore = new Set<InternalObject>()
   const usedAfter = new Set<InternalObject>()
   const matches: Match[] = []
 
   for (const hint of validHints) {
-    const beforeCandidates = resolveHintTarget(
-      left.records,
-      hint.kind,
-      hint.namespace,
-      hint.from
-    )
-    const afterCandidates = resolveHintTarget(
-      right.records,
-      hint.kind,
-      hint.namespace,
-      hint.to
-    )
+    const beforeCandidates = resolveHintTarget(left.records, hint.kind, hint.namespace, hint.from)
+    const afterCandidates = resolveHintTarget(right.records, hint.kind, hint.namespace, hint.to)
+
     if (beforeCandidates.length !== 1 || afterCandidates.length !== 1) {
       const candidates = [...beforeCandidates, ...afterCandidates]
+
       diagnostics.push(
         diffDiagnostic(
           beforeCandidates.length === 0 || afterCandidates.length === 0
-            ? 'invalid-rename-hint'
-            : 'ambiguous',
+            ? "invalid-rename-hint"
+            : "ambiguous",
           `Rename hint for ${hint.kind} did not resolve to one object on each side`,
           [],
           {
             kind: hint.kind,
             namespace: hint.namespace,
-            relatedPaths: candidates.map(candidate => candidate.object.path),
-            evidence: [
-              evidence('explicit-hint', undefined, undefined, 1, 'Hint target'),
-            ],
-          }
-        )
+            relatedPaths: candidates.map((candidate) => candidate.object.path),
+            evidence: [evidence("explicit-hint", undefined, undefined, 1, "Hint target")],
+          },
+        ),
       )
       continue
     }
+
     const beforeObject = beforeCandidates[0]!
     const afterObject = afterCandidates[0]!
+
     if (usedBefore.has(beforeObject) || usedAfter.has(afterObject)) {
       diagnostics.push(
         diffDiagnostic(
-          'rename-conflict',
+          "rename-conflict",
           `Rename hint for ${hint.kind} reuses an object already mapped by another hint`,
           beforeObject.object.path,
           {
             kind: hint.kind,
             namespace: hint.namespace,
             relatedPaths: [afterObject.object.path],
-          }
-        )
+          },
+        ),
       )
       continue
     }
+
     usedBefore.add(beforeObject)
     usedAfter.add(afterObject)
     matches.push({
       before: beforeObject,
       after: afterObject,
-      source: 'explicit-hint',
+      source: "explicit-hint",
       evidence: [
-        evidence(
-          'explicit-hint',
-          undefined,
-          toSnapshotJsonValue(hint),
-          1,
-          'Explicit rename hint'
-        ),
+        evidence("explicit-hint", undefined, toSnapshotJsonValue(hint), 1, "Explicit rename hint"),
       ],
     })
   }
 
   for (const [key, beforeCandidates] of beforeByKey) {
     const afterCandidates = afterByKey.get(key) ?? []
-    if (beforeCandidates.length !== 1 || afterCandidates.length !== 1) continue
+
+    if (beforeCandidates.length !== 1 || afterCandidates.length !== 1) {
+      continue
+    }
+
     const beforeObject = beforeCandidates[0]!
     const afterObject = afterCandidates[0]!
-    if (usedBefore.has(beforeObject) || usedAfter.has(afterObject)) continue
+
+    if (usedBefore.has(beforeObject) || usedAfter.has(afterObject)) {
+      continue
+    }
+
     usedBefore.add(beforeObject)
     usedAfter.add(afterObject)
     matches.push({
       before: beforeObject,
       after: afterObject,
-      source: 'stable-id',
+      source: "stable-id",
       evidence: [
         evidence(
-          'logical-id',
-          [...beforeObject.object.path, 'id'],
+          "logical-id",
+          [...beforeObject.object.path, "id"],
           beforeObject.object.id,
           1,
-          'Stable logical ID match'
+          "Stable logical ID match",
         ),
       ],
     })
@@ -286,38 +272,46 @@ export function diffSnapshots(
 
   const suggestions: SnapshotRenameSuggestion[] = []
   const suggestionThreshold = clampThreshold(options.suggestionThreshold)
-  const unmatchedBefore = left.records.filter(record => !usedBefore.has(record))
-  const unmatchedAfter = right.records.filter(record => !usedAfter.has(record))
+  const unmatchedBefore = left.records.filter((record) => !usedBefore.has(record))
+  const unmatchedAfter = right.records.filter((record) => !usedAfter.has(record))
 
   if (options.suggestions !== false) {
     for (const beforeObject of unmatchedBefore) {
-      if (beforeObject.lossy || beforeObject.unsupported) continue
+      if (beforeObject.lossy || beforeObject.unsupported) {
+        continue
+      }
+
       const candidates = unmatchedAfter
         .filter(
-          candidate =>
+          (candidate) =>
             !candidate.lossy &&
             !candidate.unsupported &&
-            candidate.scopeKey === beforeObject.scopeKey
+            candidate.scopeKey === beforeObject.scopeKey,
         )
-        .map(candidate => ({
+        .map((candidate) => ({
           candidate,
           score: structuralScore(beforeObject, candidate),
         }))
-        .filter(candidate => candidate.score >= suggestionThreshold)
+        .filter((candidate) => candidate.score >= suggestionThreshold)
         .sort(
           (leftCandidate, rightCandidate) =>
             rightCandidate.score - leftCandidate.score ||
-            compareObject(leftCandidate.candidate, rightCandidate.candidate)
+            compareObject(leftCandidate.candidate, rightCandidate.candidate),
         )
-      if (candidates.length === 0) continue
+
+      if (candidates.length === 0) {
+        continue
+      }
+
       const best = candidates[0]!
       const tied = candidates.filter(
-        candidate => Math.abs(candidate.score - best.score) < 0.000001
+        (candidate) => Math.abs(candidate.score - best.score) < 0.000001,
       )
+
       if (tied.length > 1) {
         diagnostics.push(
           diffDiagnostic(
-            'ambiguous',
+            "ambiguous",
             `Multiple structural matches are possible for ${beforeObject.object.kind} "${beforeObject.object.id}"; no rename was inferred`,
             beforeObject.object.path,
             {
@@ -326,24 +320,25 @@ export function diffSnapshots(
               logicalId: beforeObject.object.id,
               physicalName: beforeObject.object.physicalName,
               dialect: beforeObject.object.dialect,
-              relatedPaths: tied.map(item => item.candidate.object.path),
+              relatedPaths: tied.map((item) => item.candidate.object.path),
               evidence: [
                 evidence(
-                  'ambiguity',
+                  "ambiguity",
                   undefined,
                   undefined,
                   best.score,
-                  `${tied.length} candidates scored ${best.score.toFixed(3)}`
+                  `${tied.length} candidates scored ${best.score.toFixed(3)}`,
                 ),
               ],
-            }
-          )
+            },
+          ),
         )
         continue
       }
+
       suggestions.push({
-        type: 'rename-suggestion',
-        operation: 'rename-suggestion',
+        type: "rename-suggestion",
+        operation: "rename-suggestion",
         kind: beforeObject.object.kind,
         objectKind: beforeObject.object.kind,
         namespace: beforeObject.object.namespace,
@@ -352,11 +347,11 @@ export function diffSnapshots(
         confidence: best.score,
         evidence: [
           evidence(
-            'structural',
+            "structural",
             undefined,
             undefined,
             best.score,
-            'Stable structure matched after removing identity evidence'
+            "Stable structure matched after removing identity evidence",
           ),
         ],
       })
@@ -364,16 +359,22 @@ export function diffSnapshots(
   }
 
   const operations: SnapshotDiffOperation[] = []
+
   for (const match of matches) {
     const operation = operationForMatch(match, diagnostics)
-    if (operation !== undefined) operations.push(operation)
+
+    if (operation !== undefined) {
+      operations.push(operation)
+    }
   }
+
   for (const record of unmatchedBefore) {
-    const operation = operationForUnmatched('remove', record.object)
+    const operation = operationForUnmatched("remove", record.object)
+
     operations.push(operation)
     diagnostics.push(
       diffDiagnostic(
-        'destructive',
+        "destructive",
         `Removing ${record.object.kind} "${record.object.id}" is destructive`,
         record.object.path,
         {
@@ -383,18 +384,23 @@ export function diffSnapshots(
           physicalName: record.object.physicalName,
           dialect: record.object.dialect,
           evidence: record.object.evidence,
-        }
-      )
+        },
+      ),
     )
   }
-  for (const record of unmatchedAfter)
-    operations.push(operationForUnmatched('add', record.object))
+
+  for (const record of unmatchedAfter) {
+    operations.push(operationForUnmatched("add", record.object))
+  }
 
   for (const record of [...left.records, ...right.records]) {
-    if (!record.lossy && !record.unsupported) continue
+    if (!record.lossy && !record.unsupported) {
+      continue
+    }
+
     diagnostics.push(
       diffDiagnostic(
-        record.lossy ? 'lossy' : 'unsupported',
+        record.lossy ? "lossy" : "unsupported",
         record.lossy
           ? `${record.object.kind} "${record.object.id}" contains opaque or deferred facts`
           : `${record.object.kind} "${record.object.id}" is outside the supported comparison surface`,
@@ -406,13 +412,13 @@ export function diffSnapshots(
           physicalName: record.object.physicalName,
           dialect: record.object.dialect,
           evidence: record.object.evidence,
-        }
-      )
+        },
+      ),
     )
-    if (record.lossy && record.unsupported)
+    if (record.lossy && record.unsupported) {
       diagnostics.push(
         diffDiagnostic(
-          'unsupported',
+          "unsupported",
           `${record.object.kind} "${record.object.id}" cannot be structurally compared yet`,
           record.object.path,
           {
@@ -422,13 +428,15 @@ export function diffSnapshots(
             physicalName: record.object.physicalName,
             dialect: record.object.dialect,
             evidence: record.object.evidence,
-          }
-        )
+          },
+        ),
       )
-    if (record.object.kind === 'deferred-object')
+    }
+
+    if (record.object.kind === "deferred-object") {
       diagnostics.push(
         diffDiagnostic(
-          'unknown',
+          "unknown",
           `${record.object.kind} "${record.object.id}" retains an observed object without a complete model`,
           record.object.path,
           {
@@ -438,26 +446,22 @@ export function diffSnapshots(
             physicalName: record.object.physicalName,
             dialect: record.object.dialect,
             evidence: record.object.evidence,
-          }
-        )
+          },
+        ),
       )
+    }
   }
 
   const sortedOperations = operations.sort(compareOperation)
   const frozenSuggestions = suggestions.sort(compareSuggestion)
-  const additions = sortedOperations.filter(
-    operation => operation.type === 'add'
-  )
-  const removals = sortedOperations.filter(
-    operation => operation.type === 'remove'
-  )
+  const additions = sortedOperations.filter((operation) => operation.type === "add")
+  const removals = sortedOperations.filter((operation) => operation.type === "remove")
   const propertyChanges = sortedOperations.filter(
-    operation => operation.type === 'property-change'
+    (operation) => operation.type === "property-change",
   )
-  const renames = sortedOperations.filter(
-    operation => operation.type === 'physical-rename'
-  )
+  const renames = sortedOperations.filter((operation) => operation.type === "physical-rename")
   const frozenDiagnostics = sortDiagnostics(diagnostics)
+
   return freezeDiff({
     equal: sortedOperations.length === 0,
     beforeVersion: left.version,
@@ -488,11 +492,16 @@ export function diffSnapshots(
 export const compareSnapshots = diffSnapshots
 
 /** Decode and normalize a Snapshot v1 or v2 value without throwing. */
-export function decodeSnapshotForDiff(
-  input: SnapshotDiffInput
-): SnapshotDiffDecodeResult {
+export function decodeSnapshotForDiff(input: SnapshotDiffInput): SnapshotDiffDecodeResult {
   const decoded = decodeSnapshot(input)
-  if (!decoded.snapshot) return { ok: false, diagnostics: decoded.diagnostics }
+
+  if (!decoded.snapshot) {
+    return {
+      ok: false,
+      diagnostics: decoded.diagnostics,
+    }
+  }
+
   return {
     ok: true,
     version: decoded.snapshot.version,
@@ -502,127 +511,136 @@ export function decodeSnapshotForDiff(
 
 /** Validate rename hints and return a frozen, serializable list. */
 export function validateSnapshotRenameHints(
-  hints: readonly SnapshotRenameHint[] | unknown
+  hints: readonly SnapshotRenameHint[] | unknown,
 ): SnapshotRenameHintResult {
   const diagnostics: SnapshotDiffDiagnostic[] = []
   const values: SnapshotRenameHint[] = []
+
   if (!Array.isArray(hints)) {
     diagnostics.push(
-      diffDiagnostic('invalid-rename-hint', 'Rename hints must be an array', [
-        'renameHints',
-      ])
+      diffDiagnostic("invalid-rename-hint", "Rename hints must be an array", ["renameHints"]),
     )
-    return { ok: false, value: [], diagnostics: freeze(diagnostics) }
+    return {
+      ok: false,
+      value: [],
+      diagnostics: freeze(diagnostics),
+    }
   }
+
   const seen = new Set<string>()
+
   for (const [index, value] of hints.entries()) {
-    const path: SnapshotDiffPath = ['renameHints', index]
+    const path: SnapshotDiffPath = ["renameHints", index]
     const diagnosticCount = diagnostics.length
+
     if (!isRecord(value)) {
-      diagnostics.push(
-        diffDiagnostic(
-          'invalid-rename-hint',
-          'Rename hint must be an object',
-          path
-        )
-      )
+      diagnostics.push(diffDiagnostic("invalid-rename-hint", "Rename hint must be an object", path))
       continue
     }
-    for (const key of Object.keys(value))
-      if (
-        key !== 'kind' &&
-        key !== 'namespace' &&
-        key !== 'from' &&
-        key !== 'to'
-      )
+
+    for (const key of Object.keys(value)) {
+      if (key !== "kind" && key !== "namespace" && key !== "from" && key !== "to") {
         diagnostics.push(
-          diffDiagnostic(
-            'invalid-rename-hint',
-            `Unknown rename hint field "${key}"`,
-            [...path, key]
-          )
+          diffDiagnostic("invalid-rename-hint", `Unknown rename hint field "${key}"`, [
+            ...path,
+            key,
+          ]),
         )
+      }
+    }
+
     const kind = value.kind
     const namespace = value.namespace
-    if (!isObjectKind(kind))
+
+    if (!isObjectKind(kind)) {
       diagnostics.push(
         diffDiagnostic(
-          'invalid-rename-hint',
-          'Rename hint kind is not a supported snapshot object kind',
-          [...path, 'kind']
-        )
+          "invalid-rename-hint",
+          "Rename hint kind is not a supported snapshot object kind",
+          [...path, "kind"],
+        ),
       )
-    if (
-      namespace !== undefined &&
-      (typeof namespace !== 'string' || namespace.length === 0)
-    )
+    }
+
+    if (namespace !== undefined && (typeof namespace !== "string" || namespace.length === 0)) {
       diagnostics.push(
         diffDiagnostic(
-          'invalid-rename-hint',
-          'Rename hint namespace must be a non-empty string when provided',
-          [...path, 'namespace']
-        )
+          "invalid-rename-hint",
+          "Rename hint namespace must be a non-empty string when provided",
+          [...path, "namespace"],
+        ),
       )
-    const from = normalizeRenameTarget(
-      value.from,
-      [...path, 'from'],
-      diagnostics
-    )
-    const to = normalizeRenameTarget(value.to, [...path, 'to'], diagnostics)
+    }
+
+    const from = normalizeRenameTarget(value.from, [...path, "from"], diagnostics)
+    const to = normalizeRenameTarget(value.to, [...path, "to"], diagnostics)
+
     if (
       !isObjectKind(kind) ||
-      (typeof namespace !== 'string' && namespace !== undefined) ||
-      namespace === '' ||
+      (typeof namespace !== "string" && namespace !== undefined) ||
+      namespace === "" ||
       from === undefined ||
       to === undefined ||
       diagnostics.length !== diagnosticCount
-    )
+    ) {
       continue
+    }
+
     const hint: SnapshotRenameHint = freeze({
       kind,
-      ...(typeof namespace === 'string' ? { namespace } : {}),
-      from: typeof value.from === 'string' ? value.from : from,
-      to: typeof value.to === 'string' ? value.to : to,
+      ...(typeof namespace === "string" ? { namespace } : {}),
+      from: typeof value.from === "string" ? value.from : from,
+      to: typeof value.to === "string" ? value.to : to,
     })
-    const key = `${kind}\u0000${namespace ?? ''}\u0000${targetKey(from)}\u0000${targetKey(to)}`
+    const key = `${kind}\u0000${namespace ?? ""}\u0000${targetKey(from)}\u0000${targetKey(to)}`
+
     if (seen.has(key)) {
       diagnostics.push(
-        diffDiagnostic('rename-conflict', 'Duplicate rename hint', path, {
+        diffDiagnostic("rename-conflict", "Duplicate rename hint", path, {
           kind,
-          namespace: typeof namespace === 'string' ? namespace : undefined,
-        })
+          namespace: typeof namespace === "string" ? namespace : undefined,
+        }),
       )
       continue
     }
+
     seen.add(key)
     values.push(hint)
   }
+
   const frozenValues = freeze(values.sort(compareHint))
-  if (diagnostics.length > 0)
+
+  if (diagnostics.length > 0) {
     return {
       ok: false,
       value: frozenValues,
       diagnostics: freeze(sortDiagnostics(diagnostics)),
     }
-  return { ok: true, value: frozenValues, diagnostics: freeze([]) }
+  }
+
+  return {
+    ok: true,
+    value: frozenValues,
+    diagnostics: freeze([]),
+  }
 }
 
 /** Serialize validated rename hints as deterministic JSON. */
-export function encodeSnapshotRenameHints(
-  hints: readonly SnapshotRenameHint[]
-): string {
+export function encodeSnapshotRenameHints(hints: readonly SnapshotRenameHint[]): string {
   const result = validateSnapshotRenameHints(hints)
-  if (!result.ok)
-    throw new TypeError(result.diagnostics.map(item => item.message).join('\n'))
+
+  if (!result.ok) {
+    throw new TypeError(result.diagnostics.map((item) => item.message).join("\n"))
+  }
+
   return canonicalJson(toSnapshotJsonValue(result.value))
 }
 
 /** Decode deterministic rename-hint JSON without throwing. */
-export function decodeSnapshotRenameHints(
-  input: string | unknown
-): SnapshotRenameHintResult {
+export function decodeSnapshotRenameHints(input: string | unknown): SnapshotRenameHintResult {
   let value: unknown = input
-  if (typeof input === 'string') {
+
+  if (typeof input === "string") {
     try {
       value = JSON.parse(input) as unknown
     } catch (error) {
@@ -631,16 +649,17 @@ export function decodeSnapshotRenameHints(
         value: [],
         diagnostics: freeze([
           diffDiagnostic(
-            'invalid-rename-hint',
+            "invalid-rename-hint",
             `Rename hint JSON could not be parsed: ${
               error instanceof Error ? error.message : String(error)
             }`,
-            []
+            [],
           ),
         ]),
       }
     }
   }
+
   return validateSnapshotRenameHints(value)
 }
 
@@ -655,37 +674,42 @@ function decodeSnapshot(input: SnapshotDiffInput): {
 } {
   const diagnostics: SnapshotDiffDiagnostic[] = []
   let value: unknown = input
-  if (typeof input === 'string') {
+
+  if (typeof input === "string") {
     try {
       value = JSON.parse(input) as unknown
     } catch (error) {
       diagnostics.push(
         diffDiagnostic(
-          'invalid-snapshot',
+          "invalid-snapshot",
           `Snapshot JSON could not be parsed: ${
             error instanceof Error ? error.message : String(error)
           }`,
-          []
-        )
+          [],
+        ),
       )
       return { diagnostics }
     }
   }
+
   if (!isRecord(value)) {
-    diagnostics.push(
-      diffDiagnostic('invalid-snapshot', 'Snapshot must be an object', [])
-    )
+    diagnostics.push(diffDiagnostic("invalid-snapshot", "Snapshot must be an object", []))
     return { diagnostics }
   }
+
   const version = value.version
   const normalized = sortSnapshotArrays(value, version === 2 ? 2 : 1)
+
   if (version === 2) {
     const result = decodeCompleteSchemaSnapshot(normalized)
+
     if (!result.ok) {
       diagnostics.push(...mapSnapshotDiagnostics(result.diagnostics))
       return { diagnostics }
     }
+
     const snapshot = result.value
+
     return {
       diagnostics,
       snapshot: {
@@ -696,13 +720,17 @@ function decodeSnapshot(input: SnapshotDiffInput): {
       },
     }
   }
+
   if (version === 1) {
     const result = decodeSchemaSnapshot(normalized)
+
     if (!result.ok) {
       diagnostics.push(...mapSnapshotDiagnostics(result.diagnostics))
       return { diagnostics }
     }
+
     const snapshot = result.value
+
     return {
       diagnostics,
       snapshot: {
@@ -713,12 +741,11 @@ function decodeSnapshot(input: SnapshotDiffInput): {
       },
     }
   }
+
   diagnostics.push(
-    diffDiagnostic(
-      'invalid-snapshot',
-      `Unsupported schema snapshot version: ${String(version)}`,
-      ['version']
-    )
+    diffDiagnostic("invalid-snapshot", `Unsupported schema snapshot version: ${String(version)}`, [
+      "version",
+    ]),
   )
   return { diagnostics }
 }
@@ -726,132 +753,148 @@ function decodeSnapshot(input: SnapshotDiffInput): {
 function extractV1Objects(snapshot: SchemaSnapshot): readonly InternalObject[] {
   const records: InternalObject[] = []
   const namespace = snapshot.namespace
+
   for (const [tableIndex, table] of snapshot.tables.entries()) {
     const tableObject = addInternalObject(
       records,
-      'table',
+      "table",
       table,
-      ['tables', tableIndex],
+      ["tables", tableIndex],
       namespace,
       undefined,
-      snapshot
+      snapshot,
     )
-    for (const [columnIndex, column] of table.columns.entries())
+
+    for (const [columnIndex, column] of table.columns.entries()) {
       addInternalObject(
         records,
-        'column',
+        "column",
         column,
-        ['tables', tableIndex, 'columns', columnIndex],
+        ["tables", tableIndex, "columns", columnIndex],
         namespace,
         tableObject,
-        snapshot
+        snapshot,
       )
-    for (const [constraintIndex, constraint] of table.constraints.entries())
+    }
+
+    for (const [constraintIndex, constraint] of table.constraints.entries()) {
       addInternalObject(
         records,
-        'constraint',
+        "constraint",
         constraint,
-        ['tables', tableIndex, 'constraints', constraintIndex],
+        ["tables", tableIndex, "constraints", constraintIndex],
         namespace,
         tableObject,
-        snapshot
+        snapshot,
       )
-    for (const [indexIndex, index] of table.indexes.entries())
+    }
+
+    for (const [indexIndex, index] of table.indexes.entries()) {
       addInternalObject(
         records,
-        'index',
+        "index",
         index,
-        ['tables', tableIndex, 'indexes', indexIndex],
+        ["tables", tableIndex, "indexes", indexIndex],
         namespace,
         tableObject,
-        snapshot
+        snapshot,
       )
+    }
   }
+
   return freeze(records.sort(compareObject))
 }
 
-function extractCompleteObjects(
-  snapshot: CompleteSchemaSnapshot
-): readonly InternalObject[] {
+function extractCompleteObjects(snapshot: CompleteSchemaSnapshot): readonly InternalObject[] {
   const records: InternalObject[] = []
   const namespace = snapshot.namespace.name
+
   addInternalObject(
     records,
-    'namespace',
+    "namespace",
     snapshot.namespace,
-    ['namespace'],
+    ["namespace"],
     namespace,
     undefined,
-    snapshot
+    snapshot,
   )
   for (const [tableIndex, table] of snapshot.tables.entries()) {
     const tableObject = addInternalObject(
       records,
-      'table',
+      "table",
       table,
-      ['tables', tableIndex],
+      ["tables", tableIndex],
       namespace,
       undefined,
-      snapshot
+      snapshot,
     )
-    for (const [columnIndex, column] of table.columns.entries())
+
+    for (const [columnIndex, column] of table.columns.entries()) {
       addInternalObject(
         records,
-        'column',
+        "column",
         column,
-        ['tables', tableIndex, 'columns', columnIndex],
+        ["tables", tableIndex, "columns", columnIndex],
         namespace,
         tableObject,
-        snapshot
+        snapshot,
       )
-    for (const [constraintIndex, constraint] of table.constraints.entries())
+    }
+
+    for (const [constraintIndex, constraint] of table.constraints.entries()) {
       addInternalObject(
         records,
-        'constraint',
+        "constraint",
         constraint,
-        ['tables', tableIndex, 'constraints', constraintIndex],
+        ["tables", tableIndex, "constraints", constraintIndex],
         namespace,
         tableObject,
-        snapshot
+        snapshot,
       )
-    for (const [indexIndex, index] of table.indexes.entries())
+    }
+
+    for (const [indexIndex, index] of table.indexes.entries()) {
       addInternalObject(
         records,
-        'index',
+        "index",
         index,
-        ['tables', tableIndex, 'indexes', indexIndex],
+        ["tables", tableIndex, "indexes", indexIndex],
         namespace,
         tableObject,
-        snapshot
+        snapshot,
       )
+    }
   }
-  const groups: readonly [
-    keyof CompleteSchemaSnapshot,
-    SnapshotDiffObjectKind,
-  ][] = [
-    ['views', 'view'],
-    ['sequences', 'sequence'],
-    ['enums', 'enum'],
-    ['domains', 'domain'],
-    ['collations', 'collation'],
-    ['triggers', 'trigger'],
-    ['routines', 'routine'],
-    ['partitions', 'partition'],
-    ['policies', 'policy'],
-    ['extensions', 'extension'],
-    ['deferredObjects', 'deferred-object'],
-    ['opaqueObjects', 'opaque-object'],
-    ['comments', 'comment'],
-    ['ownership', 'ownership'],
+
+  const groups: readonly [keyof CompleteSchemaSnapshot, SnapshotDiffObjectKind][] = [
+    ["views", "view"],
+    ["sequences", "sequence"],
+    ["enums", "enum"],
+    ["domains", "domain"],
+    ["collations", "collation"],
+    ["triggers", "trigger"],
+    ["routines", "routine"],
+    ["partitions", "partition"],
+    ["policies", "policy"],
+    ["extensions", "extension"],
+    ["deferredObjects", "deferred-object"],
+    ["opaqueObjects", "opaque-object"],
+    ["comments", "comment"],
+    ["ownership", "ownership"],
   ]
+
   for (const [group, defaultKind] of groups) {
     const values = snapshot[group]
-    if (!Array.isArray(values)) continue
+
+    if (!Array.isArray(values)) {
+      continue
+    }
+
     for (const [index, value] of values.entries()) {
       const record = value as unknown as JsonRecord
       const kind =
-        defaultKind === 'view' && record.kind === 'materialized-view'
-          ? 'materialized-view'
+        defaultKind === "view" && record.kind === "materialized-view"
+          ? "materialized-view"
           : defaultKind
       const object = addInternalObject(
         records,
@@ -860,24 +903,27 @@ function extractCompleteObjects(
         [String(group), index],
         namespace,
         undefined,
-        snapshot
+        snapshot,
       )
-      if (kind === 'view' || kind === 'materialized-view') {
-        const columns = (value as CompleteSchemaSnapshot['views'][number])
-          .columns
-        for (const [columnIndex, column] of columns.entries())
+
+      if (kind === "view" || kind === "materialized-view") {
+        const columns = (value as CompleteSchemaSnapshot["views"][number]).columns
+
+        for (const [columnIndex, column] of columns.entries()) {
           addInternalObject(
             records,
-            'column',
+            "column",
             column,
-            [String(group), index, 'columns', columnIndex],
+            [String(group), index, "columns", columnIndex],
             namespace,
             object,
-            snapshot
+            snapshot,
           )
+        }
       }
     }
   }
+
   return freeze(records.sort(compareObject))
 }
 
@@ -888,28 +934,28 @@ function addInternalObject(
   path: SnapshotDiffPath,
   namespace: string | undefined,
   parent: InternalObject | undefined,
-  snapshot: SchemaSnapshot | CompleteSchemaSnapshot
+  snapshot: SchemaSnapshot | CompleteSchemaSnapshot,
 ): InternalObject {
   const record = value as JsonRecord
   const id =
-    typeof record.id === 'string'
+    typeof record.id === "string"
       ? record.id
-      : kind === 'namespace' && typeof record.name === 'string'
+      : kind === "namespace" && typeof record.name === "string"
         ? record.name
-        : typeof record.physicalName === 'string'
+        : typeof record.physicalName === "string"
           ? record.physicalName
-          : `${kind}:${path.join('.')}`
+          : `${kind}:${path.join(".")}`
   const physicalName =
-    typeof record.physicalName === 'string'
+    typeof record.physicalName === "string"
       ? record.physicalName
-      : kind === 'namespace' && typeof record.name === 'string'
+      : kind === "namespace" && typeof record.name === "string"
         ? record.name
         : undefined
   const physicalReference = record.physicalReference
   const provenance = record.provenance
   const observedKind =
-    kind === 'deferred-object' || kind === 'opaque-object'
-      ? typeof record.objectKind === 'string'
+    kind === "deferred-object" || kind === "opaque-object"
+      ? typeof record.objectKind === "string"
         ? record.objectKind
         : undefined
       : undefined
@@ -934,27 +980,26 @@ function addInternalObject(
       ? {}
       : { physicalReference: physicalReference as SnapshotJsonValue }),
     dialect,
-    ...(provenance === undefined
-      ? {}
-      : { provenance: provenance as SnapshotJsonValue }),
+    ...(provenance === undefined ? {} : { provenance: provenance as SnapshotJsonValue }),
     value: record as Record<string, SnapshotJsonValue>,
     evidence: makeEvidence(record, path, id, physicalName, dialect),
   }
   const internal: InternalObject = {
     object: freeze(object),
     key: objectKey(kind, namespace, parent, id),
-    scopeKey: `${kind}\u0000${namespace ?? ''}\u0000${parent?.object.id ?? ''}`,
+    scopeKey: `${kind}\u0000${namespace ?? ""}\u0000${parent?.object.id ?? ""}`,
     signature: structuralSignature(record),
-    lossy: kind === 'opaque-object' || kind === 'deferred-object',
-    unsupported: kind === 'opaque-object' || kind === 'deferred-object',
+    lossy: kind === "opaque-object" || kind === "deferred-object",
+    unsupported: kind === "opaque-object" || kind === "deferred-object",
   }
+
   records.push(internal)
   return internal
 }
 
 function operationForMatch(
   match: Match,
-  diagnostics: SnapshotDiffDiagnostic[]
+  diagnostics: SnapshotDiffDiagnostic[],
 ): SnapshotDiffOperation | undefined {
   const before = match.before.object
   const after = match.after.object
@@ -968,16 +1013,17 @@ function operationForMatch(
     physicalRename && blockedRename && changedProperties.length === 0
       ? freeze([
           {
-            path: freeze(['physicalName']),
+            path: freeze(["physicalName"]),
             before: before.physicalName,
             after: after.physicalName,
           },
         ])
       : changedProperties
+
   if (physicalRename && blockedRename) {
     diagnostics.push(
       diffDiagnostic(
-        'lossy',
+        "lossy",
         `Physical-name change for ${before.kind} "${before.id}" is not promoted to a rename because the record is opaque or deferred`,
         before.path,
         {
@@ -988,16 +1034,17 @@ function operationForMatch(
           dialect: after.dialect,
           relatedPaths: [after.path],
           evidence: [...before.evidence, ...after.evidence],
-        }
-      )
+        },
+      ),
     )
   }
-  if (physicalRename && !blockedRename)
+
+  if (physicalRename && !blockedRename) {
     return freeze({
-      type: 'physical-rename',
-      operation: 'physical-rename',
-      classification: 'physical-rename',
-      changeKind: 'physical-rename',
+      type: "physical-rename",
+      operation: "physical-rename",
+      classification: "physical-rename",
+      changeKind: "physical-rename",
       kind: before.kind,
       objectKind: before.kind,
       namespace: before.namespace ?? after.namespace,
@@ -1006,9 +1053,7 @@ function operationForMatch(
       ...(after.physicalReference === undefined
         ? {}
         : { physicalReference: after.physicalReference }),
-      ...(after.provenance === undefined
-        ? {}
-        : { provenance: after.provenance }),
+      ...(after.provenance === undefined ? {} : { provenance: after.provenance }),
       before,
       after,
       object: after,
@@ -1018,29 +1063,35 @@ function operationForMatch(
       evidence: freeze([
         ...match.evidence,
         evidence(
-          'physical-name',
-          [...before.path, 'physicalName'],
+          "physical-name",
+          [...before.path, "physicalName"],
           before.physicalName,
           1,
-          'Physical name changed while the logical match remained stable'
+          "Physical name changed while the logical match remained stable",
         ),
         evidence(
-          'physical-name',
-          [...after.path, 'physicalName'],
+          "physical-name",
+          [...after.path, "physicalName"],
           after.physicalName,
           1,
-          'New physical name'
+          "New physical name",
         ),
       ]),
       source: match.source,
       destructive: false,
     })
-  if (effectiveChanges.length === 0) return undefined
+  }
+
+  if (effectiveChanges.length === 0) {
+    return undefined
+  }
+
   const destructive = effectiveChanges.some(isDestructiveProperty)
-  if (destructive)
+
+  if (destructive) {
     diagnostics.push(
       diffDiagnostic(
-        'destructive',
+        "destructive",
         `Property changes on ${before.kind} "${before.id}" may remove or narrow existing data`,
         before.path,
         {
@@ -1051,14 +1102,16 @@ function operationForMatch(
           dialect: after.dialect,
           relatedPaths: [after.path],
           evidence: match.evidence,
-        }
-      )
+        },
+      ),
     )
+  }
+
   return freeze({
-    type: 'property-change',
-    operation: 'property-change',
-    classification: 'property-change',
-    changeKind: 'property-change',
+    type: "property-change",
+    operation: "property-change",
+    classification: "property-change",
+    changeKind: "property-change",
     kind: before.kind,
     objectKind: before.kind,
     namespace: before.namespace ?? after.namespace,
@@ -1081,8 +1134,8 @@ function operationForMatch(
 }
 
 function operationForUnmatched(
-  type: 'add' | 'remove',
-  object: SnapshotDiffObject
+  type: "add" | "remove",
+  object: SnapshotDiffObject,
 ): SnapshotDiffOperation {
   return freeze({
     type,
@@ -1097,16 +1150,14 @@ function operationForUnmatched(
     ...(object.physicalReference === undefined
       ? {}
       : { physicalReference: object.physicalReference }),
-    ...(object.provenance === undefined
-      ? {}
-      : { provenance: object.provenance }),
-    ...(type === 'remove' ? { before: object } : { after: object }),
+    ...(object.provenance === undefined ? {} : { provenance: object.provenance }),
+    ...(type === "remove" ? { before: object } : { after: object }),
     object,
     logicalId: object.id,
     physicalName: object.physicalName,
     evidence: object.evidence,
-    source: 'stable-id',
-    destructive: type === 'remove',
+    source: "stable-id",
+    destructive: type === "remove",
   })
 }
 
@@ -1114,56 +1165,82 @@ function resolveHintTarget(
   records: readonly InternalObject[],
   kind: SnapshotDiffObjectKind,
   namespace: string | undefined,
-  target: string | SnapshotRenameTarget
+  target: string | SnapshotRenameTarget,
 ): readonly InternalObject[] {
-  const scalarTarget = typeof target === 'string' ? target : undefined
-  const normalized = typeof target === 'string' ? undefined : target
-  return records.filter(record => {
+  const scalarTarget = typeof target === "string" ? target : undefined
+  const normalized = typeof target === "string" ? undefined : target
+
+  return records.filter((record) => {
     if (
       record.object.kind !== kind ||
       (namespace !== undefined && record.object.namespace !== namespace)
-    )
+    ) {
       return false
+    }
+
     if (
       scalarTarget !== undefined &&
       record.object.id !== scalarTarget &&
       record.object.physicalName !== scalarTarget
-    )
+    ) {
       return false
-    if (normalized === undefined) return true
-    if (
-      normalized.path !== undefined &&
-      !samePath(record.object.path, normalized.path)
-    )
+    }
+
+    if (normalized === undefined) {
+      return true
+    }
+
+    if (normalized.path !== undefined && !samePath(record.object.path, normalized.path)) {
       return false
-    if (normalized.id !== undefined && record.object.id !== normalized.id)
+    }
+
+    if (normalized.id !== undefined && record.object.id !== normalized.id) {
       return false
+    }
+
     if (
       normalized.physicalName !== undefined &&
       record.object.physicalName !== normalized.physicalName
-    )
+    ) {
       return false
+    }
+
     return true
   })
 }
 
 function structuralScore(left: InternalObject, right: InternalObject): number {
-  if (left.signature === right.signature) return 1
+  if (left.signature === right.signature) {
+    return 1
+  }
+
   const leftRecord = stripIdentity(left.object.value as SnapshotJsonValue)
   const rightRecord = stripIdentity(right.object.value as SnapshotJsonValue)
-  if (!isSnapshotRecord(leftRecord) || !isSnapshotRecord(rightRecord)) return 0
+
+  if (!isSnapshotRecord(leftRecord) || !isSnapshotRecord(rightRecord)) {
+    return 0
+  }
+
   const leftKeys = new Set(Object.keys(leftRecord))
   const rightKeys = new Set(Object.keys(rightRecord))
   const keys = new Set([...leftKeys, ...rightKeys])
-  if (keys.size === 0) return 0
+
+  if (keys.size === 0) {
+    return 0
+  }
+
   let equal = 0
-  for (const key of keys)
+
+  for (const key of keys) {
     if (
       key in leftRecord &&
       key in rightRecord &&
       canonicalEquivalent(leftRecord[key], rightRecord[key])
-    )
+    ) {
       equal += 1
+    }
+  }
+
   return equal / keys.size
 }
 
@@ -1172,30 +1249,38 @@ function structuralSignature(value: JsonRecord): string {
 }
 
 function stripIdentity(value: SnapshotJsonValue): SnapshotJsonValue {
-  if (Array.isArray(value))
-    return value.map(item =>
-      stripIdentity(item)
-    ) as readonly SnapshotJsonValue[]
-  if (value === null || typeof value !== 'object') return value
+  if (Array.isArray(value)) {
+    return value.map((item) => stripIdentity(item)) as readonly SnapshotJsonValue[]
+  }
+
+  if (value === null || typeof value !== "object") {
+    return value
+  }
+
   const result: Record<string, SnapshotJsonValue> = {}
+
   for (const [key, child] of Object.entries(value)) {
     if (
-      key === 'id' ||
-      key === 'physicalName' ||
-      key === 'physicalReference' ||
-      key === 'provenance'
-    )
+      key === "id" ||
+      key === "physicalName" ||
+      key === "physicalReference" ||
+      key === "provenance"
+    ) {
       continue
+    }
+
     result[key] = stripIdentity(child)
   }
+
   return result
 }
 
 function propertyChangesBetween(
   before: Readonly<Record<string, SnapshotJsonValue>>,
-  after: Readonly<Record<string, SnapshotJsonValue>>
+  after: Readonly<Record<string, SnapshotJsonValue>>,
 ): readonly SnapshotDiffPropertyChange[] {
   const changes: SnapshotDiffPropertyChange[] = []
+
   compareValues(before, after, [], changes)
   return freeze(changes)
 }
@@ -1204,34 +1289,47 @@ function compareValues(
   before: SnapshotJsonValue | undefined,
   after: SnapshotJsonValue | undefined,
   path: SnapshotDiffPath,
-  changes: SnapshotDiffPropertyChange[]
+  changes: SnapshotDiffPropertyChange[],
 ): void {
   const key = path[path.length - 1]
-  if (key === 'id' || key === 'physicalName' || key === 'physicalReference')
+
+  if (key === "id" || key === "physicalName" || key === "physicalReference") {
     return
-  if (
-    path.length === 1 &&
-    (key === 'columns' || key === 'constraints' || key === 'indexes')
-  )
+  }
+
+  if (path.length === 1 && (key === "columns" || key === "constraints" || key === "indexes")) {
     return
-  if (canonicalEquivalent(before, after)) return
+  }
+
+  if (canonicalEquivalent(before, after)) {
+    return
+  }
+
   if (isSnapshotRecord(before) && isSnapshotRecord(after)) {
     const keys = new Set([...Object.keys(before), ...Object.keys(after)])
-    for (const childKey of [...keys].sort())
+
+    for (const childKey of [...keys].sort()) {
       compareValues(
         before[childKey] as SnapshotJsonValue | undefined,
         after[childKey] as SnapshotJsonValue | undefined,
         [...path, childKey],
-        changes
+        changes,
       )
+    }
+
     return
   }
+
   if (Array.isArray(before) && Array.isArray(after)) {
     const length = Math.max(before.length, after.length)
-    for (let index = 0; index < length; index += 1)
+
+    for (let index = 0; index < length; index += 1) {
       compareValues(before[index], after[index], [...path, index], changes)
+    }
+
     return
   }
+
   changes.push({
     path: freeze([...path]),
     ...(before === undefined ? {} : { before }),
@@ -1240,12 +1338,24 @@ function compareValues(
 }
 
 function isDestructiveProperty(change: SnapshotDiffPropertyChange): boolean {
-  if (change.after === undefined) return true
-  const key = change.path[change.path.length - 1]
-  if (key === 'nullable') return change.after === false
-  if (key === 'storage' || key === 'default' || key === 'generatedColumn')
+  if (change.after === undefined) {
     return true
-  if (key === 'columns' || key === 'terms' || key === 'constraints') return true
+  }
+
+  const key = change.path[change.path.length - 1]
+
+  if (key === "nullable") {
+    return change.after === false
+  }
+
+  if (key === "storage" || key === "default" || key === "generatedColumn") {
+    return true
+  }
+
+  if (key === "columns" || key === "terms" || key === "constraints") {
+    return true
+  }
+
   return false
 }
 
@@ -1254,57 +1364,58 @@ function makeEvidence(
   path: SnapshotDiffPath,
   id: string,
   physicalName: string | undefined,
-  dialect: SchemaSnapshot['dialect']
+  dialect: SchemaSnapshot["dialect"],
 ): readonly SnapshotDiffEvidence[] {
   const result: SnapshotDiffEvidence[] = [
-    evidence('logical-id', [...path, 'id'], id, 1, 'Stable logical ID'),
-    evidence(
-      'dialect',
-      undefined,
-      toSnapshotJsonValue(dialect),
-      1,
-      'Snapshot dialect'
-    ),
+    evidence("logical-id", [...path, "id"], id, 1, "Stable logical ID"),
+    evidence("dialect", undefined, toSnapshotJsonValue(dialect), 1, "Snapshot dialect"),
   ]
-  if (physicalName !== undefined)
+
+  if (physicalName !== undefined) {
     result.push(
       evidence(
-        'physical-name',
-        [...path, 'physicalName'],
+        "physical-name",
+        [...path, "physicalName"],
         physicalName,
         1,
-        'Physical name evidence'
-      )
+        "Physical name evidence",
+      ),
     )
-  if (record.physicalReference !== undefined)
+  }
+
+  if (record.physicalReference !== undefined) {
     result.push(
       evidence(
-        'physical-reference',
-        [...path, 'physicalReference'],
+        "physical-reference",
+        [...path, "physicalReference"],
         record.physicalReference as SnapshotJsonValue,
         1,
-        'Physical reference evidence'
-      )
+        "Physical reference evidence",
+      ),
     )
-  if (record.provenance !== undefined)
+  }
+
+  if (record.provenance !== undefined) {
     result.push(
       evidence(
-        'provenance',
-        [...path, 'provenance'],
+        "provenance",
+        [...path, "provenance"],
         record.provenance as SnapshotJsonValue,
         1,
-        'Catalog or decompiler provenance'
-      )
+        "Catalog or decompiler provenance",
+      ),
     )
+  }
+
   return freeze(result)
 }
 
 function evidence(
-  kind: SnapshotDiffEvidence['kind'],
+  kind: SnapshotDiffEvidence["kind"],
   path?: SnapshotDiffPath,
   value?: SnapshotJsonValue,
   confidence?: number,
-  message?: string
+  message?: string,
 ): SnapshotDiffEvidence {
   return freeze({
     kind,
@@ -1316,7 +1427,7 @@ function evidence(
 }
 
 function diffDiagnostic(
-  code: SnapshotDiffDiagnostic['code'],
+  code: SnapshotDiffDiagnostic["code"],
   message: string,
   path: SnapshotDiffPath,
   options: {
@@ -1324,62 +1435,56 @@ function diffDiagnostic(
     readonly namespace?: string
     readonly logicalId?: string
     readonly physicalName?: string
-    readonly dialect?: SchemaSnapshot['dialect']
+    readonly dialect?: SchemaSnapshot["dialect"]
     readonly relatedPaths?: readonly SnapshotDiffPath[]
     readonly evidence?: readonly SnapshotDiffEvidence[]
-  } = {}
+  } = {},
 ): SnapshotDiffDiagnostic {
   return {
     code,
     category: code,
     severity:
-      code === 'ambiguous' ||
-      code === 'invalid-snapshot' ||
-      code === 'invalid-rename-hint' ||
-      code === 'rename-conflict' ||
-      code === 'dialect-mismatch'
-        ? 'error'
-        : 'warning',
+      code === "ambiguous" ||
+      code === "invalid-snapshot" ||
+      code === "invalid-rename-hint" ||
+      code === "rename-conflict" ||
+      code === "dialect-mismatch"
+        ? "error"
+        : "warning",
     message,
     path: freeze([...path]),
     ...(options.relatedPaths === undefined
       ? {}
       : {
-          relatedPaths: freeze(
-            options.relatedPaths.map(item => freeze([...item]))
-          ),
+          relatedPaths: freeze(options.relatedPaths.map((item) => freeze([...item]))),
         }),
     ...(options.kind === undefined
       ? {}
-      : { kind: options.kind, objectKind: options.kind }),
-    ...(options.namespace === undefined
-      ? {}
-      : { namespace: options.namespace }),
-    ...(options.logicalId === undefined
-      ? {}
-      : { logicalId: options.logicalId }),
-    ...(options.physicalName === undefined
-      ? {}
-      : { physicalName: options.physicalName }),
+      : {
+          kind: options.kind,
+          objectKind: options.kind,
+        }),
+    ...(options.namespace === undefined ? {} : { namespace: options.namespace }),
+    ...(options.logicalId === undefined ? {} : { logicalId: options.logicalId }),
+    ...(options.physicalName === undefined ? {} : { physicalName: options.physicalName }),
     ...(options.dialect === undefined ? {} : { dialect: options.dialect }),
-    ...(options.evidence === undefined
-      ? {}
-      : { evidence: freeze([...options.evidence]) }),
+    ...(options.evidence === undefined ? {} : { evidence: freeze([...options.evidence]) }),
   }
 }
 
 function mapSnapshotDiagnostics(
-  diagnostics: readonly SnapshotDiagnostic[]
+  diagnostics: readonly SnapshotDiagnostic[],
 ): readonly SnapshotDiffDiagnostic[] {
-  return diagnostics.map(item => {
-    const code: SnapshotDiffDiagnostic['code'] =
-      item.code === 'unknown-field'
-        ? 'unknown'
-        : item.code === 'future-version' ||
-            item.code === 'unsupported-expression' ||
-            item.code === 'unsupported-dialect-option'
-          ? 'unsupported'
-          : 'invalid-snapshot'
+  return diagnostics.map((item) => {
+    const code: SnapshotDiffDiagnostic["code"] =
+      item.code === "unknown-field"
+        ? "unknown"
+        : item.code === "future-version" ||
+            item.code === "unsupported-expression" ||
+            item.code === "unsupported-dialect-option"
+          ? "unsupported"
+          : "invalid-snapshot"
+
     return diffDiagnostic(code, item.message, item.path, {
       relatedPaths: item.relatedPaths,
     })
@@ -1387,14 +1492,20 @@ function mapSnapshotDiagnostics(
 }
 
 function groupByKey(
-  records: readonly InternalObject[]
+  records: readonly InternalObject[],
 ): ReadonlyMap<string, readonly InternalObject[]> {
   const groups = new Map<string, InternalObject[]>()
+
   for (const record of records) {
     const values = groups.get(record.key)
-    if (values === undefined) groups.set(record.key, [record])
-    else values.push(record)
+
+    if (values === undefined) {
+      groups.set(record.key, [record])
+    } else {
+      values.push(record)
+    }
   }
+
   return groups
 }
 
@@ -1402,79 +1513,89 @@ function objectKey(
   kind: SnapshotDiffObjectKind,
   namespace: string | undefined,
   parent: InternalObject | undefined,
-  id: string
+  id: string,
 ): string {
-  return `${kind}\u0000${namespace ?? ''}\u0000${parent?.object.kind ?? ''}\u0000${parent?.object.id ?? ''}\u0000${id}`
+  return `${kind}\u0000${namespace ?? ""}\u0000${parent?.object.kind ?? ""}\u0000${parent?.object.id ?? ""}\u0000${id}`
 }
 
 function sortSnapshotArrays(value: JsonRecord, version: 1 | 2): JsonRecord {
   const visit = (current: unknown, key: string | undefined): unknown => {
     if (Array.isArray(current)) {
-      const values = current.map(item => visit(item, key))
-      if (
-        key !== undefined &&
-        isObjectArrayKey(key, version) &&
-        values.every(isRecord)
-      )
+      const values = current.map((item) => visit(item, key))
+
+      if (key !== undefined && isObjectArrayKey(key, version) && values.every(isRecord)) {
         return values.sort(compareUnknownRecords)
+      }
+
       if (
-        key === 'dependencies' ||
-        key === 'roles' ||
-        key === 'events' ||
-        key === 'includedColumns'
-      )
+        key === "dependencies" ||
+        key === "roles" ||
+        key === "events" ||
+        key === "includedColumns"
+      ) {
         return values.sort(compareUnknownRecords)
-      if (key === 'terms' || key === 'values' || key === 'parameters')
+      }
+
+      if (key === "terms" || key === "values" || key === "parameters") {
         return values.sort(comparePositionedRecords)
+      }
+
       return values
     }
-    if (!isRecord(current)) return current
+
+    if (!isRecord(current)) {
+      return current
+    }
+
     const output: JsonRecord = {}
-    for (const [childKey, child] of Object.entries(current))
+
+    for (const [childKey, child] of Object.entries(current)) {
       output[childKey] = visit(child, childKey)
+    }
+
     return output
   }
+
   return visit(value, undefined) as JsonRecord
 }
 
 function isObjectArrayKey(key: string, version: 1 | 2): boolean {
-  if (version === 1)
-    return (
-      key === 'tables' ||
-      key === 'columns' ||
-      key === 'constraints' ||
-      key === 'indexes'
-    )
+  if (version === 1) {
+    return key === "tables" || key === "columns" || key === "constraints" || key === "indexes"
+  }
+
   return (
-    key === 'tables' ||
-    key === 'views' ||
-    key === 'sequences' ||
-    key === 'enums' ||
-    key === 'domains' ||
-    key === 'collations' ||
-    key === 'triggers' ||
-    key === 'routines' ||
-    key === 'partitions' ||
-    key === 'policies' ||
-    key === 'extensions' ||
-    key === 'deferredObjects' ||
-    key === 'opaqueObjects' ||
-    key === 'comments' ||
-    key === 'ownership' ||
-    key === 'columns' ||
-    key === 'constraints' ||
-    key === 'indexes'
+    key === "tables" ||
+    key === "views" ||
+    key === "sequences" ||
+    key === "enums" ||
+    key === "domains" ||
+    key === "collations" ||
+    key === "triggers" ||
+    key === "routines" ||
+    key === "partitions" ||
+    key === "policies" ||
+    key === "extensions" ||
+    key === "deferredObjects" ||
+    key === "opaqueObjects" ||
+    key === "comments" ||
+    key === "ownership" ||
+    key === "columns" ||
+    key === "constraints" ||
+    key === "indexes"
   )
 }
 
 function compareUnknownRecords(left: unknown, right: unknown): number {
   const leftRecord = isRecord(left) ? left : undefined
   const rightRecord = isRecord(right) ? right : undefined
-  const leftId =
-    leftRecord && typeof leftRecord.id === 'string' ? leftRecord.id : ''
-  const rightId =
-    rightRecord && typeof rightRecord.id === 'string' ? rightRecord.id : ''
-  if (leftId !== rightId) return leftId < rightId ? -1 : 1
+  const leftId = leftRecord && typeof leftRecord.id === "string" ? leftRecord.id : ""
+  const rightId = rightRecord && typeof rightRecord.id === "string" ? rightRecord.id : ""
+
+  if (leftId !== rightId) {
+    return leftId < rightId ? -1 : 1
+  }
+
   return safeString(left).localeCompare(safeString(right))
 }
 
@@ -1482,17 +1603,18 @@ function comparePositionedRecords(left: unknown, right: unknown): number {
   const leftRecord = isRecord(left) ? left : undefined
   const rightRecord = isRecord(right) ? right : undefined
   const leftPosition =
-    leftRecord && typeof leftRecord.position === 'number'
+    leftRecord && typeof leftRecord.position === "number"
       ? leftRecord.position
-      : leftRecord && typeof leftRecord.ordinalPosition === 'number'
+      : leftRecord && typeof leftRecord.ordinalPosition === "number"
         ? leftRecord.ordinalPosition
         : Number.MAX_SAFE_INTEGER
   const rightPosition =
-    rightRecord && typeof rightRecord.position === 'number'
+    rightRecord && typeof rightRecord.position === "number"
       ? rightRecord.position
-      : rightRecord && typeof rightRecord.ordinalPosition === 'number'
+      : rightRecord && typeof rightRecord.ordinalPosition === "number"
         ? rightRecord.ordinalPosition
         : Number.MAX_SAFE_INTEGER
+
   return leftPosition - rightPosition || compareUnknownRecords(left, right)
 }
 
@@ -1506,10 +1628,7 @@ function safeString(value: unknown): string {
 
 function canonicalEquivalent(left: unknown, right: unknown): boolean {
   try {
-    return (
-      canonicalJson(toSnapshotJsonValue(left)) ===
-      canonicalJson(toSnapshotJsonValue(right))
-    )
+    return canonicalJson(toSnapshotJsonValue(left)) === canonicalJson(toSnapshotJsonValue(right))
   } catch {
     return safeString(left) === safeString(right)
   }
@@ -1518,201 +1637,181 @@ function canonicalEquivalent(left: unknown, right: unknown): boolean {
 function normalizeRenameTarget(
   value: unknown,
   path: SnapshotDiffPath,
-  diagnostics: SnapshotDiffDiagnostic[]
+  diagnostics: SnapshotDiffDiagnostic[],
 ): SnapshotRenameTarget | undefined {
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     if (value.length === 0) {
-      diagnostics.push(
-        diffDiagnostic(
-          'invalid-rename-hint',
-          'Rename target cannot be empty',
-          path
-        )
-      )
+      diagnostics.push(diffDiagnostic("invalid-rename-hint", "Rename target cannot be empty", path))
       return undefined
     }
+
     return freeze({ id: value })
   }
+
   if (!isRecord(value)) {
     diagnostics.push(
-      diffDiagnostic(
-        'invalid-rename-hint',
-        'Rename target must be a string or object',
-        path
-      )
+      diffDiagnostic("invalid-rename-hint", "Rename target must be a string or object", path),
     )
     return undefined
   }
-  for (const key of Object.keys(value))
-    if (key !== 'id' && key !== 'physicalName' && key !== 'path')
+
+  for (const key of Object.keys(value)) {
+    if (key !== "id" && key !== "physicalName" && key !== "path") {
       diagnostics.push(
-        diffDiagnostic(
-          'invalid-rename-hint',
-          `Unknown rename target field "${key}"`,
-          [...path, key]
-        )
+        diffDiagnostic("invalid-rename-hint", `Unknown rename target field "${key}"`, [
+          ...path,
+          key,
+        ]),
       )
+    }
+  }
+
   const id = value.id
   const physicalName = value.physicalName
   const targetPath = value.path
-  if (id !== undefined && (typeof id !== 'string' || id.length === 0))
+
+  if (id !== undefined && (typeof id !== "string" || id.length === 0)) {
     diagnostics.push(
-      diffDiagnostic(
-        'invalid-rename-hint',
-        'Rename target id must be a non-empty string',
-        [...path, 'id']
-      )
+      diffDiagnostic("invalid-rename-hint", "Rename target id must be a non-empty string", [
+        ...path,
+        "id",
+      ]),
     )
+  }
+
   if (
     physicalName !== undefined &&
-    (typeof physicalName !== 'string' || physicalName.length === 0)
-  )
-    diagnostics.push(
-      diffDiagnostic(
-        'invalid-rename-hint',
-        'Rename target physicalName must be a non-empty string',
-        [...path, 'physicalName']
-      )
-    )
-  if (targetPath !== undefined && !isPath(targetPath))
-    diagnostics.push(
-      diffDiagnostic(
-        'invalid-rename-hint',
-        'Rename target path must be an array',
-        [...path, 'path']
-      )
-    )
-  if (
-    id === undefined &&
-    physicalName === undefined &&
-    targetPath === undefined
+    (typeof physicalName !== "string" || physicalName.length === 0)
   ) {
     diagnostics.push(
       diffDiagnostic(
-        'invalid-rename-hint',
-        'Rename target needs an id, physicalName, or path',
-        path
-      )
+        "invalid-rename-hint",
+        "Rename target physicalName must be a non-empty string",
+        [...path, "physicalName"],
+      ),
+    )
+  }
+
+  if (targetPath !== undefined && !isPath(targetPath)) {
+    diagnostics.push(
+      diffDiagnostic("invalid-rename-hint", "Rename target path must be an array", [
+        ...path,
+        "path",
+      ]),
+    )
+  }
+
+  if (id === undefined && physicalName === undefined && targetPath === undefined) {
+    diagnostics.push(
+      diffDiagnostic(
+        "invalid-rename-hint",
+        "Rename target needs an id, physicalName, or path",
+        path,
+      ),
     )
     return undefined
   }
+
   if (
-    (id !== undefined && (typeof id !== 'string' || id.length === 0)) ||
+    (id !== undefined && (typeof id !== "string" || id.length === 0)) ||
     (physicalName !== undefined &&
-      (typeof physicalName !== 'string' || physicalName.length === 0)) ||
+      (typeof physicalName !== "string" || physicalName.length === 0)) ||
     (targetPath !== undefined && !isPath(targetPath))
-  )
+  ) {
     return undefined
+  }
+
   return freeze({
-    ...(typeof id === 'string' ? { id } : {}),
-    ...(typeof physicalName === 'string' ? { physicalName } : {}),
+    ...(typeof id === "string" ? { id } : {}),
+    ...(typeof physicalName === "string" ? { physicalName } : {}),
     ...(isPath(targetPath) ? { path: freeze([...targetPath]) } : {}),
   })
 }
 
 function targetKey(target: SnapshotRenameTarget): string {
-  return `${target.id ?? ''}\u0000${target.physicalName ?? ''}\u0000${target.path?.join('.') ?? ''}`
+  return `${target.id ?? ""}\u0000${target.physicalName ?? ""}\u0000${target.path?.join(".") ?? ""}`
 }
 
 function isObjectKind(value: unknown): value is SnapshotDiffObjectKind {
-  return (
-    typeof value === 'string' &&
-    objectKinds.has(value as SnapshotDiffObjectKind)
-  )
+  return typeof value === "string" && objectKinds.has(value as SnapshotDiffObjectKind)
 }
 
 function isPath(value: unknown): value is SnapshotDiffPath {
   return (
     Array.isArray(value) &&
-    value.every(item => typeof item === 'string' || Number.isSafeInteger(item))
+    value.every((item) => typeof item === "string" || Number.isSafeInteger(item))
   )
 }
 
 function samePath(left: SnapshotDiffPath, right: SnapshotDiffPath): boolean {
-  return (
-    left.length === right.length &&
-    left.every((item, index) => item === right[index])
-  )
+  return left.length === right.length && left.every((item, index) => item === right[index])
 }
 
 function compareObject(left: InternalObject, right: InternalObject): number {
   return (
     left.object.kind.localeCompare(right.object.kind) ||
-    (left.object.namespace ?? '').localeCompare(right.object.namespace ?? '') ||
-    (left.object.parent?.id ?? '').localeCompare(
-      right.object.parent?.id ?? ''
-    ) ||
+    (left.object.namespace ?? "").localeCompare(right.object.namespace ?? "") ||
+    (left.object.parent?.id ?? "").localeCompare(right.object.parent?.id ?? "") ||
     left.object.id.localeCompare(right.object.id) ||
     safeString(left.object.path).localeCompare(safeString(right.object.path))
   )
 }
 
-function compareOperation(
-  left: SnapshotDiffOperation,
-  right: SnapshotDiffOperation
-): number {
+function compareOperation(left: SnapshotDiffOperation, right: SnapshotDiffOperation): number {
   return (
-    (operationOrder.get(left.type) ?? 99) -
-      (operationOrder.get(right.type) ?? 99) ||
+    (operationOrder.get(left.type) ?? 99) - (operationOrder.get(right.type) ?? 99) ||
     left.kind.localeCompare(right.kind) ||
-    (left.namespace ?? '').localeCompare(right.namespace ?? '') ||
-    (left.logicalId ?? '').localeCompare(right.logicalId ?? '') ||
+    (left.namespace ?? "").localeCompare(right.namespace ?? "") ||
+    (left.logicalId ?? "").localeCompare(right.logicalId ?? "") ||
     safeString(left.before?.path ?? left.after?.path).localeCompare(
-      safeString(right.before?.path ?? right.after?.path)
+      safeString(right.before?.path ?? right.after?.path),
     )
   )
 }
 
 function compareSuggestion(
   left: SnapshotRenameSuggestion,
-  right: SnapshotRenameSuggestion
+  right: SnapshotRenameSuggestion,
 ): number {
   return (
     left.kind.localeCompare(right.kind) ||
-    (left.namespace ?? '').localeCompare(right.namespace ?? '') ||
+    (left.namespace ?? "").localeCompare(right.namespace ?? "") ||
     left.before.id.localeCompare(right.before.id) ||
     left.after.id.localeCompare(right.after.id)
   )
 }
 
-function compareHint(
-  left: SnapshotRenameHint,
-  right: SnapshotRenameHint
-): number {
+function compareHint(left: SnapshotRenameHint, right: SnapshotRenameHint): number {
   return (
     left.kind.localeCompare(right.kind) ||
-    (left.namespace ?? '').localeCompare(right.namespace ?? '') ||
+    (left.namespace ?? "").localeCompare(right.namespace ?? "") ||
     targetKey(normalizeTargetForCompare(left.from)).localeCompare(
-      targetKey(normalizeTargetForCompare(right.from))
+      targetKey(normalizeTargetForCompare(right.from)),
     ) ||
     targetKey(normalizeTargetForCompare(left.to)).localeCompare(
-      targetKey(normalizeTargetForCompare(right.to))
+      targetKey(normalizeTargetForCompare(right.to)),
     )
   )
 }
 
-function normalizeTargetForCompare(
-  target: string | SnapshotRenameTarget
-): SnapshotRenameTarget {
-  return typeof target === 'string' ? { id: target } : target
+function normalizeTargetForCompare(target: string | SnapshotRenameTarget): SnapshotRenameTarget {
+  return typeof target === "string" ? { id: target } : target
 }
 
 function clampThreshold(value: number | undefined): number {
-  return value === undefined || !Number.isFinite(value)
-    ? 0.75
-    : Math.min(1, Math.max(0, value))
+  return value === undefined || !Number.isFinite(value) ? 0.75 : Math.min(1, Math.max(0, value))
 }
 
 function sortDiagnostics(
-  diagnostics: readonly SnapshotDiffDiagnostic[]
+  diagnostics: readonly SnapshotDiffDiagnostic[],
 ): readonly SnapshotDiffDiagnostic[] {
   return freeze(
     [...diagnostics].sort(
       (left, right) =>
         left.code.localeCompare(right.code) ||
         safeString(left.path).localeCompare(safeString(right.path)) ||
-        left.message.localeCompare(right.message)
-    )
+        left.message.localeCompare(right.message),
+    ),
   )
 }
 
@@ -1721,15 +1820,25 @@ function freezeDiff(value: SnapshotDiff): SnapshotDiff {
 }
 
 function deepFreeze<T>(value: T, seen = new WeakSet<object>()): T {
-  if (value === null || typeof value !== 'object') return value
-  if (seen.has(value)) return value
+  if (value === null || typeof value !== "object") {
+    return value
+  }
+
+  if (seen.has(value)) {
+    return value
+  }
+
   seen.add(value)
   if (Array.isArray(value)) {
-    for (const item of value) deepFreeze(item, seen)
+    for (const item of value) {
+      deepFreeze(item, seen)
+    }
   } else {
-    for (const child of Object.values(value as Record<string, unknown>))
+    for (const child of Object.values(value as Record<string, unknown>)) {
       deepFreeze(child, seen)
+    }
   }
+
   return Object.freeze(value)
 }
 
@@ -1738,11 +1847,9 @@ function freeze<T>(value: T): T {
 }
 
 function isRecord(value: unknown): value is JsonRecord {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+  return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-function isSnapshotRecord(
-  value: SnapshotJsonValue | undefined
-): value is SnapshotRecord {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
+function isSnapshotRecord(value: SnapshotJsonValue | undefined): value is SnapshotRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
 }

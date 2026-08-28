@@ -1,11 +1,8 @@
-import { createQuery } from './types.ts'
-import type { AnySelectClause } from './clauses/types.ts'
-import { renderSelection, selectionRow } from './select/render.ts'
-import { validateClauses } from './select/validate.ts'
-import {
-  renderPagination,
-  type AnyPaginationClause,
-} from './clauses/pagination.ts'
+import type { CapabilityMetadataOf, RequiresOuterSourceMeta } from "../core/fragment.ts"
+import { renderPagination, type AnyPaginationClause } from "./clauses/pagination.ts"
+import type { AnySelectClause } from "./clauses/types.ts"
+import { omit, type OmissionValidation, type PresentClauses, type SelectPart } from "./omit.ts"
+import { renderSelection, selectionRow } from "./select/render.ts"
 import type {
   NullableSources,
   RequiredOuterScope,
@@ -13,24 +10,16 @@ import type {
   GroupingValidation,
   ScopeValidation,
   SelectQuery,
-} from './select/types.ts'
-import type {
-  CapabilityMetadataOf,
-  RequiresOuterSourceMeta,
-} from '../core/fragment.ts'
+} from "./select/types.ts"
+import { validateClauses } from "./select/validate.ts"
 import {
   type Selection,
   type SelectionOutput,
   type SelectionSqlTypes,
   selectionResultShape,
-} from './selection.ts'
-import type { SelectionItems } from './selection.ts'
-import {
-  omit,
-  type OmissionValidation,
-  type PresentClauses,
-  type SelectPart,
-} from './omit.ts'
+} from "./selection.ts"
+import type { SelectionItems } from "./selection.ts"
+import { createQuery } from "./types.ts"
 
 type SelectMetadata<TSelection, TClauses extends readonly AnySelectClause[]> =
   | ([RequiredOuterScope<TSelection, TClauses>] extends [never]
@@ -49,7 +38,7 @@ export type {
   SelectCardinality,
   ScopeValidation,
   SelectQuery,
-} from './select/types.ts'
+} from "./select/types.ts"
 
 export function select<
   const TSelection extends Selection,
@@ -70,71 +59,73 @@ export function select<
     SelectionOutput<TSelection, NullableSources<TClauses>>
   >
 }> {
-  const normalizedClauses = parts.filter(
-    (part): part is AnySelectClause => part !== omit
-  )
+  const normalizedClauses = parts.filter((part): part is AnySelectClause => part !== omit)
+
   validateClauses(normalizedClauses)
 
   const orderedClauses = normalizedClauses
-    .map((clause, index) => ({ clause, index }))
-    .sort(
-      (left, right) =>
-        left.clause.order - right.clause.order || left.index - right.index
-    )
+    .map((clause, index) => ({
+      clause,
+      index,
+    }))
+    .sort((left, right) => left.clause.order - right.clause.order || left.index - right.index)
     .map(({ clause }) => clause)
 
-  const row = selectionRow(selection) as SelectionOutput<
-    TSelection,
-    NullableSources<TClauses>
-  >
+  const row = selectionRow(selection) as SelectionOutput<TSelection, NullableSources<TClauses>>
   const query = createQuery<
     SelectionOutput<TSelection, NullableSources<TClauses>>,
     SelectCardinality<TParts>,
     SelectMetadata<TSelection, TClauses>,
-    SelectionSqlTypes<
-      TSelection,
-      SelectionOutput<TSelection, NullableSources<TClauses>>
-    >
-  >('select', row, selectionResultShape(selection), context => {
-    const beforeSelect = orderedClauses.filter(
-      clause => clause.placement === 'before-select'
-    )
-    const afterSelect = orderedClauses.filter(
-      clause => clause.placement === 'after-select'
-    )
+    SelectionSqlTypes<TSelection, SelectionOutput<TSelection, NullableSources<TClauses>>>
+  >("select", row, selectionResultShape(selection), (context) => {
+    const beforeSelect = orderedClauses.filter((clause) => clause.placement === "before-select")
+    const afterSelect = orderedClauses.filter((clause) => clause.placement === "after-select")
     const paginationClauses = afterSelect.filter(
       (clause): clause is AnyPaginationClause =>
-        clause.clauseKind === 'offset' || clause.clauseKind === 'fetch'
+        clause.clauseKind === "offset" || clause.clauseKind === "fetch",
     )
     let renderedPagination = false
 
     for (const clause of beforeSelect) {
-      if (clause.clauseKind === 'correlate') continue
+      if (clause.clauseKind === "correlate") {
+        continue
+      }
+
       context.render(clause)
-      context.append(' ')
+      context.append(" ")
     }
 
-    context.append('SELECT ')
-    const distinctClause = afterSelect.find(
-      clause => clause.clauseKind === 'distinct'
-    )
+    context.append("SELECT ")
+    const distinctClause = afterSelect.find((clause) => clause.clauseKind === "distinct")
+
     if (distinctClause) {
       context.render(distinctClause)
-      context.append(' ')
+      context.append(" ")
     }
+
     renderSelection(selection, context)
 
     for (const clause of afterSelect) {
-      if (clause.clauseKind === 'correlate') continue
-      if (clause === distinctClause) continue
-      if (clause.clauseKind === 'offset' || clause.clauseKind === 'fetch') {
-        if (renderedPagination) continue
+      if (clause.clauseKind === "correlate") {
+        continue
+      }
+
+      if (clause === distinctClause) {
+        continue
+      }
+
+      if (clause.clauseKind === "offset" || clause.clauseKind === "fetch") {
+        if (renderedPagination) {
+          continue
+        }
+
         renderedPagination = true
-        context.append(' ')
+        context.append(" ")
         renderPagination(context, paginationClauses)
         continue
       }
-      context.append(' ')
+
+      context.append(" ")
       context.render(clause)
     }
   })

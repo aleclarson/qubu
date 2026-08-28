@@ -1,4 +1,5 @@
-import { expectTypeOf } from 'vitest'
+import { expectTypeOf } from "vitest"
+
 import {
   bigint,
   binary,
@@ -13,7 +14,7 @@ import {
   text,
   timestamp,
   uuid,
-} from '../src/index.ts'
+} from "../src/index.ts"
 import type {
   ColumnStorageDeclarationOf,
   ColumnStorageDialectOf,
@@ -22,7 +23,7 @@ import type {
   ColumnStorageTypeOf,
   NativeColumnStorage,
   PortableColumnStorage,
-} from '../src/index.ts'
+} from "../src/index.ts"
 
 const definitions = {
   integer: integer(),
@@ -39,72 +40,51 @@ const definitions = {
 }
 
 expectTypeOf<ColumnStorageOf<typeof definitions.integer>>().toEqualTypeOf<
-  PortableColumnStorage<'integer'>
+  PortableColumnStorage<"integer">
 >()
 expectTypeOf<ColumnStorageOf<typeof definitions.numeric>>().toEqualTypeOf<
-  PortableColumnStorage<'numeric'>
+  PortableColumnStorage<"numeric">
 >()
 expectTypeOf<ColumnStorageOf<typeof definitions.text>>().toEqualTypeOf<
-  PortableColumnStorage<'text'>
+  PortableColumnStorage<"text">
 >()
-expectTypeOf<
-  ColumnStorageTypeOf<typeof definitions.boolean>
->().toEqualTypeOf<'boolean'>()
-expectTypeOf<
-  ColumnStorageTypeOf<typeof definitions.date>
->().toEqualTypeOf<'date'>()
-expectTypeOf<
-  ColumnStorageTypeOf<typeof definitions.timestamp>
->().toEqualTypeOf<'timestamp'>()
-expectTypeOf<
-  ColumnStorageTypeOf<typeof definitions.dateTime>
->().toEqualTypeOf<'timestamp'>()
-expectTypeOf<
-  ColumnStorageTypeOf<typeof definitions.uuid>
->().toEqualTypeOf<'uuid'>()
-expectTypeOf<
-  ColumnStorageTypeOf<typeof definitions.json>
->().toEqualTypeOf<'json'>()
-expectTypeOf<
-  ColumnStorageTypeOf<typeof definitions.bigint>
->().toEqualTypeOf<'bigint'>()
-expectTypeOf<
-  ColumnStorageTypeOf<typeof definitions.binary>
->().toEqualTypeOf<'binary'>()
+expectTypeOf<ColumnStorageTypeOf<typeof definitions.boolean>>().toEqualTypeOf<"boolean">()
+expectTypeOf<ColumnStorageTypeOf<typeof definitions.date>>().toEqualTypeOf<"date">()
+expectTypeOf<ColumnStorageTypeOf<typeof definitions.timestamp>>().toEqualTypeOf<"timestamp">()
+expectTypeOf<ColumnStorageTypeOf<typeof definitions.dateTime>>().toEqualTypeOf<"timestamp">()
+expectTypeOf<ColumnStorageTypeOf<typeof definitions.uuid>>().toEqualTypeOf<"uuid">()
+expectTypeOf<ColumnStorageTypeOf<typeof definitions.json>>().toEqualTypeOf<"json">()
+expectTypeOf<ColumnStorageTypeOf<typeof definitions.bigint>>().toEqualTypeOf<"bigint">()
+expectTypeOf<ColumnStorageTypeOf<typeof definitions.binary>>().toEqualTypeOf<"binary">()
 
-const custom = nativeColumn(nativeStorage('postgresql', 'citext COLLATE "C"'), {
+const custom = nativeColumn(nativeStorage("postgresql", 'citext COLLATE "C"'), {
   nullable: true,
 })
-expectTypeOf<ColumnStorageOf<typeof custom>>().toEqualTypeOf<
-  NativeColumnStorage<'postgresql', 'citext COLLATE "C"'>
->()
-expectTypeOf<
-  ColumnStorageDialectOf<typeof custom>
->().toEqualTypeOf<'postgresql'>()
-expectTypeOf<
-  ColumnStorageDeclarationOf<typeof custom>
->().toEqualTypeOf<'citext COLLATE "C"'>()
-expectTypeOf<ColumnStorageKindOf<typeof custom>>().toEqualTypeOf<'native'>()
 
-const customFromArguments = nativeColumn('mysql', 'VARCHAR(255)')
-expectTypeOf<
-  ColumnStorageDialectOf<typeof customFromArguments>
->().toEqualTypeOf<'mysql'>()
+expectTypeOf<ColumnStorageOf<typeof custom>>().toEqualTypeOf<
+  NativeColumnStorage<"postgresql", 'citext COLLATE "C"'>
+>()
+expectTypeOf<ColumnStorageDialectOf<typeof custom>>().toEqualTypeOf<"postgresql">()
+expectTypeOf<ColumnStorageDeclarationOf<typeof custom>>().toEqualTypeOf<'citext COLLATE "C"'>()
+expectTypeOf<ColumnStorageKindOf<typeof custom>>().toEqualTypeOf<"native">()
+
+const customFromArguments = nativeColumn("mysql", "VARCHAR(255)")
+
+expectTypeOf<ColumnStorageDialectOf<typeof customFromArguments>>().toEqualTypeOf<"mysql">()
 expectTypeOf<
   ColumnStorageDeclarationOf<typeof customFromArguments>
->().toEqualTypeOf<'VARCHAR(255)'>()
+>().toEqualTypeOf<"VARCHAR(255)">()
 
 const customWithOption = column({
-  storage: nativeStorage('sqlite', 'TEXT COLLATE NOCASE'),
+  storage: nativeStorage("sqlite", "TEXT COLLATE NOCASE"),
 })
-expectTypeOf<
-  ColumnStorageDialectOf<typeof customWithOption>
->().toEqualTypeOf<'sqlite'>()
+
+expectTypeOf<ColumnStorageDialectOf<typeof customWithOption>>().toEqualTypeOf<"sqlite">()
 expectTypeOf<
   ColumnStorageDeclarationOf<typeof customWithOption>
->().toEqualTypeOf<'TEXT COLLATE NOCASE'>()
+>().toEqualTypeOf<"TEXT COLLATE NOCASE">()
 
 // Storage metadata does not change the existing application type axes.
 expectTypeOf<ColumnStorageOf<typeof definitions.json>>().toMatchTypeOf<
-  PortableColumnStorage<'json'>
+  PortableColumnStorage<"json">
 >()

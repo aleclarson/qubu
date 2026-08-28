@@ -1,30 +1,31 @@
-import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
-import { Client } from 'pg'
-import mysql from 'mysql2/promise'
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest'
-import { mysql2Adapter } from '../../adapters/mysql2/src/index.ts'
-import { nodeSqliteAdapter } from '../../adapters/node-sqlite/src/index.ts'
-import { pgAdapter } from '../../adapters/pg/src/index.ts'
-import {
-  qubu,
-  type DriverValueEncoder,
-  type QubuTransactionalClient,
-} from 'qubu'
-import { qubuAdapter } from '../../adapters/better-auth/src/index.ts'
+import { DatabaseSync, type SQLInputValue } from "node:sqlite"
 
-const liveDialects = ['postgresql', 'sqlite', 'mysql'] as const
+import mysql from "mysql2/promise"
+import { Client } from "pg"
+import { qubu, type DriverValueEncoder, type QubuTransactionalClient } from "qubu"
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from "vitest"
+
+import { qubuAdapter } from "../../adapters/better-auth/src/index.ts"
+import { mysql2Adapter } from "../../adapters/mysql2/src/index.ts"
+import { nodeSqliteAdapter } from "../../adapters/node-sqlite/src/index.ts"
+import { pgAdapter } from "../../adapters/pg/src/index.ts"
+
+const liveDialects = ["postgresql", "sqlite", "mysql"] as const
+
 type LiveDialect = (typeof liveDialects)[number]
 
 const configuredDialect = process.env.QUBU_E2E_DIALECT
+
 if (
   configuredDialect !== undefined &&
   !(liveDialects as readonly string[]).includes(configuredDialect)
 ) {
-  throw new Error(`QUBU_E2E_DIALECT must be one of ${liveDialects.join(', ')}`)
+  throw new Error(`QUBU_E2E_DIALECT must be one of ${liveDialects.join(", ")}`)
 }
+
 const selectedDialect = configuredDialect as LiveDialect | undefined
 
-const tableName = 'qubu_better_auth_e2e_user'
+const tableName = "qubu_better_auth_e2e_user"
 const dropSql = `DROP TABLE IF EXISTS ${tableName}`
 const schemaSql: Record<LiveDialect, string> = {
   postgresql: `
@@ -72,26 +73,33 @@ interface LiveEnvironment {
 }
 
 function encodeValue(value: unknown) {
-  if (value instanceof Date) return value.toISOString()
-  if (typeof value === 'boolean') return value ? 1 : 0
-  if (typeof value === 'object' && value !== null) return JSON.stringify(value)
+  if (value instanceof Date) {
+    return value.toISOString()
+  }
+
+  if (typeof value === "boolean") {
+    return value ? 1 : 0
+  }
+
+  if (typeof value === "object" && value !== null) {
+    return JSON.stringify(value)
+  }
+
   return value
 }
 
 const encoder: DriverValueEncoder = { encode: encodeValue }
 const sqliteEncoder: DriverValueEncoder<SQLInputValue> = {
-  encode: value => encodeValue(value) as SQLInputValue,
+  encode: (value) => encodeValue(value) as SQLInputValue,
 }
 
-async function createEnvironment(
-  dialect: LiveDialect
-): Promise<LiveEnvironment> {
-  if (dialect === 'postgresql') {
+async function createEnvironment(dialect: LiveDialect): Promise<LiveEnvironment> {
+  if (dialect === "postgresql") {
     const connection = new Client({
       connectionString:
-        process.env.POSTGRES_URL ??
-        'postgresql://postgres:postgres@127.0.0.1:5432/qubu',
+        process.env.POSTGRES_URL ?? "postgresql://postgres:postgres@127.0.0.1:5432/qubu",
     })
+
     await connection.connect()
     return {
       client: qubu(pgAdapter(connection, { encoder })),
@@ -103,14 +111,16 @@ async function createEnvironment(
       },
     }
   }
-  if (dialect === 'mysql') {
+
+  if (dialect === "mysql") {
     const connection = await mysql.createConnection({
-      host: process.env.MYSQL_HOST ?? '127.0.0.1',
+      host: process.env.MYSQL_HOST ?? "127.0.0.1",
       port: Number(process.env.MYSQL_PORT ?? 3306),
-      user: process.env.MYSQL_USER ?? 'root',
-      password: process.env.MYSQL_PASSWORD ?? 'root',
-      database: process.env.MYSQL_DATABASE ?? 'qubu',
+      user: process.env.MYSQL_USER ?? "root",
+      password: process.env.MYSQL_PASSWORD ?? "root",
+      database: process.env.MYSQL_DATABASE ?? "qubu",
     })
+
     return {
       client: qubu(mysql2Adapter(connection)),
       async exec(sql) {
@@ -121,7 +131,9 @@ async function createEnvironment(
       },
     }
   }
-  const database = new DatabaseSync(':memory:')
+
+  const database = new DatabaseSync(":memory:")
+
   return {
     client: qubu(nodeSqliteAdapter(database, { encoder: sqliteEncoder })),
     async exec(sql) {
@@ -133,7 +145,7 @@ async function createEnvironment(
   }
 }
 
-describe.skipIf(!selectedDialect)('Better Auth live dialect E2E', () => {
+describe.skipIf(!selectedDialect)("Better Auth live dialect E2E", () => {
   const dialect = selectedDialect as LiveDialect
   let environment: LiveEnvironment | undefined
 
@@ -148,29 +160,39 @@ describe.skipIf(!selectedDialect)('Better Auth live dialect E2E', () => {
   })
 
   afterAll(async () => {
-    if (!environment) return
+    if (!environment) {
+      return
+    }
+
     await environment.exec(dropSql)
     await environment.close()
   }, 30_000)
 
-  test('executes guarded increment and single-use consume through the live driver', async () => {
-    if (!environment) throw new Error('E2E environment was not initialized')
+  test("executes guarded increment and single-use consume through the live driver", async () => {
+    if (!environment) {
+      throw new Error("E2E environment was not initialized")
+    }
+
     const database = qubuAdapter(environment.client)({
       user: {
         modelName: tableName,
         additionalFields: {
-          remaining: { type: 'number', required: true },
+          remaining: {
+            type: "number",
+            required: true,
+          },
         },
       },
     })
-    const now = new Date('2026-08-28T12:00:00.000Z')
+    const now = new Date("2026-08-28T12:00:00.000Z")
+
     await database.create({
-      model: 'user',
+      model: "user",
       forceAllowId: true,
       data: {
-        id: 'u1',
-        name: 'Ada',
-        email: 'ada@example.com',
+        id: "u1",
+        name: "Ada",
+        email: "ada@example.com",
         emailVerified: false,
         image: null,
         createdAt: now,
@@ -180,33 +202,57 @@ describe.skipIf(!selectedDialect)('Better Auth live dialect E2E', () => {
     })
 
     const first = await database.incrementOne<{ remaining: number }>({
-      model: 'user',
+      model: "user",
       where: [
-        { field: 'id', value: 'u1' },
-        { field: 'remaining', operator: 'gt', value: 0 },
+        {
+          field: "id",
+          value: "u1",
+        },
+        {
+          field: "remaining",
+          operator: "gt",
+          value: 0,
+        },
       ],
       increment: { remaining: -1 },
     })
     const guarded = await database.incrementOne({
-      model: 'user',
+      model: "user",
       where: [
-        { field: 'id', value: 'u1' },
-        { field: 'remaining', operator: 'gt', value: 0 },
+        {
+          field: "id",
+          value: "u1",
+        },
+        {
+          field: "remaining",
+          operator: "gt",
+          value: 0,
+        },
       ],
       increment: { remaining: -1 },
     })
     const consumed = await database.consumeOne<{ id: string }>({
-      model: 'user',
-      where: [{ field: 'id', value: 'u1' }],
+      model: "user",
+      where: [
+        {
+          field: "id",
+          value: "u1",
+        },
+      ],
     })
     const consumedAgain = await database.consumeOne({
-      model: 'user',
-      where: [{ field: 'id', value: 'u1' }],
+      model: "user",
+      where: [
+        {
+          field: "id",
+          value: "u1",
+        },
+      ],
     })
 
     expect(first?.remaining).toBe(0)
     expect(guarded).toBeNull()
-    expect(consumed?.id).toBe('u1')
+    expect(consumed?.id).toBe("u1")
     expect(consumedAgain).toBeNull()
   }, 30_000)
 })

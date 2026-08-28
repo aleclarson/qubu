@@ -9,19 +9,15 @@ independent clauses. A source-aware column must be provided by `from()` or a
 join:
 
 ```ts
-import { eq, from, integer, render, select, table, text, where } from 'qubu'
+import { eq, from, integer, render, select, table, text, where } from "qubu"
 
-const users = table('users', {
+const users = table("users", {
   id: integer(),
   name: text(),
   email: text({ nullable: true }),
 })
 
-const query = select(
-  { id: users.id, name: users.name },
-  from(users),
-  where(eq(users.id, 7))
-)
+const query = select({ id: users.id, name: users.name }, from(users), where(eq(users.id, 7)))
 
 render(query).text
 // SELECT "users"."id" AS "id", "users"."name" AS "name" FROM "users" WHERE ("users"."id" = ?)
@@ -34,12 +30,9 @@ named projection object, so it can still be spread alongside computed
 expressions:
 
 ```ts
-import { all, from, select, upper } from 'qubu'
+import { all, from, select, upper } from "qubu"
 
-const query = select(
-  { ...all(users), normalizedName: upper(users.name) },
-  from(users)
-)
+const query = select({ ...all(users), normalizedName: upper(users.name) }, from(users))
 ```
 
 `all(source)` expands to explicit named columns rather than emitting
@@ -66,9 +59,9 @@ import {
   text,
   integer,
   where,
-} from 'qubu'
+} from "qubu"
 
-const posts = table('posts', {
+const posts = table("posts", {
   id: integer(),
   authorId: integer(),
   title: text(),
@@ -78,7 +71,7 @@ const query = select(
   { userId: users.id, title: posts.title },
   from(users),
   innerJoin(posts, eq(users.id, posts.authorId)),
-  where(isNotNull(users.email))
+  where(isNotNull(users.email)),
 )
 ```
 
@@ -98,7 +91,7 @@ const summary = select(
     postCount: count(posts.id),
   },
   from(users),
-  leftJoin(posts, eq(users.id, posts.authorId))
+  leftJoin(posts, eq(users.id, posts.authorId)),
 )
 
 // typeof summary.row:
@@ -108,18 +101,11 @@ const summary = select(
 Compose boolean expressions explicitly:
 
 ```ts
-import { and, gt, inList, or } from 'qubu'
+import { and, gt, inList, or } from "qubu"
 
-const filter = and(
-  gt(users.id, 0),
-  or(inList(users.id, [7, 8]), eq(users.name, 'Ada'))
-)
+const filter = and(gt(users.id, 0), or(inList(users.id, [7, 8]), eq(users.name, "Ada")))
 
-const filtered = select(
-  { id: users.id, name: users.name },
-  from(users),
-  where(filter)
-)
+const filtered = select({ id: users.id, name: users.name }, from(users), where(filter))
 ```
 
 Values such as `7`, `'Ada'`, and list members become parameters. They are not

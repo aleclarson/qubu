@@ -1,14 +1,14 @@
-import type { DistinctClause } from './clauses/distinct.ts'
-import type { HavingClause } from './clauses/having.ts'
-import type { OrderByClause } from './clauses/order-by.ts'
-import type { FetchClause, OffsetClause } from './clauses/pagination.ts'
-import type { RowLockClause } from './clauses/row-lock.ts'
-import type { WhereClause } from './clauses/where.ts'
-import type { AnySelectClause } from './clauses/types.ts'
-import type { QueryTypeValidation } from './errors.ts'
+import type { DistinctClause } from "./clauses/distinct.ts"
+import type { HavingClause } from "./clauses/having.ts"
+import type { OrderByClause } from "./clauses/order-by.ts"
+import type { FetchClause, OffsetClause } from "./clauses/pagination.ts"
+import type { RowLockClause } from "./clauses/row-lock.ts"
+import type { AnySelectClause } from "./clauses/types.ts"
+import type { WhereClause } from "./clauses/where.ts"
+import type { QueryTypeValidation } from "./errors.ts"
 
 /** An explicit placeholder for a safely omitted SELECT clause or projection field. */
-export const omit: unique symbol = Symbol('qubu.omit')
+export const omit: unique symbol = Symbol("qubu.omit")
 
 export type Omit = typeof omit
 
@@ -40,8 +40,8 @@ export type OmissionValidation<TParts extends readonly SelectPart[]> = [
 ] extends [never]
   ? unknown
   : QueryTypeValidation<
-      'invalid-omission',
-      'select.omit',
-      'Use omit only for a conditional SELECT clause or projection field.',
+      "invalid-omission",
+      "select.omit",
+      "Use omit only for a conditional SELECT clause or projection field.",
       InvalidOmittedClauses<TParts>
     >

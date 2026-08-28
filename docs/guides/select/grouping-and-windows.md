@@ -11,18 +11,7 @@ Object projection keys provide stable names for aggregates. Group every
 non-aggregate column dependency:
 
 ```ts
-import {
-  count,
-  desc,
-  eq,
-  from,
-  groupBy,
-  gt,
-  having,
-  leftJoin,
-  orderBy,
-  select,
-} from 'qubu'
+import { count, desc, eq, from, groupBy, gt, having, leftJoin, orderBy, select } from "qubu"
 
 const counts = select(
   {
@@ -33,7 +22,7 @@ const counts = select(
   leftJoin(posts, eq(users.id, posts.authorId)),
   groupBy(users.name),
   having(gt(count(posts.id), 0)),
-  orderBy(desc(count(posts.id)))
+  orderBy(desc(count(posts.id))),
 )
 ```
 
@@ -52,7 +41,7 @@ The initial window scope supports `PARTITION BY` and `ORDER BY`; the same
 `asc()` and `desc()` terms used by a query-level `orderBy()` can be reused:
 
 ```ts
-import { desc, from, over, rowNumber, select } from 'qubu'
+import { desc, from, over, rowNumber, select } from "qubu"
 
 const rankedUsers = select(
   {
@@ -62,7 +51,7 @@ const rankedUsers = select(
       orderBy: [desc(users.id)],
     }),
   },
-  from(users)
+  from(users),
 )
 ```
 

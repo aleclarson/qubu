@@ -12,7 +12,7 @@ families and an immutable materializer:
 import {
   createCompleteIntrospectionCatalog,
   mapCatalogToCompleteSnapshot,
-} from 'qubu/introspection'
+} from "qubu/introspection"
 
 const completeCatalog = createCompleteIntrospectionCatalog(catalog)
 const result = mapCatalogToCompleteSnapshot(completeCatalog)
@@ -36,10 +36,7 @@ references and are not used as logical IDs.
 `qubu/snapshot` provides the strict complete format as a separate API:
 
 ```ts
-import {
-  decodeCompleteSchemaSnapshot,
-  encodeCompleteSchemaSnapshot,
-} from 'qubu/snapshot'
+import { decodeCompleteSchemaSnapshot, encodeCompleteSchemaSnapshot } from "qubu/snapshot"
 
 const encoded = encodeCompleteSchemaSnapshot(snapshotV2)
 const decoded = decodeCompleteSchemaSnapshot(encoded)

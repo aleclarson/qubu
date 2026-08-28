@@ -1,7 +1,6 @@
 {
   "name": "@qubu/better-auth",
   "version": "0.4.0",
-  "type": "module",
   "repository": {
     "type": "git",
     "url": "https://github.com/aleclarson/qubu",
@@ -10,24 +9,10 @@
   "files": [
     "dist"
   ],
+  "type": "module",
   "exports": {
     ".": "./src/index.ts",
     "./package.json": "./package.json"
-  },
-  "scripts": {
-    "build": "tsdown",
-    "test": "vitest --run",
-    "typecheck": "vitest --typecheck --run"
-  },
-  "peerDependencies": {
-    "better-auth": "^1.7.2",
-    "qubu": "^0.4.0"
-  },
-  "devDependencies": {
-    "@qubu/adapter-node-sqlite": "workspace:*",
-    "@better-auth/test-utils": "1.7.2",
-    "better-auth": "1.7.2",
-    "qubu": "workspace:*"
   },
   "publishConfig": {
     "types": "./dist/index.d.mts",
@@ -35,5 +20,20 @@
       ".": "./dist/index.mjs",
       "./package.json": "./package.json"
     }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest --run",
+    "typecheck": "vitest --typecheck --run"
+  },
+  "devDependencies": {
+    "@better-auth/test-utils": "1.7.2",
+    "@qubu/adapter-node-sqlite": "workspace:*",
+    "better-auth": "1.7.2",
+    "qubu": "workspace:*"
+  },
+  "peerDependencies": {
+    "better-auth": "^1.7.2",
+    "qubu": "^0.4.0"
   }
 }
