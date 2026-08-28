@@ -304,6 +304,7 @@ export type { ColumnReference } from './expressions/column.ts'
 export type {
   AnySource,
   Source,
+  SourceConfig,
   SourceColumns,
   SourceConstraints,
   SourceIdentity,

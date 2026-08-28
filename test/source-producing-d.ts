@@ -9,8 +9,11 @@ import type {
   ProvidesSourceMeta,
   RequiresOf,
   SourceIdentity,
+  Source,
   SourceProvision,
   SourceRow,
+  SourceSqlTypeMap,
+  SqlUnknown,
 } from '../src/index.ts'
 import {
   entries,
@@ -31,6 +34,29 @@ type Assert<TCondition extends true> = TCondition
 
 type EntryIdentity = SourceIdentity<typeof entries>
 type EntryRow = SourceRow<typeof entries>
+
+declare const sparseSource: Source<{
+  readonly identity: 'sparse-source'
+  readonly row: { readonly id: number; readonly label: string }
+}>
+
+export type SparseSourceIdentity = Assert<
+  Equal<SourceIdentity<typeof sparseSource>, 'sparse-source'>
+>
+
+export type SparseSourceRow = Assert<
+  Equal<
+    SourceRow<typeof sparseSource>,
+    { readonly id: number; readonly label: string }
+  >
+>
+
+export type SparseSourceDefaultsSqlTypes = Assert<
+  Equal<
+    SourceSqlTypeMap<typeof sparseSource>,
+    { readonly id: SqlUnknown; readonly label: SqlUnknown }
+  >
+>
 
 export type SourceProvisionIsPrecise = Assert<
   Equal<

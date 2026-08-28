@@ -55,25 +55,73 @@ export type SourceColumns<
     : never
 }
 
-export interface Source<
-  TIdentity = unknown,
-  TRow extends object = Record<string, unknown>,
-  TMetadata = never,
-  TSqlTypes extends SourceSqlTypes<TRow> = UnknownSourceSqlTypes<TRow>,
-  TConstraints extends SourceConstraintsRecord = {},
-> extends Fragment<
-    | ResultMeta<readonly TRow[]>
-    | ProvidesSourceMeta<TIdentity, TRow>
-    | TMetadata
-  > {
-  readonly sourceKind: SourceKind
-  readonly [sourceIdentity]: TIdentity
-  readonly reference: Fragment<never>
-  readonly columns: SourceColumns<TRow, TIdentity, TSqlTypes>
-  readonly constraints: TConstraints
+/** Sparse type-level configuration carried by a relational source. */
+export interface SourceConfig {
+  readonly identity?: unknown
+  readonly row?: object
+  readonly metadata?: unknown
+  readonly sqlTypes?: unknown
+  readonly constraints?: SourceConstraintsRecord
 }
 
-export type AnySource = Source<any, any, any, any, any>
+type SourceConfigValue<
+  TConfig,
+  TKey extends PropertyKey,
+  TFallback,
+> = TKey extends keyof TConfig ? TConfig[TKey] : TFallback
+
+type SourceConfigIdentity<TConfig> = SourceConfigValue<
+  TConfig,
+  'identity',
+  unknown
+>
+type SourceConfigRow<TConfig> = Extract<
+  SourceConfigValue<TConfig, 'row', Record<string, unknown>>,
+  object
+>
+type SourceConfigMetadata<TConfig> = SourceConfigValue<
+  TConfig,
+  'metadata',
+  never
+>
+type SourceConfigSqlTypes<TConfig> = Extract<
+  SourceConfigValue<
+    TConfig,
+    'sqlTypes',
+    UnknownSourceSqlTypes<SourceConfigRow<TConfig>>
+  >,
+  SourceSqlTypes<SourceConfigRow<TConfig>>
+>
+type SourceConfigConstraints<TConfig> = Extract<
+  SourceConfigValue<TConfig, 'constraints', {}>,
+  SourceConstraintsRecord
+>
+
+export interface Source<TConfig extends SourceConfig = {}>
+  extends Fragment<
+    | ResultMeta<readonly SourceConfigRow<TConfig>[]>
+    | ProvidesSourceMeta<
+        SourceConfigIdentity<TConfig>,
+        SourceConfigRow<TConfig>
+      >
+    | SourceConfigMetadata<TConfig>
+  > {
+  /** @internal Type-level configuration retained for inference. */
+  readonly __sourceConfig?: TConfig
+  /** @internal SQL domains retained for inference. */
+  readonly __sqlTypes?: SourceConfigSqlTypes<TConfig>
+  readonly sourceKind: SourceKind
+  readonly [sourceIdentity]: SourceConfigIdentity<TConfig>
+  readonly reference: Fragment<never>
+  readonly columns: SourceColumns<
+    SourceConfigRow<TConfig>,
+    SourceConfigIdentity<TConfig>,
+    SourceConfigSqlTypes<TConfig>
+  >
+  readonly constraints: SourceConfigConstraints<TConfig>
+}
+
+export type AnySource = Source<any>
 
 /** The source-provision fact carried by a source-producing fragment. */
 export type SourceProvision<T> = Extract<
@@ -89,18 +137,19 @@ export type ProvidedSourceIdentity<T> =
 export type ProvidedSourceRow<T> =
   SourceProvision<T> extends ProvidesSourceMeta<any, infer TRow> ? TRow : never
 
-export type SourceIdentity<T> =
-  T extends Source<infer TIdentity, any, any, any, any> ? TIdentity : never
-export type SourceRow<T> =
-  T extends Source<any, infer TRow, any, any, any> ? TRow : never
+export type SourceIdentity<T> = T extends {
+  readonly [sourceIdentity]: infer TIdentity
+}
+  ? TIdentity
+  : never
+export type SourceRow<T> = Extract<ProvidedSourceRow<T>, object>
 /** Extract the field-to-SQL-domain map retained by a source. */
 export type SourceSqlTypeMap<T> = T extends {
-  readonly definitions: infer TDefinitions extends TableDefinitions
+  readonly __sqlTypes?: infer TSqlTypes
+  readonly [sourceIdentity]: unknown
 }
-  ? import('./table.ts').TableSqlTypes<TDefinitions>
-  : T extends Source<any, infer TRow, any, infer TSqlTypes, any>
-    ? TSqlTypes & SourceSqlTypes<TRow>
-    : never
+  ? TSqlTypes & SourceSqlTypes<SourceRow<T>>
+  : never
 /** Structured schema constraints declared for a source. */
 export type SourceConstraints<T> = T extends {
   readonly constraints: infer TConstraints extends SourceConstraintsRecord
@@ -126,12 +175,11 @@ export interface CustomSourceOptions<
 export type CustomSource<
   TIdentity,
   TDefinitions extends TableDefinitions,
-> = Source<
-  TIdentity,
-  TableRow<TDefinitions>,
-  never,
-  import('./table.ts').TableSqlTypes<TDefinitions>
-> & {
+> = Source<{
+  readonly identity: TIdentity
+  readonly row: TableRow<TDefinitions>
+  readonly sqlTypes: import('./table.ts').TableSqlTypes<TDefinitions>
+}> & {
   readonly identity: TIdentity
   readonly definitions: TDefinitions
   readonly columns: SourceColumns<
@@ -156,14 +204,26 @@ export function createSource<
   render: RenderFunction,
   reference: Fragment<never>,
   constraints: TConstraints = {} as TConstraints
-): Source<TIdentity, TRow, TMetadata, TSqlTypes, TConstraints> {
+): Source<{
+  readonly identity: TIdentity
+  readonly row: TRow
+  readonly metadata: TMetadata
+  readonly sqlTypes: TSqlTypes
+  readonly constraints: TConstraints
+}> {
   return {
     sourceKind,
     render,
     reference,
     columns: {} as SourceColumns<TRow, TIdentity, TSqlTypes>,
     constraints,
-  } as Source<TIdentity, TRow, TMetadata, TSqlTypes, TConstraints>
+  } as Source<{
+    readonly identity: TIdentity
+    readonly row: TRow
+    readonly metadata: TMetadata
+    readonly sqlTypes: TSqlTypes
+    readonly constraints: TConstraints
+  }>
 }
 
 /**

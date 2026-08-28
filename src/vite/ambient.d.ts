@@ -292,15 +292,9 @@ declare global {
   type Query<TConfig extends QueryConfig = {}> = import('qubu').Query<TConfig>
   type SelectQuery<TConfig extends QueryConfig = {}> =
     import('qubu').SelectQuery<TConfig>
-  type Source<
-    TIdentity = unknown,
-    TRow extends object = Record<string, unknown>,
-    TMetadata = never,
-    TSqlTypes extends {
-      readonly [K in keyof TRow]: import('qubu').AnySqlType
-    } = { readonly [K in keyof TRow]: import('qubu').SqlUnknown },
-    TConstraints extends import('qubu').SourceConstraintsRecord = {},
-  > = import('qubu').Source<TIdentity, TRow, TMetadata, TSqlTypes, TConstraints>
+  type SourceConfig = import('qubu').SourceConfig
+  type Source<TConfig extends SourceConfig = {}> =
+    import('qubu').Source<TConfig>
   type SourceConstraint = import('qubu').SourceConstraint
   type SourceConstraintsRecord = import('qubu').SourceConstraintsRecord
   type SourceIndexesRecord = import('qubu').SourceIndexesRecord

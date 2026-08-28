@@ -36,15 +36,17 @@ export type AliasIdentity<TBase, TAlias extends string> = {
 }
 
 export type AliasedSource<
-  TBase extends Source<any, any, any, any, any>,
+  TBase extends Source<any>,
   TAlias extends string,
-> = Source<
-  AliasIdentity<SourceIdentity<TBase>, TAlias>,
-  SourceRow<TBase>,
-  RequiresOuterMetadataOf<TBase> | CapabilityMetadataOf<TBase>,
-  SourceSqlTypeMap<TBase>,
-  SourceConstraints<TBase>
-> & {
+> = Source<{
+  readonly identity: AliasIdentity<SourceIdentity<TBase>, TAlias>
+  readonly row: SourceRow<TBase>
+  readonly metadata:
+    | RequiresOuterMetadataOf<TBase>
+    | CapabilityMetadataOf<TBase>
+  readonly sqlTypes: SourceSqlTypeMap<TBase>
+  readonly constraints: SourceConstraints<TBase>
+}> & {
   readonly alias: TAlias
   readonly base: TBase
   readonly columns: SourceColumns<
@@ -71,7 +73,12 @@ export type QuerySource<
   TMetadata = never,
   TSqlTypes extends
     import('./source.ts').SourceSqlTypes<TRow> = import('./source.ts').UnknownSourceSqlTypes<TRow>,
-> = Source<QueryAliasIdentity<TAlias>, TRow, TMetadata, TSqlTypes> & {
+> = Source<{
+  readonly identity: QueryAliasIdentity<TAlias>
+  readonly row: TRow
+  readonly metadata: TMetadata
+  readonly sqlTypes: TSqlTypes
+}> & {
   readonly alias: TAlias
   readonly query: Query<{
     readonly row: TRow
@@ -82,10 +89,10 @@ export type QuerySource<
   readonly columns: SourceColumns<TRow, QueryAliasIdentity<TAlias>, TSqlTypes>
 } & SourceColumns<TRow, QueryAliasIdentity<TAlias>, TSqlTypes>
 
-export function alias<
-  TBase extends Source<any, any, any, any, any>,
-  const TAlias extends string,
->(source: TBase, name: TAlias): AliasedSource<TBase, TAlias>
+export function alias<TBase extends Source<any>, const TAlias extends string>(
+  source: TBase,
+  name: TAlias
+): AliasedSource<TBase, TAlias>
 export function alias<TQuery extends AnyQuery, const TAlias extends string>(
   query: TQuery,
   name: TAlias
@@ -96,7 +103,7 @@ export function alias<TQuery extends AnyQuery, const TAlias extends string>(
   QuerySqlTypeMap<TQuery>
 >
 export function alias(sourceOrQuery: unknown, name: string): unknown {
-  const input = sourceOrQuery as Source<any, any, any, any, any> | AnyQuery
+  const input = sourceOrQuery as Source<any> | AnyQuery
   const reference = identifier(name)
   const isQuery = 'queryKind' in input
   const source = createSource(
@@ -159,12 +166,14 @@ export type LateralIdentity<TAlias extends string> = {
 export type LateralSource<
   TQuery extends AnyQuery,
   TAlias extends string,
-> = Source<
-  LateralIdentity<TAlias>,
-  import('../query/types.ts').QueryRow<TQuery>,
-  RequiresOuterMetadataOf<TQuery> | CapabilityMetadataOf<TQuery>,
-  QuerySqlTypeMap<TQuery>
-> & {
+> = Source<{
+  readonly identity: LateralIdentity<TAlias>
+  readonly row: import('../query/types.ts').QueryRow<TQuery>
+  readonly metadata:
+    | RequiresOuterMetadataOf<TQuery>
+    | CapabilityMetadataOf<TQuery>
+  readonly sqlTypes: QuerySqlTypeMap<TQuery>
+}> & {
   readonly alias: TAlias
   readonly query: TQuery
   readonly columns: SourceColumns<

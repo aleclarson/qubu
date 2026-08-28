@@ -48,7 +48,7 @@ export function from<
 export type FromSource<T> =
   T extends FromClause<infer TSources>
     ? TSources[number] extends infer TSource
-      ? TSource extends Source<any, any, any, any, any>
+      ? TSource extends Source<any>
         ? [SourceProvision<TSource>] extends [never]
           ? never
           : TSource

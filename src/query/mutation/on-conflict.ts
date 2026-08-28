@@ -41,12 +41,11 @@ export type ExcludedIdentity<TTableIdentity> = {
   readonly table: TTableIdentity
 }
 
-export type ExcludedSource<TTable extends AnyTable> = Source<
-  ExcludedIdentity<SourceIdentity<TTable>>,
-  SourceRow<TTable>,
-  never,
-  ExcludedSqlTypes<TTable>
-> &
+export type ExcludedSource<TTable extends AnyTable> = Source<{
+  readonly identity: ExcludedIdentity<SourceIdentity<TTable>>
+  readonly row: SourceRow<TTable>
+  readonly sqlTypes: ExcludedSqlTypes<TTable>
+}> &
   SourceColumns<
     SourceRow<TTable>,
     ExcludedIdentity<SourceIdentity<TTable>>,

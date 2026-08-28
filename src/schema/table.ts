@@ -47,7 +47,7 @@ import type { OrderTerm } from '../query/clauses/order-by.ts'
 
 export type TableDefinitions = Record<string, ColumnDefinition<any>>
 
-export type AnyTable = Source<any, any, any, any, any> & {
+export type AnyTable = Source<any> & {
   readonly tableName: string
   readonly definitions: TableDefinitions
   /** Application field keys mapped to physical SQL column names. */
@@ -113,13 +113,12 @@ export type Table<
   TDefinitions extends TableDefinitions = TableDefinitions,
   TConstraints extends SourceConstraintsRecord = {},
   TIndexes extends SourceIndexesRecord = {},
-> = Source<
-  TableIdentity<TName>,
-  TableRow<TDefinitions>,
-  never,
-  TableSqlTypes<TDefinitions>,
-  TConstraints
-> & {
+> = Source<{
+  readonly identity: TableIdentity<TName>
+  readonly row: TableRow<TDefinitions>
+  readonly sqlTypes: TableSqlTypes<TDefinitions>
+  readonly constraints: TConstraints
+}> & {
   readonly tableName: TName
   readonly definitions: TDefinitions
   /** Application field keys mapped to physical SQL column names. */

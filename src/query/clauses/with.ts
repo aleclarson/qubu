@@ -39,7 +39,12 @@ export type CteSource<
   TMetadata = never,
   TSqlTypes extends
     import('../../schema/source.ts').SourceSqlTypes<TRow> = import('../../schema/source.ts').UnknownSourceSqlTypes<TRow>,
-> = Source<CteIdentity<TName>, TRow, TMetadata, TSqlTypes> & {
+> = Source<{
+  readonly identity: CteIdentity<TName>
+  readonly row: TRow
+  readonly metadata: TMetadata
+  readonly sqlTypes: TSqlTypes
+}> & {
   readonly cteName: TName
   readonly query: Query<{
     readonly row: TRow
@@ -121,7 +126,7 @@ type RecursiveCteQuery<TRow extends object, TMetadata, TSqlTypes> = Query<{
   readonly recursive: true
 }
 
-export type AnyCteSource = Source<any, any, any, any, any> & {
+export type AnyCteSource = Source<any> & {
   readonly cteName: string
   readonly query: AnyQuery & { readonly recursive?: boolean }
   readonly columns: Record<string, unknown>
