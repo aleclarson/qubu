@@ -163,6 +163,11 @@ export interface TransactionalQueryAdapter<
   ): Promise<T>
 }
 
+type TransactionAdapterOf<TAdapter extends TransactionalQueryAdapter> =
+  TAdapter extends TransactionalQueryAdapter<infer TTransactionAdapter>
+    ? TTransactionAdapter
+    : never
+
 /** A transaction-capable streaming adapter whose scoped client can stream. */
 export type StreamingTransactionalQueryAdapter = StreamingQueryAdapter &
   TransactionalQueryAdapter<StreamingQueryAdapter>
@@ -283,7 +288,9 @@ export function qubu<
   QubuStreamingExplainableClient<TAdapter>
 export function qubu<
   TAdapter extends ExplainableQueryAdapter & TransactionalQueryAdapter,
->(adapter: TAdapter): QubuExplainableTransactionalClient<TAdapter>
+>(
+  adapter: TAdapter
+): QubuExplainableTransactionalClient<TAdapter, TransactionAdapterOf<TAdapter>>
 export function qubu<
   TAdapter extends ExplainableQueryAdapter & StreamingQueryAdapter,
 >(adapter: TAdapter): QubuStreamingExplainableClient<TAdapter>
@@ -300,7 +307,7 @@ export function qubu<
 ): QubuTransactionalClient<TAdapter> & QubuStreamingClient<TAdapter>
 export function qubu<TAdapter extends TransactionalQueryAdapter>(
   adapter: TAdapter
-): QubuTransactionalClient<TAdapter>
+): QubuTransactionalClient<TAdapter, TransactionAdapterOf<TAdapter>>
 export function qubu<TAdapter extends StreamingQueryAdapter>(
   adapter: TAdapter
 ): QubuStreamingClient<TAdapter>
