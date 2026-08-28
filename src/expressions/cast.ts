@@ -19,18 +19,8 @@ import {
   type ColumnSqlType,
 } from '../schema/column.ts'
 
-type CastDefinition = ColumnDefinition<
-  any,
-  false,
-  any,
-  any,
-  false,
-  false,
-  AnySqlType,
-  any,
-  any,
-  any
-> & {
+type CastDefinition = ColumnDefinition<any> & {
+  readonly nullable: false
   readonly castTarget: CastTarget
 }
 

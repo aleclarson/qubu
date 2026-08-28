@@ -69,22 +69,16 @@ type SqliteTimestampHasDefault<TOptions extends SqliteTimestampOptions> =
 /** Qubu definition produced by {@link sqliteTimestamp}. */
 export type SqliteTimestampColumn<
   TOptions extends SqliteTimestampOptions = {},
-> = ColumnDefinition<
-  Date,
-  SqliteTimestampNullable<TOptions>,
-  Date,
-  Date,
-  SqliteTimestampHasDefault<TOptions>,
-  false,
-  SqlTimestamp,
-  NativeColumnStorage<'sqlite', 'INTEGER'>,
-  SqliteTimestampHasDefault<TOptions> extends true
+> = ColumnDefinition<{
+  readonly output: Date
+  readonly nullable: SqliteTimestampNullable<TOptions>
+  readonly hasDefault: SqliteTimestampHasDefault<TOptions>
+  readonly sqlType: SqlTimestamp
+  readonly storage: NativeColumnStorage<'sqlite', 'INTEGER'>
+  readonly default: SqliteTimestampHasDefault<TOptions> extends true
     ? ExternalDefaultDescriptor
-    : undefined,
-  undefined,
-  undefined,
-  undefined
->
+    : undefined
+}>
 
 type SqliteTimestampRuntime = {
   readonly mode: SqliteTimestampMode

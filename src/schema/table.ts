@@ -45,10 +45,7 @@ import type { AnyExpression } from '../expressions/types.ts'
 import type { SqlBoolean } from '../core/sql-types.ts'
 import type { OrderTerm } from '../query/clauses/order-by.ts'
 
-export type TableDefinitions = Record<
-  string,
-  ColumnDefinition<any, any, any, any, any, any, any, any, any, any, any>
->
+export type TableDefinitions = Record<string, ColumnDefinition<any>>
 
 export type AnyTable = Source<any, any, any, any, any> & {
   readonly tableName: string

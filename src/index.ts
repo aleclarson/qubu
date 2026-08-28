@@ -275,6 +275,7 @@ export type {
 export type { DeclaredColumnNullability } from './schema/column-nullability.ts'
 export type {
   ColumnDefinition,
+  ColumnDefinitionConfig,
   ColumnGeneratedOf,
   ColumnDefaultOf,
   ColumnHasDefault,

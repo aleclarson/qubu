@@ -17,7 +17,13 @@ import {
 import { syntax } from '../src/core/index.ts'
 import { customSource } from '../src/schema/index.ts'
 import type {
+  ColumnDefinition,
+  ColumnHasDefault,
+  ColumnInsertInput,
+  ColumnIsGenerated,
+  ColumnOutput,
   ColumnSqlType,
+  ColumnUpdateInput,
   FieldLike,
   SourceIdentity,
   SourceLike,
@@ -49,6 +55,66 @@ type Equal<TLeft, TRight> = [TLeft] extends [TRight]
   : false
 
 type Assert<TCondition extends true> = TCondition
+
+type MinimalColumn = ColumnDefinition<{ readonly output: string }>
+
+export type SparseColumnDefinitionDefaults = Assert<
+  Equal<
+    [
+      ColumnOutput<MinimalColumn>,
+      ColumnInsertInput<MinimalColumn>,
+      ColumnUpdateInput<MinimalColumn>,
+      ColumnHasDefault<MinimalColumn>,
+      ColumnIsGenerated<MinimalColumn>,
+      ColumnSqlType<MinimalColumn>,
+      MinimalColumn['nullable'],
+      MinimalColumn['storage'],
+    ],
+    [string, string, string, false, false, SqlUnknown, false, undefined]
+  >
+>
+
+export type ExplicitUndefinedOutputIsPreserved = Assert<
+  Equal<
+    ColumnOutput<ColumnDefinition<{ readonly output: undefined }>>,
+    undefined
+  >
+>
+
+declare const minimalColumn: MinimalColumn
+const narrowedMinimalColumn = minimalColumn.$type<'primary' | 'secondary'>()
+
+export type SparseColumnDependentDefaultsFollowOutput = Assert<
+  Equal<
+    [
+      ColumnOutput<typeof narrowedMinimalColumn>,
+      ColumnInsertInput<typeof narrowedMinimalColumn>,
+      ColumnUpdateInput<typeof narrowedMinimalColumn>,
+    ],
+    ['primary' | 'secondary', 'primary' | 'secondary', 'primary' | 'secondary']
+  >
+>
+
+type WriteSpecificColumn = ColumnDefinition<{
+  readonly output: string
+  readonly insert: number
+}>
+declare const writeSpecificColumn: WriteSpecificColumn
+const narrowedWriteSpecificColumn = writeSpecificColumn.$type<'saved'>()
+
+export type ExplicitColumnOverridesRemainIndependent = Assert<
+  Equal<
+    [
+      ColumnOutput<typeof narrowedWriteSpecificColumn>,
+      ColumnInsertInput<typeof narrowedWriteSpecificColumn>,
+      ColumnUpdateInput<typeof narrowedWriteSpecificColumn>,
+    ],
+    ['saved', number, number]
+  >
+>
+
+// @ts-expect-error Column nullability must be boolean.
+type InvalidColumnConfig = ColumnDefinition<{ readonly nullable: 'yes' }>
 
 const records = table('records', {
   id: uuid(),

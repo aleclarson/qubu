@@ -133,41 +133,9 @@ declare global {
   const withCte: typeof import('qubu').withCte
   const uuid: typeof import('qubu').uuid
 
-  type ColumnDefinition<
-    TOutput = unknown,
-    TNullable extends boolean = false,
-    TInsert = TOutput,
-    TUpdate = TInsert,
-    THasDefault extends boolean = false,
-    TGenerated extends boolean = false,
-    TSqlType extends import('qubu').AnySqlType = import('qubu').SqlUnknown,
-    TStorage extends import('qubu').ColumnStorage | undefined = undefined,
-    TDefault extends import('qubu').ColumnDefault | undefined =
-      | import('qubu').ColumnDefault
-      | undefined,
-    TGeneratedColumn extends
-      | import('qubu').GeneratedColumnDescriptor
-      | undefined = import('qubu').GeneratedColumnDescriptor | undefined,
-    TIdentity extends import('qubu').IdentityDescriptor | undefined =
-      | import('qubu').IdentityDescriptor
-      | undefined,
-    TOnUpdate extends import('qubu').AnySchemaExpression | undefined =
-      | import('qubu').AnySchemaExpression
-      | undefined,
-  > = import('qubu').ColumnDefinition<
-    TOutput,
-    TNullable,
-    TInsert,
-    TUpdate,
-    THasDefault,
-    TGenerated,
-    TSqlType,
-    TStorage,
-    TDefault,
-    TGeneratedColumn,
-    TIdentity,
-    TOnUpdate
-  >
+  type ColumnDefinitionConfig = import('qubu').ColumnDefinitionConfig
+  type ColumnDefinition<TConfig extends ColumnDefinitionConfig = {}> =
+    import('qubu').ColumnDefinition<TConfig>
   type ColumnSqlType<T> = import('qubu').ColumnSqlType<T>
   type ColumnDefault = import('qubu').ColumnDefault
   type ColumnDefaultInput = import('qubu').ColumnDefaultInput
