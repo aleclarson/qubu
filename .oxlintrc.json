@@ -1,0 +1,92 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": [
+    ".agents/skills/**",
+    "template/**",
+    "**/dist/**",
+    "**/node_modules/**",
+    "**/styled-system/**",
+    "**/Assets.xcassets/**"
+  ],
+  "env": {
+    "browser": true,
+    "es2022": true
+  },
+  "jsPlugins": ["@stylistic/eslint-plugin"],
+  "plugins": ["react", "unicorn"],
+  "rules": {
+    "@stylistic/newline-per-chained-call": [
+      "error",
+      {
+        "ignoreChainWithDepth": 5
+      }
+    ],
+    "@stylistic/list-style": [
+      "error",
+      {
+        "singleLine": {
+          "maxItems": 1
+        },
+        "overrides": {
+          "ExportNamedDeclaration": "off",
+          "ImportDeclaration": "off",
+          "[]": "off",
+          "()": "off",
+          "<>": "off",
+          "ObjectPattern": "off"
+        }
+      }
+    ],
+    "@stylistic/padding-line-between-statements": [
+      "error",
+      {
+        "blankLine": "never",
+        "prev": "case",
+        "next": "case"
+      },
+      {
+        "blankLine": "always",
+        "prev": "import",
+        "next": "*"
+      },
+      {
+        "blankLine": "any",
+        "prev": "import",
+        "next": "import"
+      },
+      {
+        "blankLine": "always",
+        "prev": ["const", "let", "var"],
+        "next": "*"
+      },
+      {
+        "blankLine": "any",
+        "prev": ["const", "let", "var"],
+        "next": ["const", "let", "var"]
+      },
+      {
+        "blankLine": "always",
+        "prev": "block-like",
+        "next": "*"
+      },
+      {
+        "blankLine": "always",
+        "prev": ["function", "class"],
+        "next": "*"
+      },
+      {
+        "blankLine": "always",
+        "prev": "*",
+        "next": ["function", "class"]
+      }
+    ],
+    "curly": "error",
+    "eslint/object-shorthand": "error",
+    "react/jsx-boolean-value": ["error", "always"],
+    "react/react-compiler": "error",
+    "switch-case-braces": ["error", "always"],
+    "unicorn/no-thenable": "off",
+    "unicorn/prefer-global-this": "error",
+    "yoda": "error"
+  }
+}
