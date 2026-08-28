@@ -72,6 +72,7 @@
   "scripts": {
     "build": "tsdown",
     "check:package": "node ./scripts/test-package.mjs --check-built",
+    "check:workspace-versions": "node ./scripts/set-release-version.mjs --check",
     "prepack": "pnpm run build && pnpm run check:package",
     "prepublishOnly": "pnpm run test:package",
     "playground": "bun run ./playground/playground.ts",
@@ -81,10 +82,14 @@
     "diff-check": "vitest --run test/diff.test.ts test/migration.test.ts",
     "test:bun": "node ./scripts/test-package.mjs --runtime=bun",
     "test:package": "node ./scripts/test-package.mjs",
+    "test:adapters": "pnpm --filter '@qubu/adapter-*' build && node ./scripts/test-adapter-packages.mjs",
+    "test:workspace-packages": "pnpm run test:package && pnpm run test:adapters",
     "test:package:node": "node ./scripts/test-package.mjs --runtime=node",
     "typecheck": "vitest --typecheck --run",
     "typecheck:playground": "tsc --project ./playground/tsconfig.json",
-    "lint": "prettier --check . && npm run typecheck"
+    "lint": "prettier --check . && npm run typecheck",
+    "release:version": "node ./scripts/set-release-version.mjs",
+    "release:publish": "node ./scripts/publish-workspace.mjs"
   },
   "publishConfig": {
     "exports": {

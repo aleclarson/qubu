@@ -39,11 +39,14 @@ jobs:
       - name: Typecheck
         run: pnpm run --if-present typecheck
 
+      - name: Check workspace versions
+        run: pnpm run check:workspace-versions
+
       - name: Test
         run: pnpm run --if-present test -- --run
 
-      - name: Test packed package
-        run: pnpm run test:package
+      - name: Test packed workspace packages
+        run: pnpm run test:workspace-packages
 
       - name: Build
         run: pnpm run --if-present build

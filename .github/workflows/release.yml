@@ -109,11 +109,23 @@ jobs:
 
       - name: Bump package version
         if: steps.version.outputs.should_release == 'true'
-        run: npm pkg set version="${{ steps.version.outputs.version }}"
+        run: pnpm run release:version -- "${{ steps.version.outputs.version }}"
 
-      - name: Test packed package
+      - name: Refresh workspace lockfile
         if: steps.version.outputs.should_release == 'true'
-        run: pnpm run test:package
+        run: pnpm install --lockfile-only
+
+      - name: Typecheck adapters
+        if: steps.version.outputs.should_release == 'true'
+        run: pnpm --filter '@qubu/adapter-*' typecheck
+
+      - name: Test packed workspace packages
+        if: steps.version.outputs.should_release == 'true'
+        run: pnpm run test:workspace-packages
+
+      - name: Publish workspace to npm with provenance
+        if: steps.version.outputs.should_release == 'true'
+        run: pnpm run release:publish
 
       - name: Commit release updates
         if: steps.version.outputs.should_release == 'true'
@@ -121,7 +133,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json
+          git add package.json adapters/*/package.json pnpm-lock.yaml
           if git diff --cached --quiet; then
             git commit --allow-empty -m "chore(release): ${{ steps.version.outputs.tag }}"
           else
@@ -130,7 +142,3 @@ jobs:
           git tag "${{ steps.version.outputs.tag }}"
           git push origin HEAD:main
           git push origin "${{ steps.version.outputs.tag }}"
-
-      - name: Publish to npm with provenance
-        if: steps.version.outputs.should_release == 'true'
-        run: pnpm publish --provenance --access public --no-git-checks
