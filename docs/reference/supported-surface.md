@@ -24,6 +24,7 @@
 | `@qubu/drizzle/mysql`    | Runtime          | Runtime conversion from Qubu schemas to MySQL Drizzle tables                                                     |
 | `@qubu/drizzle/postgres` | Runtime          | Runtime conversion from Qubu schemas to PostgreSQL Drizzle tables                                                |
 | `@qubu/drizzle/sqlite`   | Runtime          | Runtime conversion from Qubu schemas to SQLite Drizzle tables                                                    |
+| `@qubu/better-auth`      | Runtime          | Better Auth schema derivation and native PostgreSQL, MySQL, and SQLite adapter behavior                          |
 | `qubu/globals`           | TypeScript types | Opt-in ambient declarations for directive-bearing modules                                                        |
 
 The package validator checks every declared entrypoint in each packed workspace

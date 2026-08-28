@@ -29,6 +29,8 @@ define a table, build a `SELECT`, and inspect its SQL and parameters.
   `DELETE` statements.
 - [Use Qubu tables with Drizzle](guides/drizzle.md) while moving query call
   sites without duplicating schema declarations.
+- [Use Qubu with Better Auth](guides/better-auth.md) with plugin-aware schema
+  derivation and a native transactional database adapter.
 - [Extend Qubu](guides/extensions/overview.md) with a custom source, clause,
   dialect policy, or typed expression.
 - [Read JSON scalars](guides/json.md) from structured JSON paths.
