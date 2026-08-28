@@ -85,7 +85,7 @@ export function qubuAdapter(
         adapterId: 'qubu',
         adapterName: 'Qubu',
         supportsJSON: false,
-        supportsDates: false,
+        supportsDates: dialect !== 'sqlite',
         supportsBooleans: dialect === 'postgresql',
         supportsArrays: false,
         supportsNumericIds: true,

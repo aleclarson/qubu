@@ -193,6 +193,23 @@ test('reuses an active Better Auth transaction for MySQL atomic operations', asy
   ])
 })
 
+test('keeps MySQL Date values in driver parameters', async () => {
+  const fake = fakeClient(mysqlDialect() as ReturnType<typeof postgresDialect>)
+  const now = new Date('2026-08-28T12:00:00.000Z')
+  fake.queuedRows.push([], [completeUser({ createdAt: now, updatedAt: now })])
+  const adapter = qubuAdapter(fake.client)(options)
+
+  await adapter.create({
+    model: 'user',
+    forceAllowId: true,
+    data: completeUser({ createdAt: now, updatedAt: now }),
+  })
+
+  expect(fake.requests[0]?.statement.parameters).toEqual(
+    expect.arrayContaining([now])
+  )
+})
+
 test('rejects unsupported dialects and non-transactional clients', () => {
   const plain: QueryAdapter = {
     dialect: postgresDialect(),
