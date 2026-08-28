@@ -1,0 +1,30 @@
+{
+  "name": "@qubu/adapter-node-sqlite",
+  "version": "0.3.5",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "qubu": "^0.3.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.2",
+    "qubu": "workspace:*"
+  },
+  "publishConfig": {
+    "types": "./dist/index.d.mts",
+    "exports": {
+      ".": "./dist/index.mjs",
+      "./package.json": "./package.json"
+    }
+  }
+}

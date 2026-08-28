@@ -19,7 +19,7 @@ import {
   values,
   where,
 } from '../src/index.ts'
-import { libsqlAdapter } from '../src/libsql.ts'
+import { libsqlAdapter } from '../adapters/libsql/src/index.ts'
 import type { ExecutionRequest } from '../src/execution.ts'
 
 function result(overrides: Partial<ResultSet> = {}): ResultSet {

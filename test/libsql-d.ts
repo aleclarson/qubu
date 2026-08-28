@@ -6,7 +6,7 @@ import {
   type LibsqlAdapter,
   type LibsqlAdapterOptions,
   type LibsqlTransactionAdapter,
-} from '../src/libsql.ts'
+} from '../adapters/libsql/src/index.ts'
 import type {
   QubuExplainableClient,
   QubuExplainableTransactionalClient,

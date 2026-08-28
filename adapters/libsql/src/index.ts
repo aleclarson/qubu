@@ -7,7 +7,6 @@ import type {
   Transaction,
   TransactionMode,
 } from '@libsql/client'
-import { sqliteDialect } from './dialects/sqlite.ts'
 import type {
   DriverValueEncoder,
   ExecutionRequest,
@@ -17,27 +16,21 @@ import type {
   ExplainResult,
   TransactionOptions,
   TransactionalQueryAdapter,
-} from './execution.ts'
+} from 'qubu'
+import { sqliteDialect } from 'qubu/sqlite'
 
-/** Configuration for an adapter backed by one application-owned libSQL client. */
 export interface LibsqlAdapterOptions {
-  /** Encode Qubu application values before passing them to `@libsql/client`. */
   readonly encoder?: DriverValueEncoder<InValue>
-  /** Interactive transaction mode. Defaults to `write`. */
   readonly transactionMode?: TransactionMode
 }
 
-/** The query adapter available inside a libSQL transaction callback. */
 export interface LibsqlTransactionAdapter
   extends ExplainableQueryAdapter<Row> {}
 
-/** A SQLite adapter backed by an application-owned `@libsql/client`. */
 export interface LibsqlAdapter
   extends ExplainableQueryAdapter<Row>,
     TransactionalQueryAdapter<LibsqlTransactionAdapter> {
-  /** The client supplied to {@link libsqlAdapter}. */
   readonly client: Client
-  /** The mode used for every interactive transaction callback. */
   readonly transactionMode: TransactionMode
 }
 
@@ -51,24 +44,17 @@ const identityEncoder: DriverValueEncoder<InValue> = {
   },
 }
 
-/**
- * Adapt an application-owned `@libsql/client` for Qubu execution.
- *
- * An already-aborted signal rejects before dispatch. The libSQL client has no
- * per-statement abort input, so a signal aborted after dispatch cannot cancel
- * the in-flight driver request.
- */
+/** Adapt an application-owned `@libsql/client` for Qubu execution. */
 export function libsqlAdapter(
   client: Client,
   options: LibsqlAdapterOptions = {}
 ): LibsqlAdapter {
-  const dialect = sqliteDialect()
   const encoder = options.encoder ?? identityEncoder
   const transactionMode = options.transactionMode ?? 'write'
 
   return {
     client,
-    dialect,
+    dialect: sqliteDialect(),
     transactionMode,
     execute(request) {
       return executeRequest(client, request, encoder)

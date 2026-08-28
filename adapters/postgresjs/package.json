@@ -1,0 +1,31 @@
+{
+  "name": "@qubu/adapter-postgresjs",
+  "version": "0.3.5",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "peerDependencies": {
+    "postgres": "^3.4.9",
+    "qubu": "^0.3.5"
+  },
+  "devDependencies": {
+    "postgres": "^3.4.9",
+    "qubu": "workspace:*"
+  },
+  "publishConfig": {
+    "types": "./dist/index.d.mts",
+    "exports": {
+      ".": "./dist/index.mjs",
+      "./package.json": "./package.json"
+    }
+  }
+}

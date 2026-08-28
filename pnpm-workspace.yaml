@@ -1,2 +1,5 @@
+packages:
+  - './adapters/*'
+
 allowBuilds:
   esbuild: true

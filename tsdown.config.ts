@@ -10,7 +10,6 @@ export default defineConfig({
     postgres: 'src/dialects/postgres.ts',
     sqlite: 'src/dialects/sqlite.ts',
     mysql: 'src/dialects/mysql.ts',
-    libsql: 'src/libsql.ts',
     snapshot: 'src/snapshot/index.ts',
     diff: 'src/diff/index.ts',
     ddl: 'src/ddl/index.ts',
