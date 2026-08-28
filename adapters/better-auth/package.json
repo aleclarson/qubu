@@ -33,7 +33,7 @@
     "qubu": "workspace:*"
   },
   "peerDependencies": {
-    "better-auth": "^1.7.2",
-    "qubu": "^0.4.1"
+    "better-auth": ">=1.7.2 <2.0.0",
+    "qubu": "0.4.1"
   }
 }

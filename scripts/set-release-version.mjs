@@ -19,7 +19,7 @@ assert(
 for (const directory of workspacePackageDirectories) {
   const manifestPath = join(packageRoot(directory), "package.json")
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"))
-  const expectedPeer = `^${version}`
+  const expectedPeer = version
 
   if (check) {
     assert.equal(manifest.version, version, `${manifest.name} version must be ${version}`)

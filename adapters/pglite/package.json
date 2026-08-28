@@ -30,7 +30,7 @@
     "qubu": "workspace:*"
   },
   "peerDependencies": {
-    "@electric-sql/pglite": "^0.5.6",
-    "qubu": "^0.4.1"
+    "@electric-sql/pglite": ">=0.5.6 <0.6.0",
+    "qubu": "0.4.1"
   }
 }

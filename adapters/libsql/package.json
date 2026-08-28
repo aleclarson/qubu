@@ -30,7 +30,7 @@
     "qubu": "workspace:*"
   },
   "peerDependencies": {
-    "@libsql/client": "^0.17.4",
-    "qubu": "^0.4.1"
+    "@libsql/client": ">=0.17.4 <0.18.0",
+    "qubu": "0.4.1"
   }
 }

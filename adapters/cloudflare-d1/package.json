@@ -29,6 +29,6 @@
     "qubu": "workspace:*"
   },
   "peerDependencies": {
-    "qubu": "^0.4.1"
+    "qubu": "0.4.1"
   }
 }

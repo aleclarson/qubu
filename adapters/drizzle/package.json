@@ -48,7 +48,7 @@
     "qubu": "workspace:*"
   },
   "peerDependencies": {
-    "drizzle-orm": "^1.0.0-rc.4",
-    "qubu": "^0.4.1"
+    "drizzle-orm": ">=1.0.0-rc.4 <2.0.0",
+    "qubu": "0.4.1"
   }
 }

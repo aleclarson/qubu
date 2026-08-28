@@ -31,7 +31,7 @@
     "qubu": "workspace:*"
   },
   "peerDependencies": {
-    "pg": "^8.23.0",
-    "qubu": "^0.4.1"
+    "pg": ">=8.23.0 <9.0.0",
+    "qubu": "0.4.1"
   }
 }

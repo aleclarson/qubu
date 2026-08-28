@@ -30,7 +30,7 @@
     "qubu": "workspace:*"
   },
   "peerDependencies": {
-    "postgres": "^3.4.9",
-    "qubu": "^0.4.1"
+    "postgres": ">=3.4.9 <4.0.0",
+    "qubu": "0.4.1"
   }
 }
