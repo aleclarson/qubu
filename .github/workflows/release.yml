@@ -109,7 +109,7 @@ jobs:
 
       - name: Bump package version
         if: steps.version.outputs.should_release == 'true'
-        run: pnpm run release:version -- "${{ steps.version.outputs.version }}"
+        run: pnpm run release:version "${{ steps.version.outputs.version }}"
 
       - name: Refresh workspace lockfile
         if: steps.version.outputs.should_release == 'true'
