@@ -1,6 +1,6 @@
 {
   "name": "@qubu/better-auth",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/aleclarson/qubu",
@@ -34,6 +34,6 @@
   },
   "peerDependencies": {
     "better-auth": "^1.7.2",
-    "qubu": "^0.4.0"
+    "qubu": "^0.4.1"
   }
 }
