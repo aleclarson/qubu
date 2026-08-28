@@ -36,11 +36,13 @@ function renderMySqlPagination(
   const offset = parts.find(part => part.kind === 'offset')
 
   context.append('LIMIT ')
-  if (fetch) context.parameter(fetch.rows)
+  // mysql2 sends JavaScript numbers as DOUBLE parameters, which MySQL rejects
+  // for LIMIT/OFFSET in prepared statements.
+  if (fetch) context.append(String(fetch.rows))
   else context.append('18446744073709551615')
   if (offset) {
     context.append(' OFFSET ')
-    context.parameter(offset.rows)
+    context.append(String(offset.rows))
   }
 }
 

@@ -102,8 +102,8 @@ test('renders dialect-specific pagination and expressions at the boundary', () =
     parameters: [10, 5],
   })
   expect(render(paginationQuery, mysqlDialect())).toEqual({
-    text: 'SELECT `users`.`name` AS `name` FROM `users` LIMIT ? OFFSET ?',
-    parameters: [10, 5],
+    text: 'SELECT `users`.`name` AS `name` FROM `users` LIMIT 10 OFFSET 5',
+    parameters: [],
   })
 })
 

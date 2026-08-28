@@ -169,7 +169,7 @@ test('uses a locked transaction for MySQL single-row consumption', async () => {
   })
 
   expect(consumed).toMatchObject({ id: 'u1' })
-  expect(fake.requests[0]?.statement.text).toContain('LIMIT ? FOR UPDATE')
+  expect(fake.requests[0]?.statement.text).toContain('LIMIT 1 FOR UPDATE')
   expect(fake.requests[1]?.statement.text).toContain(
     'DELETE FROM `user` WHERE (`user`.`id` = ?)'
   )
