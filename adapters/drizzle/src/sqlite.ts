@@ -14,17 +14,18 @@ import {
   type SQLiteColumn,
   type SQLiteTableWithColumns,
 } from 'drizzle-orm/sqlite-core'
-import type { SqlTimestamp } from '../core/sql-types.ts'
 import {
   nativeColumn,
+  type AnyTable,
   type ColumnDefinition,
+  type ExternalDefaultDescriptor,
   type NativeColumnStorage,
   type PortableColumnStorage,
-} from '../schema/column.ts'
-import type { ExternalDefaultDescriptor } from '../schema/column-behavior.ts'
-import type { Schema, SchemaTableRecord } from '../schema/registry.ts'
-import type { AnyTable } from '../schema/table.ts'
-import { createSqliteSchemaSnapshot } from '../snapshot/sqlite.ts'
+  type Schema,
+  type SchemaTableRecord,
+  type SqlTimestamp,
+} from 'qubu'
+import { createSqliteSchemaSnapshot } from 'qubu/snapshot'
 import {
   convertDrizzleSchema,
   type DrizzleRuntimeAdapter,

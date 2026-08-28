@@ -1,6 +1,6 @@
 {
   "name": "@qubu/adapter-libsql",
-  "version": "0.3.5",
+  "version": "0.4.0",
   "type": "module",
   "repository": {
     "type": "git",
@@ -20,7 +20,7 @@
   },
   "peerDependencies": {
     "@libsql/client": "^0.17.4",
-    "qubu": "^0.3.5"
+    "qubu": "^0.4.0"
   },
   "devDependencies": {
     "@libsql/client": "^0.17.4",

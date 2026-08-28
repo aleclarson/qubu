@@ -5,11 +5,11 @@
 
 ## Install the optional integration
 
-Install Drizzle next to Qubu. The Drizzle entrypoints use an optional peer
-dependency, so importing the rest of Qubu does not load the ORM.
+Install the integration next to Qubu and Drizzle. The `@qubu/drizzle` package
+owns schema conversion; the root `qubu` package does not depend on Drizzle.
 
 ```bash
-pnpm add qubu drizzle-orm@rc
+pnpm add qubu @qubu/drizzle drizzle-orm@rc
 ```
 
 The converter supports PostgreSQL, MySQL, and SQLite with Drizzle 1.0.0-rc.4
@@ -22,7 +22,7 @@ your database:
 
 ```ts
 import { integer, schema, table, text } from 'qubu'
-import { toPostgresDrizzleSchema } from 'qubu/drizzle/postgres'
+import { toPostgresDrizzleSchema } from '@qubu/drizzle/postgres'
 
 const users = table('user_records', {
   id: integer({ generated: true }),
@@ -37,13 +37,13 @@ const drizzleTables = toPostgresDrizzleSchema(appSchema)
 The import path selects the dialect. Each module imports only its matching
 Drizzle core package:
 
-| Database   | Import                  | Converter                   |
-| ---------- | ----------------------- | --------------------------- |
-| PostgreSQL | `qubu/drizzle/postgres` | `toPostgresDrizzleSchema()` |
-| MySQL      | `qubu/drizzle/mysql`    | `toMysqlDrizzleSchema()`    |
-| SQLite     | `qubu/drizzle/sqlite`   | `toSqliteDrizzleSchema()`   |
+| Database   | Import                   | Converter                   |
+| ---------- | ------------------------ | --------------------------- |
+| PostgreSQL | `@qubu/drizzle/postgres` | `toPostgresDrizzleSchema()` |
+| MySQL      | `@qubu/drizzle/mysql`    | `toMysqlDrizzleSchema()`    |
+| SQLite     | `@qubu/drizzle/sqlite`   | `toSqliteDrizzleSchema()`   |
 
-`qubu/drizzle` exports the shared conversion error and dialect types. It does
+`@qubu/drizzle` exports the shared conversion error and dialect types. It does
 not import a dialect core or provide a universal runtime converter.
 
 `drizzleTables.users` is a real Drizzle `PgTable`. The logical `users` key,
@@ -75,7 +75,7 @@ Unix timestamps and Drizzle must continue reading and writing `Date` values:
 
 ```ts
 import { schema, table } from 'qubu'
-import { sqliteTimestamp, toSqliteDrizzleSchema } from 'qubu/drizzle/sqlite'
+import { sqliteTimestamp, toSqliteDrizzleSchema } from '@qubu/drizzle/sqlite'
 
 const events = table('events', {
   createdAt: sqliteTimestamp({
@@ -128,7 +128,7 @@ belong to the selected dialect:
 
 ```ts
 import { nativeColumn, schema, table } from 'qubu'
-import { toPostgresDrizzleSchema } from 'qubu/drizzle/postgres'
+import { toPostgresDrizzleSchema } from '@qubu/drizzle/postgres'
 
 const records = table('records', {
   handle: nativeColumn('postgresql', 'CITEXT'),

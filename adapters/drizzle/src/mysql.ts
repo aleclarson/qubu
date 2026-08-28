@@ -21,10 +21,13 @@ import {
   type MySqlColumn,
   type MySqlTableWithColumns,
 } from 'drizzle-orm/mysql-core'
-import type { PortableColumnStorage } from '../schema/column.ts'
-import type { Schema, SchemaTableRecord } from '../schema/registry.ts'
-import type { AnyTable } from '../schema/table.ts'
-import { createMysqlSchemaSnapshot } from '../snapshot/mysql.ts'
+import {
+  type AnyTable,
+  type PortableColumnStorage,
+  type Schema,
+  type SchemaTableRecord,
+} from 'qubu'
+import { createMysqlSchemaSnapshot } from 'qubu/snapshot'
 import {
   convertDrizzleSchema,
   extensionData,

@@ -7,7 +7,7 @@ export const repositoryRoot = resolve(
   '..'
 )
 
-export const adapterDirectories = readdirSync(
+export const workspaceChildDirectories = readdirSync(
   join(repositoryRoot, 'adapters'),
   { withFileTypes: true }
 )
@@ -23,7 +23,7 @@ export const adapterDirectories = readdirSync(
   })
   .toSorted()
 
-export const workspacePackageDirectories = ['.', ...adapterDirectories]
+export const workspacePackageDirectories = ['.', ...workspaceChildDirectories]
 
 export function packageRoot(directory) {
   return resolve(repositoryRoot, directory)

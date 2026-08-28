@@ -115,9 +115,9 @@ jobs:
         if: steps.version.outputs.should_release == 'true'
         run: pnpm install --lockfile-only
 
-      - name: Typecheck adapters
+      - name: Typecheck workspace packages
         if: steps.version.outputs.should_release == 'true'
-        run: pnpm --filter '@qubu/adapter-*' typecheck
+        run: pnpm run typecheck:workspace-packages
 
       - name: Test packed workspace packages
         if: steps.version.outputs.should_release == 'true'

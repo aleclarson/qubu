@@ -5,10 +5,10 @@ import { getTableConfig as getMysqlTableConfig } from 'drizzle-orm/mysql-core'
 import { getTableConfig as getPgTableConfig } from 'drizzle-orm/pg-core'
 import { getTableConfig as getSqliteTableConfig } from 'drizzle-orm/sqlite-core'
 import { expect, test } from 'vitest'
-import { DrizzleSchemaConversionError } from 'qubu/drizzle'
-import { toMysqlDrizzleSchema } from 'qubu/drizzle/mysql'
-import { toPostgresDrizzleSchema } from 'qubu/drizzle/postgres'
-import { sqliteTimestamp, toSqliteDrizzleSchema } from 'qubu/drizzle/sqlite'
+import { DrizzleSchemaConversionError } from '@qubu/drizzle'
+import { toMysqlDrizzleSchema } from '@qubu/drizzle/mysql'
+import { toPostgresDrizzleSchema } from '@qubu/drizzle/postgres'
+import { sqliteTimestamp, toSqliteDrizzleSchema } from '@qubu/drizzle/sqlite'
 import {
   bigint,
   binary,
@@ -32,7 +32,7 @@ import {
   unique,
   uuid,
   value,
-} from '../src/index.ts'
+} from 'qubu'
 
 const portable = table('portable_values', {
   integer: integer(),

@@ -1,0 +1,54 @@
+{
+  "name": "@qubu/drizzle",
+  "version": "0.4.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aleclarson/qubu",
+    "directory": "adapters/drizzle"
+  },
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./mysql": "./src/mysql.ts",
+    "./postgres": "./src/postgres.ts",
+    "./sqlite": "./src/sqlite.ts",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest --run",
+    "typecheck": "vitest --typecheck --run"
+  },
+  "peerDependencies": {
+    "drizzle-orm": "^1.0.0-rc.4",
+    "qubu": "^0.4.0"
+  },
+  "devDependencies": {
+    "drizzle-orm": "1.0.0-rc.4",
+    "qubu": "workspace:*"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.mts",
+        "import": "./dist/index.mjs"
+      },
+      "./mysql": {
+        "types": "./dist/mysql.d.mts",
+        "import": "./dist/mysql.mjs"
+      },
+      "./postgres": {
+        "types": "./dist/postgres.d.mts",
+        "import": "./dist/postgres.mjs"
+      },
+      "./sqlite": {
+        "types": "./dist/sqlite.d.mts",
+        "import": "./dist/sqlite.mjs"
+      },
+      "./package.json": "./package.json"
+    }
+  }
+}

@@ -184,8 +184,7 @@ function createTypeSmoke(consumerRoot, runtimeSpecifiers, typeOnlySpecifiers) {
     `${runtimeImports}
 ${typeOnlyImports}
 import manifest from 'qubu/package.json' with { type: 'json' }
-import { gt, integer, schema, table } from 'qubu'
-import { toSqliteDrizzleSchema } from 'qubu/drizzle/sqlite'
+import { gt, integer, table } from 'qubu'
 
 const entries: readonly object[] = [${entries}]
 const packageName: string = manifest.name
@@ -194,10 +193,6 @@ void [entries, packageName, ambientSelect]
 
 export const exportedTable = table('exported_table', { id: integer() })
 export const exportedColumn = exportedTable.id
-export const exportedSqliteSchema = toSqliteDrizzleSchema(
-  schema({ exportedTable })
-)
-export const exportedSqliteTable = exportedSqliteSchema.exportedTable
 export function createExportedExpression() {
   return gt(exportedTable.id, 0)
 }

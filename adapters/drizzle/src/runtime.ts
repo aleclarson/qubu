@@ -5,9 +5,13 @@ import {
   type SQL,
   type Table,
 } from 'drizzle-orm'
-import type { PortableColumnStorage } from '../schema/column.ts'
-import type { Schema, SchemaTableRecord } from '../schema/registry.ts'
-import type { AnyTable, TableDefinitions } from '../schema/table.ts'
+import type {
+  AnyTable,
+  PortableColumnStorage,
+  Schema,
+  SchemaTableRecord,
+  TableDefinitions,
+} from 'qubu'
 import type {
   SchemaSnapshot,
   SnapshotColumn,
@@ -19,7 +23,7 @@ import type {
   SnapshotJsonValue,
   SnapshotLiteral,
   SnapshotTable,
-} from '../snapshot/types.ts'
+} from 'qubu/snapshot'
 import { DrizzleSchemaConversionError } from './errors.ts'
 import type { DrizzleDialect } from './types.ts'
 

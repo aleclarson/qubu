@@ -1,6 +1,6 @@
 {
   "name": "@qubu/adapter-mysql2",
-  "version": "0.3.5",
+  "version": "0.4.0",
   "type": "module",
   "repository": {
     "type": "git",
@@ -20,7 +20,7 @@
   },
   "peerDependencies": {
     "mysql2": "^3.23.4",
-    "qubu": "^0.3.5"
+    "qubu": "^0.4.0"
   },
   "devDependencies": {
     "mysql2": "^3.23.4",

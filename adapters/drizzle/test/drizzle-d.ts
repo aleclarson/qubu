@@ -5,13 +5,13 @@ import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
 import {
   toMysqlDrizzleSchema,
   type MysqlDrizzleSchema,
-} from 'qubu/drizzle/mysql'
+} from '@qubu/drizzle/mysql'
 import {
   toPostgresDrizzleSchema,
   type PostgresDrizzleSchema,
   type PostgresDrizzleTable,
-} from 'qubu/drizzle/postgres'
-import { sqliteTimestamp, toSqliteDrizzleSchema } from 'qubu/drizzle/sqlite'
+} from '@qubu/drizzle/postgres'
+import { sqliteTimestamp, toSqliteDrizzleSchema } from '@qubu/drizzle/sqlite'
 import { expectTypeOf } from 'vitest'
 import {
   column,
@@ -21,7 +21,7 @@ import {
   schema,
   table,
   text,
-} from '../src/index.ts'
+} from 'qubu'
 
 type UserName = string & { readonly __brand: 'UserName' }
 

@@ -2,6 +2,7 @@ import { parenthesize } from '../core/fragment.ts'
 import type { CapabilityMetadataOf } from '../core/fragment.ts'
 import type {
   AnyQuery,
+  Query,
   QueryConfig,
   QueryRow,
   QuerySqlTypeMap,

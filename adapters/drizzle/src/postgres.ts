@@ -21,10 +21,13 @@ import {
   type PgColumn,
   type PgTableWithColumns,
 } from 'drizzle-orm/pg-core'
-import type { PortableColumnStorage } from '../schema/column.ts'
-import type { Schema, SchemaTableRecord } from '../schema/registry.ts'
-import type { AnyTable } from '../schema/table.ts'
-import { createPostgresSchemaSnapshot } from '../snapshot/postgres.ts'
+import {
+  type AnyTable,
+  type PortableColumnStorage,
+  type Schema,
+  type SchemaTableRecord,
+} from 'qubu'
+import { createPostgresSchemaSnapshot } from 'qubu/snapshot'
 import {
   convertDrizzleSchema,
   extensionData,

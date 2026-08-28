@@ -8,8 +8,8 @@ import type {
   ColumnUpdateInput,
   NativeColumnStorage,
   PortableColumnStorage,
-} from '../schema/column.ts'
-import type { SchemaTableRecord } from '../schema/registry.ts'
+  SchemaTableRecord,
+} from 'qubu'
 
 /** SQL engines supported by the Qubu-to-Drizzle runtime adapter. */
 export type DrizzleDialect = 'postgresql' | 'mysql' | 'sqlite'

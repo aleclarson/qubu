@@ -39,6 +39,9 @@ jobs:
       - name: Typecheck
         run: pnpm run --if-present typecheck
 
+      - name: Typecheck workspace packages
+        run: pnpm run typecheck:workspace-packages
+
       - name: Check workspace versions
         run: pnpm run check:workspace-versions
 
@@ -50,6 +53,9 @@ jobs:
 
       - name: Build
         run: pnpm run --if-present build
+
+      - name: Build workspace packages
+        run: pnpm run build:workspace-packages
 
       - name: Check TypeScript performance
         run: pnpm run test:type-performance -- --check-built
