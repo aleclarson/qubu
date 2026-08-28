@@ -57,6 +57,7 @@ export function setOperation<
   return {
     queryKind: 'set',
     row: left.row,
+    resultShape: left.resultShape,
     render: context => {
       context.render(parenthesize(left))
       context.append(` ${operator} `)

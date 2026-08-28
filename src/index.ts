@@ -5,6 +5,7 @@
 export { execute, executeRows, explain, qubu, stream } from './execution.ts'
 export type {
   DriverValueEncoder,
+  AdapterExecutionResult,
   ExecutionOptions,
   ExecutionRequest,
   ExecutionResult,
@@ -34,6 +35,21 @@ export type {
   TransactionOptions,
   TransactionalQueryAdapter,
 } from './execution.ts'
+export {
+  booleanResultDecoder,
+  dateResultDecoder,
+  jsonTextResultDecoder,
+  ResultDecodingError,
+  timestampResultDecoder,
+} from './result.ts'
+export type {
+  DecodableResultType,
+  ResultDecodeContext,
+  ResultDecoder,
+  ResultDecoders,
+  ResultField,
+  ResultShape,
+} from './result.ts'
 export { render } from './core/render.ts'
 export type { RenderedQuery, RenderOptions } from './core/render.ts'
 export type {
@@ -125,6 +141,7 @@ export type {
 } from './core/dialect.ts'
 
 export { cast } from './expressions/cast.ts'
+export { mapResult } from './expressions/map-result.ts'
 export { caseWhen } from './expressions/case.ts'
 export { sql } from './expressions/sql.ts'
 export type { SqlFragment, SqlTag, TypedSqlTag } from './expressions/sql.ts'

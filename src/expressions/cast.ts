@@ -12,10 +12,11 @@ import {
 } from '../core/fragment.ts'
 import type { AnySqlType, SqlUnknown } from '../core/sql-types.ts'
 import { resolveCastTarget, type CastTarget } from '../core/dialect.ts'
-import type {
-  ColumnDefinition,
-  ColumnOutput,
-  ColumnSqlType,
+import {
+  columnResultValue,
+  type ColumnDefinition,
+  type ColumnOutput,
+  type ColumnSqlType,
 } from '../schema/column.ts'
 
 type CastDefinition = ColumnDefinition<
@@ -76,17 +77,21 @@ export function cast(
     | ExpressionMeta<DependenciesOf<AnyExpression>>
     | InheritedMetadata<AnyExpression>,
     'operator'
-  >('operator', context => {
-    context.append('CAST(')
-    context.render(expression)
-    context.append(' AS ')
-    context.append(
-      typeof target === 'string'
-        ? target
-        : resolveCastTarget(context.dialect, target.castTarget)
-    )
-    context.append(')')
-  })
+  >(
+    'operator',
+    context => {
+      context.append('CAST(')
+      context.render(expression)
+      context.append(' AS ')
+      context.append(
+        typeof target === 'string'
+          ? target
+          : resolveCastTarget(context.dialect, target.castTarget)
+      )
+      context.append(')')
+    },
+    typeof target === 'string' ? undefined : columnResultValue(target)
+  )
 }
 
 /** Create a cast whose JS output and SQL result domain are declared up front. */

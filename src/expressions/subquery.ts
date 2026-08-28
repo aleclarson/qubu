@@ -8,6 +8,7 @@ import {
 import type { AnyQuery, QueryRow, QuerySqlTypeMap } from '../query/types.ts'
 import { makeExpression, type Expression } from './types.ts'
 import { queryValidationError } from '../query/errors.ts'
+import { resultShapeValue } from '../result.ts'
 
 export type SingleColumn<Row extends object> = keyof Row extends infer TKey
   ? TKey extends keyof Row
@@ -48,8 +49,11 @@ export function scalar<TQuery extends AnyQuery>(
     | InheritedMetadata<TQuery>
     | SubqueryMeta,
     'subquery'
-  >('subquery', context =>
-    context.renderRelation(parenthesize(query))
+  >(
+    'subquery',
+    context => context.renderRelation(parenthesize(query)),
+    'subquery',
+    resultShapeValue(query.resultShape, Object.keys(query.row)[0])
   ) as Expression<
     | ResultMeta<ScalarOutput<TQuery>, never, SingleColumnSqlType<TQuery>>
     | InheritedMetadata<TQuery>

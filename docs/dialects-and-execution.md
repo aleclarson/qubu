@@ -81,15 +81,16 @@ does not re-export concrete dialect constructors.
 
 ## The adapter owns the driver
 
-Qubu does not open connections, bind values for a particular client, or decode
-rows. An adapter receives an `ExecutionRequest` and returns an
-`ExecutionResult`. A `TransactionalQueryAdapter` can also pin one driver
-connection for a callback transaction:
+Qubu does not open connections or bind values for a particular client. An
+adapter receives an `ExecutionRequest` and returns driver-normalized object
+rows. Qubu then uses the query's result shape and the adapter's decoder policy
+to produce the typed `ExecutionResult`. A `TransactionalQueryAdapter` can also
+pin one driver connection for a callback transaction:
 
 ```ts
 import { qubu } from 'qubu'
 import { postgresDialect } from 'qubu/postgres'
-import type { ExecutionRequest, ExecutionResult, QueryAdapter } from 'qubu'
+import type { ExecutionRequest, QueryAdapter } from 'qubu'
 
 declare const driver: {
   query<TRow extends object>(
@@ -101,9 +102,9 @@ declare const driver: {
 
 const adapter: QueryAdapter = {
   dialect: postgresDialect(),
-  async execute<TRow extends object>(request: ExecutionRequest) {
+  async execute(request: ExecutionRequest) {
     const { statement, queryKind, signal } = request
-    const result = await driver.query<TRow>(
+    const result = await driver.query<Record<string, unknown>>(
       statement.text,
       statement.parameters,
       { signal }
@@ -115,9 +116,59 @@ const adapter: QueryAdapter = {
       result.rowCount !== null
         ? { affectedRows: result.rowCount }
         : {}),
-    } satisfies ExecutionResult<TRow>
+    }
   },
 }
+```
+
+### Decode schema-aware result values
+
+Portable boolean, date, timestamp, and JSON columns retain their logical
+result domains through projection aliases, derived queries, CTEs, set
+operations, and mutation `RETURNING`. Register only the conversions required
+by the selected driver configuration:
+
+```ts
+import {
+  booleanResultDecoder,
+  dateResultDecoder,
+  jsonTextResultDecoder,
+  timestampResultDecoder,
+} from 'qubu'
+import type { AdapterExecutionResult, QueryAdapter, RenderedQuery } from 'qubu'
+import { sqliteDialect } from 'qubu/sqlite'
+
+declare const sqliteDriver: {
+  execute(statement: RenderedQuery): Promise<AdapterExecutionResult>
+}
+
+const adapter: QueryAdapter = {
+  dialect: sqliteDialect(),
+  decoders: {
+    boolean: booleanResultDecoder,
+    date: dateResultDecoder,
+    timestamp: timestampResultDecoder,
+    json: jsonTextResultDecoder,
+  },
+  async execute(request) {
+    return sqliteDriver.execute(request.statement)
+  },
+}
+```
+
+Do not register `jsonTextResultDecoder` when the driver already returns parsed
+JSON. A JSON string is otherwise ambiguous: it may be serialized JSON or an
+already-decoded JSON string scalar. With no registered decoder, Qubu preserves
+the driver's value.
+
+Use a column decoder for a custom stored type, or `mapResult()` for one
+expression. Both override adapter policy for that field:
+
+```ts
+import { column, mapResult, value } from 'qubu'
+
+const score = column<number>({ decode: value => Number(value) })
+const decodedTotal = mapResult(value('42'), value => Number(value))
 ```
 
 ## Stream read results
@@ -130,11 +181,7 @@ Mutations stay on `execute()` and `executeRows()`, including mutations with
 
 ```ts
 import { qubu } from 'qubu'
-import type {
-  ExecutionRequest,
-  ExecutionResult,
-  StreamingQueryAdapter,
-} from 'qubu'
+import type { ExecutionRequest, StreamingQueryAdapter } from 'qubu'
 import { postgresDialect } from 'qubu/postgres'
 
 declare const driver: {
@@ -152,8 +199,8 @@ declare const driver: {
 
 const adapter: StreamingQueryAdapter = {
   dialect: postgresDialect(),
-  async execute<TRow extends object>(request: ExecutionRequest) {
-    const result = await driver.query<TRow>(
+  async execute(request: ExecutionRequest) {
+    const result = await driver.query<Record<string, unknown>>(
       request.statement.text,
       request.statement.parameters,
       { signal: request.signal }
@@ -161,10 +208,10 @@ const adapter: StreamingQueryAdapter = {
     return {
       rows: result.rows,
       ...(result.rowCount === null ? {} : { affectedRows: result.rowCount }),
-    } satisfies ExecutionResult<TRow>
+    }
   },
-  stream<TRow extends object>(request: ExecutionRequest) {
-    return driver.stream<TRow>(
+  stream(request: ExecutionRequest) {
+    return driver.stream<Record<string, unknown>>(
       request.statement.text,
       request.statement.parameters,
       { signal: request.signal }
@@ -178,11 +225,11 @@ for await (const row of db.stream(readQuery)) {
 }
 ```
 
-Qubu renders the query before calling `stream()` and passes the selected
-dialect, ordered raw parameters, query kind, and optional `AbortSignal` in the
-same `ExecutionRequest` used by `execute()`. The adapter binds values, decodes
-rows, and returns the iterable. Qubu does not open a cursor or connection,
-iterate the result, buffer rows, or impose a fetch size.
+Qubu renders the query with the selected dialect before calling `stream()`. It
+passes ordered raw parameters, query kind, result shape, and the optional
+`AbortSignal` in the same `ExecutionRequest` used by `execute()`. The adapter
+binds values and returns the iterable. Qubu lazily decodes each row without
+opening a cursor or connection, buffering rows, or imposing a fetch size.
 
 The adapter owns the iterator's cleanup contract:
 
@@ -359,12 +406,12 @@ const result = await execute(query, adapter)
 const rows = await executeRows(readQuery, adapter)
 ```
 
-| Result field   | Type                         | Adapter contract                                                                      |
-| -------------- | ---------------------------- | ------------------------------------------------------------------------------------- |
-| `rows`         | `readonly TRow[]`            | Always present; use an empty array for a mutation without returned rows               |
-| `affectedRows` | `number \| bigint`           | Rows inserted, updated, or deleted when the driver reports an affected count          |
-| `changedRows`  | `number \| bigint`           | Rows whose stored values changed when the driver distinguishes them from matched rows |
-| `insertId`     | `string \| number \| bigint` | One insert identifier when the driver reports it                                      |
+| Result field   | Adapter type                         | Contract                                                                              |
+| -------------- | ------------------------------------ | ------------------------------------------------------------------------------------- |
+| `rows`         | `readonly Record<string, unknown>[]` | Key by rendered aliases; Qubu returns the decoded `readonly TRow[]`                   |
+| `affectedRows` | `number \| bigint`                   | Rows inserted, updated, or deleted when the driver reports an affected count          |
+| `changedRows`  | `number \| bigint`                   | Rows whose stored values changed when the driver distinguishes them from matched rows |
+| `insertId`     | `string \| number \| bigint`         | One insert identifier when the driver reports it                                      |
 
 The last three fields are optional. For example, an adapter can map PostgreSQL
 `rowCount`, MySQL `affectedRows`, `changedRows`, and `insertId`, or SQLite
@@ -373,9 +420,11 @@ report accurately. Qubu does not derive mutation metadata from returned rows.
 
 The adapter's `dialect` becomes the default for standalone and bound execution.
 A `dialect` in the execution options overrides that rendering policy. Qubu
-passes `signal` and the query's `queryKind` to the adapter without changing
+passes `signal`, `queryKind`, and `resultShape` to the adapter without changing
 them. The adapter decides whether and how its driver supports cancellation.
-Driver errors pass through unchanged.
+Driver errors pass through unchanged. Decoder failures become a
+`ResultDecodingError` that identifies the row and field without exposing the
+raw value.
 
 ```mermaid
 sequenceDiagram
@@ -386,11 +435,12 @@ sequenceDiagram
 
   App->>Qubu: db.execute(query, options)
   Qubu->>Qubu: render with selected dialect
-  Qubu->>Adapter: statement + queryKind + signal
+  Qubu->>Adapter: statement + queryKind + resultShape + signal
   Adapter->>Driver: bind and execute
   Driver-->>Adapter: driver result or error
-  Adapter-->>Qubu: typed rows + optional mutation facts
-  Qubu-->>App: result envelope or rows
+  Adapter-->>Qubu: normalized object rows + optional mutation facts
+  Qubu->>Qubu: apply field and adapter decoders
+  Qubu-->>App: typed result envelope or rows
 ```
 
 ## Create a small custom dialect

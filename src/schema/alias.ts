@@ -21,6 +21,7 @@ import {
   type SourceSqlTypeMap,
 } from './source.ts'
 import type { SourceIndexesRecord } from './indexes.ts'
+import { resultShapeValue, resultValueOf } from '../result.ts'
 
 type SourceIndexes<T> = T extends {
   readonly indexes: infer TIndexes extends SourceIndexesRecord
@@ -123,7 +124,10 @@ export function alias(sourceOrQuery: unknown, name: string): unknown {
         createColumnReference(
           columnName,
           reference,
-          fieldName
+          fieldName,
+          isQuery
+            ? resultShapeValue(input.resultShape, fieldName)
+            : resultValueOf(input.columns[fieldName])
         ) as ColumnReference<string, any>,
       ]
     })
@@ -203,7 +207,8 @@ export function lateral<TQuery extends AnyQuery, const TAlias extends string>(
       createColumnReference(
         sqlNames[fieldName],
         reference,
-        fieldName
+        fieldName,
+        resultShapeValue(query.resultShape, fieldName)
       ) as ColumnReference<string, any>,
     ])
   ) as SourceColumns<TRow, TIdentity, TSqlTypes>

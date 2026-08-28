@@ -11,6 +11,7 @@ import type { SingleColumn } from '../../subquery.ts'
 import type { SqlBoolean } from '../../../core/sql-types.ts'
 import type { SqlEqualityValidation } from '../shared.ts'
 import type { QueryTypeValidation } from '../../../query/errors.ts'
+import { resultValue } from '../../../result.ts'
 
 type IsUnion<T, TWhole = T> = T extends unknown
   ? [TWhole] extends [T]
@@ -51,13 +52,18 @@ export function inQuery<
   expression: TExpression & InQueryValidation<TExpression, TQuery>,
   query: TQuery
 ): SubqueryResultExpression<boolean, TExpression | TQuery, never, SqlBoolean> {
-  return makeExpression('subquery', context => {
-    context.append('(')
-    context.render(expression)
-    context.append(' IN ')
-    context.renderRelation(parenthesize(query))
-    context.append(')')
-  }) as SubqueryResultExpression<
+  return makeExpression(
+    'subquery',
+    context => {
+      context.append('(')
+      context.render(expression)
+      context.append(' IN ')
+      context.renderRelation(parenthesize(query))
+      context.append(')')
+    },
+    'subquery',
+    resultValue('boolean')
+  ) as SubqueryResultExpression<
     boolean,
     TExpression | TQuery,
     never,
@@ -66,15 +72,25 @@ export function inQuery<
 }
 
 export function exists<TQuery extends Query<any, any, any>>(query: TQuery) {
-  return makeExpression('subquery', context => {
-    context.append('EXISTS ')
-    context.renderRelation(parenthesize(query))
-  }) as SubqueryResultExpression<boolean, TQuery, never, SqlBoolean>
+  return makeExpression(
+    'subquery',
+    context => {
+      context.append('EXISTS ')
+      context.renderRelation(parenthesize(query))
+    },
+    'subquery',
+    resultValue('boolean')
+  ) as SubqueryResultExpression<boolean, TQuery, never, SqlBoolean>
 }
 
 export function notExists<TQuery extends Query<any, any, any>>(query: TQuery) {
-  return makeExpression('subquery', context => {
-    context.append('NOT EXISTS ')
-    context.renderRelation(parenthesize(query))
-  }) as SubqueryResultExpression<boolean, TQuery, never, SqlBoolean>
+  return makeExpression(
+    'subquery',
+    context => {
+      context.append('NOT EXISTS ')
+      context.renderRelation(parenthesize(query))
+    },
+    'subquery',
+    resultValue('boolean')
+  ) as SubqueryResultExpression<boolean, TQuery, never, SqlBoolean>
 }

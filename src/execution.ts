@@ -6,6 +6,11 @@ import {
 } from './core/render.ts'
 import { queryValidationError } from './query/errors.ts'
 import type { Query, QueryKind } from './query/types.ts'
+import {
+  decodeResultRow,
+  type ResultDecoders,
+  type ResultShape,
+} from './result.ts'
 
 export type StreamableQuery<TRow extends object = Record<string, unknown>> =
   Query<TRow, any, any, any> & {
@@ -50,6 +55,8 @@ export interface ExecutionRequest {
   readonly statement: RenderedQuery
   /** The source query kind, available without parsing rendered SQL. */
   readonly queryKind: QueryKind
+  /** Named logical fields used by Qubu after the adapter returns raw rows. */
+  readonly resultShape: ResultShape
   /** Present when the caller supplied an abort signal to {@link execute} or {@link stream}. */
   readonly signal?: AbortSignal
 }
@@ -76,6 +83,15 @@ export interface ExecutionResult<
   readonly insertId?: string | number | bigint
 }
 
+/** Driver-normalized rows and mutation facts returned to Qubu by an adapter. */
+export interface AdapterExecutionResult {
+  /** Object rows keyed by the query's rendered result aliases. */
+  readonly rows: readonly Readonly<Record<string, unknown>>[]
+  readonly affectedRows?: number | bigint
+  readonly changedRows?: number | bigint
+  readonly insertId?: string | number | bigint
+}
+
 /** Adapter-decoded vendor plan rows returned by an EXPLAIN request. */
 export interface ExplainResult<
   TPlanRow extends object = Record<string, unknown>,
@@ -87,16 +103,17 @@ export interface ExplainResult<
 /**
  * The driver-facing boundary. `request.statement.parameters` contains raw
  * application values in placeholder order; the adapter binds and encodes them
- * for its driver. Connection pooling, transactions, retries, and row decoding
- * remain adapter concerns.
+ * for its driver. Connection pooling, transactions, retries, and proprietary
+ * driver-row normalization remain adapter concerns. Qubu applies the adapter's
+ * registered logical result decoders afterward.
  */
 export interface QueryAdapter {
   /** Default rendering policy for queries sent through this adapter. */
   readonly dialect: Dialect
+  /** Driver-specific conversions for portable logical result domains. */
+  readonly decoders?: ResultDecoders
   /** Execute one request and normalize the driver's result fields. */
-  execute<TRow extends object>(
-    request: ExecutionRequest
-  ): Promise<ExecutionResult<TRow>>
+  execute(request: ExecutionRequest): Promise<AdapterExecutionResult>
 }
 
 /**
@@ -124,8 +141,10 @@ export type ExplainPlanRow<TAdapter extends ExplainableQueryAdapter> =
  * fails, or observes an aborted request signal.
  */
 export interface StreamingQueryAdapter extends QueryAdapter {
-  /** Return a typed, adapter-owned stream for one SELECT or set query. */
-  stream<TRow extends object>(request: ExecutionRequest): AsyncIterable<TRow>
+  /** Return an adapter-owned object-row stream for one SELECT or set query. */
+  stream(
+    request: ExecutionRequest
+  ): AsyncIterable<Readonly<Record<string, unknown>>>
 }
 
 export type QueryExecutor = QueryAdapter
@@ -481,7 +500,14 @@ export function stream<TRow extends object>(
   const query = (isQuery(first) ? first : second) as StreamableQuery<TRow>
   const adapter = (isQuery(first) ? second : first) as StreamingQueryAdapter
   assertStreamableQuery(query)
-  return adapter.stream<TRow>(createExecutionRequest(query, adapter, options))
+  const request = createExecutionRequest(query, adapter, options)
+  const dialect = options.dialect ?? adapter.dialect
+  return decodeResultStream<TRow>(
+    adapter.stream(request),
+    request,
+    adapter,
+    dialect
+  )
 }
 
 async function executeInternal<TRow extends object>(
@@ -495,7 +521,20 @@ async function executeInternal<TRow extends object>(
 
   // Deliberately do not catch or wrap driver errors. Adapters own their
   // driver's error type and transaction/connection lifecycle.
-  return adapter.execute<TRow>(request)
+  const result = await adapter.execute(request)
+  const dialect = options.dialect ?? adapter.dialect
+  return {
+    ...result,
+    rows: result.rows.map((row, rowIndex) =>
+      decodeResultRow<TRow>(
+        row,
+        request.resultShape,
+        adapter.decoders,
+        dialect,
+        rowIndex
+      )
+    ),
+  }
 }
 
 function createExecutionRequest(
@@ -509,8 +548,27 @@ function createExecutionRequest(
   return Object.freeze({
     statement,
     queryKind: query.queryKind,
+    resultShape: query.resultShape,
     ...(options.signal === undefined ? {} : { signal: options.signal }),
   })
+}
+
+async function* decodeResultStream<TRow extends object>(
+  rows: AsyncIterable<Readonly<Record<string, unknown>>>,
+  request: ExecutionRequest,
+  adapter: StreamingQueryAdapter,
+  dialect: Dialect
+): AsyncIterable<TRow> {
+  let rowIndex = 0
+  for await (const row of rows) {
+    yield decodeResultRow<TRow>(
+      row,
+      request.resultShape,
+      adapter.decoders,
+      dialect,
+      rowIndex++
+    )
+  }
 }
 
 function createExplainRequest(

@@ -28,6 +28,7 @@ import {
   type ColumnOutput,
   type ColumnSqlType,
   type ColumnUpdateInput,
+  columnResultValue,
 } from './column.ts'
 import type { DeclaredColumnNullability } from './column-nullability.ts'
 import type {
@@ -423,7 +424,8 @@ export function table<
         createColumnReference(
           sqlName,
           source.reference,
-          fieldName
+          fieldName,
+          columnResultValue(definitions[fieldName])
         ) as ColumnReference<string, any>,
       ]
     })

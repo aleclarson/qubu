@@ -1,5 +1,7 @@
 import { expect, test } from 'vitest'
 import {
+  boolean,
+  booleanResultDecoder,
   eq,
   from,
   insertInto,
@@ -53,6 +55,7 @@ test('forwards the rendered stream request and signal to the adapter', async () 
       parameters: [7],
     },
     queryKind: 'select',
+    resultShape: { fields: [{ name: 'id' }] },
     signal: controller.signal,
   })
   expect(rows).toEqual([{ id: 7 }])
@@ -90,6 +93,29 @@ test('streams set operations and rejects mutations at runtime', async () => {
   expect(setRows).toEqual([{ id: 7 }])
   expect(requests).toHaveLength(1)
   expect(requests[0]?.queryKind).toBe('set')
+})
+
+test('decodes streamed set-operation rows lazily', async () => {
+  const flags = table('flags', { active: boolean() })
+  const left = select({ enabled: flags.active }, from(flags))
+  const query = unionAll(left, select({ enabled: flags.active }, from(flags)))
+  const adapter: StreamingQueryAdapter = {
+    dialect: standardDialect(),
+    decoders: { boolean: booleanResultDecoder },
+    async execute() {
+      return { rows: [] }
+    },
+    stream() {
+      return (async function* () {
+        yield { enabled: 1 }
+      })()
+    },
+  }
+
+  const rows = []
+  for await (const row of stream(query, adapter)) rows.push(row)
+
+  expect(rows).toEqual([{ enabled: true }])
 })
 
 test('adds stream to a bound client with a streaming adapter', async () => {

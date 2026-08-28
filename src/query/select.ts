@@ -22,6 +22,7 @@ import {
   type Selection,
   type SelectionOutput,
   type SelectionSqlTypes,
+  selectionResultShape,
 } from './selection.ts'
 import type { SelectionItems } from './selection.ts'
 import {
@@ -94,7 +95,7 @@ export function select<
       TSelection,
       SelectionOutput<TSelection, NullableSources<TClauses>>
     >
-  >('select', row, context => {
+  >('select', row, selectionResultShape(selection), context => {
     const beforeSelect = orderedClauses.filter(
       clause => clause.placement === 'before-select'
     )

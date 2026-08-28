@@ -187,7 +187,10 @@ export function insertInto<
   const insertClauses = clauses as readonly InsertClause[]
   const row =
     insertClauses.find(clause => clause.clauseKind === 'returning')?.row ?? {}
-  const query = createMutation('insert', row, context => {
+  const resultShape = insertClauses.find(
+    clause => clause.clauseKind === 'returning'
+  )?.resultShape ?? { fields: [] }
+  const query = createMutation('insert', row, resultShape, context => {
     context.append('INSERT INTO ')
     context.render(table.reference)
 

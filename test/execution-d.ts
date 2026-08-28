@@ -24,8 +24,8 @@ const query = select({ id: users.id }, from(users))
 
 const adapter: QueryAdapter = {
   dialect: standardDialect(),
-  async execute<TRow extends object>(_request: ExecutionRequest) {
-    return { rows: [] as readonly TRow[] }
+  async execute(_request: ExecutionRequest) {
+    return { rows: [] }
   },
 }
 
@@ -57,8 +57,8 @@ expectTypeOf(db.rows(query)).toEqualTypeOf<Promise<readonly { id: number }[]>>()
 
 const transactionalAdapter: TransactionalQueryAdapter = {
   dialect: standardDialect(),
-  async execute<TRow extends object>(_request: ExecutionRequest) {
-    return { rows: [] as readonly TRow[] }
+  async execute(_request: ExecutionRequest) {
+    return { rows: [] }
   },
   async transaction<T>(
     callback: (adapter: QueryAdapter) => Promise<T>,
@@ -109,8 +109,8 @@ result.rows = []
 const rowOnlyAdapter: QueryAdapter = {
   dialect: standardDialect(),
   // @ts-expect-error Adapters must return a structured execution result.
-  async execute<TRow extends object>() {
-    return [] as readonly TRow[]
+  async execute() {
+    return []
   },
 }
 

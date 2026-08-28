@@ -7,6 +7,7 @@ import {
   type RenderFunction,
 } from '../core/fragment.ts'
 import type { SourceSqlTypes, UnknownSourceSqlTypes } from '../schema/source.ts'
+import type { ResultShape } from '../result.ts'
 
 export type Row = Record<string, unknown>
 
@@ -22,6 +23,8 @@ export interface Query<
   > {
   readonly queryKind: QueryKind
   readonly row: TRow
+  /** Runtime metadata used to decode named result fields. */
+  readonly resultShape: ResultShape
   /** Type-only SQL domains of the named query projection. */
   readonly sqlTypes?: TSqlTypes
 }
@@ -43,11 +46,13 @@ export function createQuery<
 >(
   queryKind: QueryKind,
   row: TRow,
+  resultShape: ResultShape,
   render: RenderFunction
 ): Query<TRow, TCardinality, TMetadata, TSqlTypes> {
   return Object.freeze({
     queryKind,
     row,
+    resultShape,
     ...fragment<
       ResultMeta<readonly TRow[]> | CardinalityMeta<TCardinality> | TMetadata
     >(render),

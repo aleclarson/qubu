@@ -6,6 +6,7 @@ import type { SqlBoolean } from '../../core/sql-types.ts'
 import type { NullabilityOf } from '../../core/fragment.ts'
 import type { ExpressionSqlType } from '../types.ts'
 import { queryValidationError } from '../../query/errors.ts'
+import { resultValue } from '../../result.ts'
 
 type BooleanOperand = BooleanExpression<any> | Omit
 type PresentConditions<TConditions extends readonly BooleanOperand[]> = Exclude<
@@ -56,11 +57,15 @@ function composeConditions<const TConditions extends readonly BooleanOperand[]>(
   if (presentConditions.length === 0)
     return omit as BooleanComposition<TConditions>
 
-  return makeSchemaExpression('operator', context => {
-    context.append('(')
-    renderOperands(context, presentConditions, separator)
-    context.append(')')
-  }) as BooleanComposition<TConditions>
+  return makeSchemaExpression(
+    'operator',
+    context => {
+      context.append('(')
+      renderOperands(context, presentConditions, separator)
+      context.append(')')
+    },
+    resultValue('boolean')
+  ) as BooleanComposition<TConditions>
 }
 
 export function and<const TConditions extends readonly BooleanOperand[]>(
@@ -79,11 +84,15 @@ export function not<TCondition extends BooleanExpression<any>>(
   condition: TCondition &
     SqlCapabilityValidation<ExpressionSqlType<TCondition>, SqlBoolean>
 ) {
-  return makeSchemaExpression('operator', context => {
-    context.append('(NOT ')
-    context.render(condition)
-    context.append(')')
-  }) as ResultExpression<
+  return makeSchemaExpression(
+    'operator',
+    context => {
+      context.append('(NOT ')
+      context.render(condition)
+      context.append(')')
+    },
+    resultValue('boolean')
+  ) as ResultExpression<
     boolean,
     TCondition,
     'operator',

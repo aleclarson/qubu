@@ -1,19 +1,34 @@
 import { expect, expectTypeOf, test } from 'vitest'
 import {
+  alias,
+  boolean,
+  booleanResultDecoder,
+  column,
+  cte,
+  date,
+  dateResultDecoder,
   eq,
   execute,
   executeRows,
   from,
   insertInto,
   integer,
+  json,
+  jsonTextResultDecoder,
+  mapResult,
   qubu,
   returning,
   select,
   table,
+  timestamp,
+  timestampResultDecoder,
   values,
+  value,
   where,
+  withCte,
   type ExecutionRequest,
   type QueryAdapter,
+  ResultDecodingError,
   type TransactionOptions,
   type TransactionalQueryAdapter,
 } from '../src/index.ts'
@@ -47,10 +62,154 @@ test('passes the rendered query kind and abort signal to the adapter', async () 
       parameters: [7],
     },
     queryKind: 'select',
+    resultShape: { fields: [{ name: 'id' }] },
     signal: controller.signal,
   })
   expect(result).toEqual({ rows: [{ id: 7 }] })
   expectTypeOf(result.rows).toEqualTypeOf<readonly { id: number }[]>()
+})
+
+test('decodes portable schema values through aliases with adapter policies', async () => {
+  const events = table('events', {
+    active: boolean(),
+    eventDate: date(),
+    createdAt: timestamp(),
+    payload: json<{ kind: string }>(),
+  })
+  const event = alias(events, 'event')
+  const projected = select(
+    {
+      enabled: event.active,
+      occurredOn: event.eventDate,
+      recordedAt: event.createdAt,
+      metadata: event.payload,
+      matches: eq(event.active, true),
+    },
+    from(event)
+  )
+  const derived = alias(projected, 'derived_event')
+  const derivedQuery = select(
+    {
+      isEnabled: derived.enabled,
+      dateAlias: derived.occurredOn,
+      timestampAlias: derived.recordedAt,
+      jsonAlias: derived.metadata,
+      expressionAlias: derived.matches,
+    },
+    from(derived)
+  )
+  const decodedEvents = cte('decoded_events', derivedQuery)
+  const query = select(
+    {
+      isEnabled: decodedEvents.isEnabled,
+      dateAlias: decodedEvents.dateAlias,
+      timestampAlias: decodedEvents.timestampAlias,
+      jsonAlias: decodedEvents.jsonAlias,
+      expressionAlias: decodedEvents.expressionAlias,
+    },
+    withCte(decodedEvents),
+    from(decodedEvents)
+  )
+  const adapter: QueryAdapter = {
+    dialect: standardDialect(),
+    decoders: {
+      boolean: booleanResultDecoder,
+      date: dateResultDecoder,
+      timestamp: timestampResultDecoder,
+      json: jsonTextResultDecoder,
+    },
+    async execute() {
+      return {
+        rows: [
+          {
+            isEnabled: 1,
+            dateAlias: '2026-08-27',
+            timestampAlias: '2026-08-27 14:30:00',
+            jsonAlias: '{"kind":"created"}',
+            expressionAlias: 0,
+          },
+        ],
+      }
+    },
+  }
+
+  await expect(executeRows(query, adapter)).resolves.toEqual([
+    {
+      isEnabled: true,
+      dateAlias: new Date('2026-08-27T00:00:00.000Z'),
+      timestampAlias: new Date('2026-08-27T14:30:00.000Z'),
+      jsonAlias: { kind: 'created' },
+      expressionAlias: false,
+    },
+  ])
+})
+
+test('leaves result domains unchanged without an adapter decoder', async () => {
+  const documents = table('documents', { payload: json<string>() })
+  const query = select({ payload: documents.payload }, from(documents))
+  const adapter: QueryAdapter = {
+    dialect: standardDialect(),
+    async execute() {
+      return { rows: [{ payload: '"already a JSON string"' }] }
+    },
+  }
+
+  await expect(executeRows(query, adapter)).resolves.toEqual([
+    { payload: '"already a JSON string"' },
+  ])
+})
+
+test('uses a column decoder without requiring an adapter policy', async () => {
+  const metrics = table('metrics', {
+    score: column<number>({ decode: value => Number(value) }),
+  })
+  const query = select({ decodedScore: metrics.score }, from(metrics))
+  const adapter: QueryAdapter = {
+    dialect: standardDialect(),
+    async execute() {
+      return { rows: [{ decodedScore: '42' }] }
+    },
+  }
+
+  await expect(executeRows(query, adapter)).resolves.toEqual([
+    { decodedScore: 42 },
+  ])
+})
+
+test('maps custom expression results without changing their SQL', async () => {
+  const query = select({ score: mapResult(value('42'), Number) })
+  const adapter: QueryAdapter = {
+    dialect: standardDialect(),
+    async execute() {
+      return { rows: [{ score: '42' }] }
+    },
+  }
+
+  const rows = await executeRows(query, adapter)
+  expect(rows).toEqual([{ score: 42 }])
+  expectTypeOf(rows).toEqualTypeOf<readonly { score: number }[]>()
+})
+
+test('reports result decoding failures without exposing the raw value', async () => {
+  const flags = table('flags', { active: boolean() })
+  const query = select({ secretFlag: flags.active }, from(flags))
+  const adapter: QueryAdapter = {
+    dialect: standardDialect(),
+    decoders: { boolean: booleanResultDecoder },
+    async execute() {
+      return { rows: [{ secretFlag: 'sensitive-invalid-value' }] }
+    },
+  }
+
+  const error = await executeRows(query, adapter).catch(value => value)
+  expect(error).toBeInstanceOf(ResultDecodingError)
+  expect(error).toMatchObject({
+    field: 'secretFlag',
+    rowIndex: 0,
+    resultType: 'boolean',
+  })
+  expect(String(error)).not.toContain('sensitive-invalid-value')
+  expect(error).not.toHaveProperty('cause')
 })
 
 test('returns mutation facts and unwraps rows on request', async () => {
@@ -88,6 +247,26 @@ test('returns mutation facts and unwraps rows on request', async () => {
     'insert',
   ])
   expectTypeOf(rows).toEqualTypeOf<readonly { id: number }[]>()
+})
+
+test('decodes mutation RETURNING projections', async () => {
+  const flags = table('flags', { active: boolean() })
+  const query = insertInto(
+    flags,
+    values({ active: true }),
+    returning({ enabled: flags.active })
+  )
+  const adapter: QueryAdapter = {
+    dialect: standardDialect(),
+    decoders: { boolean: booleanResultDecoder },
+    async execute() {
+      return { rows: [{ enabled: 0 }] }
+    },
+  }
+
+  await expect(executeRows(query, adapter)).resolves.toEqual([
+    { enabled: false },
+  ])
 })
 
 test('binds one adapter for structured and row-only execution', async () => {

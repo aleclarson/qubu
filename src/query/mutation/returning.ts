@@ -1,17 +1,20 @@
 import type { Fragment, RenderContext } from '../../core/fragment.ts'
 import { renderSelection, selectionRow } from '../select/render.ts'
-import type {
-  Selection,
-  SelectionMetadata,
-  SelectionOutput,
-  SelectionSqlTypes,
+import {
+  selectionResultShape,
+  type Selection,
+  type SelectionMetadata,
+  type SelectionOutput,
+  type SelectionSqlTypes,
 } from '../selection.ts'
+import type { ResultShape } from '../../result.ts'
 
 export interface ReturningClause<TSelection extends Selection = Selection>
   extends Fragment<SelectionMetadata<TSelection>> {
   readonly clauseKind: 'returning'
   readonly selection: TSelection
   readonly row: SelectionOutput<TSelection>
+  readonly resultShape: ResultShape
 }
 
 export type ReturningRow<T> = [T] extends [ReturningClause<infer TSelection>]
@@ -32,6 +35,7 @@ export function returning<const TSelection extends Selection>(
     clauseKind: 'returning' as const,
     selection,
     row: selectionRow(selection) as SelectionOutput<TSelection>,
+    resultShape: selectionResultShape(selection),
     render(context: RenderContext) {
       context.append('RETURNING ')
       renderSelection(selection, context)

@@ -12,6 +12,7 @@ import {
   type SchemaExpression,
 } from './types.ts'
 import { queryValidationError } from '../query/errors.ts'
+import { resultValue } from '../result.ts'
 
 /** One safely encoded object key or zero-based array index in a JSON path. */
 export type JsonPathSegment = string | number
@@ -71,15 +72,19 @@ function jsonScalar<
   return makeSchemaExpression<
     JsonExpressionMetadata<TOutput | null, TDocument>,
     'function'
-  >('function', context => {
-    assertDialectCapability(context.dialect, 'json')
-    if (!context.dialect.json) {
-      throw new Error(
-        `Dialect "${context.dialect.name}" advertises JSON support without a JSON renderer`
-      )
-    }
-    context.dialect.json.renderScalar(context, document, path.segments, kind)
-  }) as SchemaExpression<
+  >(
+    'function',
+    context => {
+      assertDialectCapability(context.dialect, 'json')
+      if (!context.dialect.json) {
+        throw new Error(
+          `Dialect "${context.dialect.name}" advertises JSON support without a JSON renderer`
+        )
+      }
+      context.dialect.json.renderScalar(context, document, path.segments, kind)
+    },
+    kind === 'boolean' ? resultValue('boolean') : undefined
+  ) as SchemaExpression<
     JsonExpressionMetadata<TOutput | null, TDocument>,
     'function'
   >
@@ -117,13 +122,17 @@ export function jsonExists<
   return makeSchemaExpression<
     JsonExpressionMetadata<boolean, TDocument>,
     'function'
-  >('function', context => {
-    assertDialectCapability(context.dialect, 'json')
-    if (!context.dialect.json) {
-      throw new Error(
-        `Dialect "${context.dialect.name}" advertises JSON support without a JSON renderer`
-      )
-    }
-    context.dialect.json.renderExists(context, document, path.segments)
-  }) as SchemaExpression<JsonExpressionMetadata<boolean, TDocument>, 'function'>
+  >(
+    'function',
+    context => {
+      assertDialectCapability(context.dialect, 'json')
+      if (!context.dialect.json) {
+        throw new Error(
+          `Dialect "${context.dialect.name}" advertises JSON support without a JSON renderer`
+        )
+      }
+      context.dialect.json.renderExists(context, document, path.segments)
+    },
+    resultValue('boolean')
+  ) as SchemaExpression<JsonExpressionMetadata<boolean, TDocument>, 'function'>
 }

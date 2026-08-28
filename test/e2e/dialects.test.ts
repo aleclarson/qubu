@@ -4,7 +4,11 @@ import mysql from 'mysql2/promise'
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'vitest'
 import {
   add,
+  boolean,
+  booleanResultDecoder,
   cast,
+  date,
+  dateResultDecoder,
   eq,
   execute,
   executeRows,
@@ -13,6 +17,7 @@ import {
   insertInto,
   integer,
   json,
+  jsonTextResultDecoder,
   jsonPath,
   jsonText,
   lt,
@@ -23,6 +28,8 @@ import {
   select,
   table,
   text,
+  timestamp,
+  timestampResultDecoder,
   value,
   update,
   values,
@@ -37,11 +44,7 @@ import {
   postgresDialect,
 } from '../../src/dialects/postgres.ts'
 import { sqliteDialect } from '../../src/dialects/sqlite.ts'
-import type {
-  ExecutionRequest,
-  ExecutionResult,
-  QueryAdapter,
-} from '../../src/index.ts'
+import type { ExecutionRequest, QueryAdapter } from '../../src/index.ts'
 import type {
   CatalogConnection,
   CatalogDialect,
@@ -75,6 +78,9 @@ const records = table(
     id: integer(),
     name: text(),
     payload: json<unknown>(),
+    active: boolean({ nullable: true }),
+    eventDate: date({ nullable: true }),
+    createdAt: timestamp({ nullable: true }),
   },
   records => ({
     constraints: { primary: primaryKey(records.id) },
@@ -83,9 +89,12 @@ const records = table(
 )
 
 interface E2eDriver {
-  execute<TRow extends object = Record<string, unknown>>(
-    request: ExecutionRequest
-  ): Promise<ExecutionResult<TRow>>
+  execute(request: ExecutionRequest): Promise<{
+    readonly rows: readonly Readonly<Record<string, unknown>>[]
+    readonly affectedRows?: number | bigint
+    readonly changedRows?: number | bigint
+    readonly insertId?: string | number | bigint
+  }>
   exec(text: string): Promise<void>
   close(): Promise<void>
 }
@@ -105,6 +114,9 @@ const schemaSql: Record<LiveDialect, readonly string[]> = {
       id INTEGER PRIMARY KEY,
       name TEXT NOT NULL,
       payload JSONB NOT NULL,
+      active BOOLEAN,
+      event_date DATE,
+      created_at TIMESTAMP,
       CONSTRAINT qubu_e2e_records_name_check CHECK (char_length(name) > 0)
     )
   `,
@@ -116,6 +128,9 @@ const schemaSql: Record<LiveDialect, readonly string[]> = {
       id INTEGER PRIMARY KEY,
       name TEXT NOT NULL,
       payload TEXT NOT NULL,
+      active INTEGER,
+      event_date TEXT,
+      created_at TEXT,
       CONSTRAINT qubu_e2e_records_name_check CHECK (length(name) > 0)
     )
   `,
@@ -127,6 +142,9 @@ const schemaSql: Record<LiveDialect, readonly string[]> = {
       id INTEGER PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
       payload JSON NOT NULL,
+      active BOOLEAN,
+      event_date DATE,
+      created_at DATETIME,
       CONSTRAINT qubu_e2e_records_name_check CHECK (CHAR_LENGTH(name) > 0)
     )
   `,
@@ -145,13 +163,13 @@ async function createDriver(dialect: LiveDialect): Promise<E2eDriver> {
     })
     await client.connect()
     return {
-      async execute<TRow extends object>(request: ExecutionRequest) {
+      async execute(request: ExecutionRequest) {
         request.signal?.throwIfAborted()
         const result = await client.query(request.statement.text, [
           ...request.statement.parameters,
         ])
         return {
-          rows: result.rows as unknown as readonly TRow[],
+          rows: result.rows,
           ...(isMutation(request) && result.rowCount !== null
             ? { affectedRows: result.rowCount }
             : {}),
@@ -175,16 +193,20 @@ async function createDriver(dialect: LiveDialect): Promise<E2eDriver> {
       database: process.env.MYSQL_DATABASE ?? 'qubu',
     })
     return {
-      async execute<TRow extends object>(request: ExecutionRequest) {
+      async execute(request: ExecutionRequest) {
         request.signal?.throwIfAborted()
         const [result] = await connection.query(request.statement.text, [
           ...request.statement.parameters,
         ])
         if (Array.isArray(result)) {
-          return { rows: result as unknown as readonly TRow[] }
+          return {
+            rows: result as unknown as readonly Readonly<
+              Record<string, unknown>
+            >[],
+          }
         }
         return {
-          rows: [] as readonly TRow[],
+          rows: [],
           affectedRows: result.affectedRows,
           changedRows: result.changedRows,
           ...(request.queryKind === 'insert' && result.insertId !== 0
@@ -203,16 +225,14 @@ async function createDriver(dialect: LiveDialect): Promise<E2eDriver> {
 
   const database = new DatabaseSync(':memory:')
   return {
-    async execute<TRow extends object>(request: ExecutionRequest) {
+    async execute(request: ExecutionRequest) {
       request.signal?.throwIfAborted()
       const statement = database.prepare(request.statement.text)
       const bindParameters = request.statement.parameters as unknown as Array<
         string | number | bigint | Uint8Array | null
       >
       if (!isMutation(request) || statement.columns().length > 0) {
-        const rows = statement.all(
-          ...bindParameters
-        ) as unknown as readonly TRow[]
+        const rows = statement.all(...bindParameters)
         return {
           rows,
           ...(isMutation(request) ? { affectedRows: rows.length } : {}),
@@ -220,7 +240,7 @@ async function createDriver(dialect: LiveDialect): Promise<E2eDriver> {
       }
       const result = statement.run(...bindParameters)
       return {
-        rows: [] as readonly TRow[],
+        rows: [],
         affectedRows: result.changes,
         ...(request.queryKind === 'insert'
           ? { insertId: result.lastInsertRowid }
@@ -248,8 +268,14 @@ async function createEnvironment(
   const driver = await createDriver(dialectName)
   const adapter: QueryAdapter = {
     dialect,
-    execute<TRow extends object>(request: ExecutionRequest) {
-      return driver.execute<TRow>(request)
+    decoders: {
+      boolean: booleanResultDecoder,
+      date: dateResultDecoder,
+      timestamp: timestampResultDecoder,
+      ...(dialectName === 'postgresql' ? {} : { json: jsonTextResultDecoder }),
+    },
+    execute(request: ExecutionRequest) {
+      return driver.execute(request)
     },
   }
   const catalog: CatalogConnection = {
@@ -257,11 +283,12 @@ async function createEnvironment(
     async query<TRow extends CatalogQueryRow = CatalogQueryRow>(
       statement: CatalogQuery
     ) {
-      const result = await driver.execute<TRow>({
+      const result = await driver.execute({
         statement,
         queryKind: 'select',
+        resultShape: { fields: [] },
       })
-      return result.rows
+      return result.rows as readonly TRow[]
     },
   }
 
@@ -311,6 +338,9 @@ function seedAda(environment: E2eEnvironment) {
         id: 1,
         name: 'Ada',
         payload: JSON.stringify({ user: { name: 'Ada' } }),
+        active: null,
+        eventDate: null,
+        createdAt: null,
       })
     ),
     environment.adapter
@@ -360,6 +390,37 @@ describe.skipIf(!selectedDialect)('live dialect E2E', () => {
     await expect(executeRows(query, environment.adapter)).resolves.toEqual([
       { id: 1, name: 'Ada', payloadName: 'Ada' },
     ])
+  }, 30_000)
+
+  test('decodes aliased schema values through the dialect adapter', async () => {
+    if (!environment) throw new Error('E2E environment was not initialized')
+
+    await seedAda(environment)
+    await environment.driver.exec(
+      dialectName === 'postgresql'
+        ? `UPDATE qubu_e2e_records SET active = TRUE, event_date = DATE '2026-08-27', created_at = TIMESTAMP '2026-08-27 14:30:00' WHERE id = 1`
+        : `UPDATE qubu_e2e_records SET active = 1, event_date = '2026-08-27', created_at = '2026-08-27 14:30:00' WHERE id = 1`
+    )
+
+    const query = select(
+      {
+        enabled: records.active,
+        occurredOn: records.eventDate,
+        recordedAt: records.createdAt,
+        metadata: records.payload,
+      },
+      from(records),
+      where(eq(records.id, 1))
+    )
+
+    const rows = await executeRows(query, environment.adapter)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      enabled: true,
+      occurredOn: new Date('2026-08-27T00:00:00.000Z'),
+      metadata: { user: { name: 'Ada' } },
+    })
+    expect(rows[0]?.recordedAt).toBeInstanceOf(Date)
   }, 30_000)
 
   test('executes a recursive CTE through the dialect adapter', async () => {
@@ -422,6 +483,9 @@ describe.skipIf(!selectedDialect)('live dialect E2E', () => {
             id: 1,
             name: 'Grace',
             payload: JSON.stringify({ user: { name: 'Grace' } }),
+            active: null,
+            eventDate: null,
+            createdAt: null,
           }),
           onConflict(
             records,

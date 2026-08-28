@@ -101,7 +101,8 @@ export function update<
     clause => clause.clauseKind === 'returning'
   ) as MutationReturningClause | undefined
   const row = returningClause?.row ?? {}
-  const query = createMutation('update', row, context => {
+  const resultShape = returningClause?.resultShape ?? { fields: [] }
+  const query = createMutation('update', row, resultShape, context => {
     context.append('UPDATE ')
     context.render(table.reference)
     context.append(' SET ')

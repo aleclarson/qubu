@@ -31,6 +31,11 @@ import {
   type SchemaLiteralValue,
 } from './column-behavior.ts'
 import type { AnySchemaExpression } from '../expressions/types.ts'
+import {
+  resultValue,
+  type ResultDecoder,
+  type ResultValueMetadata,
+} from '../result.ts'
 
 /** Portable physical storage spellings understood by every schema dialect. */
 export type PortableStorageType =
@@ -220,6 +225,8 @@ export interface ColumnOptions {
   readonly sqlName?: string
   /** Physical storage metadata for a custom column definition. */
   readonly storage?: ColumnStorage
+  /** Override adapter decoding for values selected from this column. */
+  readonly decode?: ResultDecoder
   /**
    * Raw SQL target that makes a custom definition reusable with cast().
    * The value is emitted verbatim and must come from trusted source code.
@@ -267,6 +274,8 @@ export interface ColumnDefinition<
   readonly sqlName?: string
   /** Physical storage metadata, separate from the application and SQL types. */
   readonly storage?: TStorage
+  /** Runtime decoder used when this definition is projected. */
+  readonly resultDecoder?: ResultDecoder
   /** Runtime CAST target when this definition can describe a cast result. */
   readonly castTarget?: CastTarget
   readonly __output?: TOutput
@@ -608,6 +617,7 @@ type FalseColumnOptions = {
   readonly hasDefault?: false
   readonly generated?: false
   readonly sqlName?: string
+  readonly decode?: ResultDecoder
 }
 
 type AnyColumnDefinition = ColumnDefinition<
@@ -908,6 +918,7 @@ export function column<const TOptions extends ColumnOptions = {}>(
     storage: options?.storage
       ? Object.freeze({ ...options.storage })
       : undefined,
+    ...(options?.decode === undefined ? {} : { resultDecoder: options.decode }),
     $type: narrowColumnType,
     castTarget: options?.castType
       ? Object.freeze({
@@ -916,6 +927,23 @@ export function column<const TOptions extends ColumnOptions = {}>(
         })
       : undefined,
   })
+}
+
+/** Resolve the runtime result metadata carried by a column definition. */
+export function columnResultValue(definition: {
+  readonly storage?: ColumnStorage
+  readonly resultDecoder?: ResultDecoder
+}): ResultValueMetadata | undefined {
+  const storage = definition.storage
+  const type =
+    storage?.kind === 'portable' &&
+    (storage.type === 'boolean' ||
+      storage.type === 'date' ||
+      storage.type === 'timestamp' ||
+      storage.type === 'json')
+      ? storage.type
+      : undefined
+  return resultValue(type, definition.resultDecoder)
 }
 
 type NativeColumnOptions = Omit<ColumnOptions, 'storage'> & {

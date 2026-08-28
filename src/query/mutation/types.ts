@@ -15,6 +15,7 @@ import type {
 import type { UnknownSourceSqlTypes } from '../../schema/source.ts'
 import type { QueryTypeValidation } from '../errors.ts'
 import { queryValidationError } from '../errors.ts'
+import type { ResultShape } from '../../result.ts'
 
 export type MutationKind = 'insert' | 'update' | 'delete'
 
@@ -37,11 +38,13 @@ export function createMutation<
 >(
   queryKind: TKind,
   row: TRow,
+  resultShape: ResultShape,
   render: RenderFunction
 ): MutationQuery<TRow, TKind, TMetadata, TSqlTypes> {
   return {
     queryKind,
     row,
+    resultShape,
     render,
   } as MutationQuery<TRow, TKind, TMetadata, TSqlTypes>
 }

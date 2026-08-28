@@ -16,6 +16,7 @@ import type {
 import { createColumnReference } from '../expressions/column.ts'
 import { resolveSqlNames } from '../core/naming.ts'
 import type { SourceConstraintsRecord } from './constraints.ts'
+import { columnResultValue } from './column.ts'
 
 export const sourceIdentity: unique symbol = Symbol('qubu.source.identity')
 
@@ -197,7 +198,8 @@ export function customSource<
         createColumnReference(
           sqlNames[fieldName],
           source.reference,
-          fieldName
+          fieldName,
+          columnResultValue(options.columns[fieldName])
         ) as ColumnReference<string, any>,
       ]
     })

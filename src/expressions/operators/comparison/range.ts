@@ -12,6 +12,7 @@ import type {
   SqlEqualityValidation,
   SqlOrderValidation,
 } from '../shared.ts'
+import { resultValue } from '../../../result.ts'
 
 type BetweenValidation<TExpression, TLower, TUpper> = SqlOrderValidation<
   ExpressionSqlType<TExpression>,
@@ -50,15 +51,19 @@ export function between<
   }
   const lowerExpression = expressionOperand(lower)
   const upperExpression = expressionOperand(upper)
-  return makeSchemaExpression('operator', context => {
-    context.append('(')
-    context.render(expression)
-    context.append(' BETWEEN ')
-    context.render(lowerExpression)
-    context.append(' AND ')
-    context.render(upperExpression)
-    context.append(')')
-  }) as ResultExpression<
+  return makeSchemaExpression(
+    'operator',
+    context => {
+      context.append('(')
+      context.render(expression)
+      context.append(' BETWEEN ')
+      context.render(lowerExpression)
+      context.append(' AND ')
+      context.render(upperExpression)
+      context.append(')')
+    },
+    resultValue('boolean')
+  ) as ResultExpression<
     boolean,
     TExpression | L | H,
     'operator',
@@ -76,20 +81,24 @@ export function inList<
   values: TValues
 ) {
   const valueExpressions = values.map(expressionOperand)
-  return makeSchemaExpression('operator', context => {
-    if (values.length === 0) {
-      context.append('(1 = 0)')
-      return
-    }
-    context.append('(')
-    context.render(expression)
-    context.append(' IN (')
-    valueExpressions.forEach((value, index) => {
-      if (index > 0) context.append(', ')
-      context.render(value)
-    })
-    context.append('))')
-  }) as ResultExpression<
+  return makeSchemaExpression(
+    'operator',
+    context => {
+      if (values.length === 0) {
+        context.append('(1 = 0)')
+        return
+      }
+      context.append('(')
+      context.render(expression)
+      context.append(' IN (')
+      valueExpressions.forEach((value, index) => {
+        if (index > 0) context.append(', ')
+        context.render(value)
+      })
+      context.append('))')
+    },
+    resultValue('boolean')
+  ) as ResultExpression<
     boolean,
     TExpression | TValues[number],
     'operator',
@@ -107,20 +116,24 @@ export function notIn<
   values: TValues
 ) {
   const valueExpressions = values.map(expressionOperand)
-  return makeSchemaExpression('operator', context => {
-    if (values.length === 0) {
-      context.append('(1 = 1)')
-      return
-    }
-    context.append('(')
-    context.render(expression)
-    context.append(' NOT IN (')
-    valueExpressions.forEach((value, index) => {
-      if (index > 0) context.append(', ')
-      context.render(value)
-    })
-    context.append('))')
-  }) as ResultExpression<
+  return makeSchemaExpression(
+    'operator',
+    context => {
+      if (values.length === 0) {
+        context.append('(1 = 1)')
+        return
+      }
+      context.append('(')
+      context.render(expression)
+      context.append(' NOT IN (')
+      valueExpressions.forEach((value, index) => {
+        if (index > 0) context.append(', ')
+        context.render(value)
+      })
+      context.append('))')
+    },
+    resultValue('boolean')
+  ) as ResultExpression<
     boolean,
     TExpression | TValues[number],
     'operator',

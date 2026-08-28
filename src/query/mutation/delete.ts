@@ -36,7 +36,8 @@ export function deleteFrom<
     clause => clause.clauseKind === 'returning'
   ) as MutationReturningClause | undefined
   const row = returningClause?.row ?? {}
-  const query = createMutation('delete', row, context => {
+  const resultShape = returningClause?.resultShape ?? { fields: [] }
+  const query = createMutation('delete', row, resultShape, context => {
     context.append('DELETE FROM ')
     context.render(table.reference)
     if (whereClause) {

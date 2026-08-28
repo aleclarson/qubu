@@ -14,6 +14,7 @@ import {
   type Expression,
   type SchemaExpression,
 } from './types.ts'
+import type { ResultValueMetadata } from '../result.ts'
 
 export interface ColumnReference<
   TFieldName extends string = string,
@@ -42,7 +43,8 @@ export function createColumnReference<
 >(
   columnName: string,
   sourceReference: Fragment<never>,
-  fieldName: TFieldName
+  fieldName: TFieldName,
+  result?: ResultValueMetadata
 ): ColumnReference<
   TFieldName,
   | ResultMeta<TOutput, TSource, TSqlType>
@@ -54,15 +56,19 @@ export function createColumnReference<
     | RequiresSourceMeta<TSource>
     | ExpressionMeta<ColumnDependency<TSource, TFieldName>>,
     'column'
-  >('column', context => {
-    if (context.renderColumnReference) {
-      context.renderColumnReference(columnName)
-      return
-    }
-    context.render(sourceReference)
-    context.append('.')
-    context.render(identifier(columnName))
-  })
+  >(
+    'column',
+    context => {
+      if (context.renderColumnReference) {
+        context.renderColumnReference(columnName)
+        return
+      }
+      context.render(sourceReference)
+      context.append('.')
+      context.render(identifier(columnName))
+    },
+    result
+  )
 
   return Object.freeze({
     ...expression,

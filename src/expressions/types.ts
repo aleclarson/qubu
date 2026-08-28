@@ -22,6 +22,12 @@ import {
   assertDialectCapability,
   type DialectCapability,
 } from '../core/dialect.ts'
+import {
+  attachResultValue,
+  resultValueOf,
+  type ResultValueCarrier,
+  type ResultValueMetadata,
+} from '../result.ts'
 
 export type ExpressionKind =
   | 'value'
@@ -44,7 +50,8 @@ export interface SchemaExpressionBrand {
 export interface Expression<
   TMetadata = any,
   TKind extends ExpressionKind = ExpressionKind,
-> extends Fragment<TMetadata> {
+> extends Fragment<TMetadata>,
+    ResultValueCarrier {
   readonly expressionKind: TKind
   /** Internal runtime marker for query constructs rejected by schema SQL. */
   readonly expressionCategory?: 'aggregate' | 'window' | 'subquery'
@@ -95,7 +102,9 @@ export function withDialectCapability<
     context => {
       assertDialectCapability(context.dialect, capability)
       context.render(expression)
-    }
+    },
+    expression.expressionCategory,
+    resultValueOf(expression)
   )
   return (isSchemaExpression(expression)
     ? markSchemaExpression(wrapped)
@@ -183,13 +192,17 @@ export function makeExpression<
 >(
   expressionKind: TKind,
   render: (context: RenderContext) => void,
-  expressionCategory?: 'aggregate' | 'window' | 'subquery'
+  expressionCategory?: 'aggregate' | 'window' | 'subquery',
+  result?: ResultValueMetadata
 ): Expression<TMetadata, TKind> {
-  return Object.freeze({
-    expressionKind,
-    ...(expressionCategory ? { expressionCategory } : {}),
-    ...fragment<TMetadata>(render),
-  }) as Expression<TMetadata, TKind>
+  return attachResultValue(
+    Object.freeze({
+      expressionKind,
+      ...(expressionCategory ? { expressionCategory } : {}),
+      ...fragment<TMetadata>(render),
+    }) as Expression<TMetadata, TKind>,
+    result
+  ) as Expression<TMetadata, TKind>
 }
 
 /** Mark a query-only expression category without changing its SQL renderer. */
@@ -210,9 +223,15 @@ export function makeSchemaExpression<
   TKind extends ExpressionKind = ExpressionKind,
 >(
   expressionKind: TKind,
-  render: (context: RenderContext) => void
+  render: (context: RenderContext) => void,
+  result?: ResultValueMetadata
 ): SchemaExpression<TMetadata, TKind> {
-  const expression = makeExpression<TMetadata, TKind>(expressionKind, render)
+  const expression = makeExpression<TMetadata, TKind>(
+    expressionKind,
+    render,
+    undefined,
+    result
+  )
   return Object.freeze({
     ...expression,
     [schemaExpressionBrand]: true as const,

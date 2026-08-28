@@ -20,6 +20,7 @@ import {
 } from '../shared.ts'
 import type { ExpressionSqlType } from '../../types.ts'
 import { queryValidationError } from '../../../query/errors.ts'
+import { resultValue } from '../../../result.ts'
 
 type ComparisonResult<TLeft, R, TOperator extends string> = ResultExpression<
   boolean,
@@ -69,11 +70,15 @@ export function comparison<
   if (isNullOperand(right)) {
     if (operator === '=' || operator === '<>') {
       const nullOperator = operator === '=' ? 'IS NULL' : 'IS NOT NULL'
-      return makeSchemaExpression('operator', context => {
-        context.append('(')
-        context.render(left)
-        context.append(` ${nullOperator})`)
-      }) as ComparisonResult<TLeft, R, TOperator>
+      return makeSchemaExpression(
+        'operator',
+        context => {
+          context.append('(')
+          context.render(left)
+          context.append(` ${nullOperator})`)
+        },
+        resultValue('boolean')
+      ) as ComparisonResult<TLeft, R, TOperator>
     }
     if (
       operator !== 'IS DISTINCT FROM' &&
@@ -90,13 +95,17 @@ export function comparison<
   }
 
   const rightExpression = expressionOperand(right)
-  return makeSchemaExpression('operator', context => {
-    context.append('(')
-    context.render(left)
-    context.append(` ${operator} `)
-    context.render(rightExpression)
-    context.append(')')
-  }) as ComparisonResult<TLeft, R, TOperator>
+  return makeSchemaExpression(
+    'operator',
+    context => {
+      context.append('(')
+      context.render(left)
+      context.append(` ${operator} `)
+      context.render(rightExpression)
+      context.append(')')
+    },
+    resultValue('boolean')
+  ) as ComparisonResult<TLeft, R, TOperator>
 }
 
 export function eq<

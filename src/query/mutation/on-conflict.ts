@@ -12,6 +12,7 @@ import { isExpression } from '../../expressions/types.ts'
 import type { WhereClause } from '../clauses/where.ts'
 import { omit } from '../omit.ts'
 import type { QueryTypeValidation } from '../errors.ts'
+import { columnResultValue } from '../../schema/column.ts'
 import { queryValidationError } from '../errors.ts'
 import type {
   KeyConstraint,
@@ -78,7 +79,8 @@ export function excluded<const TTable extends AnyTable>(
       createColumnReference(
         table.sqlNames[fieldName] ?? fieldName,
         reference,
-        fieldName
+        fieldName,
+        columnResultValue(table.definitions[fieldName])
       ) as ColumnReference<string, any>,
     ])
   ) as SourceColumns<TRow, TIdentity, TSqlTypes>

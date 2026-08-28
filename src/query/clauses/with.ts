@@ -25,6 +25,7 @@ import {
   type SourceColumns,
 } from '../../schema/source.ts'
 import { createClause, type SelectClause } from './types.ts'
+import { resultShapeValue } from '../../result.ts'
 
 export type CteIdentity<TName extends string> = {
   readonly sourceKind: 'cte'
@@ -153,7 +154,8 @@ export function cte<
       createColumnReference(
         sqlNames[fieldName],
         reference,
-        fieldName
+        fieldName,
+        resultShapeValue(query.resultShape, fieldName)
       ) as ColumnReference<string, any>,
     ])
   ) as SourceColumns<TRow, TIdentity, TSqlTypes>
@@ -205,7 +207,8 @@ export function recursiveCte<
       createColumnReference(
         sqlNames[fieldName],
         reference,
-        fieldName
+        fieldName,
+        resultShapeValue(anchor.resultShape, fieldName)
       ) as ColumnReference<string, any>,
     ])
   ) as SourceColumns<TRow, TIdentity, TSqlTypes>
@@ -222,6 +225,7 @@ export function recursiveCte<
     ...createQuery<TRow, 'many', TMetadata, TSqlTypes>(
       'set',
       anchor.row,
+      anchor.resultShape,
       context => {
         context.render(anchor)
         context.append(' UNION ALL ')

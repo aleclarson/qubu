@@ -26,8 +26,8 @@ const mutation = insertInto(users, values({ id: 7 }))
 
 const adapter: ExplainableQueryAdapter<PlanRow> = {
   dialect: postgresDialect(),
-  async execute<TRow extends object>(_request: ExecutionRequest) {
-    return { rows: [] as readonly TRow[] }
+  async execute(_request: ExecutionRequest) {
+    return { rows: [] }
   },
   async explain(_request) {
     return { rows: [] as readonly PlanRow[] }
@@ -59,8 +59,8 @@ explain(mutation, adapter, { analyze: true })
 
 const plainAdapter: QueryAdapter = {
   dialect: postgresDialect(),
-  async execute<TRow extends object>(_request: ExecutionRequest) {
-    return { rows: [] as readonly TRow[] }
+  async execute(_request: ExecutionRequest) {
+    return { rows: [] }
   },
 }
 const plainDb = qubu(plainAdapter)

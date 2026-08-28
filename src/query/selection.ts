@@ -11,7 +11,12 @@ import type {
   SourceSqlTypeMap,
 } from '../schema/source.ts'
 import type { AnyExpression } from '../expressions/types.ts'
-import type { Omit } from './omit.ts'
+import { omit, type Omit } from './omit.ts'
+import {
+  createResultShape,
+  resultValueOf,
+  type ResultShape,
+} from '../result.ts'
 
 /**
  * Return every known source column as a named projection object.
@@ -116,4 +121,16 @@ export type SelectionSqlTypes<
   readonly [K in keyof TRow]: K extends keyof TSelection
     ? import('../core/fragment.ts').SqlTypeOf<TSelection[K]>
     : import('../core/sql-types.ts').SqlUnknown
+}
+
+/** Build the runtime field metadata for a named projection. */
+export function selectionResultShape(selection: Selection): ResultShape {
+  return createResultShape(
+    Object.entries(selection)
+      .filter(([, expression]) => expression !== omit)
+      .map(([name, expression]) => ({
+        name,
+        ...resultValueOf(expression),
+      }))
+  )
 }

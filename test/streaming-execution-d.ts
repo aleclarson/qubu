@@ -34,12 +34,12 @@ const mutation = insertInto(
 
 const streamingAdapter: StreamingQueryAdapter = {
   dialect: standardDialect(),
-  async execute<TRow extends object>(_request: ExecutionRequest) {
-    return { rows: [] as readonly TRow[] }
+  async execute(_request: ExecutionRequest) {
+    return { rows: [] }
   },
-  stream<TRow extends object>(_request: ExecutionRequest): AsyncIterable<TRow> {
+  stream(_request: ExecutionRequest) {
     return (async function* () {
-      yield {} as TRow
+      yield {}
     })()
   },
 }
@@ -50,9 +50,9 @@ expectTypeOf(stream(query, streamingAdapter)).toEqualTypeOf<
 expectTypeOf(stream(streamingAdapter, setQuery)).toEqualTypeOf<
   AsyncIterable<{ id: number }>
 >()
-expectTypeOf(
-  streamingAdapter.stream<{ id: number }>({} as ExecutionRequest)
-).toEqualTypeOf<AsyncIterable<{ id: number }>>()
+expectTypeOf(streamingAdapter.stream({} as ExecutionRequest)).toEqualTypeOf<
+  AsyncIterable<Readonly<Record<string, unknown>>>
+>()
 
 // @ts-expect-error Mutations, including RETURNING mutations, are materialized.
 stream(mutation, streamingAdapter)
@@ -70,8 +70,8 @@ expectTypeOf(streamingDb.execute(query)).toEqualTypeOf<
 
 const materializedAdapter: QueryAdapter = {
   dialect: standardDialect(),
-  async execute<TRow extends object>(_request: ExecutionRequest) {
-    return { rows: [] as readonly TRow[] }
+  async execute(_request: ExecutionRequest) {
+    return { rows: [] }
   },
 }
 const materializedDb = qubu(materializedAdapter)
@@ -81,12 +81,12 @@ materializedDb.stream(query)
 
 const streamingTransactionalAdapter: StreamingTransactionalQueryAdapter = {
   dialect: standardDialect(),
-  async execute<TRow extends object>(_request: ExecutionRequest) {
-    return { rows: [] as readonly TRow[] }
+  async execute(_request: ExecutionRequest) {
+    return { rows: [] }
   },
-  stream<TRow extends object>(_request: ExecutionRequest): AsyncIterable<TRow> {
+  stream(_request: ExecutionRequest) {
     return (async function* () {
-      yield {} as TRow
+      yield {}
     })()
   },
   async transaction<T>(
