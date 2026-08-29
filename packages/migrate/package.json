@@ -14,8 +14,11 @@
     ".": "./src/index.ts",
     "./artifact": "./src/artifact/index.ts",
     "./ddl": "./src/ddl/index.ts",
+    "./executor": "./src/executor/index.ts",
+    "./journal": "./src/journal/index.ts",
     "./plan": "./src/plan/index.ts",
     "./repository": "./src/repository/index.ts",
+    "./testing": "./src/testing/index.ts",
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -32,6 +35,14 @@
         "types": "./dist/ddl.d.mts",
         "import": "./dist/ddl.mjs"
       },
+      "./executor": {
+        "types": "./dist/executor.d.mts",
+        "import": "./dist/executor.mjs"
+      },
+      "./journal": {
+        "types": "./dist/journal.d.mts",
+        "import": "./dist/journal.mjs"
+      },
       "./plan": {
         "types": "./dist/plan.d.mts",
         "import": "./dist/plan.mjs"
@@ -39,6 +50,10 @@
       "./repository": {
         "types": "./dist/repository.d.mts",
         "import": "./dist/repository.mjs"
+      },
+      "./testing": {
+        "types": "./dist/testing.d.mts",
+        "import": "./dist/testing.mjs"
       },
       "./package.json": "./package.json"
     }

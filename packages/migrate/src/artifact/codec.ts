@@ -444,6 +444,47 @@ function program(value: unknown, out: ArtifactDiagnostic[]): value is MigrationP
     conditions(phase.postconditions, out, [...path, "postconditions"])
   })
   uniqueIds(value.phases, out, ["program", "phases"])
+  const priorPhases = new Set<string>()
+  const priorStatements = new Set<string>()
+  value.phases.forEach((phase: unknown, phaseIndex: number) => {
+    if (!record(phase)) return
+    for (const dependency of Array.isArray(phase.dependsOn) ? phase.dependsOn : []) {
+      if (!priorPhases.has(dependency))
+        out.push(
+          diag(
+            "invalid-value",
+            ["program", "phases", phaseIndex, "dependsOn"],
+            `Phase dependency ${String(dependency)} must reference an earlier phase`,
+          ),
+        )
+    }
+    if (Array.isArray(phase.statements))
+      phase.statements.forEach((statement: unknown, statementIndex: number) => {
+        if (!record(statement)) return
+        for (const dependency of Array.isArray(statement.dependsOn) ? statement.dependsOn : []) {
+          if (!priorStatements.has(dependency))
+            out.push(
+              diag(
+                "invalid-value",
+                ["program", "phases", phaseIndex, "statements", statementIndex, "dependsOn"],
+                `Statement dependency ${String(dependency)} must reference an earlier statement`,
+              ),
+            )
+        }
+        if (typeof statement.id === "string") {
+          if (priorStatements.has(statement.id))
+            out.push(
+              diag(
+                "duplicate",
+                ["program", "phases", phaseIndex, "statements", statementIndex, "id"],
+                `Duplicate statement ID ${statement.id}`,
+              ),
+            )
+          priorStatements.add(statement.id)
+        }
+      })
+    if (typeof phase.id === "string") priorPhases.add(phase.id)
+  })
   return true
 }
 
@@ -731,27 +772,11 @@ function validateProgramAgainstPlan(
       .filter((operation) => operation.status !== "skipped")
       .map((operation) => operation.id),
   )
-  const priorPhases = new Set<string>()
-  const priorStatements = new Set<string>()
   const statementOperationIds = new Set<string>()
 
   rawProgram.phases.forEach((phase: unknown, phaseIndex: number) => {
     if (!record(phase)) {
       return
-    }
-
-    if (Array.isArray(phase.dependsOn)) {
-      for (const dependency of phase.dependsOn) {
-        if (!priorPhases.has(dependency)) {
-          out.push(
-            diag(
-              "invalid-value",
-              ["program", "phases", phaseIndex, "dependsOn"],
-              `Phase dependency ${String(dependency)} must reference an earlier phase`,
-            ),
-          )
-        }
-      }
     }
 
     if (Array.isArray(phase.statements)) {
@@ -773,39 +798,7 @@ function validateProgramAgainstPlan(
         if (typeof statement.operationId === "string") {
           statementOperationIds.add(statement.operationId)
         }
-
-        if (Array.isArray(statement.dependsOn)) {
-          for (const dependency of statement.dependsOn) {
-            if (!priorStatements.has(dependency)) {
-              out.push(
-                diag(
-                  "invalid-value",
-                  ["program", "phases", phaseIndex, "statements", statementIndex, "dependsOn"],
-                  `Statement dependency ${String(dependency)} must reference an earlier statement`,
-                ),
-              )
-            }
-          }
-        }
-
-        if (typeof statement.id === "string") {
-          if (priorStatements.has(statement.id)) {
-            out.push(
-              diag(
-                "duplicate",
-                ["program", "phases", phaseIndex, "statements", statementIndex, "id"],
-                `Duplicate statement ID ${statement.id}`,
-              ),
-            )
-          }
-
-          priorStatements.add(statement.id)
-        }
       })
-    }
-
-    if (typeof phase.id === "string") {
-      priorPhases.add(phase.id)
     }
   })
 

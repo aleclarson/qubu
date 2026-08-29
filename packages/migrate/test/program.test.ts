@@ -7,6 +7,7 @@ import {
   sealExecutableArtifact,
   type CustomProgramSubstitution,
   type OperationApproval,
+  validateMigrationProgram,
 } from "../src/artifact/index.ts"
 import { createMigrationPlan, type MigrationPlan } from "../src/plan/index.ts"
 
@@ -22,6 +23,43 @@ function snapshot(tables: SchemaSnapshot["tables"] = []): SchemaSnapshot {
     tables,
   }
 }
+
+test("rejects forward dependencies in standalone programs", () => {
+  const program = {
+    format: "qubu-migration-program",
+    version: 1,
+    phases: [
+      {
+        id: "first",
+        position: 0,
+        transaction: "optional",
+        lock: "none",
+        dependsOn: ["later"],
+        statements: [],
+        preconditions: [],
+        postconditions: [],
+      },
+      {
+        id: "later",
+        position: 1,
+        transaction: "optional",
+        lock: "none",
+        dependsOn: [],
+        statements: [],
+        preconditions: [],
+        postconditions: [],
+      },
+    ],
+  }
+  expect(validateMigrationProgram(program)).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        code: "invalid-value",
+        path: ["program", "phases", 0, "dependsOn"],
+      }),
+    ]),
+  )
+})
 
 function table(id: string, columns: SchemaSnapshot["tables"][number]["columns"] = []) {
   return { id, physicalName: id, columns, constraints: [], indexes: [] }

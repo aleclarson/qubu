@@ -258,6 +258,7 @@ export type ArtifactDiagnosticCode =
   | "duplicate"
   | "sequence-gap"
   | "parent-mismatch"
+  | "snapshot-mismatch"
   | "fork"
 
 export interface ArtifactDiagnostic {

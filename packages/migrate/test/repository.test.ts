@@ -7,15 +7,17 @@ import {
   type MigrationProgram,
   type UnsealedExecutableMigrationArtifact,
 } from "../src/artifact/index.ts"
+import { InMemoryMigrationJournal } from "../src/journal/memory.ts"
 import { createMigrationPlan } from "../src/plan/index.ts"
-import { verifyArtifactChain } from "../src/repository/index.ts"
+import { verifyArtifactChain, verifyRepositoryState } from "../src/repository/index.ts"
 
 const dialect = {
   name: "sqlite",
   version: 1,
 } as const
 
-function snapshot(name?: string): SchemaSnapshot {
+function snapshot(names: string | readonly string[] = []): SchemaSnapshot {
+  const values = typeof names === "string" ? [names] : names
   return {
     format: "qubu-schema",
     version: 1,
@@ -25,17 +27,13 @@ function snapshot(name?: string): SchemaSnapshot {
       version: 1,
     },
     namespace: "main",
-    tables: name
-      ? [
-          {
-            id: name,
-            physicalName: name,
-            columns: [],
-            constraints: [],
-            indexes: [],
-          },
-        ]
-      : [],
+    tables: values.map((name) => ({
+      id: name,
+      physicalName: name,
+      columns: [],
+      constraints: [],
+      indexes: [],
+    })),
   }
 }
 
@@ -106,8 +104,8 @@ test("verifies a complete digest-linked repository chain", async () => {
     "create-posts",
     1,
     first.artifactDigest,
-    snapshot(),
-    snapshot("posts"),
+    snapshot("accounts"),
+    snapshot(["accounts", "posts"]),
   )
   const result = await verifyArtifactChain([first, second])
 
@@ -124,15 +122,15 @@ test("detects duplicate identities, gaps, forks, and parent mismatches", async (
     "create-posts",
     1,
     first.artifactDigest,
-    snapshot(),
-    snapshot("posts"),
+    snapshot("accounts"),
+    snapshot(["accounts", "posts"]),
   )
   const fork = await artifact(
     "create-comments",
     2,
     first.artifactDigest,
-    snapshot(),
-    snapshot("comments"),
+    snapshot("accounts"),
+    snapshot(["accounts", "comments"]),
   )
   const result = await verifyArtifactChain([first, second, fork, second])
   const codes = result.ok ? [] : result.diagnostics.map((item) => item.code)
@@ -140,4 +138,48 @@ test("detects duplicate identities, gaps, forks, and parent mismatches", async (
   expect(codes).toEqual(
     expect.arrayContaining(["duplicate", "sequence-gap", "fork", "parent-mismatch"]),
   )
+})
+
+test("integrates immutable journal history with repository prefix verification", async () => {
+  const first = await artifact("create-accounts", 0, null, snapshot(), snapshot("accounts"))
+  const second = await artifact(
+    "create-posts",
+    1,
+    first.artifactDigest,
+    snapshot("accounts"),
+    snapshot(["accounts", "posts"]),
+  )
+  const journal = new InMemoryMigrationJournal()
+  const timestamp = "2026-01-01T00:00:00.000Z"
+  await journal.createAttempt({
+    id: "attempt-1",
+    artifactId: first.id,
+    artifactDigest: first.artifactDigest,
+    expectedHead: null,
+    state: "started",
+    startedAt: timestamp,
+    updatedAt: timestamp,
+  })
+  await journal.transitionAttempt("attempt-1", "running")
+  await journal.appendAppliedAndAdvanceHead(
+    {
+      artifactId: first.id,
+      sequence: 0,
+      artifactDigest: first.artifactDigest,
+      parentArtifactDigest: null,
+      kind: "migration",
+      attemptId: "attempt-1",
+      appliedAt: timestamp,
+    },
+    null,
+  )
+  await journal.transitionAttempt("attempt-1", "applied")
+
+  const result = await verifyRepositoryState([first, second], journal)
+  expect(result).toMatchObject({
+    ok: true,
+    applied: [{ artifactId: first.id, artifactDigest: first.artifactDigest }],
+    pending: [second],
+    head: first.artifactDigest,
+  })
 })

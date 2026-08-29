@@ -4,6 +4,12 @@ import {
   type MigrationArtifact,
   type Sha256Digest,
 } from "../artifact/index.ts"
+import {
+  validateJournalState,
+  type AppliedArtifactRecord,
+  type JournalDiagnostic,
+  type MigrationJournal,
+} from "../journal/index.ts"
 
 /** Storage-neutral input boundary. Filesystem discovery belongs to the CLI package. */
 export interface ArtifactRepository {
@@ -20,6 +26,62 @@ export type ArtifactChainResult =
       readonly ok: false
       readonly diagnostics: readonly ArtifactDiagnostic[]
     }
+
+export type RepositoryStateResult =
+  | {
+      readonly ok: true
+      readonly artifacts: readonly MigrationArtifact[]
+      readonly applied: readonly AppliedArtifactRecord[]
+      readonly pending: readonly MigrationArtifact[]
+      readonly head: Sha256Digest | null
+    }
+  | {
+      readonly ok: false
+      readonly diagnostics: readonly (ArtifactDiagnostic | JournalDiagnostic)[]
+    }
+
+/** Verify both durable history and its exact prefix relationship to a decoded repository. */
+export async function verifyRepositoryState(
+  source: ArtifactRepository | readonly (string | unknown)[],
+  journal: MigrationJournal,
+): Promise<RepositoryStateResult> {
+  const chain = await verifyArtifactChain(source)
+  if (!chain.ok) return chain
+  const [metadata, applied, attempts] = await Promise.all([
+    journal.readMetadata(),
+    journal.listApplied(),
+    journal.listAttempts(),
+  ])
+  const diagnostics: (ArtifactDiagnostic | JournalDiagnostic)[] = [
+    ...validateJournalState(metadata, applied, attempts),
+  ]
+  for (let index = 0; index < applied.length; index++) {
+    const recorded = applied[index]!
+    const artifact = chain.artifacts[index]
+    if (
+      !artifact ||
+      artifact.id !== recorded.artifactId ||
+      artifact.sequence !== recorded.sequence ||
+      artifact.artifactDigest !== recorded.artifactDigest
+    ) {
+      diagnostics.push(
+        Object.freeze({
+          code: "journal-not-prefix",
+          path: Object.freeze(["applied", index]),
+          message: "Recorded history is not an exact repository prefix",
+        }),
+      )
+    }
+  }
+  if (diagnostics.length) return { ok: false, diagnostics: Object.freeze(diagnostics) }
+  return Object.freeze({
+    ok: true,
+    artifacts: chain.artifacts,
+    applied,
+    pending: Object.freeze(chain.artifacts.slice(applied.length)),
+    head: metadata.head,
+  })
+}
 
 /** Strictly decode and verify an entire linear repository before any artifact is consumed. */
 export async function verifyArtifactChain(
@@ -98,6 +160,23 @@ export async function verifyArtifactChain(
           "Every artifact in a chain must use the same dialect",
         ),
       )
+    }
+
+    if (index > 0 && artifact.format === "qubu-executable-migration") {
+      const previous = artifacts[index - 1]!
+      const previousSnapshot =
+        previous.format === "qubu-executable-migration"
+          ? previous.afterSnapshot.digest
+          : previous.snapshot.digest
+      if (artifact.beforeSnapshot.digest !== previousSnapshot) {
+        diagnostics.push(
+          diag(
+            "snapshot-mismatch",
+            [index, "beforeSnapshot", "digest"],
+            "Migration before snapshot does not match its parent's resulting snapshot",
+          ),
+        )
+      }
     }
   }
 
