@@ -1,11 +1,13 @@
 import type { Client, InStatement, InValue, ResultSet, Transaction } from "@libsql/client"
 import { canonicalText, digestCanonical, isSha256Digest } from "@qubu/migrate/artifact"
 import type { ProgramCondition, Sha256Digest, TaggedParameterValue } from "@qubu/migrate/artifact"
+import { compareManagedSnapshots } from "@qubu/migrate/baseline"
 import type {
   AdapterFailureClassification,
   MigrationAdapter,
   MigrationAwaitBoundary,
   MigrationSession,
+  MigrationSnapshotInspection,
 } from "@qubu/migrate/executor"
 import {
   canTransitionAttempt,
@@ -20,6 +22,7 @@ import {
   type PhaseCheckpoint,
   type ReconciliationRecord,
 } from "@qubu/migrate/journal"
+import { mapCatalogToSnapshot, readSqliteCatalog } from "qubu/introspection"
 import type { CompleteSchemaSnapshot, SchemaSnapshot, SnapshotJsonValue } from "qubu/snapshot"
 
 const metadataTable = "__qubu_migration_metadata"
@@ -34,14 +37,23 @@ interface Executor {
 }
 
 export interface LibsqlMigrationSnapshotReader {
-  (executor: {
-    execute(statement: InStatement | string): Promise<ResultSet>
-  }): Promise<SnapshotJsonValue | SchemaSnapshot | CompleteSchemaSnapshot | Sha256Digest>
+  (
+    executor: {
+      execute(statement: InStatement | string): Promise<ResultSet>
+    },
+    expected?: SchemaSnapshot,
+  ): Promise<
+    | SnapshotJsonValue
+    | SchemaSnapshot
+    | CompleteSchemaSnapshot
+    | Sha256Digest
+    | MigrationSnapshotInspection
+  >
 }
 
 export interface LibsqlMigrationAdapterOptions {
   /** Read the managed live snapshot. Qubu journal objects must be excluded by the reader. */
-  readonly readSnapshot: LibsqlMigrationSnapshotReader
+  readonly readSnapshot?: LibsqlMigrationSnapshotReader
   readonly leasePollMilliseconds?: number
 }
 
@@ -52,7 +64,7 @@ export interface LibsqlMigrationAdapter extends MigrationAdapter {
 /** Adapt one application-owned libSQL client to Qubu's pinned migration-session contract. */
 export function libsqlMigrationAdapter(
   client: Client,
-  options: LibsqlMigrationAdapterOptions,
+  options: LibsqlMigrationAdapterOptions = {},
 ): LibsqlMigrationAdapter {
   if (
     !Number.isFinite(options.leasePollMilliseconds ?? 10) ||
@@ -68,6 +80,79 @@ export function libsqlMigrationAdapter(
       return new LibsqlMigrationSession(client, options)
     },
   }
+}
+
+/**
+ * Read SQLite's physical catalog in strict mode. Every Qubu migration object is removed before
+ * mapping, including future journal objects that use the reserved prefix.
+ */
+export async function readLibsqlMigrationSnapshot(
+  executor: Executor,
+  expected?: SchemaSnapshot,
+): Promise<MigrationSnapshotInspection> {
+  const catalog = await readSqliteCatalog(
+    {
+      dialect: "sqlite",
+      async query<TRow extends Readonly<Record<string, unknown>>>(statement: {
+        readonly text: string
+        readonly parameters: readonly unknown[]
+      }): Promise<readonly TRow[]> {
+        const result = await executor.execute({
+          sql: statement.text,
+          args: statement.parameters as InValue[],
+        })
+        return result.rows as unknown as readonly TRow[]
+      },
+    },
+    {
+      namespace: expected?.namespace ?? "main",
+      mode: "strict",
+      ...(expected === undefined ? {} : { previousSnapshot: expected }),
+    },
+  )
+  const owned = (name: string | undefined): boolean =>
+    name?.startsWith("__qubu_migration_") === true
+  const ownedTableIds = new Set(
+    catalog.tables.filter((table) => owned(table.physicalName)).map((table) => table.id),
+  )
+  const withoutJournal = {
+    ...catalog,
+    tables: catalog.tables.filter((table) => !owned(table.physicalName)),
+    views: (catalog.views ?? []).filter((view) => !owned(view.physicalName)),
+    triggers: (catalog.triggers ?? []).filter(
+      (trigger) => !owned(trigger.physicalName) && !ownedTableIds.has(trigger.table.id),
+    ),
+    deferredObjects: catalog.deferredObjects.filter((item) => !owned(item.physicalName)),
+    opaqueObjects: (catalog.opaqueObjects ?? []).filter((item) => !owned(item.physicalName)),
+  }
+  const expectedNames = new Set(expected?.tables.map((table) => table.physicalName) ?? [])
+  const unmanagedObjects =
+    expected === undefined
+      ? []
+      : withoutJournal.tables
+          .filter((table) => !expectedNames.has(table.physicalName))
+          .map((table) => ({ kind: "table", physicalName: table.physicalName }))
+  const managedCatalog =
+    expected === undefined
+      ? withoutJournal
+      : {
+          ...withoutJournal,
+          tables: withoutJournal.tables.filter((table) => expectedNames.has(table.physicalName)),
+        }
+  const mapped = mapCatalogToSnapshot(managedCatalog, {
+    namespace: expected?.namespace ?? "main",
+    mode: "strict",
+    ...(expected === undefined ? {} : { previousSnapshot: expected }),
+  })
+  if (!mapped.ok) {
+    throw new Error(
+      `Strict SQLite introspection failed: ${mapped.diagnostics.map((item) => item.message).join("; ")}`,
+    )
+  }
+  return Object.freeze({
+    snapshot: mapped.snapshot,
+    unmanagedObjects: Object.freeze(unmanagedObjects),
+  })
 }
 
 class LibsqlMigrationSession implements MigrationSession {
@@ -192,11 +277,30 @@ class LibsqlMigrationSession implements MigrationSession {
     return condition.type === "object-present" ? present : !present
   }
 
-  async currentSnapshotDigest(): Promise<Sha256Digest> {
+  async readSnapshot(expected?: SchemaSnapshot): Promise<MigrationSnapshotInspection> {
     this.#open()
-    const snapshot = await this.#options.readSnapshot(this.#executor())
+    const snapshot = await (this.#options.readSnapshot ?? readLibsqlMigrationSnapshot)(
+      this.#executor(),
+      expected,
+    )
+    if (isSha256Digest(snapshot)) {
+      throw new TypeError("The configured snapshot reader returned only a digest")
+    }
+    if (isInspection(snapshot)) return snapshot
+    return { snapshot: snapshot as SchemaSnapshot, unmanagedObjects: [] }
+  }
+
+  async currentSnapshotDigest(expected?: SchemaSnapshot): Promise<Sha256Digest> {
+    this.#open()
+    const snapshot = await (this.#options.readSnapshot ?? readLibsqlMigrationSnapshot)(
+      this.#executor(),
+      expected,
+    )
     if (isSha256Digest(snapshot)) return snapshot
-    return digestCanonical("schema-snapshot", snapshot as SnapshotJsonValue)
+    const value = isInspection(snapshot) ? snapshot.snapshot : snapshot
+    if (expected && isSchemaSnapshot(value) && compareManagedSnapshots(expected, value).matches)
+      return digestCanonical("schema-snapshot", expected as unknown as SnapshotJsonValue)
+    return digestCanonical("schema-snapshot", value as SnapshotJsonValue)
   }
 
   async close(): Promise<void> {
@@ -549,6 +653,25 @@ function asObject(value: SnapshotJsonValue): Record<string, unknown> | undefined
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? (value as unknown as Record<string, unknown>)
     : undefined
+}
+function isInspection(value: unknown): value is MigrationSnapshotInspection {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    "snapshot" in value &&
+    "unmanagedObjects" in value &&
+    Array.isArray((value as MigrationSnapshotInspection).unmanagedObjects)
+  )
+}
+function isSchemaSnapshot(value: unknown): value is SchemaSnapshot {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    "format" in value &&
+    value.format === "qubu-schema" &&
+    "version" in value &&
+    value.version === 1
+  )
 }
 function truthy(value: unknown): boolean {
   return value === true || value === 1 || value === 1n || value === "1"

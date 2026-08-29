@@ -88,7 +88,14 @@ export async function executeMigrations(
     let head = metadata.head
     for (const artifact of executable) {
       assertNotAborted(options.signal)
-      const actual = await at(options, "read-snapshot", () => session!.currentSnapshotDigest())
+      const actual = await at(options, "read-snapshot", () =>
+        session!.currentSnapshotDigest(
+          artifact.beforeSnapshot.value?.format === "qubu-schema" &&
+            artifact.beforeSnapshot.value.version === 1
+            ? artifact.beforeSnapshot.value
+            : undefined,
+        ),
+      )
       if (actual !== artifact.beforeSnapshot.digest)
         throw new MigrationExecutionError(
           "drift",

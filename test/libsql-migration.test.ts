@@ -7,7 +7,10 @@ import { diffSnapshots } from "qubu/diff"
 import type { SchemaSnapshot } from "qubu/snapshot"
 import { afterEach, expect, test } from "vitest"
 
-import { libsqlMigrationAdapter } from "../adapters/libsql/src/migration.ts"
+import {
+  libsqlMigrationAdapter,
+  readLibsqlMigrationSnapshot,
+} from "../adapters/libsql/src/migration.ts"
 import {
   compileSqliteMigrationProgram,
   sealExecutableArtifact,
@@ -15,8 +18,11 @@ import {
   type MigrationProgram,
   type Sha256Digest,
 } from "../packages/migrate/src/artifact/index.ts"
+import { compareManagedSnapshots, createBaseline } from "../packages/migrate/src/baseline/index.ts"
+import { planSchemaBootstrap } from "../packages/migrate/src/bootstrap/index.ts"
 import { executeMigrations } from "../packages/migrate/src/executor/index.ts"
 import { createMigrationPlan } from "../packages/migrate/src/plan/index.ts"
+import { readMigrationStatus } from "../packages/migrate/src/status/index.ts"
 
 const clients: Client[] = []
 const directories: string[] = []
@@ -259,4 +265,238 @@ test("refuses transaction-forbidden phases and unsupported DDL locks before jour
   await expect(
     database.execute("SELECT COUNT(*) AS count FROM __qubu_migration_attempts"),
   ).resolves.toMatchObject({ rows: [{ count: 0 }] })
+})
+
+test("strict snapshot reading excludes every migration journal object", async () => {
+  const database = client()
+  const migrationAdapter = libsqlMigrationAdapter(database)
+  const session = await migrationAdapter.openMigrationSession()
+  await database.execute("CREATE TABLE user_data (value TEXT NOT NULL)")
+  await database.execute("CREATE TABLE __qubu_migration_future (value TEXT)")
+
+  const inspection = await session.readSnapshot!()
+
+  expect(inspection.snapshot.tables.map((table) => table.physicalName)).toEqual(["user_data"])
+  await session.close()
+})
+
+test("bootstraps inline SQLite constraints and round trips through strict introspection", async () => {
+  const database = client()
+  const target: SchemaSnapshot = {
+    format: "qubu-schema",
+    version: 1,
+    dialect,
+    namingPolicy: { name: "fixture", version: 1 },
+    namespace: "main",
+    tables: [
+      {
+        id: "accountsLogical",
+        physicalName: "accounts",
+        columns: [
+          {
+            id: "emailLogical",
+            physicalName: "email_address",
+            nullable: false,
+            hasDefault: false,
+            generated: false,
+            storage: { kind: "native", dialect: "sqlite", type: "TEXT", affinity: "text" },
+          },
+          {
+            id: "idLogical",
+            physicalName: "account_id",
+            nullable: false,
+            hasDefault: false,
+            generated: true,
+            storage: { kind: "native", dialect: "sqlite", type: "INTEGER", affinity: "integer" },
+            identity: {
+              kind: "identity",
+              generation: "by-default",
+              dialect: { dialect: "sqlite", version: 1, data: { autoIncrement: false } },
+            },
+          },
+        ],
+        constraints: [
+          {
+            id: "emailUniqueLogical",
+            kind: "unique",
+            physicalName: "accounts_email_unique",
+            columns: ["emailLogical"],
+          },
+          {
+            id: "pkLogical",
+            kind: "primary-key",
+            physicalName: "accounts_pk",
+            columns: ["idLogical"],
+          },
+        ],
+        indexes: [],
+      },
+    ],
+  }
+  const bootstrap = planSchemaBootstrap(target)
+  expect(bootstrap.ok, JSON.stringify(bootstrap)).toBe(true)
+  if (!bootstrap.ok) return
+  const migration = await sealExecutableArtifact({
+    format: "qubu-executable-migration",
+    version: 1,
+    id: "bootstrap",
+    sequence: 0,
+    parentArtifactDigest: null,
+    dialect,
+    plan: bootstrap.plan,
+    renderer: { id: "qubu-sqlite", version: 1, dialect },
+    program: bootstrap.program,
+    beforeSnapshot: { value: bootstrap.beforeSnapshot },
+    afterSnapshot: { value: target },
+    approvals: [],
+    provenance: { source: "bootstrap-test" },
+  })
+
+  await executeMigrations({ repository: [migration], adapter: libsqlMigrationAdapter(database) })
+  const inspection = await readLibsqlMigrationSnapshot(database, target)
+
+  const comparison = compareManagedSnapshots(target, inspection.snapshot)
+  expect(comparison.matches, JSON.stringify(comparison)).toBe(true)
+  expect(inspection.unmanagedObjects).toEqual([])
+})
+
+test("records a verified baseline atomically and reports unmanaged tables separately", async () => {
+  const database = client()
+  await database.execute("CREATE TABLE accounts (value TEXT NOT NULL)")
+  const target = snapshot(["accounts"])
+  const result = await createBaseline({
+    adapter: libsqlMigrationAdapter(database),
+    id: "existing-production",
+    snapshot: target,
+    provenance: { source: "schema.ts", revision: "reviewed" },
+    operator: { actor: "operator@example.test" },
+    verifiedAt: "2026-08-29T12:00:00.000Z",
+    confirmation: {
+      databaseTargetVerified: true,
+      snapshotSourceVerified: true,
+      zeroManagedDriftVerified: true,
+      backupRestoreReady: true,
+      otherMigratorsStopped: true,
+      applicationCompatible: true,
+      legacyHistoryCutoverAccepted: true,
+    },
+  })
+  await database.execute("CREATE TABLE application_owned (value TEXT)")
+
+  const status = await readMigrationStatus({
+    repository: [result.artifact],
+    adapter: libsqlMigrationAdapter(database),
+  })
+
+  expect(result.artifact).not.toHaveProperty("plan")
+  expect(result.artifact).not.toHaveProperty("programDigest")
+  expect(status.managedDrift?.matches).toBe(true)
+  expect(status.unmanagedObjects).toEqual([{ kind: "table", physicalName: "application_owned" }])
+})
+
+test("refuses a baseline when logical IDs agree but physical facts differ", async () => {
+  const database = client()
+  await database.execute("CREATE TABLE accounts (different TEXT NOT NULL)")
+
+  await expect(
+    createBaseline({
+      adapter: libsqlMigrationAdapter(database),
+      id: "mismatch",
+      snapshot: snapshot(["accounts"]),
+      provenance: { source: "schema.ts" },
+      confirmation: {
+        databaseTargetVerified: true,
+        snapshotSourceVerified: true,
+        zeroManagedDriftVerified: true,
+        backupRestoreReady: true,
+        otherMigratorsStopped: true,
+        applicationCompatible: true,
+        legacyHistoryCutoverAccepted: true,
+      },
+    }),
+  ).rejects.toMatchObject({ code: "drift" })
+  await expect(
+    database.execute("SELECT COUNT(*) AS count FROM __qubu_migration_applied"),
+  ).resolves.toMatchObject({ rows: [{ count: 0 }] })
+})
+
+test("rolls back an explicit SQLite rebuild when data-copy validation fails", async () => {
+  const database = client()
+  await database.execute("CREATE TABLE accounts (value TEXT)")
+  await database.execute("INSERT INTO accounts (value) VALUES (NULL)")
+  const beforeBase = snapshot(["accounts"])
+  const before: SchemaSnapshot = {
+    ...beforeBase,
+    tables: beforeBase.tables.map((table) => ({
+      ...table,
+      columns: table.columns.map((column) => ({ ...column, nullable: true })),
+    })),
+  }
+  const after: SchemaSnapshot = {
+    ...before,
+    tables: before.tables.map((table) => ({
+      ...table,
+      columns: table.columns.map((column) => ({ ...column, nullable: false })),
+    })),
+  }
+  const planned = createMigrationPlan(diffSnapshots(before, after), {
+    allowReviewRequired: true,
+    allowDestructive: true,
+    allowUnsupported: true,
+    allowUnknown: true,
+    allowLossy: true,
+  })
+  expect(planned.ok).toBe(true)
+  if (!planned.ok) return
+  const approvals = planned.plan.operations
+    .filter((operation) => operation.safety !== "safe")
+    .map((operation) => ({
+      operationId: operation.id,
+      decision: "approve" as const,
+      safety: operation.safety,
+      findings: planned.plan.diagnostics
+        .filter((finding) => finding.operationId === operation.id)
+        .map((finding) => finding.code)
+        .sort(),
+      reason: "Reviewed NOT NULL rebuild",
+    }))
+  const compiled = compileSqliteMigrationProgram(planned.plan, {
+    beforeSnapshot: before,
+    afterSnapshot: after,
+    approvals,
+  })
+  expect(compiled.ok).toBe(true)
+  if (!compiled.ok) return
+  const migration = await sealExecutableArtifact({
+    format: "qubu-executable-migration",
+    version: 1,
+    id: "rebuild",
+    sequence: 0,
+    parentArtifactDigest: null,
+    dialect,
+    plan: planned.plan,
+    renderer: { id: "qubu-sqlite-rebuild", version: 1, dialect },
+    program: compiled.program,
+    beforeSnapshot: { value: before },
+    afterSnapshot: { value: after },
+    approvals,
+    provenance: { source: "rebuild-test" },
+  })
+
+  await expect(
+    executeMigrations({
+      repository: [migration],
+      adapter: libsqlMigrationAdapter(database, {
+        async readSnapshot() {
+          return before
+        },
+      }),
+    }),
+  ).rejects.toMatchObject({ code: "adapter" })
+  await expect(database.execute("SELECT value FROM accounts")).resolves.toMatchObject({
+    rows: [{ value: null }],
+  })
+  await expect(
+    database.execute("SELECT state FROM __qubu_migration_attempts"),
+  ).resolves.toMatchObject({ rows: [{ state: "rolled_back" }] })
 })

@@ -1,3 +1,5 @@
+import type { SchemaSnapshot } from "qubu/snapshot"
+
 import type {
   ExecutableMigrationArtifact,
   ProgramCondition,
@@ -8,6 +10,14 @@ import type {
 } from "../artifact/index.ts"
 import type { MigrationJournal } from "../journal/index.ts"
 import type { ArtifactRepository } from "../repository/index.ts"
+
+export interface MigrationSnapshotInspection {
+  readonly snapshot: SchemaSnapshot
+  readonly unmanagedObjects: readonly {
+    readonly kind: string
+    readonly physicalName: string
+  }[]
+}
 
 export interface MigrationAdapterCapabilities {
   readonly dialect: string
@@ -39,7 +49,9 @@ export interface MigrationSession {
   rollbackTransaction(): Promise<void>
   execute(sql: string, parameters: readonly TaggedParameterValue[]): Promise<void>
   checkCondition(condition: ProgramCondition): Promise<boolean>
-  currentSnapshotDigest(): Promise<Sha256Digest>
+  /** Strict managed-schema inspection, when supported by the adapter profile. */
+  readSnapshot?(expected?: SchemaSnapshot): Promise<MigrationSnapshotInspection>
+  currentSnapshotDigest(expected?: SchemaSnapshot): Promise<Sha256Digest>
   close(): Promise<void>
   classifyFailure(error: unknown, boundary: MigrationAwaitBoundary): AdapterFailureClassification
 }

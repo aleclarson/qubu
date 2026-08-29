@@ -149,7 +149,7 @@ test("emits child constraints and indexes when a table is created", () => {
   )
 })
 
-test("rejects SQLite table constraints without a rebuild path", () => {
+test("renders SQLite constraints inline during table creation", () => {
   const dialect = {
     name: "sqlite",
     version: 1,
@@ -176,9 +176,9 @@ test("rejects SQLite table constraints without a rebuild path", () => {
 
   const emission = emitSqliteMigrationPlan(planned.plan)
 
-  expect(emission.ok).toBe(false)
-  expect(emission.statements).toEqual([])
-  expect(emission.diagnostics.some((item) => item.code === "unsupported")).toBe(true)
+  expect(emission.ok).toBe(true)
+  expect(emission.statements).toHaveLength(1)
+  expect(emission.statements[0]?.sql).toContain('CONSTRAINT "accounts_pk" PRIMARY KEY ("id")')
 })
 
 test("rejects blocked rename plans before rendering", () => {

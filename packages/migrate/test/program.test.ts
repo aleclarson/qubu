@@ -126,11 +126,10 @@ test("compiles a plan into contiguous authoritative phases and statements", () =
     format: "qubu-migration-program",
     version: 1,
   })
-  expect(result.program.phases.map((phase) => phase.position)).toEqual([0, 1])
+  expect(result.program.phases.map((phase) => phase.position)).toEqual([0])
   expect(
     result.program.phases.map((phase) => phase.statements.map((statement) => statement.position)),
-  ).toEqual([[0], [0]])
-  expect(result.program.phases[1]?.dependsOn).toEqual(["phase-0"])
+  ).toEqual([[0]])
   expect(result.program.phases[0]?.statements[0]).toMatchObject({
     operationId: plan.operations.find((operation) => operation.kind === "table")?.id,
     sql: 'CREATE TABLE "main"."accounts" ("name" TEXT NOT NULL)',
@@ -204,6 +203,64 @@ test("requires exact custom-program approval and preserves tagged parameters and
       provenance: { source: "unit-test" },
     }),
   ).resolves.toMatchObject({ id: "custom-program" })
+})
+
+test("compiles SQLite table rebuilds into explicit copy and swap statements", () => {
+  const before = snapshot([table("accounts", [column("name")])])
+  const after = snapshot([
+    {
+      ...table("accounts", [{ ...column("name"), nullable: true }]),
+      constraints: [
+        {
+          id: "name_unique",
+          kind: "unique" as const,
+          physicalName: "accounts_name_unique",
+          columns: ["name"],
+        },
+      ],
+    },
+  ])
+  const planned = createMigrationPlan(diffSnapshots(before, after), {
+    allowReviewRequired: true,
+    allowDestructive: true,
+    allowUnsupported: true,
+    allowUnknown: true,
+    allowLossy: true,
+  })
+  expect(planned.ok).toBe(true)
+  if (!planned.ok) return
+  const approvals = planned.plan.operations
+    .filter((operation) => operation.safety !== "safe")
+    .map((operation) => ({
+      operationId: operation.id,
+      decision: "approve" as const,
+      safety: operation.safety,
+      findings: planned.plan.diagnostics
+        .filter((finding) => finding.operationId === operation.id)
+        .map((finding) => finding.code)
+        .sort(),
+      reason: "Reviewed rebuild",
+    }))
+
+  const result = compileSqliteMigrationProgram(planned.plan, {
+    beforeSnapshot: before,
+    afterSnapshot: after,
+    approvals,
+  })
+
+  expect(result.ok).toBe(true)
+  if (!result.ok) return
+  expect(result.program.phases).toHaveLength(1)
+  expect(result.program.phases[0]).toMatchObject({ transaction: "required", lock: "exclusive" })
+  expect(result.program.phases[0]?.statements.map((statement) => statement.sql)).toEqual([
+    expect.stringContaining('CREATE TABLE "main"."__qubu_rebuild_accounts"'),
+    'INSERT INTO "main"."__qubu_rebuild_accounts" ("name") SELECT "name" FROM "main"."accounts"',
+    'DROP TABLE "main"."accounts"',
+    'ALTER TABLE "main"."__qubu_rebuild_accounts" RENAME TO "accounts"',
+  ])
+  expect(result.program.phases[0]?.postconditions).toEqual([
+    expect.objectContaining({ type: "object-present" }),
+  ])
 })
 
 test("rejects custom transaction conflicts instead of weakening requirements", () => {

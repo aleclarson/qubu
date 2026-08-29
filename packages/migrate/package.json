@@ -13,11 +13,14 @@
   "exports": {
     ".": "./src/index.ts",
     "./artifact": "./src/artifact/index.ts",
+    "./baseline": "./src/baseline/index.ts",
+    "./bootstrap": "./src/bootstrap/index.ts",
     "./ddl": "./src/ddl/index.ts",
     "./executor": "./src/executor/index.ts",
     "./journal": "./src/journal/index.ts",
     "./plan": "./src/plan/index.ts",
     "./repository": "./src/repository/index.ts",
+    "./status": "./src/status/index.ts",
     "./testing": "./src/testing/index.ts",
     "./package.json": "./package.json"
   },
@@ -30,6 +33,14 @@
       "./artifact": {
         "types": "./dist/artifact.d.mts",
         "import": "./dist/artifact.mjs"
+      },
+      "./baseline": {
+        "types": "./dist/baseline.d.mts",
+        "import": "./dist/baseline.mjs"
+      },
+      "./bootstrap": {
+        "types": "./dist/bootstrap.d.mts",
+        "import": "./dist/bootstrap.mjs"
       },
       "./ddl": {
         "types": "./dist/ddl.d.mts",
@@ -50,6 +61,10 @@
       "./repository": {
         "types": "./dist/repository.d.mts",
         "import": "./dist/repository.mjs"
+      },
+      "./status": {
+        "types": "./dist/status.d.mts",
+        "import": "./dist/status.mjs"
       },
       "./testing": {
         "types": "./dist/testing.d.mts",

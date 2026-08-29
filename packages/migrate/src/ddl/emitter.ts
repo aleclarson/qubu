@@ -80,7 +80,7 @@ export function createDdlEmitter(features: DdlFeatures): DdlEmitter {
             continue
           }
 
-          if (isCoveredByParent(operation, validated.operations)) {
+          if (isCoveredByParent(operation, validated.operations, features)) {
             continue
           }
 
@@ -376,8 +376,10 @@ function preflight(
       }
     }
 
-    diagnoseVersion(operation, options, features, diagnostics)
-    diagnoseOperation(operation, schemaDialect, features, diagnostics)
+    if (!isCoveredByParent(operation, plan.operations, features)) {
+      diagnoseVersion(operation, options, features, diagnostics)
+      diagnoseOperation(operation, schemaDialect, features, diagnostics)
+    }
     for (const dependency of operation.dependsOn) {
       if (!operationIds.has(dependency)) {
         diagnostics.push(
@@ -828,7 +830,7 @@ function renderAdd(
     }
 
     case "table": {
-      return renderCreateTable(operation, value, dialect, features)
+      return renderCreateTable(operation, value, operations, dialect, features)
     }
 
     case "column": {
@@ -1167,17 +1169,114 @@ function renderRename(
 function renderCreateTable(
   operation: MigrationOperation,
   value: JsonRecord,
+  operations: readonly MigrationOperation[],
   dialect: SchemaDialect,
   features: DdlFeatures,
 ): string {
   const columns = arrayOfRecords(value.columns)
-  const definitions = columns.map((column) => renderColumn(column, dialect, features))
+  const constraints = arrayOfRecords(value.constraints)
+  const identityColumns = new Set(
+    columns
+      .filter((column) => {
+        const identity = recordValue(column.identity)
+        const extension = identity && recordValue(identity.dialect)
+        const data = extension && recordValue(extension.data)
+        return data?.autoIncrement === true
+      })
+      .map((column) => stringValue(column.id))
+      .filter((id): id is string => id !== undefined),
+  )
+  const definitions = columns.map((column) =>
+    renderColumn(
+      column,
+      dialect,
+      features,
+      features.dialect === "sqlite" &&
+        column.identity !== undefined &&
+        identityColumns.has(stringValue(column.id) ?? ""),
+    ),
+  )
+  const columnNames = new Map(
+    columns.map((column) => [
+      stringValue(column.id),
+      stringValue(column.physicalName) ?? stringValue(column.id),
+    ]),
+  )
+  if (features.dialect === "sqlite") {
+    for (const constraint of constraints) {
+      if (constraint.kind === "primary-key") {
+        const ids = stringArray(constraint.columns)
+        if (ids.length === 1 && identityColumns.has(ids[0]!)) continue
+      }
+      definitions.push(
+        renderInlineConstraint(constraint, operations, columnNames, dialect, features),
+      )
+    }
+  }
   const name = requiredName(operation, value)
 
   return `CREATE TABLE ${qualifiedName(operation, name, dialect)} (${definitions.join(", ")})`
 }
 
-function renderColumn(value: JsonRecord, dialect: SchemaDialect, features: DdlFeatures): string {
+function renderInlineConstraint(
+  value: JsonRecord,
+  operations: readonly MigrationOperation[],
+  columnNames: ReadonlyMap<string | undefined, string | undefined>,
+  dialect: SchemaDialect,
+  features: DdlFeatures,
+): string {
+  const name = requiredValueName(value)
+  const kind = stringValue(value.kind)
+  const columns = stringArray(value.columns).map((id) => columnNames.get(id) ?? id)
+  const terms = columns.map((column) => dialect.quoteIdentifier(column)).join(", ")
+  let body: string
+  if (kind === "primary-key") body = `PRIMARY KEY (${terms})`
+  else if (kind === "unique" || kind === "unique-constraint") body = `UNIQUE (${terms})`
+  else if (kind === "check") {
+    const expression = expressionValue(value.expression)
+    if (!expression) throw new TypeError("Check constraint is missing its expression")
+    body = `CHECK (${expression.sql})`
+  } else if (kind === "foreign-key") {
+    const target = recordValue(value.target)
+    const targetId = target && stringValue(target.table)
+    const targetOperation = operations.find(
+      (item) => item.kind === "table" && item.logicalId === targetId && item.type === "add",
+    )
+    const targetValue = targetOperation?.origin?.after?.value
+    const targetName = targetValue ? requiredValueName(targetValue) : targetId
+    if (!targetName || !target)
+      throw new TypeError("Foreign-key constraint is missing target identity")
+    const targetColumns = stringArray(target.columns)
+    const targetColumnValues = isRecord(targetValue) ? arrayOfRecords(targetValue.columns) : []
+    const targetNames = new Map(
+      targetColumnValues.map((column) => [
+        stringValue(column.id),
+        stringValue(column.physicalName),
+      ]),
+    )
+    body = `FOREIGN KEY (${terms}) REFERENCES ${dialect.quoteIdentifier(targetName)} (${targetColumns.map((id) => dialect.quoteIdentifier(targetNames.get(id) ?? id)).join(", ")})`
+    const onDelete = stringValue(value.onDelete)
+    const onUpdate = stringValue(value.onUpdate)
+    if (onDelete && onDelete !== "no-action") body += ` ON DELETE ${sqlAction(onDelete)}`
+    if (onUpdate && onUpdate !== "no-action") body += ` ON UPDATE ${sqlAction(onUpdate)}`
+  } else throw new TypeError(`Unsupported constraint kind "${String(kind)}"`)
+
+  if (value.deferrable === true) {
+    if (kind !== "foreign-key" && features.dialect === "sqlite")
+      throw new TypeError("SQLite only supports DEFERRABLE on foreign keys")
+    body += " DEFERRABLE"
+    if (value.initially === "deferred") body += " INITIALLY DEFERRED"
+    else if (value.initially === "immediate") body += " INITIALLY IMMEDIATE"
+  }
+  return `CONSTRAINT ${dialect.quoteIdentifier(name)} ${body}`
+}
+
+function renderColumn(
+  value: JsonRecord,
+  dialect: SchemaDialect,
+  features: DdlFeatures,
+  sqliteIdentityPrimary = false,
+): string {
   const name = stringValue(value.physicalName) ?? stringValue(value.id)
 
   if (name === undefined) {
@@ -1225,8 +1324,13 @@ function renderColumn(value: JsonRecord, dialect: SchemaDialect, features: DdlFe
       )
     } else if (features.dialect === "mysql") {
       parts.push("AUTO_INCREMENT")
-    } else {
-      throw new TypeError("SQLite identity declarations are not supported by this emitter")
+    } else if (sqliteIdentityPrimary) {
+      parts.push("PRIMARY KEY")
+      const extension = recordValue(identity.dialect)
+      const data = extension && recordValue(extension.data)
+      if (data?.autoIncrement === true) parts.push("AUTOINCREMENT")
+    } else if (features.dialect !== "sqlite") {
+      throw new TypeError("SQLite identity declarations require a single-column primary key")
     }
   }
 
@@ -1428,6 +1532,16 @@ function renderAddConstraint(
   dialect: SchemaDialect,
   features: DdlFeatures,
 ): string | undefined {
+  if (
+    features.dialect === "sqlite" &&
+    operations.some(
+      (item) =>
+        item.type === "add" &&
+        item.kind === "table" &&
+        item.logicalId === operation.origin?.after?.parent?.id,
+    )
+  )
+    return undefined
   const table = parentTable(operation, operations, dialect)
   const name = requiredName(operation, value)
   const kind = stringValue(value.kind)
@@ -2269,8 +2383,13 @@ function requiresPhysicalName(kind: MigrationOperation["kind"]): boolean {
 function isCoveredByParent(
   operation: MigrationOperation,
   operations: readonly MigrationOperation[],
+  features: DdlFeatures,
 ): boolean {
-  if (operation.type === "add" && operation.kind !== "column") {
+  if (
+    operation.type === "add" &&
+    operation.kind !== "column" &&
+    !(features.dialect === "sqlite" && operation.kind === "constraint")
+  ) {
     return false
   }
 

@@ -320,7 +320,7 @@ export async function readSqliteCatalog(
         currentTable,
         indexRow,
         infoRows,
-        tableSql.get(indexName),
+        text(indexRow.origin)?.toLowerCase() === "u" ? sqlText : tableSql.get(indexName),
         options.namespace,
         diagnostics,
         opaqueObjects,
@@ -1336,37 +1336,40 @@ function tableConstraints(
   const constraints: CatalogConstraint[] = []
 
   if (primaryColumns.length > 0) {
+    const declaredName = declaredConstraintName(
+      sqlText,
+      "PRIMARY\\s+KEY",
+      primaryColumns.map((column) => column.physicalName),
+    )
+    const primaryName = declaredName ?? `primary_${table.physicalName}`
     const primary: CatalogPrimaryKeyConstraint = {
       kind: "primary-key",
-      id: stableId(`primary_${table.physicalName}`),
-      identitySource: "deterministic-fallback",
-      physicalName: `primary_${table.physicalName}`,
+      id: stableId(primaryName),
+      identitySource: declaredName ? "physical-name" : "deterministic-fallback",
+      physicalName: primaryName,
       columns: primaryColumns.map((column) => column.physicalName),
       dialect: sqliteExtension({ source: "pragma_table_xinfo" }),
-      reference: reference(
-        "constraint",
-        `primary_${table.physicalName}`,
-        namespace,
-        "sqlite_schema",
-        "tbl_name",
-      ),
+      reference: reference("constraint", primaryName, namespace, "sqlite_schema", "tbl_name"),
     }
 
     constraints.push(primary)
   }
 
   const checkExpressions = [
-    ...(sqlText?.matchAll(/CHECK\s*\(([^()]*(?:\([^()]*\)[^()]*)*)\)/gi) ?? []),
+    ...(sqlText?.matchAll(
+      /(?:CONSTRAINT\s+("(?:[^"]|"")*"|`[^`]*`|\[[^\]]*\]|[A-Za-z_][A-Za-z0-9_$]*)\s+)?CHECK\s*\(([^()]*(?:\([^()]*\)[^()]*)*)\)/gi,
+    ) ?? []),
   ]
 
   checkExpressions.forEach((match, index) => {
-    const name = `check_${index}_${table.physicalName}`
+    const declaredName = unquoteIdentifier(match[1])
+    const name = declaredName ?? `check_${index}_${table.physicalName}`
     const check: CatalogCheckConstraint = {
       kind: "check",
       id: stableId(name),
       identitySource: "deterministic-fallback",
       physicalName: name,
-      expression: sql(match[1] ?? "true", namespace, table, name),
+      expression: sql(match[2] ?? "true", namespace, table, name),
       dialect: sqliteExtension({ source: "create-sql" }),
     }
 
@@ -1464,13 +1467,14 @@ function sqliteIndex(
     const termNames = terms.map((term) =>
       term.kind === "column" ? term.column : `expression_${term.position}`,
     )
+    const declaredName = declaredConstraintName(sqlText, "UNIQUE", termNames)
     const constraintName = internalName
-      ? `unique_${table.physicalName}_${termNames.join("_") || "constraint"}`
+      ? (declaredName ?? `unique_${table.physicalName}_${termNames.join("_") || "constraint"}`)
       : physicalName
     const result: CatalogUniqueConstraint = {
       kind: "unique",
       id: stableId(constraintName),
-      identitySource: internalName ? "deterministic-fallback" : "physical-name",
+      identitySource: internalName && !declaredName ? "deterministic-fallback" : "physical-name",
       physicalName: constraintName,
       columns: terms.flatMap((term) => (term.kind === "column" ? [term.column] : [])),
       nulls: "distinct",
@@ -1509,6 +1513,25 @@ function sqliteIndex(
       : undefined,
     reference: reference("index", physicalName, namespace, "sqlite_schema", "name"),
   }
+}
+
+function declaredConstraintName(
+  sqlText: string | undefined,
+  keyword: string,
+  columns: readonly string[],
+): string | undefined {
+  if (!sqlText) return undefined
+  const identifier = '("(?:[^"]|"")*"|`[^`]*`|\\[[^\\]]*\\]|[A-Za-z_][A-Za-z0-9_$]*)'
+  const pattern = new RegExp(`CONSTRAINT\\s+${identifier}\\s+${keyword}\\s*\\(([^)]*)\\)`, "gi")
+  for (const match of sqlText.matchAll(pattern)) {
+    const found = (match[2] ?? "")
+      .split(",")
+      .map((value) => unquoteIdentifier(value.trim()))
+      .filter((value): value is string => value !== undefined)
+    if (found.length === columns.length && found.every((value, index) => value === columns[index]))
+      return unquoteIdentifier(match[1])
+  }
+  return undefined
 }
 
 function foreignKeys(
