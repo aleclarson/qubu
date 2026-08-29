@@ -33,10 +33,10 @@ const schemaSql: Record<LiveDialect, string> = {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       email TEXT NOT NULL UNIQUE,
-      "emailVerified" BOOLEAN NOT NULL,
+      email_verified BOOLEAN NOT NULL,
       image TEXT,
-      "createdAt" TIMESTAMP NOT NULL,
-      "updatedAt" TIMESTAMP NOT NULL,
+      created_at TIMESTAMP NOT NULL,
+      updated_at TIMESTAMP NOT NULL,
       remaining INTEGER NOT NULL
     )
   `,
@@ -45,10 +45,10 @@ const schemaSql: Record<LiveDialect, string> = {
       id VARCHAR(255) PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
       email VARCHAR(255) NOT NULL UNIQUE,
-      emailVerified BOOLEAN NOT NULL,
+      email_verified BOOLEAN NOT NULL,
       image VARCHAR(255),
-      createdAt DATETIME(3) NOT NULL,
-      updatedAt DATETIME(3) NOT NULL,
+      created_at DATETIME(3) NOT NULL,
+      updated_at DATETIME(3) NOT NULL,
       remaining INTEGER NOT NULL
     )
   `,
@@ -57,10 +57,10 @@ const schemaSql: Record<LiveDialect, string> = {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       email TEXT NOT NULL UNIQUE,
-      emailVerified INTEGER NOT NULL,
+      email_verified INTEGER NOT NULL,
       image TEXT,
-      createdAt TEXT NOT NULL,
-      updatedAt TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
       remaining INTEGER NOT NULL
     )
   `,
