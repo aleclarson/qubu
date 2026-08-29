@@ -1,6 +1,6 @@
 {
   "name": "@qubu/adapter-pg",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "repository": {
     "type": "git",
     "url": "https://github.com/aleclarson/qubu",
@@ -32,6 +32,6 @@
   },
   "peerDependencies": {
     "pg": ">=8.23.0 <9.0.0",
-    "qubu": "0.4.2"
+    "qubu": "0.4.3"
   }
 }
