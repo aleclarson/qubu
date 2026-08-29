@@ -22,12 +22,23 @@ export interface MigrationSnapshotInspection {
 export interface MigrationAdapterCapabilities {
   readonly dialect: string
   readonly serverVersion?: string
+  /** The session remains pinned until close resolves. */
+  readonly session: "pinned"
   readonly transactionalDdl: boolean
   readonly optionalTransactions: boolean
   /** Transaction requirements this adapter has proven it can execute safely. */
   readonly transactions?: readonly ProgramTransactionRequirement[]
   readonly lease: boolean
+  readonly leaseKind: "database"
   readonly locks: readonly ProgramLockRequirement[]
+  readonly journal: {
+    readonly storage: "database"
+    readonly compareAndSwapHead: true
+    readonly atomicAppliedAndHead: true
+  }
+  readonly parameters: readonly TaggedParameterValue["type"][]
+  readonly commitAmbiguity: "recovery-required"
+  readonly forbiddenPhases: "checkpointed" | "unsupported"
   readonly features?: readonly string[]
 }
 
@@ -58,6 +69,20 @@ export interface MigrationSession {
 
 export interface MigrationAdapter {
   openMigrationSession(signal?: AbortSignal): Promise<MigrationSession>
+}
+
+export interface UnavailableMigrationAdapterProfile {
+  readonly status: "experimental" | "incompatible" | "not-yet-written"
+  readonly reason: string
+  readonly missingCapabilities: readonly (
+    | "pinned-session"
+    | "transaction-control"
+    | "migrator-lease"
+    | "ddl-lock"
+    | "journal-head-cas"
+    | "commit-ambiguity"
+    | "forbidden-phases"
+  )[]
 }
 
 export type MigrationAwaitBoundary =

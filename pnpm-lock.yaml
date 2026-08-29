@@ -99,12 +99,18 @@ importers:
 
   adapters/bun-sql:
     devDependencies:
+      '@qubu/migrate':
+        specifier: workspace:*
+        version: link:../../packages/migrate
       qubu:
         specifier: workspace:*
         version: link:../..
 
   adapters/cloudflare-d1:
     devDependencies:
+      '@qubu/migrate':
+        specifier: workspace:*
+        version: link:../../packages/migrate
       qubu:
         specifier: workspace:*
         version: link:../..
@@ -132,6 +138,9 @@ importers:
 
   adapters/mysql2:
     devDependencies:
+      '@qubu/migrate':
+        specifier: workspace:*
+        version: link:../../packages/migrate
       mysql2:
         specifier: ^3.23.4
         version: 3.23.4(@types/node@24.6.2)
@@ -141,6 +150,9 @@ importers:
 
   adapters/node-sqlite:
     devDependencies:
+      '@qubu/migrate':
+        specifier: workspace:*
+        version: link:../../packages/migrate
       '@types/node':
         specifier: ^24.6.2
         version: 24.6.2
@@ -150,6 +162,9 @@ importers:
 
   adapters/pg:
     devDependencies:
+      '@qubu/migrate':
+        specifier: workspace:*
+        version: link:../../packages/migrate
       '@types/pg':
         specifier: ^8.23.1
         version: 8.23.1
@@ -165,12 +180,18 @@ importers:
       '@electric-sql/pglite':
         specifier: ^0.5.6
         version: 0.5.8
+      '@qubu/migrate':
+        specifier: workspace:*
+        version: link:../../packages/migrate
       qubu:
         specifier: workspace:*
         version: link:../..
 
   adapters/postgresjs:
     devDependencies:
+      '@qubu/migrate':
+        specifier: workspace:*
+        version: link:../../packages/migrate
       postgres:
         specifier: ^3.4.9
         version: 3.4.9

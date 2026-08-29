@@ -158,11 +158,29 @@ export async function readLibsqlMigrationSnapshot(
 class LibsqlMigrationSession implements MigrationSession {
   readonly capabilities = Object.freeze({
     dialect: "sqlite",
+    session: "pinned",
     transactionalDdl: true,
     optionalTransactions: true,
     transactions: Object.freeze(["required", "optional"] as const),
     lease: true,
+    leaseKind: "database",
     locks: Object.freeze(["none", "exclusive"] as const),
+    journal: Object.freeze({
+      storage: "database",
+      compareAndSwapHead: true,
+      atomicAppliedAndHead: true,
+    }),
+    parameters: Object.freeze([
+      "null",
+      "boolean",
+      "string",
+      "number",
+      "bigint",
+      "bytes",
+      "json",
+    ] as const),
+    commitAmbiguity: "recovery-required",
+    forbiddenPhases: "unsupported",
     features: Object.freeze(["tagged-parameters", "journal-head-cas"]),
   })
   readonly journal: MigrationJournal

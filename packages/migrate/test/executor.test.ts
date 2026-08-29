@@ -212,6 +212,40 @@ test("keeps tagged parameters at the adapter binding boundary and redacts them f
   expect(String(error)).not.toContain(secret)
 })
 
+test("refuses tagged parameter types the adapter has not proven", async () => {
+  const migration = await artifact()
+  const {
+    artifactDigest: _artifactDigest,
+    planDigest: _planDigest,
+    programDigest: _programDigest,
+    canonicalization: _canonicalization,
+    digestAlgorithm: _digestAlgorithm,
+    ...unsealed
+  } = migration
+  const altered = await sealExecutableArtifact({
+    ...unsealed,
+    program: {
+      ...migration.program,
+      phases: migration.program.phases.map((phase) => ({
+        ...phase,
+        statements: phase.statements.map((statement) => ({
+          ...statement,
+          parameters: [{ type: "string" as const, value: "bound" }],
+        })),
+      })),
+    },
+  })
+  const adapter = new DeterministicFakeMigrationAdapter({
+    snapshotDigest: altered.beforeSnapshot.digest,
+    capabilities: { parameters: ["null"] },
+  })
+  await expect(executeMigrations({ repository: [altered], adapter })).rejects.toMatchObject({
+    code: "capability",
+    retry: "safe",
+  })
+  expect(adapter.executions).toEqual([])
+})
+
 test("requires live proof before reconciling an abandoned attempt", async () => {
   const migration = await artifact("forbidden")
   const adapter = new DeterministicFakeMigrationAdapter({

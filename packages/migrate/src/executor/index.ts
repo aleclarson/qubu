@@ -360,6 +360,18 @@ function capabilityPreflight(
       {},
       { retry: "safe" },
     )
+  if (
+    session.capabilities.session !== "pinned" ||
+    session.capabilities.leaseKind !== "database" ||
+    !session.capabilities.journal.compareAndSwapHead ||
+    !session.capabilities.journal.atomicAppliedAndHead
+  )
+    throw new MigrationExecutionError(
+      "capability",
+      "Adapter does not provide the pinned session and atomic database journal contract",
+      {},
+      { retry: "safe" },
+    )
   for (const artifact of artifacts) {
     if (artifact.dialect.name !== session.capabilities.dialect)
       throw new MigrationExecutionError(
@@ -392,6 +404,16 @@ function capabilityPreflight(
         )
     for (const phase of artifact.program?.phases ?? []) {
       if (
+        phase.transaction === "forbidden" &&
+        session.capabilities.forbiddenPhases !== "checkpointed"
+      )
+        throw new MigrationExecutionError(
+          "capability",
+          "Transaction-forbidden phases need durable checkpoint support",
+          {},
+          { retry: "safe" },
+        )
+      if (
         session.capabilities.transactions &&
         !session.capabilities.transactions.includes(phase.transaction)
       )
@@ -415,6 +437,15 @@ function capabilityPreflight(
           {},
           { retry: "safe" },
         )
+      for (const statement of phase.statements)
+        for (const parameter of statement.parameters)
+          if (!session.capabilities.parameters.includes(parameter.type))
+            throw new MigrationExecutionError(
+              "capability",
+              `Tagged parameter type ${parameter.type} is not supported`,
+              {},
+              { retry: "safe" },
+            )
     }
   }
 }

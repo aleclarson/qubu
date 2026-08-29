@@ -1,5 +1,8 @@
 export * from "../journal/memory.ts"
 
+import type { SnapshotJsonValue } from "qubu/snapshot"
+
+import { canonicalText } from "../artifact/index.ts"
 import type { ProgramCondition, Sha256Digest, TaggedParameterValue } from "../artifact/index.ts"
 import type {
   AdapterFailureClassification,
@@ -25,6 +28,72 @@ export interface FakeExecution {
   readonly transaction: boolean
 }
 
+export interface MigrationAdapterConformanceOptions {
+  readonly adapter: MigrationAdapter
+  readonly expected: MigrationAdapterCapabilities
+  /** A harmless statement used to prove the adapter's advertised parameter binding. */
+  readonly parameterProbe?: {
+    readonly sql: string
+    readonly parameters: readonly TaggedParameterValue[]
+  }
+}
+
+/**
+ * Shared live-adapter contract probe. Portable executor state transitions remain covered by the
+ * deterministic fake; this probe checks the driver-owned pinned session and advertised primitives.
+ */
+export async function verifyMigrationAdapterConformance(
+  options: MigrationAdapterConformanceOptions,
+): Promise<void> {
+  const session = await options.adapter.openMigrationSession()
+  let leased = false
+  let transaction = false
+  try {
+    assertCapabilities(session.capabilities, options.expected)
+    await session.acquireLease()
+    leased = true
+    if (session.capabilities.transactions?.includes("required")) {
+      await session.beginTransaction()
+      transaction = true
+      if (options.parameterProbe)
+        await session.execute(options.parameterProbe.sql, options.parameterProbe.parameters)
+      await session.rollbackTransaction()
+      transaction = false
+    } else if (options.parameterProbe) {
+      await session.execute(options.parameterProbe.sql, options.parameterProbe.parameters)
+    }
+  } finally {
+    if (transaction) await session.rollbackTransaction()
+    if (leased) await session.releaseLease()
+    await session.close()
+  }
+}
+
+function assertCapabilities(
+  actual: MigrationAdapterCapabilities,
+  expected: MigrationAdapterCapabilities,
+): void {
+  if (
+    canonicalText(actual as unknown as SnapshotJsonValue) !==
+    canonicalText(expected as unknown as SnapshotJsonValue)
+  )
+    throw new Error(
+      `Migration adapter capability mismatch: expected ${JSON.stringify(expected)}, received ${JSON.stringify(actual)}`,
+    )
+  if (!actual.transactions?.includes("forbidden") && actual.forbiddenPhases !== "unsupported")
+    throw new Error(
+      "An adapter may advertise checkpointed forbidden phases only when it supports them",
+    )
+  if (actual.transactions?.includes("required") && !actual.transactionalDdl)
+    throw new Error("Required migration transactions need proven transactional DDL")
+  if (actual.optionalTransactions && !actual.transactions?.includes("optional"))
+    throw new Error("Optional transaction support must be listed explicitly")
+  if (!actual.lease || actual.leaseKind !== "database")
+    throw new Error("Verified migration adapters need a database-backed migrator lease")
+  if (!actual.journal.compareAndSwapHead || !actual.journal.atomicAppliedAndHead)
+    throw new Error("Verified migration adapters need atomic journal head advancement")
+}
+
 export class DeterministicFakeMigrationAdapter implements MigrationAdapter {
   readonly journal: InMemoryMigrationJournal
   readonly executions: FakeExecution[] = []
@@ -47,11 +116,21 @@ export class DeterministicFakeMigrationAdapter implements MigrationAdapter {
     const adapter = this
     const capabilities: MigrationAdapterCapabilities = {
       dialect: "sqlite",
+      session: "pinned",
       transactionalDdl: true,
       optionalTransactions: true,
       transactions: ["required", "optional", "forbidden"],
       lease: true,
+      leaseKind: "database",
       locks: ["none", "shared", "exclusive"],
+      journal: {
+        storage: "database",
+        compareAndSwapHead: true,
+        atomicAppliedAndHead: true,
+      },
+      parameters: ["null", "boolean", "string", "number", "bigint", "bytes", "json"],
+      commitAmbiguity: "recovery-required",
+      forbiddenPhases: "checkpointed",
       ...this.#options.capabilities,
     }
     const buffered = new BufferedJournal(this.journal, () => transaction)

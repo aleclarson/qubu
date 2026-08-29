@@ -12,12 +12,14 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./migration": "./src/migration.ts",
     "./package.json": "./package.json"
   },
   "publishConfig": {
     "types": "./dist/index.d.mts",
     "exports": {
       ".": "./dist/index.mjs",
+      "./migration": "./dist/migration.mjs",
       "./package.json": "./package.json"
     }
   },
@@ -26,11 +28,13 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
+    "@qubu/migrate": "workspace:*",
     "@types/pg": "^8.23.1",
     "pg": "^8.23.0",
     "qubu": "workspace:*"
   },
   "peerDependencies": {
+    "@qubu/migrate": "0.4.3",
     "pg": ">=8.23.0 <9.0.0",
     "qubu": "0.4.3"
   }

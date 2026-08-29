@@ -23,6 +23,7 @@ import { planSchemaBootstrap } from "../packages/migrate/src/bootstrap/index.ts"
 import { executeMigrations } from "../packages/migrate/src/executor/index.ts"
 import { createMigrationPlan } from "../packages/migrate/src/plan/index.ts"
 import { readMigrationStatus } from "../packages/migrate/src/status/index.ts"
+import { verifyMigrationAdapterConformance } from "../packages/migrate/src/testing/index.ts"
 
 const clients: Client[] = []
 const directories: string[] = []
@@ -119,6 +120,39 @@ function adapter(database: Client) {
     },
   })
 }
+
+test("runs the shared conformance probe against a pinned libSQL session", async () => {
+  await verifyMigrationAdapterConformance({
+    adapter: adapter(client()),
+    expected: {
+      dialect: "sqlite",
+      session: "pinned",
+      transactionalDdl: true,
+      optionalTransactions: true,
+      transactions: ["required", "optional"],
+      lease: true,
+      leaseKind: "database",
+      locks: ["none", "exclusive"],
+      journal: { storage: "database", compareAndSwapHead: true, atomicAppliedAndHead: true },
+      parameters: ["null", "boolean", "string", "number", "bigint", "bytes", "json"],
+      commitAmbiguity: "recovery-required",
+      forbiddenPhases: "unsupported",
+      features: ["tagged-parameters", "journal-head-cas"],
+    },
+    parameterProbe: {
+      sql: "SELECT ?, ?, ?, ?, ?, ?, ?",
+      parameters: [
+        { type: "null" },
+        { type: "boolean", value: true },
+        { type: "string", value: "bound" },
+        { type: "number", value: "1.5" },
+        { type: "bigint", value: "42" },
+        { type: "bytes", base64: "AQI=" },
+        { type: "json", value: { ok: true } },
+      ],
+    },
+  })
+})
 
 async function tableNames(database: Client): Promise<string[]> {
   const result = await database.execute(
