@@ -12,8 +12,10 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./artifact": "./src/artifact/index.ts",
     "./ddl": "./src/ddl/index.ts",
     "./plan": "./src/plan/index.ts",
+    "./repository": "./src/repository/index.ts",
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -22,6 +24,10 @@
         "types": "./dist/index.d.mts",
         "import": "./dist/index.mjs"
       },
+      "./artifact": {
+        "types": "./dist/artifact.d.mts",
+        "import": "./dist/artifact.mjs"
+      },
       "./ddl": {
         "types": "./dist/ddl.d.mts",
         "import": "./dist/ddl.mjs"
@@ -29,6 +35,10 @@
       "./plan": {
         "types": "./dist/plan.d.mts",
         "import": "./dist/plan.mjs"
+      },
+      "./repository": {
+        "types": "./dist/repository.d.mts",
+        "import": "./dist/repository.mjs"
       },
       "./package.json": "./package.json"
     }

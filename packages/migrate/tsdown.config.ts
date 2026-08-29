@@ -3,8 +3,10 @@ import { defineConfig } from "tsdown"
 export default defineConfig({
   entry: {
     index: "src/index.ts",
+    artifact: "src/artifact/index.ts",
     plan: "src/plan/index.ts",
     ddl: "src/ddl/index.ts",
+    repository: "src/repository/index.ts",
   },
   format: "esm",
   fixedExtension: true,
