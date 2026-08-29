@@ -5,4 +5,5 @@ export type {
   BetterAuthDialect,
   BetterAuthQubuSchema,
   BetterAuthSchemaDiagnostic,
+  BetterAuthSchemaOptions,
 } from "./schema.ts"

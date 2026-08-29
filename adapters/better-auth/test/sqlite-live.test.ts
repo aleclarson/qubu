@@ -16,10 +16,10 @@ test("executes guarded mutation and single-use consumption through SQLite", asyn
       "id" TEXT PRIMARY KEY NOT NULL,
       "name" TEXT NOT NULL,
       "email" TEXT NOT NULL UNIQUE,
-      "emailVerified" INTEGER NOT NULL,
+      "email_verified" INTEGER NOT NULL,
       "image" TEXT,
-      "createdAt" TEXT NOT NULL,
-      "updatedAt" TEXT NOT NULL,
+      "created_at" TEXT NOT NULL,
+      "updated_at" TEXT NOT NULL,
       "remaining" INTEGER NOT NULL
     )
   `)

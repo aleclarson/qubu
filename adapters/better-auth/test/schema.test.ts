@@ -51,11 +51,57 @@ test("derives custom names, fields, plugin tables, references, and indexes", () 
   expect(result.tableFor("user").tableName).toBe("auth_users")
   expect(result.tableFor("auth_users")).toBe(result.tableFor("user"))
   expect(result.tableFor("user").sqlNames.email).toBe("email_address")
+  expect(result.tableFor("user").sqlNames.emailVerified).toBe("email_verified")
   expect(result.tableFor("user").definitions.profile.nullable).toBe(true)
   expect(result.tableFor("team").tableName).toBe("auth_teams")
   expect(result.tableFor("team").constraints).toHaveProperty("ownerIdReference")
   expect(result.tableFor("team").constraints).toHaveProperty("slugUnique")
   expect(result.tableFor("team").indexes).toHaveProperty("team_owner_slug")
+})
+
+test("uses snake_case defaults while preserving explicit camelCase overrides", () => {
+  const result = betterAuthSchema(
+    {
+      user: {
+        fields: { emailVerified: "emailVerified" },
+        additionalFields: {
+          displayName: { type: "string" },
+        },
+      },
+    },
+    "postgresql",
+  )
+
+  expect(result.tableFor("user").sqlNames).toMatchObject({
+    emailVerified: "emailVerified",
+    createdAt: "created_at",
+    displayName: "display_name",
+  })
+})
+
+test("rejects fields that collide after snake_case resolution", () => {
+  expect(() =>
+    betterAuthSchema(
+      {
+        user: {
+          additionalFields: {
+            userId: { type: "string" },
+            userID: { type: "string" },
+          },
+        },
+      },
+      "postgresql",
+    ),
+  ).toThrowError(
+    expect.objectContaining({
+      diagnostics: [
+        expect.objectContaining({
+          code: "duplicate-sql-name",
+          path: ["user", "fields", "userID", "fieldName"],
+        }),
+      ],
+    }),
+  )
 })
 
 test("rejects lossy Better Auth enum fields with a path-addressed diagnostic", () => {

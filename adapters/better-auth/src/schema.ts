@@ -28,7 +28,7 @@ import {
   type Schema,
   type Table,
 } from "qubu"
-import { defineSchemaExpression } from "qubu/schema"
+import { defineSchemaExpression, generatedSchemaObjectName } from "qubu/schema"
 
 const postgresUuidDefault = defineSchemaExpression("function", (context) => {
   context.append("pg_catalog.gen_random_uuid()")
@@ -75,23 +75,31 @@ export interface BetterAuthQubuSchema extends Schema {
   readonly tableFor: (model: string) => Table
 }
 
+/** Qubu-specific derivation inputs that cannot be recovered from resolved Better Auth metadata. */
+export interface BetterAuthSchemaOptions {
+  /** Better Auth's configured database id generation strategy. */
+  readonly generateId?: "serial" | "uuid"
+  /** Explicit Better Auth physical field-name overrides, keyed by logical model and field. */
+  readonly fieldNames?: Readonly<Record<string, Readonly<Record<string, string>>>>
+}
+
 /** Derive Qubu tables from Better Auth's resolved public database metadata. */
 export function betterAuthSchema(
   options: BetterAuthOptions,
   dialect: BetterAuthDialect,
 ): BetterAuthQubuSchema {
-  return betterAuthSchemaFromTables(getAuthTables(options), dialect, options)
+  return betterAuthSchemaFromTables(getAuthTables(options), dialect, resolveSchemaOptions(options))
 }
 
 /** Derive Qubu tables from already-resolved Better Auth database metadata. */
 export function betterAuthSchemaFromTables(
   authTables: BetterAuthDBSchema,
   dialect: BetterAuthDialect,
-  options?: BetterAuthOptions,
+  options: BetterAuthSchemaOptions = {},
 ): BetterAuthQubuSchema {
   const diagnostics: BetterAuthSchemaDiagnostic[] = []
   const tables: Record<string, AnyTable> = {}
-  const numberIds = options?.advanced?.database?.generateId === "serial"
+  const numberIds = options.generateId === "serial"
 
   for (const [model, metadata] of Object.entries(authTables)) {
     if (metadata.disableMigrations) {
@@ -114,7 +122,7 @@ export function betterAuthSchemaFromTables(
                   },
             ),
           })
-        : dialect === "postgresql" && options?.advanced?.database?.generateId === "uuid"
+        : dialect === "postgresql" && options.generateId === "uuid"
           ? uuid({
               sqlName: "id",
               default: postgresUuidDefault,
@@ -124,19 +132,22 @@ export function betterAuthSchemaFromTables(
     const sqlNames = new Map<string, string>([["id", "id"]])
 
     for (const [field, attribute] of Object.entries(metadata.fields)) {
-      const sqlName = attribute.fieldName ?? field
-      const prior = sqlNames.get(sqlName)
+      const configuredSqlName = options.fieldNames?.[model]?.[field]
+      const sqlName =
+        configuredSqlName ?? (attribute.fieldName !== field ? attribute.fieldName : undefined)
+      const effectiveSqlName = sqlName ?? generatedSchemaObjectName(field)
+      const prior = sqlNames.get(effectiveSqlName)
 
       if (prior) {
         diagnostics.push({
           code: "duplicate-sql-name",
-          message: `Better Auth fields ${model}.${prior} and ${model}.${field} both map to SQL column ${sqlName}.`,
+          message: `Better Auth fields ${model}.${prior} and ${model}.${field} both map to SQL column ${effectiveSqlName}.`,
           path: [model, "fields", field, "fieldName"],
         })
         continue
       }
 
-      sqlNames.set(sqlName, field)
+      sqlNames.set(effectiveSqlName, field)
       const definition = fieldDefinition(attribute, sqlName, model, field, dialect, diagnostics)
 
       if (definition) {
@@ -273,9 +284,64 @@ export function betterAuthSchemaFromTables(
   }) as BetterAuthQubuSchema
 }
 
+export function resolveSchemaOptions(options: BetterAuthOptions): BetterAuthSchemaOptions {
+  const fieldNames: Record<string, Record<string, string>> = {}
+  const assign = (model: string, field: string, sqlName: unknown) => {
+    if (sqlName === field) {
+      const modelFieldNames = (fieldNames[model] ??= {})
+      modelFieldNames[field] = sqlName
+    }
+  }
+
+  for (const [model, candidate] of Object.entries(options)) {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+      continue
+    }
+
+    if ("fields" in candidate && candidate.fields && typeof candidate.fields === "object") {
+      for (const [field, sqlName] of Object.entries(candidate.fields)) {
+        assign(model, field, sqlName)
+      }
+    }
+
+    if (
+      "additionalFields" in candidate &&
+      candidate.additionalFields &&
+      typeof candidate.additionalFields === "object"
+    ) {
+      for (const [field, attribute] of Object.entries(candidate.additionalFields)) {
+        assign(
+          model,
+          field,
+          attribute && typeof attribute === "object" && "fieldName" in attribute
+            ? attribute.fieldName
+            : undefined,
+        )
+      }
+    }
+  }
+
+  for (const plugin of options.plugins ?? []) {
+    for (const [model, metadata] of Object.entries(plugin.schema ?? {})) {
+      for (const [field, attribute] of Object.entries(metadata.fields)) {
+        assign(model, field, attribute.fieldName)
+      }
+    }
+  }
+
+  return {
+    generateId:
+      options.advanced?.database?.generateId === "serial" ||
+      options.advanced?.database?.generateId === "uuid"
+        ? options.advanced.database.generateId
+        : undefined,
+    ...(Object.keys(fieldNames).length ? { fieldNames } : {}),
+  }
+}
+
 function fieldDefinition(
   attribute: DBFieldAttribute,
-  sqlName: string,
+  sqlName: string | undefined,
   model: string,
   field: string,
   dialect: BetterAuthDialect,
@@ -283,7 +349,7 @@ function fieldDefinition(
 ): ColumnDefinition<any> | undefined {
   const defaultValue = attribute.defaultValue
   const options: any = {
-    sqlName,
+    ...(sqlName === undefined ? {} : { sqlName }),
     nullable: attribute.required === false,
     ...(defaultValue === undefined
       ? {}

@@ -107,6 +107,21 @@ test("maps configured physical field names without requiring optional clauses", 
   expect(fake.requests[0]?.statement.text).toContain('"user"."email_address" AS "email_address"')
 })
 
+test("returns Better Auth keys from snake_case columns", async () => {
+  const fake = fakeClient(postgresDialect())
+
+  fake.queuedRows.push([{ emailVerified: false }])
+  const adapter = qubuAdapter(fake.client)(options)
+
+  const found = await adapter.findMany<{ emailVerified: boolean }>({
+    model: "user",
+    select: ["emailVerified"],
+  })
+
+  expect(found).toEqual([{ emailVerified: false }])
+  expect(fake.requests[0]?.statement.text).toContain('"user"."email_verified" AS "emailVerified"')
+})
+
 test("maps configured physical field names in single-row updates", async () => {
   const fake = fakeClient(sqliteDialect() as ReturnType<typeof postgresDialect>)
   const adapter = qubuAdapter(fake.client)({
@@ -132,6 +147,7 @@ test("generates a Qubu schema module through Better Auth metadata", async () => 
   const options = {
     advanced: { database: { generateId: "serial" as const } },
     user: {
+      fields: { emailVerified: "emailVerified" },
       additionalFields: {
         nickname: {
           type: "string" as const,
@@ -150,7 +166,8 @@ test("generates a Qubu schema module through Better Auth metadata", async () => 
   })
   expect(generated?.code).toContain("betterAuthSchemaFromTables")
   expect(generated?.code).toContain("() => undefined")
-  expect(generated?.code).toContain('generateId: "serial"')
+  expect(generated?.code).toContain('"generateId": "serial"')
+  expect(generated?.code).toContain('"emailVerified": "emailVerified"')
 })
 
 test.each([

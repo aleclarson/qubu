@@ -49,7 +49,12 @@ import {
   type TransactionalQueryAdapter,
 } from "qubu"
 
-import { betterAuthSchema, type BetterAuthDialect, type BetterAuthQubuSchema } from "./schema.ts"
+import {
+  betterAuthSchema,
+  resolveSchemaOptions,
+  type BetterAuthDialect,
+  type BetterAuthQubuSchema,
+} from "./schema.ts"
 
 /** Options for binding Better Auth to a transactional Qubu client. */
 export interface QubuBetterAuthAdapterOptions {
@@ -130,7 +135,7 @@ function buildAdapter(
     join?: JoinConfig
   }) => {
     const target = authSchema.tableFor(model)
-    const projection = selection(target, fields)
+    const projection = selection(authSchema, target, fields)
     const rows = await client.rows(
       select(
         projection as any,
@@ -160,7 +165,7 @@ function buildAdapter(
           const joined = authSchema.tableFor(joinModel)
           const joinedRows = await client.rows(
             select(
-              selection(joined),
+              selection(authSchema, joined),
               from(joined),
               where(eq(column(joined, config.on.to), (row as any)[config.on.from])),
               fetchFirst(config.limit ?? 100),
@@ -212,7 +217,7 @@ function buildAdapter(
         (insertInto as any)(
           target,
           values(mapInsertAssignments(target, data)),
-          returning(selection(target, fields)),
+          returning(selection(authSchema, target, fields)),
         ) as any,
       )
 
@@ -248,6 +253,7 @@ function buildAdapter(
 
       return singleMutation(
         client,
+        authSchema,
         authSchema.tableFor(model),
         filters,
         assignments as any,
@@ -272,7 +278,14 @@ function buildAdapter(
         return
       }
 
-      await consume(client, authSchema.tableFor(model), filters, dialect, transactionActive)
+      await consume(
+        client,
+        authSchema,
+        authSchema.tableFor(model),
+        filters,
+        dialect,
+        transactionActive,
+      )
     },
     async deleteMany({ model, where: filters }) {
       const target = authSchema.tableFor(model)
@@ -290,7 +303,14 @@ function buildAdapter(
         return Promise.resolve(null)
       }
 
-      return consume(client, authSchema.tableFor(model), filters, dialect, transactionActive) as any
+      return consume(
+        client,
+        authSchema,
+        authSchema.tableFor(model),
+        filters,
+        dialect,
+        transactionActive,
+      ) as any
     },
     incrementOne({ model, where: filters, increment, set }) {
       if (!filters.length) {
@@ -304,7 +324,15 @@ function buildAdapter(
         assignments[field] = add(column(target, field), delta)
       }
 
-      return singleMutation(client, target, filters, assignments, dialect, transactionActive) as any
+      return singleMutation(
+        client,
+        authSchema,
+        target,
+        filters,
+        assignments,
+        dialect,
+        transactionActive,
+      ) as any
     },
     async createSchema({ tables, file }) {
       const generated = betterAuthSchemaFromMetadataSource(tables, dialect, betterAuthOptions)
@@ -321,6 +349,7 @@ function buildAdapter(
 
 async function singleMutation(
   client: QubuClient,
+  authSchema: BetterAuthQubuSchema,
   target: AnyTable,
   filters: CleanedWhere[],
   assignments: Record<string, unknown>,
@@ -340,7 +369,7 @@ async function singleMutation(
         target,
         mapAssignments(target, assignments),
         (where as any)(and(whereExpression(target, filters), inQuery(id, candidate))),
-        returning(selection(target)),
+        returning(selection(authSchema, target)),
       ) as any,
     )
 
@@ -348,7 +377,7 @@ async function singleMutation(
   }
 
   const mutate = async (scoped: QubuClient) => {
-    const row = await lockedRow(scoped, target, filters)
+    const row = await lockedRow(scoped, authSchema, target, filters)
 
     if (!row) {
       return null
@@ -363,7 +392,7 @@ async function singleMutation(
     )
     const refreshed = await scoped.rows(
       select(
-        selection(target),
+        selection(authSchema, target),
         from(target),
         where(eq(column(target, "id"), row.id as any)),
         fetchFirst(1),
@@ -378,6 +407,7 @@ async function singleMutation(
 
 async function consume(
   client: QubuClient,
+  authSchema: BetterAuthQubuSchema,
   target: AnyTable,
   filters: CleanedWhere[],
   dialect: BetterAuthDialect,
@@ -392,14 +422,18 @@ async function consume(
       fetchFirst(1),
     )
     const rows = await client.rows(
-      deleteFrom(target, where(inQuery(id, candidate)), returning(selection(target))) as any,
+      deleteFrom(
+        target,
+        where(inQuery(id, candidate)),
+        returning(selection(authSchema, target)),
+      ) as any,
     )
 
     return rows[0] ?? null
   }
 
   const remove = async (scoped: QubuClient) => {
-    const row = await lockedRow(scoped, target, filters)
+    const row = await lockedRow(scoped, authSchema, target, filters)
 
     if (!row) {
       return null
@@ -412,10 +446,15 @@ async function consume(
   return transactionActive ? remove(client) : withTransaction(client, remove)
 }
 
-async function lockedRow(client: QubuClient, target: AnyTable, filters: CleanedWhere[]) {
+async function lockedRow(
+  client: QubuClient,
+  authSchema: BetterAuthQubuSchema,
+  target: AnyTable,
+  filters: CleanedWhere[],
+) {
   const rows = await client.rows(
     select(
-      selection(target),
+      selection(authSchema, target),
       from(target),
       where(whereExpression(target, filters)),
       fetchFirst(1),
@@ -434,10 +473,18 @@ function withTransaction<T>(client: QubuClient, callback: (client: QubuClient) =
   return (client as QubuTransactionalClient).transaction(callback)
 }
 
-function selection(target: AnyTable, fields?: string[]) {
+function selection(authSchema: BetterAuthQubuSchema, target: AnyTable, fields?: string[]) {
+  const metadata = Object.values(authSchema.betterAuth).find(
+    (candidate) => candidate.modelName === target.tableName,
+  )
   const selected = fields?.length
-    ? fields.map((field) => target.sqlNames[field] ?? field)
-    : Object.values(target.sqlNames)
+    ? fields.map((field) => metadata?.fields[field]?.fieldName ?? field)
+    : [
+        "id",
+        ...Object.entries(metadata?.fields ?? {}).map(
+          ([field, attribute]) => attribute.fieldName ?? field,
+        ),
+      ]
 
   return Object.fromEntries(selected.map((field) => [field, column(target, field)]))
 }
@@ -579,16 +626,12 @@ function betterAuthSchemaFromMetadataSource(
   dialect: BetterAuthDialect,
   options: BetterAuthOptions,
 ) {
-  const generateId = options.advanced?.database?.generateId
-  const schemaOptions =
-    generateId === "serial" || generateId === "uuid"
-      ? `, { advanced: { database: { generateId: ${JSON.stringify(generateId)} } } }`
-      : ""
+  const schemaOptions = resolveSchemaOptions(options)
 
   return [
     "import { betterAuthSchemaFromTables } from '@qubu/better-auth'",
     "",
-    `export const authSchema = betterAuthSchemaFromTables(${serializeMetadata(tables)}, ${JSON.stringify(dialect)}${schemaOptions})`,
+    `export const authSchema = betterAuthSchemaFromTables(${serializeMetadata(tables)}, ${JSON.stringify(dialect)}, ${serializeMetadata(schemaOptions)})`,
     "",
   ].join("\n")
 }

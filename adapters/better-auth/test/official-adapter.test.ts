@@ -7,8 +7,10 @@ import {
   transactionsTestSuite,
 } from "@better-auth/test-utils/adapter"
 import { nodeSqliteAdapter } from "@qubu/adapter-node-sqlite"
-import { qubuAdapter } from "@qubu/better-auth"
+import { betterAuthSchemaFromTables, qubuAdapter } from "@qubu/better-auth"
+import { getAuthTables } from "better-auth/db"
 import { getMigrations } from "better-auth/db/migration"
+import type { BetterAuthOptions } from "better-auth/types"
 import { qubu, type ExecutionRequest, type TransactionalQueryAdapter } from "qubu"
 import { sqliteDialect } from "qubu/sqlite"
 
@@ -27,8 +29,26 @@ function sqliteAdapter() {
   return nodeSqliteAdapter(database)
 }
 
+function harnessAdapter(options: BetterAuthOptions) {
+  const tables = getAuthTables(options)
+  const fieldNames = Object.fromEntries(
+    Object.entries(tables).map(([model, metadata]) => [
+      model,
+      Object.fromEntries(
+        Object.entries(metadata.fields).map(([field, attribute]) => [
+          field,
+          attribute.fieldName ?? field,
+        ]),
+      ),
+    ]),
+  )
+  const schema = betterAuthSchemaFromTables(tables, "sqlite", { fieldNames })
+
+  return qubuAdapter(qubu(dynamicAdapter), { schema })(options)
+}
+
 const { execute } = await testAdapter({
-  adapter: () => qubuAdapter(qubu(dynamicAdapter)),
+  adapter: () => harnessAdapter,
   async runMigrations(options) {
     database.close()
     database = new DatabaseSync(":memory:")
