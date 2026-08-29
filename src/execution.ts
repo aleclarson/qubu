@@ -8,16 +8,26 @@ export type StreamableQuery<TRow extends object = Record<string, unknown>> = Que
   readonly queryKind: "select" | "set"
 }
 
+/** Scalar application metadata forwarded only to bound-client lifecycle hooks. */
+export type HookMetadataValue = string | number | boolean
+
+/** Application correlation metadata forwarded without affecting execution. */
+export type HookMetadata = Readonly<Record<string, HookMetadataValue>>
+
 /** Rendering policy and cancellation input accepted by query execution. */
 export interface ExecutionOptions extends RenderOptions {
   /** Passed to the application adapter for drivers that support cancellation. */
   readonly signal?: AbortSignal
+  /** Inert application metadata exposed to bound-client hooks. */
+  readonly hookMetadata?: HookMetadata
 }
 
 /** Rendering, EXPLAIN, and cancellation options for plan requests. */
 export interface ExplainOptions extends RenderOptions, ExplainRenderOptions {
   /** Passed to the application adapter for drivers that support cancellation. */
   readonly signal?: AbortSignal
+  /** Inert application metadata exposed to bound-client hooks. */
+  readonly hookMetadata?: HookMetadata
 }
 
 /** EXPLAIN options accepted for SELECT and set-operation queries. */
@@ -39,6 +49,78 @@ export type ExplainOptionsFor<TQuery extends AnyQuery> = TQuery["queryKind"] ext
 export interface TransactionOptions {
   /** Passed to the adapter for transaction begin, commit, and rollback. */
   readonly signal?: AbortSignal
+  /** Inert application metadata exposed to bound-client hooks. */
+  readonly hookMetadata?: HookMetadata
+}
+
+/** Operations observable through one bound client's hooks. */
+export type HookOperationKind = "execute" | "stream" | "explain" | "transaction"
+
+interface HookOperationBase {
+  /** Opaque identifier unique within one bound client and its transaction scopes. */
+  readonly id: number
+  /** The enclosing transaction operation, when present. */
+  readonly parentId?: number
+  readonly kind: HookOperationKind
+  /** Monotonic start time in milliseconds. */
+  readonly startedAt: number
+  readonly metadata?: HookMetadata
+}
+
+/** Metadata for one bound-client query operation. */
+export interface HookQueryOperation extends HookOperationBase {
+  readonly kind: "execute" | "stream" | "explain"
+  readonly queryKind: QueryKind
+  readonly dialect: string
+  readonly sql: string
+  readonly parameterCount: number
+}
+
+/** Metadata for one bound-client transaction operation. */
+export interface HookTransactionOperation extends HookOperationBase {
+  readonly kind: "transaction"
+}
+
+/** Immutable metadata supplied when a bound-client operation starts. */
+export type HookOperation = HookQueryOperation | HookTransactionOperation
+
+/** How a successfully observed stream stopped producing rows. */
+export type HookStreamEnd = "complete" | "consumer-return"
+
+/** Aggregate facts reported after a successful bound-client operation. */
+export interface HookSuccessOutcome {
+  readonly status: "success"
+  readonly durationMs: number
+  readonly rowCount?: number
+  readonly affectedRows?: number | bigint
+  readonly changedRows?: number | bigint
+  readonly hasInsertId?: boolean
+  readonly streamEnd?: HookStreamEnd
+}
+
+/** The original failure reported after a bound-client operation rejects or throws. */
+export interface HookErrorOutcome {
+  readonly status: "error"
+  readonly durationMs: number
+  readonly error: unknown
+}
+
+/** Terminal observation for one bound-client operation. */
+export type HookOutcome = HookSuccessOutcome | HookErrorOutcome
+
+/** Optional completion callback returned when an operation starts. */
+export type OperationEndHook = (outcome: HookOutcome) => void
+
+/** Observational callbacks for one bound client and its transaction scopes. */
+export interface QubuHooks {
+  onOperationStart?(operation: HookOperation): OperationEndHook | void
+  /** Receives hook failures without changing the observed operation's outcome. */
+  onHookError?(error: unknown): void
+}
+
+/** Optional lifecycle observation configured for one bound client. */
+export interface QubuOptions {
+  readonly hooks?: QubuHooks
 }
 
 /** One rendered statement and the controls passed to an application adapter. */
@@ -253,39 +335,79 @@ export interface QubuStreamingTransactionalClient<
   ): Promise<T>
 }
 
+interface HookObservation {
+  readonly hooks: QubuHooks
+  nextOperationId: number
+}
+
+type HookCompletion =
+  | {
+      readonly status: "success"
+      readonly rowCount?: number
+      readonly affectedRows?: number | bigint
+      readonly changedRows?: number | bigint
+      readonly hasInsertId?: boolean
+      readonly streamEnd?: HookStreamEnd
+    }
+  | {
+      readonly status: "error"
+      readonly error: unknown
+    }
+
+interface ActiveHookOperation {
+  readonly operation: HookOperation
+  finish(completion: HookCompletion): void
+}
+
 /** Bind an application-owned adapter once for repeated query execution. */
 export function qubu<TAdapter extends ExplainableQueryAdapter & StreamingTransactionalQueryAdapter>(
   adapter: TAdapter,
+  options?: QubuOptions,
 ): QubuExplainableStreamingTransactionalClient<TAdapter>
 export function qubu<
   TAdapter extends ExplainableQueryAdapter & TransactionalQueryAdapter & StreamingQueryAdapter,
 >(
   adapter: TAdapter,
+  options?: QubuOptions,
 ): QubuExplainableTransactionalClient<TAdapter> & QubuStreamingExplainableClient<TAdapter>
 export function qubu<TAdapter extends ExplainableQueryAdapter & TransactionalQueryAdapter>(
   adapter: TAdapter,
+  options?: QubuOptions,
 ): QubuExplainableTransactionalClient<TAdapter, TransactionAdapterOf<TAdapter>>
 export function qubu<TAdapter extends ExplainableQueryAdapter & StreamingQueryAdapter>(
   adapter: TAdapter,
+  options?: QubuOptions,
 ): QubuStreamingExplainableClient<TAdapter>
 export function qubu<TAdapter extends ExplainableQueryAdapter>(
   adapter: TAdapter,
+  options?: QubuOptions,
 ): QubuExplainableClient<TAdapter>
 export function qubu<TAdapter extends StreamingTransactionalQueryAdapter>(
   adapter: TAdapter,
+  options?: QubuOptions,
 ): QubuStreamingTransactionalClient<TAdapter>
 export function qubu<TAdapter extends TransactionalQueryAdapter & StreamingQueryAdapter>(
   adapter: TAdapter,
+  options?: QubuOptions,
 ): QubuTransactionalClient<TAdapter> & QubuStreamingClient<TAdapter>
 export function qubu<TAdapter extends TransactionalQueryAdapter>(
   adapter: TAdapter,
+  options?: QubuOptions,
 ): QubuTransactionalClient<TAdapter, TransactionAdapterOf<TAdapter>>
 export function qubu<TAdapter extends StreamingQueryAdapter>(
   adapter: TAdapter,
+  options?: QubuOptions,
 ): QubuStreamingClient<TAdapter>
-export function qubu<TAdapter extends QueryAdapter>(adapter: TAdapter): QubuClient<TAdapter>
-export function qubu<TAdapter extends QueryAdapter>(adapter: TAdapter): QubuClient<TAdapter> {
-  const client = createClient(adapter)
+export function qubu<TAdapter extends QueryAdapter>(
+  adapter: TAdapter,
+  options?: QubuOptions,
+): QubuClient<TAdapter>
+export function qubu<TAdapter extends QueryAdapter>(
+  adapter: TAdapter,
+  options: QubuOptions = {},
+): QubuClient<TAdapter> {
+  const observation = createObservation(options.hooks)
+  const client = createClient(adapter, observation)
 
   if (!isTransactionalQueryAdapter(adapter)) {
     return client
@@ -293,26 +415,44 @@ export function qubu<TAdapter extends QueryAdapter>(adapter: TAdapter): QubuClie
 
   return Object.freeze({
     ...client,
-    transaction<T>(
+    async transaction<T>(
       callback: (transaction: QubuTransaction) => Promise<T>,
-      options?: TransactionOptions,
+      transactionOptions?: TransactionOptions,
     ) {
-      return adapter.transaction(
-        async (transactionAdapter) => callback(createClient(transactionAdapter)),
-        options,
-      )
+      const active = startTransactionOperation(observation, transactionOptions?.hookMetadata)
+
+      try {
+        const result = await adapter.transaction(
+          async (transactionAdapter) =>
+            callback(createClient(transactionAdapter, observation, active?.operation.id)),
+          adapterTransactionOptions(transactionOptions),
+        )
+
+        active?.finish({ status: "success" })
+        return result
+      } catch (error) {
+        active?.finish({
+          status: "error",
+          error,
+        })
+        throw error
+      }
     },
   }) as QubuClient<TAdapter>
 }
 
-function createClient<TAdapter extends QueryAdapter>(adapter: TAdapter): QubuClient<TAdapter> {
+function createClient<TAdapter extends QueryAdapter>(
+  adapter: TAdapter,
+  observation?: HookObservation,
+  parentId?: number,
+): QubuClient<TAdapter> {
   const client = {
     adapter,
     execute<TRow extends object>(query: QueryWithRow<TRow>, options?: ExecutionOptions) {
-      return execute(query, adapter, options)
+      return executeInternal(query, adapter, options ?? {}, observation, parentId)
     },
     rows<TRow extends object>(query: QueryWithRow<TRow>, options?: ExecutionOptions) {
-      return executeRows(query, adapter, options)
+      return executeRowsInternal(query, adapter, options ?? {}, observation, parentId)
     },
   }
   const streaming = isStreamingQueryAdapter(adapter)
@@ -327,14 +467,14 @@ function createClient<TAdapter extends QueryAdapter>(adapter: TAdapter): QubuCli
     ...(streaming
       ? {
           stream<TRow extends object>(query: StreamableQuery<TRow>, options?: ExecutionOptions) {
-            return stream(query, adapter, options)
+            return streamInternal(query, adapter, options ?? {}, observation, parentId)
           },
         }
       : {}),
     ...(explainable
       ? {
           explain<TQuery extends AnyQuery>(query: TQuery, options?: ExplainOptionsFor<TQuery>) {
-            return explain(query, adapter, options)
+            return explainInternal(query, adapter, options ?? {}, observation, parentId)
           },
         }
       : {}),
@@ -351,6 +491,149 @@ function isStreamingQueryAdapter(adapter: QueryAdapter): adapter is StreamingQue
 
 function isExplainableQueryAdapter(adapter: QueryAdapter): adapter is ExplainableQueryAdapter {
   return typeof (adapter as Partial<ExplainableQueryAdapter>).explain === "function"
+}
+
+function createObservation(hooks: QubuHooks | undefined): HookObservation | undefined {
+  if (hooks === undefined) {
+    return undefined
+  }
+
+  return {
+    hooks: Object.freeze({ ...hooks }),
+    nextOperationId: 1,
+  }
+}
+
+function startQueryOperation(
+  observation: HookObservation | undefined,
+  kind: HookQueryOperation["kind"],
+  request: ExecutionRequest,
+  dialect: Dialect,
+  metadata: HookMetadata | undefined,
+  parentId: number | undefined,
+): ActiveHookOperation | undefined {
+  return startOperation(observation, {
+    kind,
+    queryKind: request.queryKind,
+    dialect: dialect.name,
+    sql: request.statement.text,
+    parameterCount: request.statement.parameters.length,
+    metadata,
+    parentId,
+  })
+}
+
+function startTransactionOperation(
+  observation: HookObservation | undefined,
+  metadata: HookMetadata | undefined,
+): ActiveHookOperation | undefined {
+  return startOperation(observation, {
+    kind: "transaction",
+    metadata,
+    parentId: undefined,
+  })
+}
+
+function startOperation(
+  observation: HookObservation | undefined,
+  input:
+    | {
+        readonly kind: HookQueryOperation["kind"]
+        readonly queryKind: QueryKind
+        readonly dialect: string
+        readonly sql: string
+        readonly parameterCount: number
+        readonly metadata: HookMetadata | undefined
+        readonly parentId: number | undefined
+      }
+    | {
+        readonly kind: "transaction"
+        readonly metadata: HookMetadata | undefined
+        readonly parentId: undefined
+      },
+): ActiveHookOperation | undefined {
+  if (observation === undefined) {
+    return undefined
+  }
+
+  const startedAt = monotonicTime()
+  const operation = Object.freeze({
+    id: observation.nextOperationId++,
+    ...(input.parentId === undefined ? {} : { parentId: input.parentId }),
+    kind: input.kind,
+    startedAt,
+    ...(input.metadata === undefined ? {} : { metadata: freezeMetadata(input.metadata) }),
+    ...(input.kind === "transaction"
+      ? {}
+      : {
+          queryKind: input.queryKind,
+          dialect: input.dialect,
+          sql: input.sql,
+          parameterCount: input.parameterCount,
+        }),
+  }) as HookOperation
+  let endHook: OperationEndHook | undefined
+
+  try {
+    endHook = observation.hooks.onOperationStart?.(operation) ?? undefined
+  } catch (error) {
+    reportHookError(observation.hooks, error)
+  }
+
+  let finished = false
+
+  return {
+    operation,
+    finish(completion) {
+      if (finished) {
+        return
+      }
+
+      finished = true
+      if (endHook === undefined) {
+        return
+      }
+
+      const outcome = Object.freeze({
+        ...completion,
+        durationMs: monotonicTime() - startedAt,
+      }) as HookOutcome
+
+      try {
+        endHook(outcome)
+      } catch (error) {
+        reportHookError(observation.hooks, error)
+      }
+    },
+  }
+}
+
+function reportHookError(hooks: QubuHooks, error: unknown): void {
+  try {
+    hooks.onHookError?.(error)
+  } catch {
+    // Hook error reporting is observational and must not affect execution.
+  }
+}
+
+function freezeMetadata(metadata: HookMetadata): HookMetadata {
+  return Object.freeze({ ...metadata })
+}
+
+function monotonicTime(): number {
+  return performance.now()
+}
+
+function adapterTransactionOptions(
+  options: TransactionOptions | undefined,
+): TransactionOptions | undefined {
+  if (options?.hookMetadata === undefined) {
+    return options
+  }
+
+  const { hookMetadata: _hookMetadata, ...adapterOptions } = options
+
+  return adapterOptions
 }
 
 export interface DriverValueEncoder<TDriverValue = unknown> {
@@ -398,9 +681,7 @@ export async function executeRows<TRow extends object>(
   second: QueryWithRow<TRow> | QueryAdapter,
   options: ExecutionOptions = {},
 ): Promise<readonly TRow[]> {
-  const result = await executeInternal(first, second, options)
-
-  return result.rows
+  return executeRowsInternal(first, second, options)
 }
 
 /**
@@ -425,7 +706,7 @@ export async function explain(
   const query = (isQuery(first) ? first : second) as AnyQuery
   const adapter = (isQuery(first) ? second : first) as ExplainableQueryAdapter
 
-  return adapter.explain(createExplainRequest(query, adapter, options))
+  return explainInternal(query, adapter, options)
 }
 
 /**
@@ -450,32 +731,131 @@ export function stream<TRow extends object>(
   const query = (isQuery(first) ? first : second) as StreamableQuery<TRow>
   const adapter = (isQuery(first) ? second : first) as StreamingQueryAdapter
 
-  assertStreamableQuery(query)
-  const request = createExecutionRequest(query, adapter, options)
-  const dialect = options.dialect ?? adapter.dialect
-
-  return decodeResultStream<TRow>(adapter.stream(request), request, adapter, dialect)
+  return streamInternal(query, adapter, options)
 }
 
 async function executeInternal<TRow extends object>(
   first: QueryWithRow<TRow> | QueryAdapter,
   second: QueryWithRow<TRow> | QueryAdapter,
   options: ExecutionOptions,
+  observation?: HookObservation,
+  parentId?: number,
 ): Promise<ExecutionResult<TRow>> {
   const query = isQuery(first) ? first : (second as QueryWithRow<TRow>)
   const adapter = isQuery(first) ? (second as QueryAdapter) : (first as QueryAdapter)
   const request = createExecutionRequest(query, adapter, options)
-
-  // Deliberately do not catch or wrap driver errors. Adapters own their
-  // driver's error type and transaction/connection lifecycle.
-  const result = await adapter.execute(request)
   const dialect = options.dialect ?? adapter.dialect
+  const active = startQueryOperation(
+    observation,
+    "execute",
+    request,
+    dialect,
+    options.hookMetadata,
+    parentId,
+  )
 
-  return {
-    ...result,
-    rows: result.rows.map((row, rowIndex) =>
-      decodeResultRow<TRow>(row, request.resultShape, adapter.decoders, dialect, rowIndex),
-    ),
+  try {
+    // Deliberately do not wrap driver errors. Adapters own their driver's
+    // error type and transaction/connection lifecycle.
+    const result = await adapter.execute(request)
+    const decoded = {
+      ...result,
+      rows: result.rows.map((row, rowIndex) =>
+        decodeResultRow<TRow>(row, request.resultShape, adapter.decoders, dialect, rowIndex),
+      ),
+    }
+
+    active?.finish({
+      status: "success",
+      rowCount: decoded.rows.length,
+      ...(decoded.affectedRows === undefined ? {} : { affectedRows: decoded.affectedRows }),
+      ...(decoded.changedRows === undefined ? {} : { changedRows: decoded.changedRows }),
+      ...(decoded.insertId === undefined ? {} : { hasInsertId: true }),
+    })
+    return decoded
+  } catch (error) {
+    active?.finish({
+      status: "error",
+      error,
+    })
+    throw error
+  }
+}
+
+async function executeRowsInternal<TRow extends object>(
+  first: QueryWithRow<TRow> | QueryAdapter,
+  second: QueryWithRow<TRow> | QueryAdapter,
+  options: ExecutionOptions,
+  observation?: HookObservation,
+  parentId?: number,
+): Promise<readonly TRow[]> {
+  const result = await executeInternal(first, second, options, observation, parentId)
+
+  return result.rows
+}
+
+async function explainInternal(
+  query: AnyQuery,
+  adapter: ExplainableQueryAdapter,
+  options: ExplainOptions,
+  observation?: HookObservation,
+  parentId?: number,
+): Promise<ExplainResult<any>> {
+  const request = createExplainRequest(query, adapter, options)
+  const dialect = options.dialect ?? adapter.dialect
+  const active = startQueryOperation(
+    observation,
+    "explain",
+    request,
+    dialect,
+    options.hookMetadata,
+    parentId,
+  )
+
+  try {
+    const result = await adapter.explain(request)
+
+    active?.finish({
+      status: "success",
+      rowCount: result.rows.length,
+    })
+    return result
+  } catch (error) {
+    active?.finish({
+      status: "error",
+      error,
+    })
+    throw error
+  }
+}
+
+function streamInternal<TRow extends object>(
+  query: StreamableQuery<TRow>,
+  adapter: StreamingQueryAdapter,
+  options: ExecutionOptions,
+  observation?: HookObservation,
+  parentId?: number,
+): AsyncIterable<TRow> {
+  assertStreamableQuery(query)
+  const request = createExecutionRequest(query, adapter, options)
+  const dialect = options.dialect ?? adapter.dialect
+  const active = startQueryOperation(
+    observation,
+    "stream",
+    request,
+    dialect,
+    options.hookMetadata,
+    parentId,
+  )
+
+  try {
+    return decodeResultStream<TRow>(adapter.stream(request), request, adapter, dialect, active)
+  } catch (error) {
+    active?.finish({
+      status: "error",
+      error,
+    })
+    throw error
   }
 }
 
@@ -501,11 +881,38 @@ async function* decodeResultStream<TRow extends object>(
   request: ExecutionRequest,
   adapter: StreamingQueryAdapter,
   dialect: Dialect,
+  active?: ActiveHookOperation,
 ): AsyncIterable<TRow> {
   let rowIndex = 0
+  let completed = false
+  let failed = false
 
-  for await (const row of rows) {
-    yield decodeResultRow<TRow>(row, request.resultShape, adapter.decoders, dialect, rowIndex++)
+  try {
+    for await (const row of rows) {
+      yield decodeResultRow<TRow>(row, request.resultShape, adapter.decoders, dialect, rowIndex++)
+    }
+
+    completed = true
+    active?.finish({
+      status: "success",
+      rowCount: rowIndex,
+      streamEnd: "complete",
+    })
+  } catch (error) {
+    failed = true
+    active?.finish({
+      status: "error",
+      error,
+    })
+    throw error
+  } finally {
+    if (!completed && !failed) {
+      active?.finish({
+        status: "success",
+        rowCount: rowIndex,
+        streamEnd: "consumer-return",
+      })
+    }
   }
 }
 
@@ -539,7 +946,11 @@ function createExplainRequest(
   }
 
   const statement = Object.freeze({
-    text: dialect.explain.render(request.statement.text, query.queryKind, options),
+    text: dialect.explain.render(
+      request.statement.text,
+      query.queryKind,
+      explainRenderOptions(options),
+    ),
     parameters: request.statement.parameters,
   })
 
@@ -547,6 +958,16 @@ function createExplainRequest(
     ...request,
     statement,
   })
+}
+
+function explainRenderOptions(options: ExplainOptions): ExplainOptions {
+  if (options.hookMetadata === undefined) {
+    return options
+  }
+
+  const { hookMetadata: _hookMetadata, ...renderOptions } = options
+
+  return renderOptions
 }
 
 function assertStreamableQuery(query: AnyQuery): asserts query is StreamableQuery<any> {

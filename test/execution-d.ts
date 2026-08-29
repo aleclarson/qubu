@@ -12,6 +12,10 @@ import {
   type ExecutionOptions,
   type ExecutionRequest,
   type ExecutionResult,
+  type HookOperation,
+  type HookOutcome,
+  type QubuHooks,
+  type QubuOptions,
   type QubuTransaction,
   type QueryAdapter,
   type QubuClient,
@@ -33,7 +37,30 @@ const adapter: QueryAdapter = {
 const options: ExecutionOptions = {
   dialect: standardDialect(),
   signal: new AbortController().signal,
+  hookMetadata: {
+    operation: "users.list",
+    sampled: true,
+  },
 }
+
+const hooks: QubuHooks = {
+  onOperationStart(operation: HookOperation) {
+    expectTypeOf(operation.kind).toEqualTypeOf<"execute" | "stream" | "explain" | "transaction">()
+
+    return (outcome: HookOutcome) => {
+      expectTypeOf(outcome.durationMs).toBeNumber()
+    }
+  },
+  onHookError(error) {
+    expectTypeOf(error).toBeUnknown()
+  },
+}
+const qubuOptions: QubuOptions = { hooks }
+
+// @ts-expect-error Hook metadata values are deliberately limited to scalars.
+const invalidOptions: ExecutionOptions = { hookMetadata: { nested: { value: true } } }
+
+void invalidOptions
 
 expectTypeOf(execute(query, adapter, options)).toEqualTypeOf<
   Promise<ExecutionResult<{ id: number }>>
@@ -44,12 +71,15 @@ expectTypeOf(executeRows(query, adapter, options)).toEqualTypeOf<
 >()
 expectTypeOf(executeRows(adapter, query)).toEqualTypeOf<Promise<readonly { id: number }[]>>()
 
-const db = qubu(adapter)
+const db = qubu(adapter, qubuOptions)
 
 expectTypeOf(db).toEqualTypeOf<QubuClient<QueryAdapter>>()
 expectTypeOf(db.adapter).toEqualTypeOf<QueryAdapter>()
 expectTypeOf(db.execute(query, options)).toEqualTypeOf<Promise<ExecutionResult<{ id: number }>>>()
 expectTypeOf(db.rows(query)).toEqualTypeOf<Promise<readonly { id: number }[]>>()
+
+// @ts-expect-error Standalone execution does not accept hook registration.
+execute(query, adapter, { hooks })
 
 const transactionalAdapter: TransactionalQueryAdapter = {
   dialect: standardDialect(),
@@ -79,6 +109,10 @@ expectTypeOf(
     return 1
   }),
 ).toEqualTypeOf<Promise<number>>()
+
+transactionalDb.transaction(async () => 1, {
+  hookMetadata: { operation: "users.transaction" },
+})
 
 // @ts-expect-error A plain QueryAdapter does not provide transaction orchestration.
 db.transaction(async () => 1)
