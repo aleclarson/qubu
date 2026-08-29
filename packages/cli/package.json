@@ -1,0 +1,58 @@
+{
+  "name": "@qubu/cli",
+  "version": "0.4.3",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aleclarson/qubu",
+    "directory": "packages/cli"
+  },
+  "bin": {
+    "qubu": "./src/qubu.ts"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./config": "./src/config.ts",
+    "./repository": "./src/repository.ts",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "bin": {
+      "qubu": "./dist/qubu.mjs"
+    },
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.mts",
+        "import": "./dist/index.mjs"
+      },
+      "./config": {
+        "types": "./dist/config.d.mts",
+        "import": "./dist/config.mjs"
+      },
+      "./repository": {
+        "types": "./dist/repository.d.mts",
+        "import": "./dist/repository.mjs"
+      },
+      "./package.json": "./package.json"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest --run",
+    "typecheck": "vitest --typecheck --run"
+  },
+  "dependencies": {
+    "@alloc/cmd-ts": "^0.17.1"
+  },
+  "devDependencies": {
+    "@qubu/migrate": "workspace:*",
+    "qubu": "workspace:*"
+  },
+  "peerDependencies": {
+    "@qubu/migrate": "0.4.3",
+    "qubu": "0.4.3"
+  }
+}

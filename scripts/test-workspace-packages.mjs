@@ -171,6 +171,20 @@ try {
     `const specifiers = ${JSON.stringify(specifiers)}\n\nfor (const specifier of specifiers) {\n  const entry = await import(specifier)\n  if (Reflect.ownKeys(entry).length === 0) throw new Error(\`\${specifier} has no runtime exports\`)\n}\n`,
   )
   run(process.execPath, [join(temporaryRoot, "package-smoke.mjs")], temporaryRoot)
+  const cliManifest = manifests.find((manifest) => manifest.name === "@qubu/cli")
+
+  if (cliManifest) {
+    const executable = join(
+      temporaryRoot,
+      "node_modules",
+      ".bin",
+      process.platform === "win32" ? "qubu.cmd" : "qubu",
+    )
+
+    assert(statSync(executable).isFile(), "@qubu/cli must install the qubu executable")
+    run(executable, ["--help"], temporaryRoot)
+  }
+
   console.log(
     `Validated ${manifests.length} packed workspace packages and ${specifiers.length} runtime entrypoints in Node and TypeScript.`,
   )

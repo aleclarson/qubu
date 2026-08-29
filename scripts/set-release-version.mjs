@@ -16,19 +16,31 @@ assert(
   "Usage: node scripts/set-release-version.mjs [<version>] [--check]",
 )
 
+const expectedPeer = version
+const workspacePackageNames = new Set(
+  workspacePackageDirectories.map((directory) => readManifest(directory).name),
+)
+
 for (const directory of workspacePackageDirectories) {
   const manifestPath = join(packageRoot(directory), "package.json")
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"))
-  const expectedPeer = version
 
   if (check) {
     assert.equal(manifest.version, version, `${manifest.name} version must be ${version}`)
     if (directory !== ".") {
-      assert.equal(
-        manifest.peerDependencies?.qubu,
-        expectedPeer,
-        `${manifest.name} must require qubu ${expectedPeer}`,
-      )
+      for (const peerName of workspacePackageNames) {
+        if (peerName === manifest.name || manifest.peerDependencies?.[peerName] === undefined) {
+          continue
+        }
+
+        assert.equal(
+          manifest.peerDependencies[peerName],
+          expectedPeer,
+          `${manifest.name} must require ${peerName} ${expectedPeer}`,
+        )
+      }
+
+      assert(manifest.peerDependencies?.qubu, `${manifest.name} must require qubu`)
     }
 
     continue
@@ -37,7 +49,11 @@ for (const directory of workspacePackageDirectories) {
   manifest.version = version
   if (directory !== ".") {
     assert(manifest.peerDependencies?.qubu, `${manifest.name} must declare a qubu peer dependency`)
-    manifest.peerDependencies.qubu = expectedPeer
+    for (const peerName of workspacePackageNames) {
+      if (manifest.peerDependencies[peerName] !== undefined) {
+        manifest.peerDependencies[peerName] = expectedPeer
+      }
+    }
   }
 
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
