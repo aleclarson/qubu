@@ -2,6 +2,7 @@ import type {
   ExecutableMigrationArtifact,
   ProgramCondition,
   ProgramLockRequirement,
+  ProgramTransactionRequirement,
   Sha256Digest,
   TaggedParameterValue,
 } from "../artifact/index.ts"
@@ -13,6 +14,8 @@ export interface MigrationAdapterCapabilities {
   readonly serverVersion?: string
   readonly transactionalDdl: boolean
   readonly optionalTransactions: boolean
+  /** Transaction requirements this adapter has proven it can execute safely. */
+  readonly transactions?: readonly ProgramTransactionRequirement[]
   readonly lease: boolean
   readonly locks: readonly ProgramLockRequirement[]
   readonly features?: readonly string[]

@@ -123,6 +123,9 @@ importers:
       '@libsql/client':
         specifier: ^0.17.4
         version: 0.17.4
+      '@qubu/migrate':
+        specifier: workspace:*
+        version: link:../../packages/migrate
       qubu:
         specifier: workspace:*
         version: link:../..

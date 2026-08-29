@@ -12,12 +12,20 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./migration": "./src/migration.ts",
     "./package.json": "./package.json"
   },
   "publishConfig": {
     "types": "./dist/index.d.mts",
     "exports": {
-      ".": "./dist/index.mjs",
+      ".": {
+        "types": "./dist/index.d.mts",
+        "import": "./dist/index.mjs"
+      },
+      "./migration": {
+        "types": "./dist/migration.d.mts",
+        "import": "./dist/migration.mjs"
+      },
       "./package.json": "./package.json"
     }
   },
@@ -27,10 +35,12 @@
   },
   "devDependencies": {
     "@libsql/client": "^0.17.4",
+    "@qubu/migrate": "workspace:*",
     "qubu": "workspace:*"
   },
   "peerDependencies": {
     "@libsql/client": ">=0.17.4 <0.18.0",
+    "@qubu/migrate": "0.4.3",
     "qubu": "0.4.3"
   }
 }

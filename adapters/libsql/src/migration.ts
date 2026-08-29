@@ -1,0 +1,572 @@
+import type { Client, InStatement, InValue, ResultSet, Transaction } from "@libsql/client"
+import { canonicalText, digestCanonical, isSha256Digest } from "@qubu/migrate/artifact"
+import type { ProgramCondition, Sha256Digest, TaggedParameterValue } from "@qubu/migrate/artifact"
+import type {
+  AdapterFailureClassification,
+  MigrationAdapter,
+  MigrationAwaitBoundary,
+  MigrationSession,
+} from "@qubu/migrate/executor"
+import {
+  canTransitionAttempt,
+  migrationJournalFormat,
+  migrationJournalVersion,
+  type AppliedArtifactRecord,
+  type AttemptState,
+  type JournalFailure,
+  type JournalMetadata,
+  type MigrationAttempt,
+  type MigrationJournal,
+  type PhaseCheckpoint,
+  type ReconciliationRecord,
+} from "@qubu/migrate/journal"
+import type { CompleteSchemaSnapshot, SchemaSnapshot, SnapshotJsonValue } from "qubu/snapshot"
+
+const metadataTable = "__qubu_migration_metadata"
+const appliedTable = "__qubu_migration_applied"
+const attemptsTable = "__qubu_migration_attempts"
+const checkpointsTable = "__qubu_migration_checkpoints"
+const reconciliationsTable = "__qubu_migration_reconciliations"
+const leaseTable = "__qubu_migration_lease"
+
+interface Executor {
+  execute(statement: InStatement | string): Promise<ResultSet>
+}
+
+export interface LibsqlMigrationSnapshotReader {
+  (executor: {
+    execute(statement: InStatement | string): Promise<ResultSet>
+  }): Promise<SnapshotJsonValue | SchemaSnapshot | CompleteSchemaSnapshot | Sha256Digest>
+}
+
+export interface LibsqlMigrationAdapterOptions {
+  /** Read the managed live snapshot. Qubu journal objects must be excluded by the reader. */
+  readonly readSnapshot: LibsqlMigrationSnapshotReader
+  readonly leasePollMilliseconds?: number
+}
+
+export interface LibsqlMigrationAdapter extends MigrationAdapter {
+  readonly client: Client
+}
+
+/** Adapt one application-owned libSQL client to Qubu's pinned migration-session contract. */
+export function libsqlMigrationAdapter(
+  client: Client,
+  options: LibsqlMigrationAdapterOptions,
+): LibsqlMigrationAdapter {
+  if (
+    !Number.isFinite(options.leasePollMilliseconds ?? 10) ||
+    (options.leasePollMilliseconds ?? 10) < 0
+  )
+    throw new TypeError("leasePollMilliseconds must be a non-negative finite number")
+
+  return {
+    client,
+    async openMigrationSession(signal?: AbortSignal): Promise<MigrationSession> {
+      signal?.throwIfAborted()
+      await initializeJournal(client)
+      return new LibsqlMigrationSession(client, options)
+    },
+  }
+}
+
+class LibsqlMigrationSession implements MigrationSession {
+  readonly capabilities = Object.freeze({
+    dialect: "sqlite",
+    transactionalDdl: true,
+    optionalTransactions: true,
+    transactions: Object.freeze(["required", "optional"] as const),
+    lease: true,
+    locks: Object.freeze(["none", "exclusive"] as const),
+    features: Object.freeze(["tagged-parameters", "journal-head-cas"]),
+  })
+  readonly journal: MigrationJournal
+  readonly #leaseToken = crypto.randomUUID()
+  readonly #client: Client
+  readonly #options: LibsqlMigrationAdapterOptions
+  #transaction: Transaction | undefined
+  #leased = false
+  #closed = false
+  #ddlLock = false
+
+  constructor(client: Client, options: LibsqlMigrationAdapterOptions) {
+    this.#client = client
+    this.#options = options
+    this.journal = new LibsqlMigrationJournal(
+      client,
+      () => this.#executor(),
+      () => this.#transaction,
+    )
+  }
+
+  async acquireLease(signal?: AbortSignal): Promise<void> {
+    this.#open()
+    while (!this.#leased) {
+      signal?.throwIfAborted()
+      try {
+        await this.#client.execute({
+          sql: `INSERT INTO ${leaseTable} (singleton, owner) VALUES (1, ?)`,
+          args: [this.#leaseToken],
+        })
+        this.#leased = true
+      } catch (error) {
+        const owner = await leaseOwner(this.#client)
+        if (owner === this.#leaseToken) {
+          this.#leased = true
+          continue
+        }
+        if (owner === undefined) throw error
+        await delay(this.#options.leasePollMilliseconds ?? 10, signal)
+      }
+    }
+  }
+
+  async releaseLease(): Promise<void> {
+    if (!this.#leased) return
+    await this.#client.execute({
+      sql: `DELETE FROM ${leaseTable} WHERE singleton = 1 AND owner = ?`,
+      args: [this.#leaseToken],
+    })
+    this.#leased = false
+  }
+
+  async acquireDdlLock(requirement: "shared" | "exclusive"): Promise<void> {
+    this.#open()
+    if (requirement !== "exclusive" || this.#ddlLock)
+      throw new Error(`libSQL migration sessions do not support DDL lock ${requirement}`)
+    this.#ddlLock = true
+  }
+  async releaseDdlLock(requirement: "shared" | "exclusive"): Promise<void> {
+    if (requirement !== "exclusive" || !this.#ddlLock)
+      throw new Error(`libSQL migration session does not hold DDL lock ${requirement}`)
+    this.#ddlLock = false
+  }
+
+  async beginTransaction(): Promise<void> {
+    this.#open()
+    if (this.#transaction) throw new Error("A migration transaction is already active")
+    this.#transaction = await this.#client.transaction("write")
+  }
+
+  async commitTransaction(): Promise<void> {
+    const transaction = this.#requiredTransaction()
+    try {
+      await transaction.commit()
+    } finally {
+      transaction.close()
+      this.#transaction = undefined
+    }
+  }
+
+  async rollbackTransaction(): Promise<void> {
+    const transaction = this.#requiredTransaction()
+    try {
+      if (!transaction.closed) await transaction.rollback()
+    } finally {
+      transaction.close()
+      this.#transaction = undefined
+    }
+  }
+
+  async execute(sql: string, parameters: readonly TaggedParameterValue[]): Promise<void> {
+    this.#open()
+    await this.#executor().execute({ sql, args: parameters.map(decodeParameter) })
+  }
+
+  async checkCondition(condition: ProgramCondition): Promise<boolean> {
+    this.#open()
+    if (condition.type === "snapshot-digest") {
+      if (!isSha256Digest(condition.value)) return false
+      return (await this.currentSnapshotDigest()) === condition.value
+    }
+    if (condition.type === "statement") {
+      if (typeof condition.value !== "string") return false
+      const result = await this.#executor().execute(condition.value)
+      return truthy(result.rows[0]?.[0])
+    }
+    const value = asObject(condition.value)
+    const physicalName = typeof value?.physicalName === "string" ? value.physicalName : undefined
+    const kind = typeof value?.kind === "string" ? value.kind : undefined
+    if (!physicalName || !kind) return false
+    const present = await objectPresent(this.#executor(), kind, physicalName, value!)
+    return condition.type === "object-present" ? present : !present
+  }
+
+  async currentSnapshotDigest(): Promise<Sha256Digest> {
+    this.#open()
+    const snapshot = await this.#options.readSnapshot(this.#executor())
+    if (isSha256Digest(snapshot)) return snapshot
+    return digestCanonical("schema-snapshot", snapshot as SnapshotJsonValue)
+  }
+
+  async close(): Promise<void> {
+    if (this.#closed) return
+    let failure: unknown
+    if (this.#transaction) {
+      try {
+        await this.rollbackTransaction()
+      } catch (error) {
+        failure = error
+      }
+    }
+    if (this.#leased) {
+      try {
+        await this.releaseLease()
+      } catch (error) {
+        failure ??= error
+      }
+    }
+    this.#closed = true
+    if (failure) throw failure
+  }
+
+  classifyFailure(error: unknown, boundary: MigrationAwaitBoundary): AdapterFailureClassification {
+    if (boundary === "commit-transaction" || boundary === "rollback-transaction") return "uncertain"
+    if (boundary === "execute-statement") {
+      const code = failureCode(error)
+      if (code === "CLIENT_CLOSED" || code === "TRANSACTION_CLOSED") return "before-execution"
+      return code?.startsWith("SQLITE_") ? "definite-failure" : "uncertain"
+    }
+    return "before-execution"
+  }
+
+  #executor(): Executor {
+    this.#open()
+    return this.#transaction ?? this.#client
+  }
+  #requiredTransaction(): Transaction {
+    this.#open()
+    if (!this.#transaction) throw new Error("No migration transaction is active")
+    return this.#transaction
+  }
+  #open(): void {
+    if (this.#closed) throw new Error("Migration session is closed")
+  }
+}
+
+class LibsqlMigrationJournal implements MigrationJournal {
+  constructor(
+    readonly client: Client,
+    readonly executor: () => Executor,
+    readonly transaction: () => Transaction | undefined,
+  ) {}
+
+  async readMetadata(): Promise<JournalMetadata> {
+    const row = first(
+      await this.executor().execute(
+        `SELECT format, version, head FROM ${metadataTable} WHERE singleton = 1`,
+      ),
+    )
+    if (!row) throw new Error("Migration journal metadata is missing")
+    return {
+      format: string(row.format) as typeof migrationJournalFormat,
+      version: number(row.version) as 1,
+      head: nullableDigest(row.head),
+    }
+  }
+  async listApplied(): Promise<readonly AppliedArtifactRecord[]> {
+    const result = await this.executor().execute(
+      `SELECT artifact_id, sequence, artifact_digest, parent_artifact_digest, kind, attempt_id, applied_at FROM ${appliedTable} ORDER BY sequence`,
+    )
+    return result.rows.map((row) => ({
+      artifactId: string(row.artifact_id),
+      sequence: number(row.sequence),
+      artifactDigest: digest(row.artifact_digest),
+      parentArtifactDigest: nullableDigest(row.parent_artifact_digest),
+      kind: string(row.kind) as "migration" | "baseline",
+      attemptId: string(row.attempt_id),
+      appliedAt: string(row.applied_at),
+    }))
+  }
+  async listAttempts(): Promise<readonly MigrationAttempt[]> {
+    const result = await this.executor().execute(
+      `SELECT id, artifact_id, artifact_digest, expected_head, state, started_at, updated_at, error FROM ${attemptsTable} ORDER BY started_at, id`,
+    )
+    return result.rows.map((row) => ({
+      id: string(row.id),
+      artifactId: string(row.artifact_id),
+      artifactDigest: digest(row.artifact_digest),
+      expectedHead: nullableDigest(row.expected_head),
+      state: string(row.state) as AttemptState,
+      startedAt: string(row.started_at),
+      updatedAt: string(row.updated_at),
+      ...(row.error == null ? {} : { error: JSON.parse(string(row.error)) as JournalFailure }),
+    }))
+  }
+  async listCheckpoints(attemptId: string): Promise<readonly PhaseCheckpoint[]> {
+    const result = await this.executor().execute({
+      sql: `SELECT attempt_id, phase_id, statement_id, status, recorded_at FROM ${checkpointsTable} WHERE attempt_id = ? ORDER BY rowid`,
+      args: [attemptId],
+    })
+    return result.rows.map((row) => ({
+      attemptId: string(row.attempt_id),
+      phaseId: string(row.phase_id),
+      ...(row.statement_id == null ? {} : { statementId: string(row.statement_id) }),
+      status: string(row.status) as "started" | "completed",
+      recordedAt: string(row.recorded_at),
+    }))
+  }
+  async listReconciliations(): Promise<readonly ReconciliationRecord[]> {
+    const result = await this.executor().execute(
+      `SELECT attempt_id, outcome, reason, reconciled_at FROM ${reconciliationsTable} ORDER BY rowid`,
+    )
+    return result.rows.map((row) => ({
+      attemptId: string(row.attempt_id),
+      outcome: string(row.outcome) as "applied" | "rolled_back",
+      reason: string(row.reason),
+      reconciledAt: string(row.reconciled_at),
+    }))
+  }
+  async createAttempt(value: MigrationAttempt): Promise<void> {
+    if (value.state !== "started") throw new Error("A new attempt must be started")
+    await this.executor().execute({
+      sql: `INSERT INTO ${attemptsTable} (id, artifact_id, artifact_digest, expected_head, state, started_at, updated_at, error) VALUES (?, ?, ?, ?, ?, ?, ?, NULL)`,
+      args: [
+        value.id,
+        value.artifactId,
+        value.artifactDigest,
+        value.expectedHead,
+        value.state,
+        value.startedAt,
+        value.updatedAt,
+      ],
+    })
+  }
+  async transitionAttempt(id: string, state: AttemptState, error?: JournalFailure): Promise<void> {
+    const currentResult = await this.executor().execute({
+      sql: `SELECT state FROM ${attemptsTable} WHERE id = ?`,
+      args: [id],
+    })
+    const current = first(currentResult)
+    if (!current || !canTransitionAttempt(string(current.state) as AttemptState, state))
+      throw new Error("Invalid migration attempt transition")
+    const result = await this.executor().execute({
+      sql: `UPDATE ${attemptsTable} SET state = ?, updated_at = ?, error = ? WHERE id = ? AND state = ?`,
+      args: [
+        state,
+        new Date().toISOString(),
+        error ? canonicalText(error as unknown as SnapshotJsonValue).trimEnd() : null,
+        id,
+        current.state as InValue,
+      ],
+    })
+    if (result.rowsAffected !== 1) throw new Error("Migration attempt changed concurrently")
+  }
+  async checkpoint(value: PhaseCheckpoint): Promise<void> {
+    await this.executor().execute({
+      sql: `INSERT INTO ${checkpointsTable} (attempt_id, phase_id, statement_id, status, recorded_at) VALUES (?, ?, ?, ?, ?)`,
+      args: [
+        value.attemptId,
+        value.phaseId,
+        value.statementId ?? null,
+        value.status,
+        value.recordedAt,
+      ],
+    })
+  }
+  async appendApplied(value: AppliedArtifactRecord): Promise<void> {
+    const metadata = await this.readMetadata()
+    if (metadata.head !== value.parentArtifactDigest)
+      throw new Error("Applied record does not extend journal head")
+    await this.insertApplied(value)
+  }
+  async compareAndSwapHead(expected: Sha256Digest | null, next: Sha256Digest): Promise<boolean> {
+    const result = await this.executor().execute({
+      sql: `UPDATE ${metadataTable} SET head = ? WHERE singleton = 1 AND ((head IS NULL AND ? IS NULL) OR head = ?)`,
+      args: [next, expected, expected],
+    })
+    return result.rowsAffected === 1
+  }
+  async appendAppliedAndAdvanceHead(
+    value: AppliedArtifactRecord,
+    expected: Sha256Digest | null,
+  ): Promise<boolean> {
+    const active = this.transaction()
+    if (active) {
+      return this.appendAndAdvance(active, value, expected)
+    }
+
+    const transaction = await this.client.transaction("write")
+    try {
+      const advanced = await this.appendAndAdvance(transaction, value, expected)
+      await transaction.commit()
+      return advanced
+    } catch (error) {
+      if (!transaction.closed) {
+        await transaction.rollback()
+      }
+      throw error
+    } finally {
+      transaction.close()
+    }
+  }
+  async recordReconciliation(value: ReconciliationRecord): Promise<void> {
+    await this.executor().execute({
+      sql: `INSERT INTO ${reconciliationsTable} (attempt_id, outcome, reason, reconciled_at) VALUES (?, ?, ?, ?)`,
+      args: [value.attemptId, value.outcome, value.reason, value.reconciledAt],
+    })
+  }
+  private async insertApplied(value: AppliedArtifactRecord): Promise<void> {
+    await this.executor().execute({
+      sql: `INSERT INTO ${appliedTable} (artifact_id, sequence, artifact_digest, parent_artifact_digest, kind, attempt_id, applied_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        value.artifactId,
+        value.sequence,
+        value.artifactDigest,
+        value.parentArtifactDigest,
+        value.kind,
+        value.attemptId,
+        value.appliedAt,
+      ],
+    })
+  }
+
+  private async appendAndAdvance(
+    executor: Executor,
+    value: AppliedArtifactRecord,
+    expected: Sha256Digest | null,
+  ): Promise<boolean> {
+    const metadataRow = first(
+      await executor.execute(`SELECT head FROM ${metadataTable} WHERE singleton = 1`),
+    )
+    if (nullableDigest(metadataRow?.head) !== expected || value.parentArtifactDigest !== expected) {
+      return false
+    }
+    await executor.execute({
+      sql: `INSERT INTO ${appliedTable} (artifact_id, sequence, artifact_digest, parent_artifact_digest, kind, attempt_id, applied_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        value.artifactId,
+        value.sequence,
+        value.artifactDigest,
+        value.parentArtifactDigest,
+        value.kind,
+        value.attemptId,
+        value.appliedAt,
+      ],
+    })
+    const result = await executor.execute({
+      sql: `UPDATE ${metadataTable} SET head = ? WHERE singleton = 1 AND ((head IS NULL AND ? IS NULL) OR head = ?)`,
+      args: [value.artifactDigest, expected, expected],
+    })
+    if (result.rowsAffected !== 1) {
+      throw new Error("Journal head changed after applied history was appended")
+    }
+    return true
+  }
+}
+
+async function initializeJournal(client: Client): Promise<void> {
+  await client.batch(
+    [
+      `CREATE TABLE IF NOT EXISTS ${metadataTable} (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), format TEXT NOT NULL, version INTEGER NOT NULL, head TEXT)`,
+      `CREATE TABLE IF NOT EXISTS ${appliedTable} (artifact_id TEXT PRIMARY KEY, sequence INTEGER NOT NULL UNIQUE, artifact_digest TEXT NOT NULL UNIQUE, parent_artifact_digest TEXT, kind TEXT NOT NULL CHECK (kind IN ('migration', 'baseline')), attempt_id TEXT NOT NULL UNIQUE, applied_at TEXT NOT NULL)`,
+      `CREATE TABLE IF NOT EXISTS ${attemptsTable} (id TEXT PRIMARY KEY, artifact_id TEXT NOT NULL, artifact_digest TEXT NOT NULL, expected_head TEXT, state TEXT NOT NULL CHECK (state IN ('started', 'running', 'applied', 'rolled_back', 'recovery_required')), started_at TEXT NOT NULL, updated_at TEXT NOT NULL, error TEXT)`,
+      `CREATE TABLE IF NOT EXISTS ${checkpointsTable} (attempt_id TEXT NOT NULL, phase_id TEXT NOT NULL, statement_id TEXT, status TEXT NOT NULL CHECK (status IN ('started', 'completed')), recorded_at TEXT NOT NULL, UNIQUE (attempt_id, phase_id, statement_id, status))`,
+      `CREATE TABLE IF NOT EXISTS ${reconciliationsTable} (attempt_id TEXT PRIMARY KEY, outcome TEXT NOT NULL CHECK (outcome IN ('applied', 'rolled_back')), reason TEXT NOT NULL, reconciled_at TEXT NOT NULL)`,
+      `CREATE TABLE IF NOT EXISTS ${leaseTable} (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), owner TEXT NOT NULL)`,
+      {
+        sql: `INSERT OR IGNORE INTO ${metadataTable} (singleton, format, version, head) VALUES (1, ?, ?, NULL)`,
+        args: [migrationJournalFormat, migrationJournalVersion],
+      },
+    ],
+    "write",
+  )
+}
+
+async function leaseOwner(client: Client): Promise<string | undefined> {
+  const result = await client.execute(`SELECT owner FROM ${leaseTable} WHERE singleton = 1`)
+  const owner = result.rows[0]?.owner
+  return typeof owner === "string" ? owner : undefined
+}
+
+async function objectPresent(
+  executor: Executor,
+  kind: string,
+  name: string,
+  value: Record<string, unknown>,
+): Promise<boolean> {
+  if (kind === "column") {
+    const path = Array.isArray(value.path) ? value.path : []
+    const table = typeof path[0] === "string" ? path[0] : undefined
+    if (!table) return false
+    const result = await executor.execute({
+      sql: "SELECT 1 FROM pragma_table_xinfo(?) WHERE name = ?",
+      args: [table, name],
+    })
+    return result.rows.length > 0
+  }
+  const type =
+    kind === "index" ? "index" : kind === "view" ? "view" : kind === "trigger" ? "trigger" : "table"
+  const result = await executor.execute({
+    sql: "SELECT 1 FROM sqlite_schema WHERE type = ? AND name = ?",
+    args: [type, name],
+  })
+  return result.rows.length > 0
+}
+
+function decodeParameter(value: TaggedParameterValue): InValue {
+  switch (value.type) {
+    case "null":
+      return null
+    case "boolean":
+      return value.value ? 1 : 0
+    case "string":
+      return value.value
+    case "number": {
+      const result = Number(value.value)
+      if (!Number.isFinite(result)) throw new TypeError("Invalid tagged number")
+      return result
+    }
+    case "bigint":
+      return BigInt(value.value)
+    case "bytes":
+      return Uint8Array.from(atob(value.base64), (character) => character.charCodeAt(0))
+    case "json":
+      return canonicalText(value.value).trimEnd()
+  }
+}
+
+function first(result: ResultSet): Record<string, InValue> | undefined {
+  return result.rows[0] as Record<string, InValue> | undefined
+}
+function string(value: unknown): string {
+  if (typeof value !== "string") throw new Error("Invalid migration journal text")
+  return value
+}
+function number(value: unknown): number {
+  if (typeof value !== "number" && typeof value !== "bigint")
+    throw new Error("Invalid migration journal number")
+  return Number(value)
+}
+function digest(value: unknown): Sha256Digest {
+  if (!isSha256Digest(value)) throw new Error("Invalid migration journal digest")
+  return value
+}
+function nullableDigest(value: unknown): Sha256Digest | null {
+  return value == null ? null : digest(value)
+}
+function asObject(value: SnapshotJsonValue): Record<string, unknown> | undefined {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? (value as unknown as Record<string, unknown>)
+    : undefined
+}
+function truthy(value: unknown): boolean {
+  return value === true || value === 1 || value === 1n || value === "1"
+}
+function failureCode(error: unknown): string | undefined {
+  if (!error || typeof error !== "object" || !("code" in error)) return undefined
+  return typeof error.code === "string" ? error.code : undefined
+}
+function delay(milliseconds: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(resolve, milliseconds)
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer)
+        reject(signal.reason)
+      },
+      { once: true },
+    )
+  })
+}

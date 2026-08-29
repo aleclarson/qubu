@@ -384,6 +384,16 @@ function capabilityPreflight(
           { retry: "safe" },
         )
     for (const phase of artifact.program?.phases ?? []) {
+      if (
+        session.capabilities.transactions &&
+        !session.capabilities.transactions.includes(phase.transaction)
+      )
+        throw new MigrationExecutionError(
+          "capability",
+          `Transaction requirement ${phase.transaction} is not supported`,
+          {},
+          { retry: "safe" },
+        )
       if (phase.transaction === "required" && !session.capabilities.transactionalDdl)
         throw new MigrationExecutionError(
           "capability",

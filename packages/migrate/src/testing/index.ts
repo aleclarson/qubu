@@ -49,6 +49,7 @@ export class DeterministicFakeMigrationAdapter implements MigrationAdapter {
       dialect: "sqlite",
       transactionalDdl: true,
       optionalTransactions: true,
+      transactions: ["required", "optional", "forbidden"],
       lease: true,
       locks: ["none", "shared", "exclusive"],
       ...this.#options.capabilities,
