@@ -1,4 +1,4 @@
-import type { SQL } from "drizzle-orm"
+import type * as drizzle from "drizzle-orm"
 import {
   bigint,
   boolean,
@@ -21,24 +21,19 @@ import {
   type MySqlColumn,
   type MySqlTableWithColumns,
 } from "drizzle-orm/mysql-core"
-import {
-  type AnyTable,
-  type PortableColumnStorage,
-  type Schema,
-  type SchemaTableRecord,
-} from "qubu"
+import type * as qubu from "qubu"
 import { createMysqlSchemaSnapshot } from "qubu/snapshot"
 
 import {
   convertDrizzleSchema,
   extensionData,
   stringExtension,
-  type DrizzleRuntimeAdapter,
-  type RuntimeColumnBuilder,
-  type RuntimeForeignKeyBuilder,
-  type RuntimeIndexBuilder,
-  type RuntimeQubuColumnDefinition,
-  type RuntimeTableFactory,
+  type ColumnBuilder,
+  type ColumnDefinition,
+  type DialectAdapter,
+  type ForeignKeyBuilder,
+  type IndexBuilder,
+  type TableFactory,
 } from "./runtime.ts"
 import type { DrizzleColumnConfig, DrizzleSchemaValidation } from "./types.ts"
 
@@ -46,7 +41,7 @@ type MysqlDrizzleColumn<TTableName extends string, TDefinition> = MySqlColumn<
   DrizzleColumnConfig<TTableName, TDefinition>
 >
 
-type MysqlDrizzleColumns<TTable extends AnyTable> = {
+type MysqlDrizzleColumns<TTable extends qubu.AnyTable> = {
   [TKey in keyof TTable["definitions"]]: MysqlDrizzleColumn<
     TTable["tableName"],
     TTable["definitions"][TKey]
@@ -54,7 +49,7 @@ type MysqlDrizzleColumns<TTable extends AnyTable> = {
 }
 
 /** The Drizzle MySQL table produced for one Qubu table. */
-export type MysqlDrizzleTable<TTable extends AnyTable> = MySqlTableWithColumns<{
+export type MysqlDrizzleTable<TTable extends qubu.AnyTable> = MySqlTableWithColumns<{
   name: TTable["tableName"]
   schema: string | undefined
   columns: MysqlDrizzleColumns<TTable>
@@ -62,17 +57,17 @@ export type MysqlDrizzleTable<TTable extends AnyTable> = MySqlTableWithColumns<{
 }>
 
 /** A MySQL Drizzle table record retaining Qubu's logical table keys. */
-export type MysqlDrizzleSchema<TSchema extends Schema<any>> = {
+export type MysqlDrizzleSchema<TSchema extends qubu.Schema<any>> = {
   readonly [TKey in keyof TSchema["tables"]]: MysqlDrizzleTable<TSchema["tables"][TKey]>
 }
 
-const mysqlAdapter: DrizzleRuntimeAdapter = {
+const mysqlAdapter: DialectAdapter = {
   dialect: "mysql",
   createSnapshot: createMysqlSchemaSnapshot,
   createTableFactory(namespace) {
     return (namespace === undefined
       ? mysqlTable
-      : mysqlSchema(namespace).table) as unknown as RuntimeTableFactory
+      : mysqlSchema(namespace).table) as unknown as TableFactory
   },
   createStorageBuilder: createMysqlStorageBuilder,
   applyIdentity(builder, definition) {
@@ -95,7 +90,7 @@ const mysqlAdapter: DrizzleRuntimeAdapter = {
   },
   createCheck: check,
   createForeignKey(name, columns, foreignColumns) {
-    return (foreignKey as (config: object) => RuntimeForeignKeyBuilder)({
+    return (foreignKey as (config: object) => ForeignKeyBuilder)({
       name,
       columns,
       foreignColumns,
@@ -107,8 +102,8 @@ const mysqlAdapter: DrizzleRuntimeAdapter = {
       ? uniqueIndex(indexDefinition.physicalName)
       : index(indexDefinition.physicalName)
     let builder = start.on(
-      ...(terms as [MySqlColumn | SQL, ...(MySqlColumn | SQL)[]]),
-    ) as unknown as RuntimeIndexBuilder
+      ...(terms as [MySqlColumn | drizzle.SQL, ...(MySqlColumn | drizzle.SQL)[]]),
+    ) as unknown as IndexBuilder
     const using = stringExtension(data, "using")
     const algorithm = stringExtension(data, "algorithm")
     const lock = stringExtension(data, "lock")
@@ -135,18 +130,18 @@ const mysqlAdapter: DrizzleRuntimeAdapter = {
  * @throws A snapshot validation error for invalid MySQL metadata, or a DrizzleSchemaConversionError
  *   when Drizzle cannot represent required metadata.
  */
-export function toMysqlDrizzleSchema<const TTables extends SchemaTableRecord>(
-  schema: Schema<TTables> & DrizzleSchemaValidation<TTables, "mysql">,
-): MysqlDrizzleSchema<Schema<TTables>> {
-  return convertDrizzleSchema(schema, mysqlAdapter) as MysqlDrizzleSchema<Schema<TTables>>
+export function toMysqlDrizzleSchema<const TTables extends qubu.SchemaTableRecord>(
+  schema: qubu.Schema<TTables> & DrizzleSchemaValidation<TTables, "mysql">,
+): MysqlDrizzleSchema<qubu.Schema<TTables>> {
+  return convertDrizzleSchema(schema, mysqlAdapter) as MysqlDrizzleSchema<qubu.Schema<TTables>>
 }
 
 function createMysqlStorageBuilder(
-  type: PortableColumnStorage["type"] | undefined,
+  type: qubu.PortableColumnStorage["type"] | undefined,
   name: string,
   declaration: string,
-  definition: RuntimeQubuColumnDefinition,
-): RuntimeColumnBuilder {
+  definition: ColumnDefinition,
+): ColumnBuilder {
   if (definition.columnCodec !== undefined) {
     return customType<{
       data: unknown
@@ -155,7 +150,7 @@ function createMysqlStorageBuilder(
       dataType: () => declaration,
       toDriver: definition.columnCodec.toDriver,
       fromDriver: definition.columnCodec.fromDriver,
-    })(name) as unknown as RuntimeColumnBuilder
+    })(name) as unknown as ColumnBuilder
   }
 
   const builder = (() => {
@@ -206,5 +201,5 @@ function createMysqlStorageBuilder(
     }
   })()
 
-  return builder as unknown as RuntimeColumnBuilder
+  return builder as unknown as ColumnBuilder
 }

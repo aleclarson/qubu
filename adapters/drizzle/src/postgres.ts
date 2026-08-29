@@ -1,4 +1,4 @@
-import type { SQL } from "drizzle-orm"
+import type * as drizzle from "drizzle-orm"
 import {
   bigint,
   boolean,
@@ -21,12 +21,7 @@ import {
   type PgColumn,
   type PgTableWithColumns,
 } from "drizzle-orm/pg-core"
-import {
-  type AnyTable,
-  type PortableColumnStorage,
-  type Schema,
-  type SchemaTableRecord,
-} from "qubu"
+import type * as qubu from "qubu"
 import { createPostgresSchemaSnapshot } from "qubu/snapshot"
 
 import {
@@ -34,12 +29,12 @@ import {
   extensionData,
   recordExtension,
   stringExtension,
-  type DrizzleRuntimeAdapter,
-  type RuntimeColumnBuilder,
-  type RuntimeForeignKeyBuilder,
-  type RuntimeIndexBuilder,
-  type RuntimeQubuColumnDefinition,
-  type RuntimeTableFactory,
+  type ColumnBuilder,
+  type ColumnDefinition,
+  type DialectAdapter,
+  type ForeignKeyBuilder,
+  type IndexBuilder,
+  type TableFactory,
 } from "./runtime.ts"
 import type { DrizzleColumnConfig, DrizzleSchemaValidation } from "./types.ts"
 
@@ -48,7 +43,7 @@ type PostgresDrizzleColumn<TTableName extends string, TDefinition> = PgColumn<
   DrizzleColumnConfig<TTableName, TDefinition>
 >
 
-type PostgresDrizzleColumns<TTable extends AnyTable> = {
+type PostgresDrizzleColumns<TTable extends qubu.AnyTable> = {
   [TKey in keyof TTable["definitions"]]: PostgresDrizzleColumn<
     TTable["tableName"],
     TTable["definitions"][TKey]
@@ -56,7 +51,7 @@ type PostgresDrizzleColumns<TTable extends AnyTable> = {
 }
 
 /** The Drizzle PostgreSQL table produced for one Qubu table. */
-export type PostgresDrizzleTable<TTable extends AnyTable> = PgTableWithColumns<{
+export type PostgresDrizzleTable<TTable extends qubu.AnyTable> = PgTableWithColumns<{
   name: TTable["tableName"]
   schema: string | undefined
   columns: PostgresDrizzleColumns<TTable>
@@ -64,17 +59,17 @@ export type PostgresDrizzleTable<TTable extends AnyTable> = PgTableWithColumns<{
 }>
 
 /** A PostgreSQL Drizzle table record retaining Qubu's logical table keys. */
-export type PostgresDrizzleSchema<TSchema extends Schema<any>> = {
+export type PostgresDrizzleSchema<TSchema extends qubu.Schema<any>> = {
   readonly [TKey in keyof TSchema["tables"]]: PostgresDrizzleTable<TSchema["tables"][TKey]>
 }
 
-const postgresAdapter: DrizzleRuntimeAdapter = {
+const postgresAdapter: DialectAdapter = {
   dialect: "postgresql",
   createSnapshot: createPostgresSchemaSnapshot,
   createTableFactory(namespace) {
     return (namespace === undefined
       ? pgTable
-      : pgSchema(namespace).table) as unknown as RuntimeTableFactory
+      : pgSchema(namespace).table) as unknown as TableFactory
   },
   createStorageBuilder: createPostgresStorageBuilder,
   applyIdentity(builder, _definition, column) {
@@ -98,7 +93,7 @@ const postgresAdapter: DrizzleRuntimeAdapter = {
   },
   createCheck: check,
   createForeignKey(name, columns, foreignColumns) {
-    return (foreignKey as (config: object) => RuntimeForeignKeyBuilder)({
+    return (foreignKey as (config: object) => ForeignKeyBuilder)({
       name,
       columns,
       foreignColumns,
@@ -111,8 +106,8 @@ const postgresAdapter: DrizzleRuntimeAdapter = {
       : index(indexDefinition.physicalName)
     const method = stringExtension(data, "method")
     let builder = (method
-      ? start.using(method, ...(terms as [SQL, ...SQL[]]))
-      : start.on(...(terms as [SQL, ...SQL[]]))) as unknown as RuntimeIndexBuilder
+      ? start.using(method, ...(terms as [drizzle.SQL, ...drizzle.SQL[]]))
+      : start.on(...(terms as [drizzle.SQL, ...drizzle.SQL[]]))) as unknown as IndexBuilder
 
     if (data.concurrently === true) {
       builder = builder.concurrently()
@@ -138,18 +133,20 @@ const postgresAdapter: DrizzleRuntimeAdapter = {
  * @throws A snapshot validation error for invalid PostgreSQL metadata, or a
  *   DrizzleSchemaConversionError when Drizzle cannot represent required metadata.
  */
-export function toPostgresDrizzleSchema<const TTables extends SchemaTableRecord>(
-  schema: Schema<TTables> & DrizzleSchemaValidation<TTables, "postgresql">,
-): PostgresDrizzleSchema<Schema<TTables>> {
-  return convertDrizzleSchema(schema, postgresAdapter) as PostgresDrizzleSchema<Schema<TTables>>
+export function toPostgresDrizzleSchema<const TTables extends qubu.SchemaTableRecord>(
+  schema: qubu.Schema<TTables> & DrizzleSchemaValidation<TTables, "postgresql">,
+): PostgresDrizzleSchema<qubu.Schema<TTables>> {
+  return convertDrizzleSchema(schema, postgresAdapter) as PostgresDrizzleSchema<
+    qubu.Schema<TTables>
+  >
 }
 
 function createPostgresStorageBuilder(
-  type: PortableColumnStorage["type"] | undefined,
+  type: qubu.PortableColumnStorage["type"] | undefined,
   name: string,
   declaration: string,
-  definition: RuntimeQubuColumnDefinition,
-): RuntimeColumnBuilder {
+  definition: ColumnDefinition,
+): ColumnBuilder {
   if (definition.columnCodec !== undefined) {
     return customType<{
       data: unknown
@@ -158,7 +155,7 @@ function createPostgresStorageBuilder(
       dataType: () => declaration,
       toDriver: definition.columnCodec.toDriver,
       fromDriver: definition.columnCodec.fromDriver,
-    })(name) as unknown as RuntimeColumnBuilder
+    })(name) as unknown as ColumnBuilder
   }
 
   const builder = (() => {
@@ -209,5 +206,5 @@ function createPostgresStorageBuilder(
     }
   })()
 
-  return builder as unknown as RuntimeColumnBuilder
+  return builder as unknown as ColumnBuilder
 }

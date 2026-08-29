@@ -1,4 +1,4 @@
-import type { SQL } from "drizzle-orm"
+import type * as drizzle from "drizzle-orm"
 import {
   blob,
   check,
@@ -14,22 +14,17 @@ import {
   type SQLiteColumn,
   type SQLiteTableWithColumns,
 } from "drizzle-orm/sqlite-core"
-import {
-  type AnyTable,
-  type PortableColumnStorage,
-  type Schema,
-  type SchemaTableRecord,
-} from "qubu"
+import type * as qubu from "qubu"
 import { createSqliteSchemaSnapshot } from "qubu/snapshot"
 
 import {
   convertDrizzleSchema,
-  type DrizzleRuntimeAdapter,
-  type RuntimeColumnBuilder,
-  type RuntimeForeignKeyBuilder,
-  type RuntimeIndexBuilder,
-  type RuntimeQubuColumnDefinition,
-  type RuntimeTableFactory,
+  type ColumnBuilder,
+  type ColumnDefinition,
+  type DialectAdapter,
+  type ForeignKeyBuilder,
+  type IndexBuilder,
+  type TableFactory,
 } from "./runtime.ts"
 import type { DrizzleColumnConfig, DrizzleSchemaValidation } from "./types.ts"
 
@@ -37,7 +32,7 @@ type SqliteDrizzleColumn<TTableName extends string, TDefinition> = SQLiteColumn<
   DrizzleColumnConfig<TTableName, TDefinition>
 >
 
-type SqliteDrizzleColumns<TTable extends AnyTable> = {
+type SqliteDrizzleColumns<TTable extends qubu.AnyTable> = {
   [TKey in keyof TTable["definitions"]]: SqliteDrizzleColumn<
     TTable["tableName"],
     TTable["definitions"][TKey]
@@ -45,7 +40,7 @@ type SqliteDrizzleColumns<TTable extends AnyTable> = {
 }
 
 /** The Drizzle SQLite table produced for one Qubu table. */
-export type SqliteDrizzleTable<TTable extends AnyTable> = SQLiteTableWithColumns<{
+export type SqliteDrizzleTable<TTable extends qubu.AnyTable> = SQLiteTableWithColumns<{
   name: TTable["tableName"]
   schema: undefined
   columns: SqliteDrizzleColumns<TTable>
@@ -53,15 +48,15 @@ export type SqliteDrizzleTable<TTable extends AnyTable> = SQLiteTableWithColumns
 }>
 
 /** A SQLite Drizzle table record retaining Qubu's logical table keys. */
-export type SqliteDrizzleSchema<TSchema extends Schema<any>> = {
+export type SqliteDrizzleSchema<TSchema extends qubu.Schema<any>> = {
   readonly [TKey in keyof TSchema["tables"]]: SqliteDrizzleTable<TSchema["tables"][TKey]>
 }
 
-const sqliteAdapter: DrizzleRuntimeAdapter = {
+const sqliteAdapter: DialectAdapter = {
   dialect: "sqlite",
   createSnapshot: createSqliteSchemaSnapshot,
   createTableFactory() {
-    return sqliteTable as unknown as RuntimeTableFactory
+    return sqliteTable as unknown as TableFactory
   },
   createStorageBuilder: createSqliteStorageBuilder,
   applyIdentity(builder, definition, column, table) {
@@ -92,7 +87,7 @@ const sqliteAdapter: DrizzleRuntimeAdapter = {
   },
   createCheck: check,
   createForeignKey(name, columns, foreignColumns) {
-    return (foreignKey as (config: object) => RuntimeForeignKeyBuilder)({
+    return (foreignKey as (config: object) => ForeignKeyBuilder)({
       name,
       columns,
       foreignColumns,
@@ -103,8 +98,8 @@ const sqliteAdapter: DrizzleRuntimeAdapter = {
       ? uniqueIndex(indexDefinition.physicalName)
       : index(indexDefinition.physicalName)
     let builder = start.on(
-      ...(terms as [SQLiteColumn | SQL, ...(SQLiteColumn | SQL)[]]),
-    ) as unknown as RuntimeIndexBuilder
+      ...(terms as [SQLiteColumn | drizzle.SQL, ...(SQLiteColumn | drizzle.SQL)[]]),
+    ) as unknown as IndexBuilder
 
     if (predicate) {
       builder = builder.where(predicate)
@@ -120,18 +115,18 @@ const sqliteAdapter: DrizzleRuntimeAdapter = {
  * @throws A snapshot validation error for invalid SQLite metadata, or a
  *   DrizzleSchemaConversionError when Drizzle cannot represent required metadata.
  */
-export function toSqliteDrizzleSchema<const TTables extends SchemaTableRecord>(
-  schema: Schema<TTables> & DrizzleSchemaValidation<TTables, "sqlite">,
-): SqliteDrizzleSchema<Schema<TTables>> {
-  return convertDrizzleSchema(schema, sqliteAdapter) as SqliteDrizzleSchema<Schema<TTables>>
+export function toSqliteDrizzleSchema<const TTables extends qubu.SchemaTableRecord>(
+  schema: qubu.Schema<TTables> & DrizzleSchemaValidation<TTables, "sqlite">,
+): SqliteDrizzleSchema<qubu.Schema<TTables>> {
+  return convertDrizzleSchema(schema, sqliteAdapter) as SqliteDrizzleSchema<qubu.Schema<TTables>>
 }
 
 function createSqliteStorageBuilder(
-  type: PortableColumnStorage["type"] | undefined,
+  type: qubu.PortableColumnStorage["type"] | undefined,
   name: string,
   declaration: string,
-  definition: RuntimeQubuColumnDefinition,
-): RuntimeColumnBuilder {
+  definition: ColumnDefinition,
+): ColumnBuilder {
   if (definition.columnCodec !== undefined) {
     return customType<{
       data: unknown
@@ -140,7 +135,7 @@ function createSqliteStorageBuilder(
       dataType: () => declaration,
       toDriver: definition.columnCodec.toDriver,
       fromDriver: definition.columnCodec.fromDriver,
-    })(name) as unknown as RuntimeColumnBuilder
+    })(name) as unknown as ColumnBuilder
   }
 
   const builder = (() => {
@@ -217,5 +212,5 @@ function createSqliteStorageBuilder(
     }
   })()
 
-  return builder as unknown as RuntimeColumnBuilder
+  return builder as unknown as ColumnBuilder
 }

@@ -1,115 +1,98 @@
-import { getTableColumns, sql, type Column, type SQL, type Table } from "drizzle-orm"
-import type {
-  AnyTable,
-  PortableColumnStorage,
-  Schema,
-  SchemaTableRecord,
-  TableDefinitions,
-} from "qubu"
-import type {
-  SchemaSnapshot,
-  SnapshotColumn,
-  SnapshotConstraint,
-  SnapshotDialectExtension,
-  SnapshotIndex,
-  SnapshotIndexTerm,
-  SnapshotIndexTermExpression,
-  SnapshotJsonValue,
-  SnapshotLiteral,
-  SnapshotTable,
-} from "qubu/snapshot"
+import * as drizzle from "drizzle-orm"
+import type * as qubu from "qubu"
+import type * as snapshot from "qubu/snapshot"
 
 import { DrizzleSchemaConversionError } from "./errors.ts"
 import type { DrizzleDialect } from "./types.ts"
 
-export type RuntimeColumnBuilder = {
-  notNull(): RuntimeColumnBuilder
-  default(value: unknown): RuntimeColumnBuilder
-  $defaultFn(callback: () => unknown): RuntimeColumnBuilder
+export type ColumnBuilder = {
+  notNull(): ColumnBuilder
+  default(value: unknown): ColumnBuilder
+  $defaultFn(callback: () => unknown): ColumnBuilder
   generatedAlwaysAs(
-    value: SQL,
+    value: drizzle.SQL,
     config?: { readonly mode?: "stored" | "virtual" },
-  ): RuntimeColumnBuilder
-  $onUpdateFn(callback: () => SQL): RuntimeColumnBuilder
-  primaryKey?(config?: { readonly autoIncrement?: boolean }): RuntimeColumnBuilder
-  autoincrement?(): RuntimeColumnBuilder
-  generatedAlwaysAsIdentity?(): RuntimeColumnBuilder
-  generatedByDefaultAsIdentity?(): RuntimeColumnBuilder
+  ): ColumnBuilder
+  $onUpdateFn(callback: () => drizzle.SQL): ColumnBuilder
+  primaryKey?(config?: { readonly autoIncrement?: boolean }): ColumnBuilder
+  autoincrement?(): ColumnBuilder
+  generatedAlwaysAsIdentity?(): ColumnBuilder
+  generatedByDefaultAsIdentity?(): ColumnBuilder
 }
 
-export type RuntimeColumnRecord = Record<string, Column>
-type RuntimeTableRecord = Record<string, Table>
+export type ColumnRecord = Record<string, drizzle.Column>
+type TableRecord = Record<string, drizzle.Table>
 
-export type RuntimeTableFactory = (
+export type TableFactory = (
   name: string,
-  columns: Record<string, RuntimeColumnBuilder>,
-  extraConfig: (columns: RuntimeColumnRecord) => readonly unknown[],
-) => Table
+  columns: Record<string, ColumnBuilder>,
+  extraConfig: (columns: ColumnRecord) => readonly unknown[],
+) => drizzle.Table
 
-export type RuntimeForeignKeyBuilder = {
-  onUpdate(action: RuntimeReferentialAction): RuntimeForeignKeyBuilder
-  onDelete(action: RuntimeReferentialAction): RuntimeForeignKeyBuilder
+export type ForeignKeyBuilder = {
+  onUpdate(action: ReferentialAction): ForeignKeyBuilder
+  onDelete(action: ReferentialAction): ForeignKeyBuilder
 }
 
-export type RuntimeIndexBuilder = {
-  concurrently(): RuntimeIndexBuilder
-  with(values: Record<string, unknown>): RuntimeIndexBuilder
-  where(condition: SQL): RuntimeIndexBuilder
-  using(value: string): RuntimeIndexBuilder
-  algorithm(value: string): RuntimeIndexBuilder
-  lock(value: string): RuntimeIndexBuilder
+export type IndexBuilder = {
+  concurrently(): IndexBuilder
+  with(values: Record<string, unknown>): IndexBuilder
+  where(condition: drizzle.SQL): IndexBuilder
+  using(value: string): IndexBuilder
+  algorithm(value: string): IndexBuilder
+  lock(value: string): IndexBuilder
 }
 
-type RuntimeReferentialAction = "cascade" | "restrict" | "no action" | "set null" | "set default"
+type ReferentialAction = "cascade" | "restrict" | "no action" | "set null" | "set default"
 
-export type RuntimeQubuColumnDefinition = TableDefinitions[string]
-export type RuntimeIndexTerm = Column | SQL
+export type ColumnDefinition = qubu.TableDefinitions[string]
+export type IndexTerm = drizzle.Column | drizzle.SQL
 
-export type DrizzleRuntimeAdapter = {
+export type DialectAdapter = {
   readonly dialect: DrizzleDialect
-  createSnapshot(schema: Schema<SchemaTableRecord>): SchemaSnapshot
-  createTableFactory(namespace: string | undefined): RuntimeTableFactory
+  createSnapshot(schema: qubu.Schema<qubu.SchemaTableRecord>): snapshot.SchemaSnapshot
+  createTableFactory(namespace: string | undefined): TableFactory
   createStorageBuilder(
-    type: PortableColumnStorage["type"] | undefined,
+    type: qubu.PortableColumnStorage["type"] | undefined,
     name: string,
     declaration: string,
-    definition: RuntimeQubuColumnDefinition,
-  ): RuntimeColumnBuilder
+    definition: ColumnDefinition,
+  ): ColumnBuilder
   applyIdentity(
-    builder: RuntimeColumnBuilder,
-    definition: RuntimeQubuColumnDefinition,
-    column: SnapshotColumn,
-    table: SnapshotTable,
-  ): RuntimeColumnBuilder
-  createPrimaryKey(name: string, columns: readonly Column[]): unknown
+    builder: ColumnBuilder,
+    definition: ColumnDefinition,
+    column: snapshot.SnapshotColumn,
+    table: snapshot.SnapshotTable,
+  ): ColumnBuilder
+  createPrimaryKey(name: string, columns: readonly drizzle.Column[]): unknown
   createUniqueConstraint(
     name: string,
-    columns: readonly Column[],
+    columns: readonly drizzle.Column[],
     nullsNotDistinct: boolean,
   ): unknown
-  createCheck(name: string, expression: SQL): unknown
+  createCheck(name: string, expression: drizzle.SQL): unknown
   createForeignKey(
     name: string,
-    columns: readonly Column[],
-    foreignColumns: readonly Column[],
-  ): RuntimeForeignKeyBuilder
+    columns: readonly drizzle.Column[],
+    foreignColumns: readonly drizzle.Column[],
+  ): ForeignKeyBuilder
   createIndex(
-    index: SnapshotIndex,
-    terms: readonly RuntimeIndexTerm[],
-    predicate: SQL | undefined,
+    index: snapshot.SnapshotIndex,
+    terms: readonly IndexTerm[],
+    predicate: drizzle.SQL | undefined,
   ): unknown
 }
 
 /** Build Drizzle tables using one dialect adapter supplied by a leaf entrypoint. */
 export function convertDrizzleSchema(
-  schema: Schema<SchemaTableRecord>,
-  adapter: DrizzleRuntimeAdapter,
-): Readonly<Record<string, Table>> {
+  schema: qubu.Schema<qubu.SchemaTableRecord>,
+  adapter: DialectAdapter,
+): Readonly<Record<string, drizzle.Table>> {
   const snapshot = adapter.createSnapshot(schema)
 
   assertRepresentableMetadata(snapshot, adapter.dialect)
 
-  const tables: RuntimeTableRecord = {}
+  const tables: TableRecord = {}
   const tableFactory = adapter.createTableFactory(schema.namespace)
   const snapshotTables = new Map(snapshot.tables.map((table) => [table.id, table] as const))
 
@@ -131,11 +114,11 @@ export function convertDrizzleSchema(
 }
 
 function createColumns(
-  table: AnyTable,
-  snapshotTable: SnapshotTable,
-  adapter: DrizzleRuntimeAdapter,
-): Record<string, RuntimeColumnBuilder> {
-  const definitions = table.definitions as TableDefinitions
+  table: qubu.AnyTable,
+  snapshotTable: snapshot.SnapshotTable,
+  adapter: DialectAdapter,
+): Record<string, ColumnBuilder> {
+  const definitions = table.definitions as qubu.TableDefinitions
   const snapshotColumns = new Map(
     snapshotTable.columns.map((column) => [column.id, column] as const),
   )
@@ -161,11 +144,11 @@ function createColumns(
 }
 
 function createColumnBuilder(
-  definition: RuntimeQubuColumnDefinition,
-  column: SnapshotColumn,
-  table: SnapshotTable,
-  adapter: DrizzleRuntimeAdapter,
-): RuntimeColumnBuilder {
+  definition: ColumnDefinition,
+  column: snapshot.SnapshotColumn,
+  table: snapshot.SnapshotTable,
+  adapter: DialectAdapter,
+): ColumnBuilder {
   const declaration = column.storage?.type
 
   if (declaration === undefined) {
@@ -195,17 +178,17 @@ function createColumnBuilder(
   if (column.default?.kind === "literal") {
     builder = builder.default(decodeSnapshotLiteral(column.default.value))
   } else if (column.default?.kind === "expression") {
-    builder = builder.default(sql.raw(column.default.expression.sql))
+    builder = builder.default(drizzle.sql.raw(column.default.expression.sql))
   }
 
   if (column.generatedColumn?.kind === "expression") {
-    builder = builder.generatedAlwaysAs(sql.raw(column.generatedColumn.expression.sql), {
+    builder = builder.generatedAlwaysAs(drizzle.sql.raw(column.generatedColumn.expression.sql), {
       mode: column.generatedColumn.mode,
     })
   }
 
   if (column.onUpdate !== undefined) {
-    builder = builder.$onUpdateFn(() => sql.raw(column.onUpdate?.sql ?? ""))
+    builder = builder.$onUpdateFn(() => drizzle.sql.raw(column.onUpdate?.sql ?? ""))
   }
 
   if (column.identity !== undefined) {
@@ -215,7 +198,7 @@ function createColumnBuilder(
   return builder
 }
 
-function decodeSnapshotLiteral(value: SnapshotLiteral): unknown {
+function decodeSnapshotLiteral(value: snapshot.SnapshotLiteral): unknown {
   switch (value.kind) {
     case "null": {
       return null
@@ -237,10 +220,10 @@ function decodeSnapshotLiteral(value: SnapshotLiteral): unknown {
 }
 
 function createExtraConfig(
-  table: SnapshotTable,
-  columns: RuntimeColumnRecord,
-  tables: RuntimeTableRecord,
-  adapter: DrizzleRuntimeAdapter,
+  table: snapshot.SnapshotTable,
+  columns: ColumnRecord,
+  tables: TableRecord,
+  adapter: DialectAdapter,
 ): readonly unknown[] {
   return [
     ...table.constraints.flatMap((constraint) =>
@@ -251,10 +234,10 @@ function createExtraConfig(
 }
 
 function createConstraint(
-  constraint: SnapshotConstraint,
-  columns: RuntimeColumnRecord,
-  tables: RuntimeTableRecord,
-  adapter: DrizzleRuntimeAdapter,
+  constraint: snapshot.SnapshotConstraint,
+  columns: ColumnRecord,
+  tables: TableRecord,
+  adapter: DialectAdapter,
 ): readonly unknown[] {
   const localColumns =
     constraint.kind === "check" ? [] : constraint.columns.map((column) => columns[column])
@@ -270,7 +253,7 @@ function createConstraint(
     if (
       adapter.dialect === "sqlite" &&
       localColumns.length === 1 &&
-      (localColumns[0] as (Column & { primary?: boolean }) | undefined)?.primary === true
+      (localColumns[0] as (drizzle.Column & { primary?: boolean }) | undefined)?.primary === true
     ) {
       return []
     }
@@ -289,7 +272,9 @@ function createConstraint(
   }
 
   if (constraint.kind === "check") {
-    return [adapter.createCheck(constraint.physicalName, sql.raw(constraint.expression.sql))]
+    return [
+      adapter.createCheck(constraint.physicalName, drizzle.sql.raw(constraint.expression.sql)),
+    ]
   }
 
   if (constraint.kind !== "foreign-key") {
@@ -302,7 +287,7 @@ function createConstraint(
 
   const foreignTable = tables[constraint.target.table]
   const foreignColumns = foreignTable
-    ? constraint.target.columns.map((column) => getTableColumns(foreignTable)[column])
+    ? constraint.target.columns.map((column) => drizzle.getTableColumns(foreignTable)[column])
     : []
 
   if (
@@ -329,17 +314,17 @@ function createConstraint(
 }
 
 function createIndex(
-  index: SnapshotIndex,
-  columns: RuntimeColumnRecord,
-  adapter: DrizzleRuntimeAdapter,
+  index: snapshot.SnapshotIndex,
+  columns: ColumnRecord,
+  adapter: DialectAdapter,
 ): unknown {
   const terms = index.terms.map((term) => createIndexTerm(term, columns))
-  const predicate = index.predicate ? sql.raw(index.predicate.sql) : undefined
+  const predicate = index.predicate ? drizzle.sql.raw(index.predicate.sql) : undefined
 
   return adapter.createIndex(index, terms, predicate)
 }
 
-function createIndexTerm(term: SnapshotIndexTerm, columns: RuntimeColumnRecord): RuntimeIndexTerm {
+function createIndexTerm(term: snapshot.SnapshotIndexTerm, columns: ColumnRecord): IndexTerm {
   if (term.kind !== "order") {
     return createIndexTermExpression(term, columns)
   }
@@ -349,15 +334,15 @@ function createIndexTerm(term: SnapshotIndexTerm, columns: RuntimeColumnRecord):
     .filter((value): value is string => value !== undefined)
     .join(" ")
 
-  return suffix.length === 0 ? expression : sql`${expression} ${sql.raw(suffix)}`
+  return suffix.length === 0 ? expression : drizzle.sql`${expression} ${drizzle.sql.raw(suffix)}`
 }
 
 function createIndexTermExpression(
-  term: SnapshotIndexTermExpression,
-  columns: RuntimeColumnRecord,
-): RuntimeIndexTerm {
+  term: snapshot.SnapshotIndexTermExpression,
+  columns: ColumnRecord,
+): IndexTerm {
   if (term.kind === "expression") {
-    return sql.raw(term.expression.sql)
+    return drizzle.sql.raw(term.expression.sql)
   }
 
   const column = columns[term.column]
@@ -373,12 +358,15 @@ function createIndexTermExpression(
   return column
 }
 
-function toDrizzleAction(action: string): RuntimeReferentialAction {
-  return action.replace("-", " ") as RuntimeReferentialAction
+function toDrizzleAction(action: string): ReferentialAction {
+  return action.replace("-", " ") as ReferentialAction
 }
 
-function assertRepresentableMetadata(snapshot: SchemaSnapshot, dialect: DrizzleDialect): void {
-  for (const table of snapshot.tables) {
+function assertRepresentableMetadata(
+  schemaSnapshot: snapshot.SchemaSnapshot,
+  dialect: DrizzleDialect,
+): void {
+  for (const table of schemaSnapshot.tables) {
     for (const constraint of table.constraints) {
       const path = ["tables", table.id, "constraints", constraint.id] as const
 
@@ -419,7 +407,7 @@ function assertRepresentableMetadata(snapshot: SchemaSnapshot, dialect: DrizzleD
 }
 
 function assertConstraintExtension(
-  extension: SnapshotDialectExtension | undefined,
+  extension: snapshot.SnapshotDialectExtension | undefined,
   dialect: DrizzleDialect,
   path: readonly (string | number)[],
 ): void {
@@ -458,7 +446,7 @@ function assertConstraintExtension(
 }
 
 function assertIndexExtension(
-  extension: SnapshotDialectExtension | undefined,
+  extension: snapshot.SnapshotDialectExtension | undefined,
   dialect: DrizzleDialect,
   path: readonly (string | number)[],
 ): void {
@@ -484,17 +472,17 @@ function assertIndexExtension(
 }
 
 export function extensionData(
-  extension: SnapshotDialectExtension | undefined,
-): Readonly<Record<string, SnapshotJsonValue | undefined>> {
+  extension: snapshot.SnapshotDialectExtension | undefined,
+): Readonly<Record<string, snapshot.SnapshotJsonValue | undefined>> {
   const data = extension?.data
 
   return data !== null && typeof data === "object" && !Array.isArray(data)
-    ? (data as Readonly<Record<string, SnapshotJsonValue | undefined>>)
+    ? (data as Readonly<Record<string, snapshot.SnapshotJsonValue | undefined>>)
     : {}
 }
 
 export function stringExtension(
-  data: Readonly<Record<string, SnapshotJsonValue | undefined>>,
+  data: Readonly<Record<string, snapshot.SnapshotJsonValue | undefined>>,
   key: string,
 ): string | undefined {
   const value = data[key]
@@ -503,7 +491,7 @@ export function stringExtension(
 }
 
 export function recordExtension(
-  data: Readonly<Record<string, SnapshotJsonValue | undefined>>,
+  data: Readonly<Record<string, snapshot.SnapshotJsonValue | undefined>>,
   key: string,
 ): Record<string, unknown> | undefined {
   const value = data[key]
