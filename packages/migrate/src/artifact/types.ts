@@ -108,6 +108,51 @@ export interface CustomProgramProvenance {
   readonly revision?: string
 }
 
+/** One statement supplied for an exact operation in place of first-party rendering. */
+export interface CustomProgramStatementInput {
+  readonly sql: string
+  readonly parameters?: readonly TaggedParameterValue[]
+}
+
+/** An explicit, reviewable replacement for one custom, unknown, or unsupported operation. */
+export interface CustomProgramSubstitution extends CustomProgramProvenance {
+  readonly transaction: ProgramTransactionRequirement
+  readonly lock: ProgramLockRequirement
+  readonly statements: readonly CustomProgramStatementInput[]
+  readonly preconditions?: readonly ProgramCondition[]
+  readonly postconditions?: readonly ProgramCondition[]
+}
+
+export type ProgramCompilationDiagnosticCode =
+  | "invalid-plan"
+  | "dialect-mismatch"
+  | "approval-required"
+  | "invalid-approval"
+  | "custom-program-required"
+  | "invalid-custom-program"
+  | "unsupported"
+  | "transaction-conflict"
+  | "lock-conflict"
+  | "render-failed"
+
+export interface ProgramCompilationDiagnostic {
+  readonly code: ProgramCompilationDiagnosticCode
+  readonly message: string
+  readonly path: readonly (string | number)[]
+  readonly operationId?: string
+}
+
+export type MigrationProgramCompilationResult =
+  | {
+      readonly ok: true
+      readonly program: MigrationProgram
+      readonly customPrograms: readonly CustomProgramProvenance[]
+    }
+  | {
+      readonly ok: false
+      readonly diagnostics: readonly ProgramCompilationDiagnostic[]
+    }
+
 export interface CanonicalizationDescriptor {
   readonly format: "qubu-canonical-json"
   readonly version: 1

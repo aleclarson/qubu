@@ -447,6 +447,19 @@ function program(value: unknown, out: ArtifactDiagnostic[]): value is MigrationP
   return true
 }
 
+/** Validate a standalone program, optionally including its relationship to a migration plan. */
+export function validateMigrationProgram(
+  value: unknown,
+  plan?: unknown,
+): readonly ArtifactDiagnostic[] {
+  const diagnostics: ArtifactDiagnostic[] = []
+  program(value, diagnostics)
+  if (plan !== undefined) {
+    validateProgramAgainstPlan(value, plan, diagnostics)
+  }
+  return Object.freeze(diagnostics)
+}
+
 function validateStatement(
   value: unknown,
   index: number,
@@ -720,6 +733,7 @@ function validateProgramAgainstPlan(
   )
   const priorPhases = new Set<string>()
   const priorStatements = new Set<string>()
+  const statementOperationIds = new Set<string>()
 
   rawProgram.phases.forEach((phase: unknown, phaseIndex: number) => {
     if (!record(phase)) {
@@ -756,6 +770,10 @@ function validateProgramAgainstPlan(
           )
         }
 
+        if (typeof statement.operationId === "string") {
+          statementOperationIds.add(statement.operationId)
+        }
+
         if (Array.isArray(statement.dependsOn)) {
           for (const dependency of statement.dependsOn) {
             if (!priorStatements.has(dependency)) {
@@ -790,6 +808,24 @@ function validateProgramAgainstPlan(
       priorPhases.add(phase.id)
     }
   })
+
+  for (const operation of rawPlan.operations.filter(record)) {
+    if (
+      operation.status !== "skipped" &&
+      (operation.type === "custom-sql" ||
+        operation.safety === "unknown" ||
+        operation.safety === "unsupported") &&
+      !statementOperationIds.has(operation.id)
+    ) {
+      out.push(
+        diag(
+          "invalid-value",
+          ["program", "phases"],
+          `Custom program for ${String(operation.id)} must contain an executable statement`,
+        ),
+      )
+    }
+  }
 }
 
 function customPrograms(value: unknown, rawApprovals: unknown, out: ArtifactDiagnostic[]): void {
@@ -834,6 +870,25 @@ function customPrograms(value: unknown, rawApprovals: unknown, out: ArtifactDiag
     }
   })
   if (Array.isArray(rawApprovals)) {
+    const customApprovalIds = new Set(
+      rawApprovals
+        .filter(record)
+        .filter((approval) => approval.decision === "custom-program")
+        .map((approval) => approval.operationId),
+    )
+
+    for (const operationId of seen) {
+      if (!customApprovalIds.has(operationId)) {
+        out.push(
+          diag(
+            "invalid-value",
+            ["customPrograms"],
+            `Custom-program provenance for ${operationId} requires matching approval`,
+          ),
+        )
+      }
+    }
+
     for (const approval of rawApprovals.filter(record)) {
       if (approval.decision === "custom-program" && !seen.has(approval.operationId)) {
         out.push(

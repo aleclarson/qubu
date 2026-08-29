@@ -99,4 +99,10 @@ export interface DdlEmitter {
     options?: DdlEmissionOptions,
   ): readonly DdlDiagnostic[]
   emit(plan: MigrationPlan, schemaDialect: SchemaDialect, options?: DdlEmissionOptions): DdlEmission
+  /** @internal Used by the strict program compiler after operation-scoped policy validation. */
+  renderOperation(
+    operation: MigrationOperation,
+    operations: readonly MigrationOperation[],
+    schemaDialect: SchemaDialect,
+  ): string | undefined
 }

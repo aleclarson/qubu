@@ -112,6 +112,9 @@ export function createDdlEmitter(features: DdlFeatures): DdlEmitter {
 
       return emission(true, schemaDialect.name, statements, diagnostics)
     },
+    renderOperation(operation, operations, schemaDialect) {
+      return renderOperation(operation, operations, schemaDialect, features)
+    },
   }
 
   return Object.freeze(emitter)
