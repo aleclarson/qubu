@@ -10,6 +10,7 @@
       "getting-started.md",
       "query-model/",
       "schema/",
+      "migrations/",
       "dialects-and-execution.md",
       "sql-semantic-types.md",
       "guides/",

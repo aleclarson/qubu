@@ -46,6 +46,8 @@ define a table, build a `SELECT`, and inspect its SQL and parameters.
   data before DDL emission.
 - [Emit DDL](schema/ddl-emission.md) from an approved migration plan without
   handing Qubu a database connection.
+- [Operate migrations](migrations/index.md) with versioned artifacts, verified
+  adapter profiles, baselines, a portable executor, and explicit recovery.
 
 ## The query pipeline
 
@@ -76,6 +78,7 @@ needs to preserve a fact across composition:
 | ------------------------ | --------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | Query model              | [Source scope](query-model/source-scope.md)         | Source identity, result shapes, fragments, metadata, and query composition          |
 | Schema model             | [Tables and names](schema/tables-and-names.md)      | Tables, snapshots, diffs, migration plans, and DDL emission                         |
+| Migration operations     | [Migration operations](migrations/index.md)         | Artifacts, adapters, CLI policy, baselines, execution, and recovery                 |
 | Database introspection   | [Database introspection](schema/introspection.md)   | Catalog readers, Snapshot v1 mapping, identities, diagnostics, and support limits   |
 | Schema source generation | [Generate a schema](schema/code-generation.md)      | Machine-owned TypeScript, identity handoff, controlled mappings, and v1 exclusions  |
 | Rendering and execution  | [Dialects and execution](dialects-and-execution.md) | Placeholder and identifier policies, capabilities, adapters, and raw-SQL boundaries |
@@ -104,6 +107,7 @@ The inferred row is `{ id: number; name: string }`. The value `7` stays out
 of the SQL text and appears in the `parameters` array in placeholder order.
 
 The [supported features](reference/supported-surface.md) page is the canonical
-package-entrypoint and ownership map. Qubu emits DDL, but the application owns
-migration execution and database lifecycle. [Troubleshooting](troubleshooting.md)
+package-entrypoint and ownership map. Applications may use Qubu's portable
+migration executor while retaining credentials, approval policy, custom SQL,
+and deployment lifecycle ownership. [Troubleshooting](troubleshooting.md)
 starts from common errors and points to the concept page behind each one.

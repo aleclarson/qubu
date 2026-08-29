@@ -207,7 +207,8 @@ The canonical snapshot is the handoff to Qubu's pure schema pipeline:
 None of those layers opens a database connection or changes how introspection
 represents catalog facts. DDL emission produces statements; it does not apply
 them. The [ownership map](../reference/supported-surface.md#ownership-boundary)
-keeps this handoff separate from application-owned migration execution.
+keeps this pure handoff separate from the pinned adapter session used by the
+[portable migration executor](../migrations/recovery.md#execution-and-concurrency-guarantees).
 
 See the [introspection support matrix](../reference/introspection-support.md)
 for version baselines and dialect-specific limits. Snapshot serialization
