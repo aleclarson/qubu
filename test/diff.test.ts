@@ -97,7 +97,7 @@ test("compares reordered canonical arrays as equal", () => {
 
   expect(result.equal).toBe(true)
   expect(result.operations).toEqual([])
-  expect(result.beforeDigest).toBe(result.afterDigest)
+  expect(result.beforeFingerprint).toBe(result.afterFingerprint)
 })
 
 test("classifies additions, removals, and property changes", () => {

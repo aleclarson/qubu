@@ -26,7 +26,7 @@ import { unsafeSchemaSql } from "../src/schema/index.ts"
 import {
   createPostgresSchemaSnapshot,
   postgresSnapshotAdapter,
-  schemaSnapshotDigest,
+  schemaSnapshotFingerprint,
   tryCreatePostgresSchemaSnapshot,
 } from "../src/snapshot/index.ts"
 
@@ -261,7 +261,7 @@ test("serializes PostgreSQL storage, behavior, constraints, indexes, and extensi
     deferrable: true,
     initially: "deferred",
   })
-  expect(schemaSnapshotDigest(snapshot)).toMatch(/^fnv1a64:[0-9a-f]{16}$/)
+  expect(schemaSnapshotFingerprint(snapshot)).toMatch(/^fnv1a64:[0-9a-f]{16}$/)
 })
 
 test("keeps PostgreSQL canonical bytes independent of registry order", () => {
@@ -276,7 +276,7 @@ test("keeps PostgreSQL canonical bytes independent of registry order", () => {
   const second = createPostgresSchemaSnapshot(reordered)
 
   expect(JSON.stringify(first)).toBe(JSON.stringify(second))
-  expect(schemaSnapshotDigest(first)).toBe(schemaSnapshotDigest(second))
+  expect(schemaSnapshotFingerprint(first)).toBe(schemaSnapshotFingerprint(second))
 })
 
 test("shares query and snapshot dialect identity", () => {

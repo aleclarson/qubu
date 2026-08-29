@@ -8,7 +8,7 @@ import {
 } from "../src/introspection/index.ts"
 import {
   assertCompleteSchemaSnapshot,
-  completeSchemaSnapshotDigest,
+  completeSchemaSnapshotFingerprint,
   decodeCompleteSchemaSnapshot,
   encodeCompleteSchemaSnapshot,
   type CompleteSchemaSnapshot,
@@ -133,7 +133,9 @@ test("encodes and decodes complete immutable object families", () => {
   expect(snapshot.version).toBe(2)
   expect(Object.isFrozen(snapshot)).toBe(true)
   expect(Object.isFrozen(snapshot.tables[0])).toBe(true)
-  expect(completeSchemaSnapshotDigest(encoded)).toBe(completeSchemaSnapshotDigest(snapshot))
+  expect(completeSchemaSnapshotFingerprint(encoded)).toBe(
+    completeSchemaSnapshotFingerprint(snapshot),
+  )
   if (decoded.ok) {
     expect(encodeCompleteSchemaSnapshot(decoded.value)).toBe(encoded)
   }

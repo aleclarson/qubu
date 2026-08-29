@@ -2,13 +2,13 @@
 
 > Turn an approved migration plan into deterministic SQL while keeping database execution outside Qubu.
 
-The `qubu/ddl` entrypoint accepts only a `MigrationPlan` and a `SchemaDialect`.
+The `@qubu/migrate/ddl` entrypoint accepts only a `MigrationPlan` and a `SchemaDialect`.
 It does not read a catalog, open a connection, start a transaction, or write a
 migration journal. Preflight runs before rendering, so a blocked or incompatible
 plan returns diagnostics and no SQL.
 
 ```ts
-import { emitMigrationPlan } from "qubu/ddl"
+import { emitMigrationPlan } from "@qubu/migrate/ddl"
 import { postgresSchemaDialect } from "qubu/snapshot"
 
 const result = emitMigrationPlan(plan, postgresSchemaDialect)

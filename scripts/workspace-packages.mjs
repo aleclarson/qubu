@@ -4,11 +4,14 @@ import { fileURLToPath } from "node:url"
 
 export const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 
-export const workspaceChildDirectories = readdirSync(join(repositoryRoot, "adapters"), {
-  withFileTypes: true,
-})
-  .filter((entry) => entry.isDirectory())
-  .map((entry) => join("adapters", entry.name))
+const workspaceRoots = ["packages", "adapters"]
+
+export const workspaceChildDirectories = workspaceRoots
+  .flatMap((workspaceRoot) =>
+    readdirSync(join(repositoryRoot, workspaceRoot), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => join(workspaceRoot, entry.name)),
+  )
   .filter((directory) => {
     try {
       readFileSync(join(repositoryRoot, directory, "package.json"))
@@ -17,7 +20,6 @@ export const workspaceChildDirectories = readdirSync(join(repositoryRoot, "adapt
       return false
     }
   })
-  .toSorted()
 
 export const workspacePackageDirectories = [".", ...workspaceChildDirectories]
 

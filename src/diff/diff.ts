@@ -1,6 +1,13 @@
-import { canonicalJson, schemaSnapshotDigest, toSnapshotJsonValue } from "../snapshot/canonical.ts"
+import {
+  canonicalJson,
+  schemaSnapshotFingerprint,
+  toSnapshotJsonValue,
+} from "../snapshot/canonical.ts"
 import type { CompleteSchemaSnapshot } from "../snapshot/complete-types.ts"
-import { completeSchemaSnapshotDigest, decodeCompleteSchemaSnapshot } from "../snapshot/complete.ts"
+import {
+  completeSchemaSnapshotFingerprint,
+  decodeCompleteSchemaSnapshot,
+} from "../snapshot/complete.ts"
 import { decodeSchemaSnapshot } from "../snapshot/decode.ts"
 import type { SchemaSnapshot, SnapshotDiagnostic, SnapshotJsonValue } from "../snapshot/types.ts"
 import type {
@@ -38,7 +45,7 @@ interface DecodedSnapshot {
   readonly version: 1 | 2
   readonly value: SchemaSnapshot | CompleteSchemaSnapshot
   readonly records: readonly InternalObject[]
-  readonly digest: string
+  readonly fingerprint: string
 }
 
 interface Match {
@@ -123,14 +130,14 @@ export function diffSnapshots(
         ? {
             beforeVersion: before.snapshot.version,
             beforeDialect: before.snapshot.value.dialect,
-            beforeDigest: before.snapshot.digest,
+            beforeFingerprint: before.snapshot.fingerprint,
           }
         : {}),
       ...(after.snapshot
         ? {
             afterVersion: after.snapshot.version,
             afterDialect: after.snapshot.value.dialect,
-            afterDigest: after.snapshot.digest,
+            afterFingerprint: after.snapshot.fingerprint,
           }
         : {}),
     })
@@ -468,8 +475,8 @@ export function diffSnapshots(
     afterVersion: right.version,
     beforeDialect: left.value.dialect,
     afterDialect: right.value.dialect,
-    beforeDigest: left.digest,
-    afterDigest: right.digest,
+    beforeFingerprint: left.fingerprint,
+    afterFingerprint: right.fingerprint,
     operations: sortedOperations,
     changes: sortedOperations,
     additions,
@@ -716,7 +723,7 @@ function decodeSnapshot(input: SnapshotDiffInput): {
         version: 2,
         value: snapshot,
         records: extractCompleteObjects(snapshot),
-        digest: completeSchemaSnapshotDigest(snapshot),
+        fingerprint: completeSchemaSnapshotFingerprint(snapshot),
       },
     }
   }
@@ -737,7 +744,7 @@ function decodeSnapshot(input: SnapshotDiffInput): {
         version: 1,
         value: snapshot,
         records: extractV1Objects(snapshot),
-        digest: schemaSnapshotDigest(snapshot),
+        fingerprint: schemaSnapshotFingerprint(snapshot),
       },
     }
   }

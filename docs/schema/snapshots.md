@@ -45,8 +45,8 @@ dialect metadata, and broken foreign-key or column references as structured
 diagnostics. It does not call `process.exit()` and has no runtime validation
 library dependency.
 
-`schemaSnapshotDigest()` computes a deterministic content digest from canonical
-JSON. The digest is useful for cache keys and fixture assertions only. It is not
+`schemaSnapshotFingerprint()` computes a deterministic content fingerprint from canonical
+JSON. The fingerprint is useful for cache keys and fixture assertions only. It is not
 an entity identity, a rename marker, or migration lineage.
 
 ## Adapter boundary

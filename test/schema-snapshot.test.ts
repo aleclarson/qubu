@@ -21,7 +21,7 @@ import {
   decodeSchemaSnapshot,
   encodeSchemaSnapshot,
   postgresSchemaDialect,
-  schemaSnapshotDigest,
+  schemaSnapshotFingerprint,
   sqliteSchemaDialect,
 } from "../src/snapshot/index.ts"
 
@@ -157,10 +157,10 @@ test("canonicalizes registry and metadata declaration order", () => {
   const second = encodeSchemaSnapshot(createSchemaSnapshot(reordered))
 
   expect(second).toBe(first)
-  expect(schemaSnapshotDigest(first)).toBe(schemaSnapshotDigest(second))
+  expect(schemaSnapshotFingerprint(first)).toBe(schemaSnapshotFingerprint(second))
 })
 
-test("digests canonical content rather than JSON presentation", () => {
+test("fingerprints canonical content rather than JSON presentation", () => {
   const encoded = encodeSchemaSnapshot(createSchemaSnapshot(appSchema))
   const parsed = JSON.parse(encoded) as Record<string, unknown>
   const reordered = JSON.stringify({
@@ -172,7 +172,7 @@ test("digests canonical content rather than JSON presentation", () => {
     format: parsed.format,
   })
 
-  expect(schemaSnapshotDigest(reordered)).toBe(schemaSnapshotDigest(encoded))
+  expect(schemaSnapshotFingerprint(reordered)).toBe(schemaSnapshotFingerprint(encoded))
 })
 
 test("round trips immutable data and rejects unknown or future fields", () => {

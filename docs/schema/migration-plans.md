@@ -2,13 +2,13 @@
 
 > Describe reviewed snapshot changes as deterministic data before selecting a DDL emitter.
 
-The optional `qubu/migration` entrypoint consumes a resolved `SnapshotDiff` and
+The `@qubu/migrate/plan` entrypoint consumes a resolved `SnapshotDiff` and
 returns an immutable migration-plan IR. It contains operation IDs, paths,
 logical and physical identity evidence, dependency edges, preconditions, safety,
 lock and transaction requirements, and reversibility markers.
 
 ```ts
-import { createMigrationPlan } from "qubu/migration"
+import { createMigrationPlan } from "@qubu/migrate/plan"
 
 const result = createMigrationPlan(diff)
 if (!result.ok) {
@@ -71,6 +71,6 @@ the stable topological ordering. `encodeMigrationPlan()` emits canonical JSON;
 future versions, malformed operations, missing edges, and dependency cycles.
 
 After review and approval, pass the plan to
-[`qubu/ddl`](./ddl-emission.md). DDL emission remains separate from
+[`@qubu/migrate/ddl`](./ddl-emission.md). DDL emission remains separate from
 application-owned migration execution in the package-wide [ownership
 map](../reference/supported-surface.md#ownership-boundary).

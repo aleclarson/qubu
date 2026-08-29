@@ -28,7 +28,7 @@ import {
   encodeSchemaSnapshot,
   mysqlSnapshotAdapter,
   mysqlSnapshotDialect,
-  schemaSnapshotDigest,
+  schemaSnapshotFingerprint,
   tryCreatePostgresSchemaSnapshot,
   tryCreateSqliteSchemaSnapshot,
   tryCreateMysqlSchemaSnapshot,
@@ -248,7 +248,7 @@ test("serializes MySQL storage, updates, generated modes, constraints, and index
     onDelete: "cascade",
     match: "simple",
   })
-  expect(schemaSnapshotDigest(snapshot)).toMatch(/^fnv1a64:[0-9a-f]{16}$/)
+  expect(schemaSnapshotFingerprint(snapshot)).toMatch(/^fnv1a64:[0-9a-f]{16}$/)
 })
 
 test("keeps MySQL canonical bytes independent of registry order", () => {
@@ -263,7 +263,7 @@ test("keeps MySQL canonical bytes independent of registry order", () => {
   const second = encodeSchemaSnapshot(createMysqlSchemaSnapshot(reordered))
 
   expect(second).toBe(first)
-  expect(schemaSnapshotDigest(first)).toBe(schemaSnapshotDigest(second))
+  expect(schemaSnapshotFingerprint(first)).toBe(schemaSnapshotFingerprint(second))
 })
 
 test("uses MySQL literals and preserves exact native declarations", () => {

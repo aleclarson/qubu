@@ -154,10 +154,10 @@ export function encodeCanonicalSnapshot(snapshot: SchemaSnapshot): string {
 }
 
 /**
- * Compute a small deterministic content digest for cache keys and diagnostics. It is deliberately
- * not an entity identity, signature, or migration lineage.
+ * Compute a small deterministic content fingerprint for cache keys and diagnostics. It is
+ * deliberately not an entity identity, signature, or migration lineage.
  */
-export function schemaSnapshotDigest(snapshot: SchemaSnapshotInput | string): string {
+export function schemaSnapshotFingerprint(snapshot: SchemaSnapshotInput | string): string {
   const source = encodeCanonicalSnapshot(assertSchemaSnapshot(snapshot) as SchemaSnapshot)
   let hash = 0xcbf29ce484222325n
   const prime = 0x100000001b3n

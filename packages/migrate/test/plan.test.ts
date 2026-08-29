@@ -1,15 +1,15 @@
+import { diffSnapshots } from "qubu/diff"
+import type { SchemaSnapshot } from "qubu/snapshot"
 import { expect, test } from "vitest"
 
-import { diffSnapshots } from "../src/diff/index.ts"
 import {
   assertMigrationPlan,
   createMigrationPlan,
   decodeMigrationPlan,
   encodeMigrationPlan,
-  migrationPlanDigest,
-} from "../src/migration/index.ts"
-import type { MigrationDecision, MigrationPlan } from "../src/migration/index.ts"
-import type { SchemaSnapshot } from "../src/snapshot/types.ts"
+  migrationPlanFingerprint,
+} from "../src/plan/index.ts"
+import type { MigrationDecision, MigrationPlan } from "../src/plan/index.ts"
 
 function snapshot(
   tables: SchemaSnapshot["tables"],
@@ -239,7 +239,10 @@ test("encodes deterministically and rejects malformed plans", () => {
   const decoded = decodeMigrationPlan(encoded)
 
   expect(decoded.ok).toBe(true)
-  expect(migrationPlanDigest(result.plan)).toBe(migrationPlanDigest(encoded))
+  expect(result.plan.version).toBe(2)
+  expect(encoded).toContain('"beforeFingerprint"')
+  expect(encoded).not.toContain('"beforeDigest"')
+  expect(migrationPlanFingerprint(result.plan)).toBe(migrationPlanFingerprint(encoded))
   expect(
     decodeMigrationPlan({
       ...result.plan,

@@ -1,3 +1,5 @@
+import { diffSnapshots } from "qubu/diff"
+import { postgresSchemaDialect, type SchemaSnapshot } from "qubu/snapshot"
 import { expect, test } from "vitest"
 
 import {
@@ -6,10 +8,7 @@ import {
   emitPostgresMigrationPlan,
   emitSqliteMigrationPlan,
 } from "../src/ddl/index.ts"
-import { diffSnapshots } from "../src/diff/index.ts"
-import { createMigrationPlan, type MigrationPlan } from "../src/migration/index.ts"
-import { postgresSchemaDialect } from "../src/snapshot/index.ts"
-import type { SchemaSnapshot } from "../src/snapshot/types.ts"
+import { createMigrationPlan, type MigrationPlan } from "../src/plan/index.ts"
 
 function snapshot(
   dialect: SchemaSnapshot["dialect"],

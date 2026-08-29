@@ -178,8 +178,8 @@ export interface SnapshotDiff {
   readonly afterVersion?: 1 | 2
   readonly beforeDialect?: SnapshotDialect
   readonly afterDialect?: SnapshotDialect
-  readonly beforeDigest?: string
-  readonly afterDigest?: string
+  readonly beforeFingerprint?: string
+  readonly afterFingerprint?: string
   readonly operations: readonly SnapshotDiffOperation[]
   readonly changes: readonly SnapshotDiffOperation[]
   readonly additions: readonly SnapshotDiffOperation[]

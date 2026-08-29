@@ -1,10 +1,11 @@
+import type { SchemaDialect } from "qubu/schema"
+
 import type {
   MigrationLockRequirement,
   MigrationOperation,
   MigrationPlan,
   MigrationTransactionRequirement,
-} from "../migration/index.ts"
-import type { SchemaDialect } from "../schema/dialect.ts"
+} from "../plan/index.ts"
 
 /** Stable diagnostic categories produced before a migration is rendered. */
 export type DdlDiagnosticCode =

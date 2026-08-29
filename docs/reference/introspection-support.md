@@ -151,7 +151,7 @@ The mapper can emit these facts in canonical Snapshot v1:
 - stable logical IDs with physical names preserved separately.
 
 Strict mode returns no snapshot when a supported table fact cannot be mapped
-soundly. Lossy mode is explicit and marks warnings in the result. A digest is
+soundly. Lossy mode is explicit and marks warnings in the result. A fingerprint is
 canonical content, not an identity or rename marker.
 
 ## Deferred and limited features

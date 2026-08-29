@@ -175,6 +175,12 @@ importers:
         specifier: workspace:*
         version: link:../..
 
+  packages/migrate:
+    devDependencies:
+      qubu:
+        specifier: workspace:*
+        version: link:../..
+
 packages:
 
   '@alloc/prettier-config@1.0.0':

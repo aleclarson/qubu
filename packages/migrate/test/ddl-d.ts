@@ -1,7 +1,8 @@
+import type { SchemaDialect } from "qubu/schema"
+
 import type { DdlEmission, DdlEmissionOptions, DdlEmitter } from "../src/ddl/index.ts"
 import { ddlEmitterForDialect, emitMigrationPlan } from "../src/ddl/index.ts"
-import type { MigrationPlan } from "../src/migration/index.ts"
-import type { SchemaDialect } from "../src/schema/dialect.ts"
+import type { MigrationPlan } from "../src/plan/index.ts"
 
 declare const plan: MigrationPlan
 declare const dialect: SchemaDialect

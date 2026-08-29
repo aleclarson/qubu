@@ -5,8 +5,8 @@
 Database introspection is an optional capability exported from
 `qubu/introspection`. It discovers database facts; it does not recreate the
 original TypeScript declarations. Planning and DDL emission use the separate
-`qubu/migration` and `qubu/ddl` entrypoints, while migration execution remains
-application-owned. The separate
+`@qubu/migrate/plan` and `@qubu/migrate/ddl` entrypoints, while migration
+execution remains application-owned. The separate
 `qubu/codegen` entrypoint can create a new machine-owned schema module from a
 complete Snapshot v1 result.
 

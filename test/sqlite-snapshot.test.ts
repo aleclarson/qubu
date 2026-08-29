@@ -25,7 +25,7 @@ import {
   createSqliteSchemaSnapshot,
   decodeSchemaSnapshot,
   encodeSchemaSnapshot,
-  schemaSnapshotDigest,
+  schemaSnapshotFingerprint,
   sqliteSnapshotAdapter,
   sqliteStorageAffinity,
   tryCreateSqliteSchemaSnapshot,
@@ -251,7 +251,7 @@ test("serializes SQLite affinity, literals, generated columns, identities, and p
     match: "simple",
     deferrable: true,
   })
-  expect(schemaSnapshotDigest(snapshot)).toMatch(/^fnv1a64:[0-9a-f]{16}$/)
+  expect(schemaSnapshotFingerprint(snapshot)).toMatch(/^fnv1a64:[0-9a-f]{16}$/)
 })
 
 test("keeps SQLite canonical bytes independent of registry and metadata order", () => {
@@ -266,7 +266,7 @@ test("keeps SQLite canonical bytes independent of registry and metadata order", 
   const second = encodeSchemaSnapshot(createSqliteSchemaSnapshot(reordered))
 
   expect(second).toBe(first)
-  expect(schemaSnapshotDigest(first)).toBe(schemaSnapshotDigest(second))
+  expect(schemaSnapshotFingerprint(first)).toBe(schemaSnapshotFingerprint(second))
 })
 
 test("records SQLite declared-type affinity while preserving exact native text", () => {

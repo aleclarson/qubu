@@ -46,7 +46,7 @@ Snapshot v2 uses the same `qubu-schema` envelope with `version: 2`. Its
 namespace, capability facts, object-family arrays, cross-object references,
 provenance, typed dialect extensions, and deferred/opaque boundaries are
 strictly validated. Arrays are ordered by logical ID (with ordinal sequences
-and index terms ordered by their semantic position), and the digest is computed
+and index terms ordered by their semantic position), and the fingerprint is computed
 from the deterministic encoding.
 
 Snapshot v1 remains a separate strict format. `decodeSchemaSnapshot` still

@@ -1,10 +1,7 @@
-import {
-  assertMigrationPlan,
-  type MigrationOperation,
-  type MigrationPlan,
-} from "../migration/index.ts"
-import type { SchemaDialect } from "../schema/dialect.ts"
-import type { SnapshotExpression } from "../snapshot/types.ts"
+import type { SchemaDialect } from "qubu/schema"
+import type { SnapshotExpression } from "qubu/snapshot"
+
+import { assertMigrationPlan, type MigrationOperation, type MigrationPlan } from "../plan/index.ts"
 import type {
   DdlDiagnostic,
   DdlEmission,

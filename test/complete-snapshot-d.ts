@@ -1,6 +1,6 @@
 import {
   assertCompleteSchemaSnapshot,
-  completeSchemaSnapshotDigest,
+  completeSchemaSnapshotFingerprint,
   decodeSchemaSnapshotV2,
   encodeSchemaSnapshotV2,
   type SchemaSnapshotV2,
@@ -11,7 +11,7 @@ const decoded = decodeSchemaSnapshotV2(encodeSchemaSnapshotV2(snapshot))
 
 if (decoded.ok) {
   const value: SchemaSnapshotV2 = assertCompleteSchemaSnapshot(decoded.value)
-  const digest: string = completeSchemaSnapshotDigest(value)
+  const fingerprint: string = completeSchemaSnapshotFingerprint(value)
 
-  void digest
+  void fingerprint
 }

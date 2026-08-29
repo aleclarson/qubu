@@ -1,8 +1,7 @@
-import type { MigrationPlan } from "../migration/index.ts"
-import type { SchemaDialect } from "../schema/dialect.ts"
-import { mysqlSchemaDialect } from "../snapshot/mysql.ts"
-import { postgresSchemaDialect } from "../snapshot/postgres.ts"
-import { sqliteSchemaDialect } from "../snapshot/sqlite.ts"
+import type { SchemaDialect } from "qubu/schema"
+import { mysqlSchemaDialect, postgresSchemaDialect, sqliteSchemaDialect } from "qubu/snapshot"
+
+import type { MigrationPlan } from "../plan/index.ts"
 import { mysqlDdlEmitter } from "./mysql.ts"
 import { postgresDdlEmitter } from "./postgres.ts"
 import { sqliteDdlEmitter } from "./sqlite.ts"

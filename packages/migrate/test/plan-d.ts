@@ -1,15 +1,15 @@
-import { diffSnapshots } from "../src/diff/index.ts"
+import { diffSnapshots } from "qubu/diff"
+import type { SchemaSnapshot } from "qubu/snapshot"
+
 import type {
   MigrationDecision,
   MigrationPlan,
   MigrationPlanOptions,
   MigrationPlanResult,
-} from "../src/migration/index.ts"
-import { createMigrationPlan } from "../src/migration/index.ts"
-import type { SchemaSnapshot } from "../src/snapshot/types.ts"
+} from "../src/plan/index.ts"
+import { createMigrationPlan } from "../src/plan/index.ts"
 
 declare const diff: Parameters<typeof createMigrationPlan>[0]
-declare const plan: MigrationPlan
 declare const options: MigrationPlanOptions
 
 const result: MigrationPlanResult = createMigrationPlan(diff, options)

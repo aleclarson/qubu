@@ -20,7 +20,11 @@ import type { SchemaDialectExtension } from "../schema/metadata.ts"
 import { generatedSchemaObjectName } from "../schema/metadata.ts"
 import { defaultSchemaNamingPolicy, type Schema } from "../schema/registry.ts"
 import type { AnyTable, TableDefinitions } from "../schema/table.ts"
-import { encodeCanonicalSnapshot, schemaSnapshotDigest, toSnapshotJsonValue } from "./canonical.ts"
+import {
+  encodeCanonicalSnapshot,
+  schemaSnapshotFingerprint,
+  toSnapshotJsonValue,
+} from "./canonical.ts"
 import { assertSchemaSnapshot, SnapshotValidationError } from "./decode.ts"
 import {
   neutralSnapshotDialect,
@@ -247,8 +251,8 @@ export const serializeSchema = createSchemaSnapshot
 /** Alias for the canonical snapshot encoder. */
 export const encodeSnapshot = encodeSchemaSnapshot
 
-/** Alias for the canonical snapshot digest helper. */
-export const digestSchemaSnapshot = schemaSnapshotDigest
+/** Alias for the canonical snapshot fingerprint helper. */
+export const fingerprintSchemaSnapshot = schemaSnapshotFingerprint
 
 function serializeTable(
   id: string,

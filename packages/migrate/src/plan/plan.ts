@@ -6,9 +6,10 @@ import type {
   SnapshotDiffObjectKind,
   SnapshotDiffOperation,
   SnapshotDiffPath,
-} from "../diff/index.ts"
-import { canonicalJson, toSnapshotJsonValue } from "../snapshot/canonical.ts"
-import type { SnapshotDialect, SnapshotJsonValue } from "../snapshot/types.ts"
+} from "qubu/diff"
+import { canonicalJson, toSnapshotJsonValue } from "qubu/snapshot"
+import type { SnapshotDialect, SnapshotJsonValue } from "qubu/snapshot"
+
 import {
   migrationPlanFormat,
   migrationPlanVersion,
@@ -260,8 +261,8 @@ export function createMigrationPlan(
     format: migrationPlanFormat,
     version: migrationPlanVersion,
     dialect: dialect ?? neutralDialect,
-    ...(diff.beforeDigest === undefined ? {} : { beforeDigest: diff.beforeDigest }),
-    ...(diff.afterDigest === undefined ? {} : { afterDigest: diff.afterDigest }),
+    ...(diff.beforeFingerprint === undefined ? {} : { beforeFingerprint: diff.beforeFingerprint }),
+    ...(diff.afterFingerprint === undefined ? {} : { afterFingerprint: diff.afterFingerprint }),
     safety,
     ready,
     operations,
@@ -362,8 +363,8 @@ export function assertMigrationPlan(input: unknown): MigrationPlan {
   return result.value
 }
 
-/** Compute a deterministic digest for cache keys and fixture assertions. */
-export function migrationPlanDigest(input: MigrationPlan | string): string {
+/** Compute a deterministic fingerprint for cache keys and fixture assertions. */
+export function migrationPlanFingerprint(input: MigrationPlan | string): string {
   const plan =
     typeof input === "string"
       ? decodeMigrationPlan(input)
@@ -378,13 +379,13 @@ export function migrationPlanDigest(input: MigrationPlan | string): string {
 
   const source = encodeMigrationPlan(plan.value)
 
-  return digestText(source)
+  return fingerprintText(source)
 }
 
 export const encodePlan = encodeMigrationPlan
 export const decodePlan = decodeMigrationPlan
 export const assertPlan = assertMigrationPlan
-export const digestMigrationPlan = migrationPlanDigest
+export const fingerprintMigrationPlan = migrationPlanFingerprint
 
 const neutralDialect: SnapshotDialect = Object.freeze({
   name: "neutral",
@@ -474,7 +475,7 @@ function preconditionsFor(source: SnapshotDiffOperation): readonly MigrationPrec
       {
         ...base,
         type: "object-present",
-        ...(object === undefined ? {} : { digest: digestJson(object.value) }),
+        ...(object === undefined ? {} : { fingerprint: fingerprintJson(object.value) }),
       },
     ]
   }
@@ -483,7 +484,7 @@ function preconditionsFor(source: SnapshotDiffOperation): readonly MigrationPrec
     {
       ...base,
       type: "object-present",
-      ...(source.before === undefined ? {} : { digest: digestJson(source.before.value) }),
+      ...(source.before === undefined ? {} : { fingerprint: fingerprintJson(source.before.value) }),
     },
   ]
 
@@ -1202,7 +1203,7 @@ function operationId(source: SnapshotDiffOperation): string {
     identity.physicalName = source.physicalName
   }
 
-  return `op_${digestText(canonicalJson(toSnapshotJsonValue(identity))).slice("fnv1a64:".length)}`
+  return `op_${fingerprintText(canonicalJson(toSnapshotJsonValue(identity))).slice("fnv1a64:".length)}`
 }
 
 function customOperationId(input: MigrationCustomSqlInput, index: number): string {
@@ -1242,7 +1243,7 @@ function customOperationId(input: MigrationCustomSqlInput, index: number): strin
     identity.dependsOn = input.dependsOn
   }
 
-  return `custom_${digestText(canonicalJson(toSnapshotJsonValue(identity))).slice(
+  return `custom_${fingerprintText(canonicalJson(toSnapshotJsonValue(identity))).slice(
     "fnv1a64:".length,
   )}`
 }
@@ -1520,7 +1521,7 @@ function validatePlanValue(input: unknown):
     ],
     [],
     diagnostics,
-    ["beforeDigest", "afterDigest"],
+    ["beforeFingerprint", "afterFingerprint"],
   )
   if (plan.format !== migrationPlanFormat) {
     diagnostics.push(
@@ -1573,19 +1574,19 @@ function validatePlanValue(input: unknown):
     )
   }
 
-  if (typeof plan.beforeDigest === "string" || plan.beforeDigest === undefined) {
-    // Optional digest has no further shape requirements.
+  if (typeof plan.beforeFingerprint === "string" || plan.beforeFingerprint === undefined) {
+    // Optional fingerprint has no further shape requirements.
   } else {
     diagnostics.push(
-      planDiagnostic("invalid-plan", "beforeDigest must be a string", ["beforeDigest"]),
+      planDiagnostic("invalid-plan", "beforeFingerprint must be a string", ["beforeFingerprint"]),
     )
   }
 
-  if (typeof plan.afterDigest === "string" || plan.afterDigest === undefined) {
-    // Optional digest has no further shape requirements.
+  if (typeof plan.afterFingerprint === "string" || plan.afterFingerprint === undefined) {
+    // Optional fingerprint has no further shape requirements.
   } else {
     diagnostics.push(
-      planDiagnostic("invalid-plan", "afterDigest must be a string", ["afterDigest"]),
+      planDiagnostic("invalid-plan", "afterFingerprint must be a string", ["afterFingerprint"]),
     )
   }
 
@@ -2035,10 +2036,10 @@ function validatePreconditions(
       ["type", "path", "kind"],
       itemPath,
       diagnostics,
-      ["namespace", "logicalId", "physicalName", "digest", "property", "value"],
+      ["namespace", "logicalId", "physicalName", "fingerprint", "property", "value"],
     )
     if (
-      precondition.type !== "snapshot-digest" &&
+      precondition.type !== "snapshot-fingerprint" &&
       precondition.type !== "object-present" &&
       precondition.type !== "object-absent" &&
       precondition.type !== "property-equals"
@@ -2069,11 +2070,11 @@ function validatePreconditions(
       )
     }
 
-    if (precondition.digest !== undefined && typeof precondition.digest !== "string") {
+    if (precondition.fingerprint !== undefined && typeof precondition.fingerprint !== "string") {
       diagnostics.push(
-        planDiagnostic("invalid-plan", "Precondition digest must be a string", [
+        planDiagnostic("invalid-plan", "Precondition fingerprint must be a string", [
           ...itemPath,
-          "digest",
+          "fingerprint",
         ]),
       )
     }
@@ -2417,11 +2418,11 @@ function samePath(left: SnapshotDiffPath, right: SnapshotDiffPath): boolean {
   return left.length === right.length && left.every((item, index) => item === right[index])
 }
 
-function digestJson(value: SnapshotJsonValue): string {
-  return digestText(canonicalJson(value))
+function fingerprintJson(value: SnapshotJsonValue): string {
+  return fingerprintText(canonicalJson(value))
 }
 
-function digestText(source: string): string {
+function fingerprintText(source: string): string {
   let hash = 0xcbf29ce484222325n
   const prime = 0x100000001b3n
   const mask = 0xffffffffffffffffn

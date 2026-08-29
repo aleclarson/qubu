@@ -146,8 +146,8 @@ export function encodeCompleteSchemaSnapshot(snapshot: CompleteSchemaSnapshot): 
   return canonicalJson(canonical as unknown as SnapshotJsonValue)
 }
 
-/** Compute the deterministic content digest for a complete Snapshot v2. */
-export function completeSchemaSnapshotDigest(
+/** Compute the deterministic content fingerprint for a complete Snapshot v2. */
+export function completeSchemaSnapshotFingerprint(
   snapshot: CompleteSchemaSnapshotInput | string,
 ): string {
   const source = encodeCompleteSchemaSnapshot(snapshot as CompleteSchemaSnapshot)
@@ -176,11 +176,11 @@ export const decodeSchemaSnapshotV2 = decodeCompleteSchemaSnapshot
 export const assertSchemaSnapshotV2 = assertCompleteSchemaSnapshot
 export const encodeSchemaSnapshotV2 = encodeCompleteSchemaSnapshot
 export const canonicalizeSchemaSnapshotV2 = canonicalizeCompleteSchemaSnapshot
-export const schemaSnapshotV2Digest = completeSchemaSnapshotDigest
+export const schemaSnapshotV2Fingerprint = completeSchemaSnapshotFingerprint
 export const decodeCompleteSnapshot = decodeCompleteSchemaSnapshot
 export const assertCompleteSnapshot = assertCompleteSchemaSnapshot
 export const encodeCompleteSnapshot = encodeCompleteSchemaSnapshot
-export const digestCompleteSchemaSnapshot = completeSchemaSnapshotDigest
+export const fingerprintCompleteSchemaSnapshot = completeSchemaSnapshotFingerprint
 
 function validateCompleteSnapshot(
   value: Record<string, unknown>,

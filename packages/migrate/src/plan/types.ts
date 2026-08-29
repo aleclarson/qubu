@@ -6,14 +6,14 @@ import type {
   SnapshotDiffObjectKind,
   SnapshotDiffOperationType,
   SnapshotDiffPath,
-} from "../diff/index.ts"
-import type { SnapshotDialect, SnapshotJsonValue } from "../snapshot/types.ts"
+} from "qubu/diff"
+import type { SnapshotDialect, SnapshotJsonValue } from "qubu/snapshot"
 
 /** The versioned envelope tag for dialect-neutral migration plans. */
 export const migrationPlanFormat = "qubu-migration-plan" as const
 
-/** The first strict migration-plan format version. */
-export const migrationPlanVersion = 1 as const
+/** The migration-plan version that uses fingerprint terminology for FNV change detectors. */
+export const migrationPlanVersion = 2 as const
 
 /** Safety classifications carried by every planned operation. */
 export type MigrationSafety = "safe" | "review-required" | "destructive" | "unsupported" | "unknown"
@@ -34,7 +34,7 @@ export type MigrationOperationType =
 
 /** A condition a later executor must check before applying an operation. */
 export type MigrationPreconditionType =
-  | "snapshot-digest"
+  | "snapshot-fingerprint"
   | "object-present"
   | "object-absent"
   | "property-equals"
@@ -47,7 +47,7 @@ export interface MigrationPrecondition {
   readonly namespace?: string
   readonly logicalId?: string
   readonly physicalName?: string
-  readonly digest?: string
+  readonly fingerprint?: string
   readonly property?: SnapshotDiffPath
   readonly value?: SnapshotJsonValue
 }
@@ -181,8 +181,8 @@ export interface MigrationPlan {
   readonly format: typeof migrationPlanFormat
   readonly version: typeof migrationPlanVersion
   readonly dialect: SnapshotDialect
-  readonly beforeDigest?: string
-  readonly afterDigest?: string
+  readonly beforeFingerprint?: string
+  readonly afterFingerprint?: string
   readonly safety: MigrationSafety
   readonly ready: boolean
   readonly operations: readonly MigrationOperation[]
