@@ -2,7 +2,11 @@ import type { RenderContext } from "../../core/fragment.ts"
 import type { CapabilityMetadataOf } from "../../core/fragment.ts"
 import { identifier } from "../../core/primitives/identifier.ts"
 import { isExpression } from "../../expressions/types.ts"
-import type { ColumnHasDefault, ColumnIsGenerated } from "../../schema/column.ts"
+import {
+  encodeColumnParameter,
+  type ColumnHasDefault,
+  type ColumnIsGenerated,
+} from "../../schema/column.ts"
 import type { AnyTable, TableInsertInput } from "../../schema/table.ts"
 import { queryValidationError, type QueryTypeValidation } from "../errors.ts"
 import type { AnyQuery } from "../types.ts"
@@ -60,6 +64,14 @@ export function insertSelect<
 
 export type InsertSource = ValuesSource<any> | DefaultValuesSource | InsertSelectSource<any, any>
 
+type RuntimeInsertDefinition = {
+  readonly generated?: boolean
+  readonly hasDefault?: boolean
+  readonly hasRuntimeDefault?: boolean
+  readonly defaultFn?: () => unknown
+  readonly parameterEncoder?: (value: unknown) => unknown
+}
+
 type InsertSourceCapabilityMetadata<TSource extends InsertSource> =
   TSource extends InsertSelectSource<infer TQuery, any> ? CapabilityMetadataOf<TQuery> : never
 
@@ -95,7 +107,11 @@ type ValidInsertSource<TTable extends AnyTable, TSource extends InsertSource> =
               TTable["definitions"][K]
             > extends true
               ? K
-              : TTable["definitions"][K] extends { hasDefault: true }
+              : TTable["definitions"][K] extends
+                    | { hasDefault: true }
+                    | {
+                        hasRuntimeDefault: true
+                      }
                 ? K
                 : never
           }[keyof TTable["definitions"]]
@@ -112,7 +128,11 @@ type ValidInsertSource<TTable extends AnyTable, TSource extends InsertSource> =
                   TTable["definitions"][K]
                 > extends true
                   ? K
-                  : TTable["definitions"][K] extends { hasDefault: true }
+                  : TTable["definitions"][K] extends
+                        | { hasDefault: true }
+                        | {
+                            hasRuntimeDefault: true
+                          }
                     ? K
                     : never
               }[keyof TTable["definitions"]]
@@ -186,7 +206,14 @@ export function insertInto<
 
     if (source.insertKind === "values") {
       const rows = source.rows as readonly Record<string, unknown>[]
-      const columns = Object.keys(rows[0] ?? {})
+      const explicitColumns = Object.keys(rows[0] ?? {})
+      const runtimeDefaultColumns = Object.entries(table.definitions)
+        .filter(
+          ([columnName, definition]) =>
+            !explicitColumns.includes(columnName) && definition.defaultFn !== undefined,
+        )
+        .map(([columnName]) => columnName)
+      const columns = [...explicitColumns, ...runtimeDefaultColumns]
 
       if (columns.length === 0) {
         context.append(" DEFAULT VALUES")
@@ -204,13 +231,42 @@ export function insertInto<
               context.append(", ")
             }
 
-            renderInsertValue(context, row[columnName])
+            const definition = table.definitions[columnName] as RuntimeInsertDefinition
+            const input = Object.hasOwn(row, columnName)
+              ? row[columnName]
+              : definition.defaultFn?.()
+            renderInsertValue(context, input, definition)
           })
           context.append(")")
         })
       }
     } else if (source.insertKind === "default-values") {
-      context.append(" DEFAULT VALUES")
+      const runtimeDefaults = Object.entries(table.definitions).filter(
+        ([, definition]) => definition.defaultFn !== undefined,
+      )
+
+      if (runtimeDefaults.length === 0) {
+        context.append(" DEFAULT VALUES")
+      } else {
+        renderTargetColumns(
+          context,
+          table,
+          runtimeDefaults.map(([columnName]) => columnName),
+        )
+        context.append(" VALUES (")
+        runtimeDefaults.forEach(([, definition], index) => {
+          if (index > 0) {
+            context.append(", ")
+          }
+
+          renderInsertValue(
+            context,
+            definition.defaultFn?.(),
+            definition as RuntimeInsertDefinition,
+          )
+        })
+        context.append(")")
+      }
     } else {
       renderTargetColumns(context, table, source.columns)
       context.append(" ")
@@ -245,22 +301,20 @@ function renderTargetColumns(context: RenderContext, table: AnyTable, columns: r
   context.append(")")
 }
 
-function renderInsertValue(context: RenderContext, input: unknown) {
+function renderInsertValue(
+  context: RenderContext,
+  input: unknown,
+  definition: RuntimeInsertDefinition,
+) {
   if (isExpression(input)) {
     context.render(input)
   } else {
-    context.parameter(input)
+    context.parameter(encodeColumnParameter(definition, input))
   }
 }
 
 function validateInsert(table: AnyTable, source: InsertSource) {
-  const definitions = table.definitions as Record<
-    string,
-    {
-      generated?: boolean
-      hasDefault?: boolean
-    }
-  >
+  const definitions = table.definitions as Record<string, RuntimeInsertDefinition>
 
   if (source.insertKind === "values") {
     const firstColumns = Object.keys(source.rows[0] ?? {})
@@ -306,7 +360,7 @@ function validateInsert(table: AnyTable, source: InsertSource) {
     }
 
     for (const [columnName, definition] of Object.entries(definitions)) {
-      if (definition.generated || definition.hasDefault) {
+      if (definition.generated || definition.hasDefault || definition.hasRuntimeDefault) {
         continue
       }
 
@@ -322,7 +376,7 @@ function validateInsert(table: AnyTable, source: InsertSource) {
     }
   } else if (source.insertKind === "default-values") {
     for (const [columnName, definition] of Object.entries(definitions)) {
-      if (!definition.generated && !definition.hasDefault) {
+      if (!definition.generated && !definition.hasDefault && !definition.hasRuntimeDefault) {
         throw queryValidationError({
           code: "invalid-insert",
           context: "insert.default-values",

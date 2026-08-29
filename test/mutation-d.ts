@@ -1,13 +1,16 @@
 import { withDialectCapability } from "../src/core/index.ts"
+import { sqliteTimestamp } from "../src/dialects/sqlite.ts"
 import {
   allowAll,
   type CapabilitiesOf,
   integer,
+  insertInto,
   omit,
   table,
   text,
   update,
   upper,
+  values,
 } from "../src/index.ts"
 
 const users = table("users", {
@@ -16,6 +19,18 @@ const users = table("users", {
   email: text({ nullable: true }),
 })
 const posts = table("posts", { name: text() })
+const sessions = table("sessions", {
+  token: text({ defaultFn: () => crypto.randomUUID() }),
+})
+
+insertInto(sessions, values({}))
+
+const events = table("events", {
+  createdAt: sqliteTimestamp({ defaultFn: () => new Date() }),
+  updatedAt: sqliteTimestamp({ mode: "timestamp_ms" }),
+})
+
+insertInto(events, values({ updatedAt: new Date() }))
 
 declare const enabled: boolean
 

@@ -136,10 +136,16 @@ declare global {
   type ColumnDefinitionConfig = import("qubu").ColumnDefinitionConfig
   type ColumnDefinition<TConfig extends ColumnDefinitionConfig = {}> =
     import("qubu").ColumnDefinition<TConfig>
+  type ColumnCodec<
+    TOutput = unknown,
+    TInsert = TOutput,
+    TDriver = unknown,
+  > = import("qubu").ColumnCodec<TOutput, TInsert, TDriver>
   type ColumnSqlType<T> = import("qubu").ColumnSqlType<T>
   type ColumnDefault = import("qubu").ColumnDefault
   type ColumnDefaultInput = import("qubu").ColumnDefaultInput
   type ColumnDefaultOf<T> = import("qubu").ColumnDefaultOf<T>
+  type ColumnHasRuntimeDefault<T> = import("qubu").ColumnHasRuntimeDefault<T>
   type ColumnGeneratedOf<T> = import("qubu").ColumnGeneratedOf<T>
   type ColumnIdentityOf<T> = import("qubu").ColumnIdentityOf<T>
   type ColumnOnUpdateOf<T> = import("qubu").ColumnOnUpdateOf<T>

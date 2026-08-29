@@ -69,6 +69,20 @@ Contradictory flags fail with a structured `ColumnBehaviorError`. Use
 `externalDefault()` or `externalGeneratedColumn()` when another schema authority
 owns the missing detail.
 
+Use `defaultFn` when Qubu should supply an omitted insert value at runtime:
+
+```ts
+const sessions = table("sessions", {
+  token: text({ defaultFn: () => crypto.randomUUID() }),
+})
+```
+
+Runtime defaults make the insert key optional and run once for each omitted
+row value. They remain live column behavior: snapshots and emitted DDL do not
+record a database default. A column may declare both `default` and `defaultFn`;
+Qubu writes use the runtime value while the database default remains available
+to other clients.
+
 Dialect-owned identity details stay on the identity descriptor. SQLite's
 autoIncrement requires an exact INTEGER rowid alias that is the sole column of
 a primary key. MySQL's AUTO_INCREMENT is a column-level identity extension, and

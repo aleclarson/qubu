@@ -252,9 +252,11 @@ export type { DeclaredColumnNullability } from "./schema/column-nullability.ts"
 export type {
   ColumnDefinition,
   ColumnDefinitionConfig,
+  ColumnCodec,
   ColumnGeneratedOf,
   ColumnDefaultOf,
   ColumnHasDefault,
+  ColumnHasRuntimeDefault,
   ColumnIdentityOf,
   ColumnInsertInput,
   ColumnIsGenerated,

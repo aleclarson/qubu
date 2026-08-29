@@ -19,6 +19,7 @@ import type { DeclaredColumnNullability } from "./column-nullability.ts"
 import {
   type ColumnDefinition,
   type ColumnHasDefault,
+  type ColumnHasRuntimeDefault,
   type ColumnInsertInput,
   type ColumnIsGenerated,
   type ColumnIsNullable,
@@ -66,9 +67,11 @@ export type TableSqlTypes<TDefinitions extends TableDefinitions> = {
 type RequiredInsertKeys<TDefinitions extends TableDefinitions> = {
   [K in keyof TDefinitions]-?: ColumnHasDefault<TDefinitions[K]> extends true
     ? never
-    : ColumnIsGenerated<TDefinitions[K]> extends true
+    : ColumnHasRuntimeDefault<TDefinitions[K]> extends true
       ? never
-      : K
+      : ColumnIsGenerated<TDefinitions[K]> extends true
+        ? never
+        : K
 }[keyof TDefinitions]
 
 type OptionalInsertKeys<TDefinitions extends TableDefinitions> = Exclude<

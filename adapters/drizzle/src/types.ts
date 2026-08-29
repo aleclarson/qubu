@@ -1,5 +1,6 @@
 import type {
   ColumnHasDefault,
+  ColumnHasRuntimeDefault,
   ColumnIdentityOf,
   ColumnInsertInput,
   ColumnIsGenerated,
@@ -98,7 +99,11 @@ type DrizzleColumnGenerated<TDefinition> =
     : undefined
 
 type DrizzleColumnHasDefault<TDefinition> =
-  ColumnIsGenerated<TDefinition> extends true ? true : ColumnHasDefault<TDefinition>
+  ColumnIsGenerated<TDefinition> extends true
+    ? true
+    : ColumnHasDefault<TDefinition> extends true
+      ? true
+      : ColumnHasRuntimeDefault<TDefinition>
 
 export type DrizzleColumnConfig<TTableName extends string, TDefinition> = {
   readonly name: string
@@ -115,7 +120,7 @@ export type DrizzleColumnConfig<TTableName extends string, TDefinition> = {
   readonly hasDefault: DrizzleColumnHasDefault<TDefinition>
   readonly isPrimaryKey: false
   readonly isAutoincrement: false
-  readonly hasRuntimeDefault: false
+  readonly hasRuntimeDefault: ColumnHasRuntimeDefault<TDefinition>
   readonly identity: DrizzleColumnIdentity<TDefinition>
   readonly generated: DrizzleColumnGenerated<TDefinition>
 }

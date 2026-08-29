@@ -10,7 +10,7 @@ import {
 import { identifier } from "../../core/primitives/identifier.ts"
 import { createColumnReference, type ColumnReference } from "../../expressions/column.ts"
 import { isExpression } from "../../expressions/types.ts"
-import { columnResultValue } from "../../schema/column.ts"
+import { columnResultValue, encodeColumnParameter } from "../../schema/column.ts"
 import type { KeyConstraint, SourceConstraintsRecord } from "../../schema/constraints.ts"
 import {
   createSource,
@@ -254,7 +254,10 @@ export function onConflict(
           if (isExpression(value)) {
             context.render(value)
           } else {
-            context.parameter(value)
+            const definition = table?.definitions[columnName]
+            context.parameter(
+              definition === undefined ? value : encodeColumnParameter(definition, value),
+            )
           }
         })
 

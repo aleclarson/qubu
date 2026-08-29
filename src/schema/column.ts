@@ -196,12 +196,20 @@ export type StorageDialectOf<T> = ColumnStorageDialectOf<T>
 /** Alias for the native declaration extraction. */
 export type StorageDeclarationOf<T> = ColumnStorageDeclarationOf<T>
 
-export interface ColumnOptions {
+/** Live conversion between one column's application and physical driver values. */
+export interface ColumnCodec<TOutput = unknown, TInsert = TOutput, TDriver = unknown> {
+  readonly toDriver: (value: TInsert) => TDriver
+  readonly fromDriver: (value: TDriver) => TOutput
+}
+
+export interface ColumnOptions<TOutput = unknown, TInsert = TOutput> {
   readonly nullable?: boolean
   readonly hasDefault?: boolean
   readonly generated?: boolean
   /** A literal, deterministic expression, or externally managed default. */
   readonly default?: ColumnDefaultInput
+  /** Supply an application value when an insert omits this column. */
+  readonly defaultFn?: () => TInsert
   /** Complete generated-column metadata, independent of identity behavior. */
   readonly generatedColumn?: GeneratedColumnDescriptor
   /** Database identity metadata; identity is not an ordinary expression. */
@@ -214,6 +222,8 @@ export interface ColumnOptions {
   readonly storage?: ColumnStorage
   /** Override adapter decoding for values selected from this column. */
   readonly decode?: ResultDecoder
+  /** Convert values at the live application-to-driver boundary without affecting schema metadata. */
+  readonly codec?: ColumnCodec<TOutput, TInsert, unknown>
   /**
    * Raw SQL target that makes a custom definition reusable with cast(). The value is emitted
    * verbatim and must come from trusted source code.
@@ -221,7 +231,10 @@ export interface ColumnOptions {
   readonly castType?: string
 }
 
-type BuiltInColumnOptions = Omit<ColumnOptions, "castType" | "storage"> & {
+type BuiltInColumnOptions<TOutput> = Omit<
+  ColumnOptions<TOutput, TOutput>,
+  "castType" | "storage"
+> & {
   readonly castType?: never
   readonly storage?: never
 }
@@ -238,6 +251,8 @@ export interface ColumnDefinitionConfig {
   readonly update?: unknown
   /** Whether an insert may omit the column. Defaults to `false`. */
   readonly hasDefault?: boolean
+  /** Whether an application runtime default can supply an omitted insert. */
+  readonly hasRuntimeDefault?: boolean
   /** Whether the database generates the column. Defaults to `false`. */
   readonly generated?: boolean
   /** SQL semantic domain. Defaults to {@link SqlUnknown}. */
@@ -269,6 +284,7 @@ type ColumnConfigNullable<TConfig> = ConfigBoolean<TConfig, "nullable">
 type ColumnConfigInsert<TConfig> = ConfigValue<TConfig, "insert", ColumnConfigOutput<TConfig>>
 type ColumnConfigUpdate<TConfig> = ConfigValue<TConfig, "update", ColumnConfigInsert<TConfig>>
 type ColumnConfigHasDefault<TConfig> = ConfigBoolean<TConfig, "hasDefault">
+type ColumnConfigHasRuntimeDefault<TConfig> = ConfigBoolean<TConfig, "hasRuntimeDefault">
 type ColumnConfigGenerated<TConfig> = ConfigBoolean<TConfig, "generated">
 type ColumnConfigSqlType<TConfig> =
   Extract<ConfigValue<TConfig, "sqlType", SqlUnknown>, AnySqlType> extends infer TValue
@@ -298,6 +314,7 @@ export interface ColumnDefinition<TConfig extends ColumnDefinitionConfig = {}> {
   readonly definitionKind: "column"
   readonly nullable: ColumnConfigNullable<TConfig>
   readonly hasDefault: ColumnConfigHasDefault<TConfig>
+  readonly hasRuntimeDefault: ColumnConfigHasRuntimeDefault<TConfig>
   readonly generated: ColumnConfigGenerated<TConfig>
   /** Complete database default metadata, when known. */
   readonly default?: ColumnConfigDefault<TConfig>
@@ -312,6 +329,16 @@ export interface ColumnDefinition<TConfig extends ColumnDefinitionConfig = {}> {
   readonly storage?: ColumnConfigStorage<TConfig>
   /** Runtime decoder used when this definition is projected. */
   readonly resultDecoder?: ResultDecoder
+  /** Runtime default used when an application insert omits this definition. */
+  readonly defaultFn?: () => ColumnConfigInsert<TConfig>
+  /** Runtime encoder applied to application values written through this definition. */
+  readonly parameterEncoder?: (value: ColumnConfigInsert<TConfig>) => unknown
+  /** Live application/driver codec available to integration adapters. */
+  readonly columnCodec?: ColumnCodec<
+    ColumnConfigOutput<TConfig>,
+    ColumnConfigInsert<TConfig>,
+    unknown
+  >
   /** Runtime CAST target when this definition can describe a cast result. */
   readonly castTarget?: CastTarget
   readonly __output?: ColumnConfigOutput<TConfig>
@@ -341,10 +368,16 @@ type HasExplicitOption<TOptions, TKey extends PropertyKey> = TKey extends keyof 
     : true
   : false
 
-type ColumnHasDefaultOption<TOptions extends ColumnOptions> =
+type ColumnHasDefaultOption<TOptions extends ColumnOptions<any, any>> =
   HasExplicitOption<TOptions, "default"> extends true ? true : Flag<TOptions["hasDefault"]>
 
-type ColumnIsGeneratedOption<TOptions extends ColumnOptions> = TOptions extends {
+type ColumnHasRuntimeDefaultOption<TOptions extends ColumnOptions<any, any>> = TOptions extends {
+  readonly defaultFn: () => unknown
+}
+  ? true
+  : false
+
+type ColumnIsGeneratedOption<TOptions extends ColumnOptions<any, any>> = TOptions extends {
   readonly generatedColumn: GeneratedColumnDescriptor
 }
   ? true
@@ -352,7 +385,7 @@ type ColumnIsGeneratedOption<TOptions extends ColumnOptions> = TOptions extends 
     ? true
     : Flag<TOptions["generated"]>
 
-type ColumnDefaultOption<TOptions extends ColumnOptions> =
+type ColumnDefaultOption<TOptions extends ColumnOptions<any, any>> =
   HasExplicitOption<TOptions, "default"> extends true
     ? TOptions extends { readonly default: infer TDefault }
       ? TDefault extends AnySchemaExpression
@@ -367,7 +400,7 @@ type ColumnDefaultOption<TOptions extends ColumnOptions> =
       ? ExternalDefaultDescriptor
       : undefined
 
-type ColumnGeneratedOption<TOptions extends ColumnOptions> = TOptions extends {
+type ColumnGeneratedOption<TOptions extends ColumnOptions<any, any>> = TOptions extends {
   readonly generatedColumn: infer TGenerated extends GeneratedColumnDescriptor
 }
   ? TGenerated
@@ -375,13 +408,13 @@ type ColumnGeneratedOption<TOptions extends ColumnOptions> = TOptions extends {
     ? ExternalGeneratedColumnDescriptor
     : undefined
 
-type ColumnIdentityOption<TOptions extends ColumnOptions> = TOptions extends {
+type ColumnIdentityOption<TOptions extends ColumnOptions<any, any>> = TOptions extends {
   readonly identity: infer TIdentity extends IdentityDescriptor
 }
   ? TIdentity
   : undefined
 
-type ColumnOnUpdateOption<TOptions extends ColumnOptions> = TOptions extends {
+type ColumnOnUpdateOption<TOptions extends ColumnOptions<any, any>> = TOptions extends {
   readonly onUpdate: infer TOnUpdate extends AnySchemaExpression
 }
   ? TOnUpdate
@@ -419,9 +452,10 @@ type DefinedConfig<TKey extends PropertyKey, TValue> = [TValue] extends [undefin
   ? {}
   : { readonly [TField in TKey]: TValue }
 
-type ColumnOptionConfig<TOptions extends ColumnOptions> = Simplify<
+type ColumnOptionConfig<TOptions extends ColumnOptions<any, any>> = Simplify<
   TrueConfig<"nullable", Flag<TOptions["nullable"]>> &
     TrueConfig<"hasDefault", ColumnHasDefaultOption<TOptions>> &
+    TrueConfig<"hasRuntimeDefault", ColumnHasRuntimeDefaultOption<TOptions>> &
     TrueConfig<"generated", ColumnIsGeneratedOption<TOptions>> &
     DefinedConfig<"default", ColumnDefaultOption<TOptions>> &
     DefinedConfig<"generatedColumn", ColumnGeneratedOption<TOptions>> &
@@ -437,7 +471,7 @@ type BuiltInColumnDefinition<
   TSqlType extends AnySqlType,
   TStorageType extends PortableStorageType,
   TCastType extends PortableCastType,
-  TOptions extends BuiltInColumnOptions,
+  TOptions extends BuiltInColumnOptions<TOutput>,
 > = ColumnDefinition<
   Simplify<
     {
@@ -454,7 +488,7 @@ export type ColumnFromOptions<
   TOutput,
   TInsert,
   TUpdate,
-  TOptions extends ColumnOptions,
+  TOptions extends ColumnOptions<TOutput, TInsert>,
   TSqlType extends AnySqlType = SqlUnknown,
 > = ColumnDefinition<
   Simplify<
@@ -498,6 +532,13 @@ export type ColumnHasDefault<T> = T extends {
   readonly hasDefault: infer THasDefault extends boolean
 }
   ? THasDefault
+  : false
+
+/** Whether an omitted application insert can be supplied at runtime. */
+export type ColumnHasRuntimeDefault<T> = T extends {
+  readonly hasRuntimeDefault: infer THasRuntimeDefault extends boolean
+}
+  ? THasRuntimeDefault
   : false
 
 export type ColumnIsGenerated<T> = T extends {
@@ -612,7 +653,10 @@ export function column<
   TUpdate = TInsert,
   TSqlType extends AnySqlType = SqlUnknown,
   const TStorage extends ColumnStorage = ColumnStorage,
-  const TOptions extends Omit<ColumnOptions, "storage"> = Omit<ColumnOptions, "storage">,
+  const TOptions extends Omit<ColumnOptions<TOutput, TInsert>, "storage"> = Omit<
+    ColumnOptions<TOutput, TInsert>,
+    "storage"
+  >,
 >(
   options: TOptions & { readonly storage: TStorage },
 ): ColumnFromOptions<TOutput, TInsert, TUpdate, TOptions & { readonly storage: TStorage }, TSqlType>
@@ -791,23 +835,33 @@ export function column<
   TInsert = TOutput,
   TUpdate = TInsert,
   TSqlType extends AnySqlType = SqlUnknown,
-  const TOptions extends ColumnOptions = {},
+  const TOptions extends ColumnOptions<TOutput, TInsert> = {},
 >(options?: TOptions): ColumnFromOptions<TOutput, TInsert, TUpdate, TOptions, TSqlType>
 export function column<
   TOutput = unknown,
   TInsert = TOutput,
   TUpdate = TInsert,
-  const TOptions extends ColumnOptions = {},
+  const TOptions extends ColumnOptions<TOutput, TInsert> = {},
   TSqlType extends AnySqlType = SqlUnknown,
 >(options?: TOptions): ColumnFromOptions<TOutput, TInsert, TUpdate, TOptions, TSqlType>
-export function column<const TOptions extends ColumnOptions = {}>(options?: TOptions): any {
+export function column<const TOptions extends ColumnOptions<any, any> = {}>(
+  options?: TOptions,
+): any {
   return Object.freeze({
     definitionKind: "column" as const,
     nullable: options?.nullable === true,
     ...resolveColumnBehavior(options ?? {}),
     sqlName: options?.sqlName,
     storage: options?.storage ? Object.freeze({ ...options.storage }) : undefined,
-    ...(options?.decode === undefined ? {} : { resultDecoder: options.decode }),
+    ...(options?.decode === undefined && options?.codec === undefined
+      ? {}
+      : { resultDecoder: options?.decode ?? options?.codec?.fromDriver }),
+    ...(options?.codec === undefined
+      ? {}
+      : {
+          parameterEncoder: options.codec.toDriver,
+          columnCodec: Object.freeze({ ...options.codec }),
+        }),
     $type: narrowColumnType,
     castTarget: options?.castType
       ? Object.freeze({
@@ -836,7 +890,17 @@ export function columnResultValue(definition: {
   return resultValue(type, definition.resultDecoder)
 }
 
-type NativeColumnOptions = Omit<ColumnOptions, "storage"> & {
+/** Apply a live column codec while preserving SQL NULL unchanged. */
+export function encodeColumnParameter(
+  definition: { readonly parameterEncoder?: (value: any) => unknown },
+  value: unknown,
+): unknown {
+  return value === null || definition.parameterEncoder === undefined
+    ? value
+    : definition.parameterEncoder(value)
+}
+
+type NativeColumnOptions<TOutput, TInsert> = Omit<ColumnOptions<TOutput, TInsert>, "storage"> & {
   readonly storage?: never
 }
 
@@ -844,7 +908,7 @@ type NativeColumnFromOptions<
   TOutput,
   TInsert,
   TUpdate,
-  TOptions extends NativeColumnOptions,
+  TOptions extends NativeColumnOptions<TOutput, TInsert>,
   TSqlType extends AnySqlType,
   TDialect extends string,
   TDeclaration extends string,
@@ -866,7 +930,7 @@ export function nativeColumn<
   TOutput = unknown,
   TInsert = TOutput,
   TUpdate = TInsert,
-  const TOptions extends NativeColumnOptions = {},
+  const TOptions extends NativeColumnOptions<TOutput, TInsert> = {},
   TSqlType extends AnySqlType = SqlUnknown,
   const TDialect extends string = string,
   const TDeclaration extends string = string,
@@ -881,7 +945,7 @@ export function nativeColumn<
   TOutput = unknown,
   TInsert = TOutput,
   TUpdate = TInsert,
-  const TOptions extends NativeColumnOptions = {},
+  const TOptions extends NativeColumnOptions<TOutput, TInsert> = {},
   TSqlType extends AnySqlType = SqlUnknown,
 >(
   dialect: TDialect,
@@ -890,15 +954,15 @@ export function nativeColumn<
 ): NativeColumnFromOptions<TOutput, TInsert, TUpdate, TOptions, TSqlType, TDialect, TDeclaration>
 export function nativeColumn(
   storageOrDialect: NativeColumnStorage | string,
-  typeOrOptions?: string | NativeColumnOptions,
-  maybeOptions?: NativeColumnOptions,
+  typeOrOptions?: string | NativeColumnOptions<any, any>,
+  maybeOptions?: NativeColumnOptions<any, any>,
 ): any {
   const storage =
     typeof storageOrDialect === "string"
       ? nativeStorage(storageOrDialect, typeOrOptions as string)
       : storageOrDialect
   const options = (typeof storageOrDialect === "string" ? maybeOptions : typeOrOptions) as
-    | NativeColumnOptions
+    | NativeColumnOptions<any, any>
     | undefined
 
   return column({
@@ -918,7 +982,7 @@ export function nullable<TConfig extends ColumnDefinitionConfig>(
   >
 }
 
-export function integer<const TOptions extends BuiltInColumnOptions = {}>(
+export function integer<const TOptions extends BuiltInColumnOptions<number> = {}>(
   options?: TOptions,
 ): BuiltInColumnDefinition<number, SqlInteger, "integer", "integer", TOptions> {
   return withPortableStorage(
@@ -927,7 +991,7 @@ export function integer<const TOptions extends BuiltInColumnOptions = {}>(
   ) as unknown as BuiltInColumnDefinition<number, SqlInteger, "integer", "integer", TOptions>
 }
 
-export function numeric<const TOptions extends BuiltInColumnOptions = {}>(
+export function numeric<const TOptions extends BuiltInColumnOptions<number> = {}>(
   options?: TOptions,
 ): BuiltInColumnDefinition<number, SqlDecimal, "numeric", "decimal", TOptions> {
   return withPortableStorage(
@@ -936,7 +1000,7 @@ export function numeric<const TOptions extends BuiltInColumnOptions = {}>(
   ) as unknown as BuiltInColumnDefinition<number, SqlDecimal, "numeric", "decimal", TOptions>
 }
 
-export function text<const TOptions extends BuiltInColumnOptions = {}>(
+export function text<const TOptions extends BuiltInColumnOptions<string> = {}>(
   options?: TOptions,
 ): BuiltInColumnDefinition<string, SqlText, "text", "text", TOptions> {
   return withPortableStorage(
@@ -945,7 +1009,7 @@ export function text<const TOptions extends BuiltInColumnOptions = {}>(
   ) as unknown as BuiltInColumnDefinition<string, SqlText, "text", "text", TOptions>
 }
 
-export function boolean<const TOptions extends BuiltInColumnOptions = {}>(
+export function boolean<const TOptions extends BuiltInColumnOptions<boolean> = {}>(
   options?: TOptions,
 ): BuiltInColumnDefinition<boolean, SqlBoolean, "boolean", "boolean", TOptions> {
   return withPortableStorage(
@@ -954,7 +1018,7 @@ export function boolean<const TOptions extends BuiltInColumnOptions = {}>(
   ) as unknown as BuiltInColumnDefinition<boolean, SqlBoolean, "boolean", "boolean", TOptions>
 }
 
-export function date<const TOptions extends BuiltInColumnOptions = {}>(
+export function date<const TOptions extends BuiltInColumnOptions<Date> = {}>(
   options?: TOptions,
 ): BuiltInColumnDefinition<Date, SqlDate, "date", "date", TOptions> {
   return withPortableStorage(
@@ -963,7 +1027,7 @@ export function date<const TOptions extends BuiltInColumnOptions = {}>(
   ) as unknown as BuiltInColumnDefinition<Date, SqlDate, "date", "date", TOptions>
 }
 
-export function timestamp<const TOptions extends BuiltInColumnOptions = {}>(
+export function timestamp<const TOptions extends BuiltInColumnOptions<Date> = {}>(
   options?: TOptions,
 ): BuiltInColumnDefinition<Date, SqlTimestamp, "timestamp", "timestamp", TOptions> {
   return withPortableStorage(
@@ -972,7 +1036,7 @@ export function timestamp<const TOptions extends BuiltInColumnOptions = {}>(
   ) as unknown as BuiltInColumnDefinition<Date, SqlTimestamp, "timestamp", "timestamp", TOptions>
 }
 
-export function uuid<const TOptions extends BuiltInColumnOptions = {}>(
+export function uuid<const TOptions extends BuiltInColumnOptions<string> = {}>(
   options?: TOptions,
 ): BuiltInColumnDefinition<string, SqlUuid, "uuid", "uuid", TOptions> {
   return withPortableStorage(
@@ -981,7 +1045,7 @@ export function uuid<const TOptions extends BuiltInColumnOptions = {}>(
   ) as unknown as BuiltInColumnDefinition<string, SqlUuid, "uuid", "uuid", TOptions>
 }
 
-export function json<TOutput = unknown, const TOptions extends BuiltInColumnOptions = {}>(
+export function json<TOutput = unknown, const TOptions extends BuiltInColumnOptions<TOutput> = {}>(
   options?: TOptions,
 ): BuiltInColumnDefinition<TOutput, SqlJson<TOutput>, "json", "json", TOptions> {
   return withPortableStorage(
@@ -993,7 +1057,7 @@ export function json<TOutput = unknown, const TOptions extends BuiltInColumnOpti
   ) as unknown as BuiltInColumnDefinition<TOutput, SqlJson<TOutput>, "json", "json", TOptions>
 }
 
-export function bigint<const TOptions extends BuiltInColumnOptions = {}>(
+export function bigint<const TOptions extends BuiltInColumnOptions<bigint> = {}>(
   options?: TOptions,
 ): BuiltInColumnDefinition<bigint, SqlBigInt, "bigint", "bigint", TOptions> {
   return withPortableStorage(
@@ -1002,7 +1066,7 @@ export function bigint<const TOptions extends BuiltInColumnOptions = {}>(
   ) as unknown as BuiltInColumnDefinition<bigint, SqlBigInt, "bigint", "bigint", TOptions>
 }
 
-export function binary<const TOptions extends BuiltInColumnOptions = {}>(
+export function binary<const TOptions extends BuiltInColumnOptions<Uint8Array> = {}>(
   options?: TOptions,
 ): BuiltInColumnDefinition<Uint8Array, SqlBinary, "binary", "binary", TOptions> {
   return withPortableStorage(

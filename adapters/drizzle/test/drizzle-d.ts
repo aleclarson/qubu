@@ -4,12 +4,13 @@ import {
   type PostgresDrizzleSchema,
   type PostgresDrizzleTable,
 } from "@qubu/drizzle/postgres"
-import { sqliteTimestamp, toSqliteDrizzleSchema } from "@qubu/drizzle/sqlite"
+import { toSqliteDrizzleSchema } from "@qubu/drizzle/sqlite"
 import type { MySqlTable } from "drizzle-orm/mysql-core"
 import { drizzle as pgDrizzle } from "drizzle-orm/node-postgres"
 import type { PgTable } from "drizzle-orm/pg-core"
 import type { SQLiteTable } from "drizzle-orm/sqlite-core"
 import { column, integer, nativeColumn, portableStorage, schema, table, text } from "qubu"
+import { sqliteTimestamp } from "qubu/sqlite"
 import { expectTypeOf } from "vitest"
 
 type UserName = string & { readonly __brand: "UserName" }

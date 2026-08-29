@@ -7,7 +7,7 @@ import {
   onConflict,
   postgresDialect,
 } from "../src/dialects/postgres.ts"
-import { sqliteDialect } from "../src/dialects/sqlite.ts"
+import { sqliteDialect, sqliteTimestamp } from "../src/dialects/sqlite.ts"
 import {
   all,
   allowAll,
@@ -139,6 +139,42 @@ test("renders DEFAULT VALUES when a table has only generated/default columns", (
   expect(render(query).text).toBe(
     'INSERT INTO "audit" DEFAULT VALUES RETURNING "audit"."id" AS "id", "audit"."created_at" AS "createdAt"',
   )
+})
+
+test("materializes and encodes runtime defaults for each inserted row", () => {
+  let next = 0
+  const sessions = table("sessions", {
+    id: integer({ generated: true }),
+    token: text({
+      defaultFn: () => `token-${++next}`,
+      codec: {
+        toDriver: (value: string) => value.toUpperCase(),
+        fromDriver: (value: unknown) => String(value).toLowerCase(),
+      },
+    }),
+  })
+
+  expect(render(insertInto(sessions, values({}, {})))).toEqual({
+    text: 'INSERT INTO "sessions" ("token") VALUES (?), (?)',
+    parameters: ["TOKEN-1", "TOKEN-2"],
+  })
+  expect(render(insertInto(sessions, defaultValues()))).toEqual({
+    text: 'INSERT INTO "sessions" ("token") VALUES (?)',
+    parameters: ["TOKEN-3"],
+  })
+})
+
+test("renders SQLite integer timestamp defaults through the native column codec", () => {
+  const instant = new Date("2026-08-29T12:34:56.789Z")
+  const events = table("events", {
+    createdAt: sqliteTimestamp({ defaultFn: () => instant }),
+    updatedAt: sqliteTimestamp({ mode: "timestamp_ms" }),
+  })
+
+  expect(render(insertInto(events, values({ updatedAt: instant })), sqliteDialect())).toEqual({
+    text: 'INSERT INTO "events" ("updated_at", "created_at") VALUES (?, ?)',
+    parameters: [instant.getTime(), Math.floor(instant.getTime() / 1_000)],
+  })
 })
 
 test("composes INSERT ... SELECT with source parameters", () => {

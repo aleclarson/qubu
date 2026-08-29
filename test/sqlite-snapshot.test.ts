@@ -1,5 +1,6 @@
 import { expect, test } from "vitest"
 
+import { sqliteTimestamp } from "../src/dialects/sqlite.ts"
 import {
   boolean,
   check,
@@ -89,6 +90,26 @@ const memberships = table(
     indexes: {},
   }),
 )
+
+test("omits SQLite timestamp runtime behavior from schema snapshots", () => {
+  const events = table("events", {
+    createdAt: sqliteTimestamp({ defaultFn: () => new Date() }),
+  })
+  const snapshot = createSqliteSchemaSnapshot(schema({ events }))
+  const column = snapshot.tables[0]?.columns[0]
+
+  expect(column).toMatchObject({
+    id: "createdAt",
+    hasDefault: false,
+    storage: {
+      kind: "native",
+      dialect: "sqlite",
+      type: "INTEGER",
+    },
+  })
+  expect(column).not.toHaveProperty("default")
+  expect(column).not.toHaveProperty("defaultFn")
+})
 
 const appSchema = schema(
   {

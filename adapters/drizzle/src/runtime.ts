@@ -188,6 +188,10 @@ function createColumnBuilder(
     builder = builder.notNull()
   }
 
+  if (definition.defaultFn !== undefined) {
+    builder = builder.$defaultFn(definition.defaultFn)
+  }
+
   if (column.default?.kind === "literal") {
     builder = builder.default(decodeSnapshotLiteral(column.default.value))
   } else if (column.default?.kind === "expression") {

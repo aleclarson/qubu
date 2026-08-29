@@ -75,7 +75,8 @@ Unix timestamps and Drizzle must continue reading and writing `Date` values:
 
 ```ts
 import { schema, table } from "qubu"
-import { sqliteTimestamp, toSqliteDrizzleSchema } from "@qubu/drizzle/sqlite"
+import { toSqliteDrizzleSchema } from "@qubu/drizzle/sqlite"
+import { sqliteTimestamp } from "qubu/sqlite"
 
 const events = table("events", {
   createdAt: sqliteTimestamp({

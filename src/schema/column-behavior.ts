@@ -122,6 +122,7 @@ export interface IdentityDescriptor {
 /** Structured failures raised while resolving column behavior metadata. */
 export type ColumnBehaviorErrorCode =
   | "invalid-default"
+  | "invalid-runtime-default"
   | "invalid-generated-column"
   | "invalid-identity"
   | "invalid-on-update"
@@ -129,6 +130,7 @@ export type ColumnBehaviorErrorCode =
   | "generated-flag-conflict"
   | "default-generated-conflict"
   | "identity-generated-conflict"
+  | "runtime-default-generated-conflict"
 
 /** A column behavior error with a stable code and optional property path. */
 export class ColumnBehaviorError extends TypeError {
@@ -267,8 +269,10 @@ export function identityColumn(
 /** The normalized behavior fields attached to a column definition. */
 export interface ResolvedColumnBehavior {
   readonly hasDefault: boolean
+  readonly hasRuntimeDefault: boolean
   readonly generated: boolean
   readonly default?: ColumnDefault
+  readonly defaultFn?: () => unknown
   readonly generatedColumn?: GeneratedColumnDescriptor
   readonly identity?: IdentityDescriptor
   readonly onUpdate?: AnySchemaExpression
@@ -277,6 +281,7 @@ export interface ResolvedColumnBehavior {
 /** Normalize complete and legacy column behavior into immutable metadata. */
 export function resolveColumnBehavior(options: {
   readonly hasDefault?: boolean
+  readonly defaultFn?: () => unknown
   readonly generated?: boolean
   readonly default?: ColumnDefaultInput
   readonly generatedColumn?: GeneratedColumnDescriptor
@@ -284,12 +289,32 @@ export function resolveColumnBehavior(options: {
   readonly onUpdate?: AnySchemaExpression
 }): ResolvedColumnBehavior {
   const hasDefaultFlag = options.hasDefault === true
+  const defaultFn = options.defaultFn
   const generatedFlag = options.generated === true
   const defaultDescriptor =
     options.default === undefined ? undefined : normalizeDefault(options.default)
   const generatedDescriptor = options.generatedColumn
   const identityDescriptor = options.identity
   const onUpdateExpression = options.onUpdate
+
+  if (defaultFn !== undefined && typeof defaultFn !== "function") {
+    throw new ColumnBehaviorError(
+      "invalid-runtime-default",
+      "Column defaultFn must be a function",
+      "defaultFn",
+    )
+  }
+
+  if (
+    defaultFn !== undefined &&
+    (generatedFlag || generatedDescriptor !== undefined || identityDescriptor !== undefined)
+  ) {
+    throw new ColumnBehaviorError(
+      "runtime-default-generated-conflict",
+      "A runtime default cannot be combined with generated-column or identity metadata",
+      "defaultFn",
+    )
+  }
 
   if (onUpdateExpression !== undefined && !isSchemaExpression(onUpdateExpression)) {
     throw new ColumnBehaviorError(
@@ -383,9 +408,11 @@ export function resolveColumnBehavior(options: {
 
   return Object.freeze({
     hasDefault: hasDefaultFlag || normalizedDefault !== undefined,
+    hasRuntimeDefault: defaultFn !== undefined,
     generated:
       generatedFlag || normalizedGenerated !== undefined || normalizedIdentity !== undefined,
     default: normalizedDefault ?? (hasDefaultFlag ? externalDefault() : undefined),
+    defaultFn,
     generatedColumn:
       normalizedGenerated ??
       (generatedFlag && normalizedIdentity === undefined ? externalGeneratedColumn() : undefined),

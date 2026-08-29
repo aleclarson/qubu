@@ -37,6 +37,7 @@ import {
   type RuntimeColumnBuilder,
   type RuntimeForeignKeyBuilder,
   type RuntimeIndexBuilder,
+  type RuntimeQubuColumnDefinition,
   type RuntimeTableFactory,
 } from "./runtime.ts"
 import type { DrizzleColumnConfig, DrizzleSchemaValidation } from "./types.ts"
@@ -144,7 +145,19 @@ function createMysqlStorageBuilder(
   type: PortableColumnStorage["type"] | undefined,
   name: string,
   declaration: string,
+  definition: RuntimeQubuColumnDefinition,
 ): RuntimeColumnBuilder {
+  if (definition.columnCodec !== undefined) {
+    return customType<{
+      data: unknown
+      driverData: unknown
+    }>({
+      dataType: () => declaration,
+      toDriver: definition.columnCodec.toDriver,
+      fromDriver: definition.columnCodec.fromDriver,
+    })(name) as unknown as RuntimeColumnBuilder
+  }
+
   const builder = (() => {
     switch (type) {
       case "integer": {

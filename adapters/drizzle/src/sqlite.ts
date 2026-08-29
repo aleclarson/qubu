@@ -15,15 +15,10 @@ import {
   type SQLiteTableWithColumns,
 } from "drizzle-orm/sqlite-core"
 import {
-  nativeColumn,
   type AnyTable,
-  type ColumnDefinition,
-  type ExternalDefaultDescriptor,
-  type NativeColumnStorage,
   type PortableColumnStorage,
   type Schema,
   type SchemaTableRecord,
-  type SqlTimestamp,
 } from "qubu"
 import { createSqliteSchemaSnapshot } from "qubu/snapshot"
 
@@ -47,76 +42,6 @@ type SqliteDrizzleColumns<TTable extends AnyTable> = {
     TTable["tableName"],
     TTable["definitions"][TKey]
   >
-}
-
-/** Integer encoding used by Drizzle's SQLite timestamp column builder. */
-export type SqliteTimestampMode = "timestamp" | "timestamp_ms"
-
-/** Runtime options for a Drizzle-compatible SQLite integer timestamp. */
-export interface SqliteTimestampOptions {
-  /** Store Unix seconds by default, or milliseconds with `timestamp_ms`. */
-  readonly mode?: SqliteTimestampMode
-  readonly nullable?: boolean
-  readonly sqlName?: string
-  /** Supply an application value when a Drizzle insert omits this column. */
-  readonly defaultFn?: () => Date
-}
-
-type SqliteTimestampNullable<TOptions extends SqliteTimestampOptions> = TOptions extends {
-  readonly nullable: true
-}
-  ? true
-  : false
-
-type SqliteTimestampHasDefault<TOptions extends SqliteTimestampOptions> = TOptions extends {
-  readonly defaultFn: () => Date
-}
-  ? true
-  : false
-
-/** Qubu definition produced by {@link sqliteTimestamp}. */
-export type SqliteTimestampColumn<TOptions extends SqliteTimestampOptions = {}> = ColumnDefinition<{
-  readonly output: Date
-  readonly nullable: SqliteTimestampNullable<TOptions>
-  readonly hasDefault: SqliteTimestampHasDefault<TOptions>
-  readonly sqlType: SqlTimestamp
-  readonly storage: NativeColumnStorage<"sqlite", "INTEGER">
-  readonly default: SqliteTimestampHasDefault<TOptions> extends true
-    ? ExternalDefaultDescriptor
-    : undefined
-}>
-
-type SqliteTimestampRuntime = {
-  readonly mode: SqliteTimestampMode
-  readonly defaultFn?: () => Date
-}
-
-const sqliteTimestampRuntime = new WeakMap<RuntimeQubuColumnDefinition, SqliteTimestampRuntime>()
-
-/**
- * Declare a SQLite `INTEGER` timestamp that retains Drizzle's Date codec.
- *
- * @remarks
- *   `defaultFn` is runtime-only. Snapshots and emitted DDL retain the native `INTEGER` storage but
- *   do not serialize the callback.
- */
-export function sqliteTimestamp<const TOptions extends SqliteTimestampOptions = {}>(
-  options?: TOptions,
-): SqliteTimestampColumn<TOptions> {
-  const definition = nativeColumn("sqlite", "INTEGER", {
-    nullable: options?.nullable === true,
-    hasDefault: options?.defaultFn !== undefined,
-    sqlName: options?.sqlName,
-  }).$type<Date>()
-
-  sqliteTimestampRuntime.set(
-    definition,
-    Object.freeze({
-      mode: options?.mode ?? "timestamp",
-      ...(options?.defaultFn === undefined ? {} : { defaultFn: options.defaultFn }),
-    }),
-  )
-  return definition as unknown as SqliteTimestampColumn<TOptions>
 }
 
 /** The Drizzle SQLite table produced for one Qubu table. */
@@ -207,18 +132,15 @@ function createSqliteStorageBuilder(
   declaration: string,
   definition: RuntimeQubuColumnDefinition,
 ): RuntimeColumnBuilder {
-  const timestampRuntime = sqliteTimestampRuntime.get(definition)
-
-  if (timestampRuntime !== undefined) {
-    let builder = integer(name, {
-      mode: timestampRuntime.mode,
-    }) as unknown as RuntimeColumnBuilder
-
-    if (timestampRuntime.defaultFn !== undefined) {
-      builder = builder.$defaultFn(timestampRuntime.defaultFn)
-    }
-
-    return builder
+  if (definition.columnCodec !== undefined) {
+    return customType<{
+      data: unknown
+      driverData: unknown
+    }>({
+      dataType: () => declaration,
+      toDriver: definition.columnCodec.toDriver,
+      fromDriver: definition.columnCodec.fromDriver,
+    })(name) as unknown as RuntimeColumnBuilder
   }
 
   const builder = (() => {

@@ -1,7 +1,7 @@
 import { DrizzleSchemaConversionError } from "@qubu/drizzle"
 import { toMysqlDrizzleSchema } from "@qubu/drizzle/mysql"
 import { toPostgresDrizzleSchema } from "@qubu/drizzle/postgres"
-import { sqliteTimestamp, toSqliteDrizzleSchema } from "@qubu/drizzle/sqlite"
+import { toSqliteDrizzleSchema } from "@qubu/drizzle/sqlite"
 import { eq as drizzleEq } from "drizzle-orm"
 import { getTableConfig as getMysqlTableConfig } from "drizzle-orm/mysql-core"
 import { drizzle as pgDrizzle } from "drizzle-orm/node-postgres"
@@ -32,6 +32,7 @@ import {
   uuid,
   value,
 } from "qubu"
+import { sqliteTimestamp } from "qubu/sqlite"
 import { expect, test } from "vitest"
 
 const portable = table("portable_values", {

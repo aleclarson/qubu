@@ -63,6 +63,17 @@ test("represents legacy write flags as explicit external behavior", () => {
   expect(explicitGenerated.generated).toBe(true)
 })
 
+test("keeps runtime defaults separate from database defaults", () => {
+  const runtimeDefault = text({ defaultFn: () => "pending" })
+
+  expect(runtimeDefault).toMatchObject({
+    hasDefault: false,
+    hasRuntimeDefault: true,
+  })
+  expect(runtimeDefault.default).toBeUndefined()
+  expect(runtimeDefault.defaultFn?.()).toBe("pending")
+})
+
 test("canonicalizes supported literal values", () => {
   expect(column({ default: null }).default).toEqual({
     kind: "literal",
