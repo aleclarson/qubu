@@ -1,6 +1,6 @@
 {
   "name": "@qubu/adapter-sqlite-wasm",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Qubu adapter for the official SQLite WASM OO1 database API.",
   "repository": {
     "type": "git",
@@ -32,6 +32,6 @@
   },
   "peerDependencies": {
     "@sqlite.org/sqlite-wasm": "3.53.0-build1",
-    "qubu": "0.5.0"
+    "qubu": "0.5.1"
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@qubu/migrate",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/aleclarson/qubu",
@@ -82,6 +82,6 @@
     "qubu": "workspace:*"
   },
   "peerDependencies": {
-    "qubu": "0.5.0"
+    "qubu": "0.5.1"
   }
 }

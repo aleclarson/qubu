@@ -1,6 +1,6 @@
 {
   "name": "@qubu/adapter-aws-rds-data-api",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Experimental Qubu adapter for the AWS Aurora RDS Data API.",
   "repository": {
     "type": "git",
@@ -39,6 +39,6 @@
   },
   "peerDependencies": {
     "@aws-sdk/client-rds-data": ">=3.600.0 <4.0.0",
-    "qubu": "0.5.0"
+    "qubu": "0.5.1"
   }
 }
