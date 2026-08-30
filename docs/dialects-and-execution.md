@@ -118,11 +118,12 @@ database clients. They are not production-ready and are intentionally outside
 provider-backed CI until funded infrastructure and an external maintainer are
 available.
 
-| Package | Driver boundary | Advertised capabilities |
-| --- | --- | --- |
-| `@qubu/adapter-neon` | Neon HTTP PostgreSQL query function | PostgreSQL rendering, object rows, mutation counts, EXPLAIN, and fetch cancellation |
-| `@qubu/adapter-planetscale` | PlanetScale serverless MySQL client | MySQL rendering, rows, mutation metadata, EXPLAIN, and provider transaction callbacks |
-| `@qubu/adapter-aws-rds-data-api` | AWS RDS Data API for Aurora PostgreSQL or MySQL | Engine-specific rendering, typed Data API values/results, EXPLAIN, mutation metadata, and transaction IDs |
+| Package                                   | Driver boundary                        | Advertised capabilities                                                                              |
+| ----------------------------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `@qubu/adapter-neon`                      | Neon HTTP PostgreSQL query function    | PostgreSQL rendering, object rows, mutation counts, EXPLAIN, and fetch cancellation                  |
+| `@qubu/adapter-planetscale`               | PlanetScale serverless MySQL client    | MySQL rendering, rows, mutation metadata, EXPLAIN, and provider transaction callbacks                |
+| `@qubu/adapter-aws-rds-data-api/postgres` | AWS RDS Data API for Aurora PostgreSQL | PostgreSQL rendering, typed Data API values/results, EXPLAIN, mutation metadata, and transaction IDs |
+| `@qubu/adapter-aws-rds-data-api/mysql`    | AWS RDS Data API for Aurora MySQL      | MySQL rendering, typed Data API values/results, EXPLAIN, mutation metadata, and transaction IDs      |
 
 Neon HTTP and the RDS Data API do not advertise interactive streaming. The
 RDS adapter uses named placeholders (`:p1`, `:p2`, ...), while PlanetScale uses

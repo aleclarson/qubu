@@ -56,8 +56,8 @@ export interface RdsDataApiClientStub {
 /** A real AWS `RDSDataClient` or a structurally compatible command sender. */
 export type RdsDataApiClient = Pick<RDSDataClient, "send"> | RdsDataApiClientStub
 
+/** Options shared by the PostgreSQL and MySQL entry points. */
 export interface RdsDataApiAdapterOptions {
-  readonly engine: RdsDataApiEngine
   readonly resourceArn: string
   readonly secretArn: string
   readonly database?: string
@@ -72,41 +72,22 @@ export interface RdsDataApiTransactionAdapter extends ExplainableQueryAdapter<
   Record<string, unknown>
 > {}
 
-export interface RdsDataApiAdapter
+export interface RdsDataApiAdapter<TEngine extends RdsDataApiEngine = RdsDataApiEngine>
   extends
     ExplainableQueryAdapter<Record<string, unknown>>,
     TransactionalQueryAdapter<RdsDataApiTransactionAdapter> {
   readonly client: RdsDataApiClient
-  readonly engine: RdsDataApiEngine
+  readonly engine: TEngine
 }
 
 const identityEncoder: DriverValueEncoder = { encode: (value) => value }
 
-/**
- * Create the named-placeholder dialect required by Aurora's Data API. Parameter names are `p1`,
- * `p2`, and so on; the SQL text receives `:p1`, `:p2`, etc.
- */
-export function rdsDataApiDialect(engine: "postgresql"): ReturnType<typeof postgresDialect>
-export function rdsDataApiDialect(engine: "mysql"): ReturnType<typeof mysqlDialect>
-export function rdsDataApiDialect(engine: RdsDataApiEngine): Dialect
-export function rdsDataApiDialect(engine: RdsDataApiEngine): Dialect {
+/** Create the named-placeholder dialect required by Aurora's Data API. */
+export function createRdsDataApiDialect(engine: "postgresql"): ReturnType<typeof postgresDialect>
+export function createRdsDataApiDialect(engine: "mysql"): ReturnType<typeof mysqlDialect>
+export function createRdsDataApiDialect(engine: RdsDataApiEngine): Dialect
+export function createRdsDataApiDialect(engine: RdsDataApiEngine): Dialect {
   return withNamedPlaceholders(engine === "postgresql" ? postgresDialect() : mysqlDialect())
-}
-
-export function auroraPostgresDialect(): ReturnType<typeof postgresDialect> {
-  return rdsDataApiDialect("postgresql")
-}
-
-export function auroraMysqlDialect(): ReturnType<typeof mysqlDialect> {
-  return rdsDataApiDialect("mysql")
-}
-
-export function rdsDataApiPostgresDialect(): ReturnType<typeof postgresDialect> {
-  return auroraPostgresDialect()
-}
-
-export function rdsDataApiMysqlDialect(): ReturnType<typeof mysqlDialect> {
-  return auroraMysqlDialect()
 }
 
 function withNamedPlaceholders<TDialect extends Dialect>(dialect: TDialect): TDialect {
@@ -116,18 +97,19 @@ function withNamedPlaceholders<TDialect extends Dialect>(dialect: TDialect): TDi
   }) as TDialect
 }
 
-/** Adapt Aurora PostgreSQL or MySQL through the AWS RDS Data API. */
-export function rdsDataApiAdapter(
+/** Adapt one Aurora dialect through the AWS RDS Data API. */
+export function createRdsDataApiAdapter<TEngine extends RdsDataApiEngine>(
   client: RdsDataApiClient,
+  engine: TEngine,
   options: RdsDataApiAdapterOptions,
-): RdsDataApiAdapter {
+): RdsDataApiAdapter<TEngine> {
   const encoder = options.encoder ?? identityEncoder
-  const scoped = executionAdapter(client, options, encoder)
+  const scoped = executionAdapter(client, engine, options, encoder)
 
   return {
     ...scoped,
     client,
-    engine: options.engine,
+    engine,
     async transaction<T>(
       callback: (adapter: RdsDataApiTransactionAdapter) => Promise<T>,
       transactionOptions: TransactionOptions = {},
@@ -146,7 +128,9 @@ export function rdsDataApiAdapter(
 
       try {
         throwIfAborted(transactionOptions.signal)
-        const result = await callback(executionAdapter(client, options, encoder, transactionId))
+        const result = await callback(
+          executionAdapter(client, engine, options, encoder, transactionId),
+        )
 
         throwIfAborted(transactionOptions.signal)
         await sendCommand<CommitTransactionCommandOutput>(
@@ -171,17 +155,15 @@ export function rdsDataApiAdapter(
   }
 }
 
-/** Alias matching the full package name. */
-export const awsRdsDataApiAdapter = rdsDataApiAdapter
-
 function executionAdapter(
   client: RdsDataApiClient,
+  engine: RdsDataApiEngine,
   options: RdsDataApiAdapterOptions,
   encoder: DriverValueEncoder,
   transactionId?: string,
 ): RdsDataApiTransactionAdapter {
   return {
-    dialect: rdsDataApiDialect(options.engine),
+    dialect: createRdsDataApiDialect(engine),
     async execute<TRow extends object>(request: ExecutionRequest) {
       return executeRequest<TRow>(client, options, encoder, request, transactionId)
     },

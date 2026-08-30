@@ -4,42 +4,43 @@
 
 ## Package entrypoints
 
-| Import                     | Kind             | Use it for                                                                                                       |
-| -------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `qubu`                     | Runtime          | Ordinary query and schema definitions, reads, writes, SQL templates, rendering, EXPLAIN, and execution contracts |
-| `qubu/core`                | Runtime          | Fragment and rendering primitives, dialect construction, SQL types, and extension constructors                   |
-| `qubu/codegen`             | Runtime          | Deterministic machine-owned TypeScript schemas from complete, non-lossy introspection                            |
-| `qubu/diff`                | Runtime          | Canonical Snapshot v1 or v2 comparison, rename hints, suggestions, and safety diagnostics                        |
-| `qubu/introspection`       | Runtime          | Catalog readers, normalized catalogs, and mapping to Snapshot v1 or v2                                           |
-| `qubu/mysql`               | Runtime          | The MySQL query dialect policy                                                                                   |
-| `qubu/postgres`            | Runtime          | PostgreSQL query dialect helpers such as `postgresDialect()` and `ilike()`                                       |
-| `qubu/schema`              | Runtime          | Advanced schema metadata, storage and constraint models, source models, and schema-expression extensions         |
-| `qubu/snapshot`            | Runtime          | Canonical Snapshot v1 and v2 traversal, encoding, decoding, diagnostics, and fingerprints                        |
-| `qubu/sqlite`              | Runtime          | The SQLite query dialect policy and native SQLite column factories                                               |
-| `qubu/vite`                | Runtime          | The optional `qubu()` Vite compiler hint                                                                         |
-| `qubu/package.json`        | JSON             | The published package manifest                                                                                   |
-| `@qubu/migrate`            | Runtime          | Migration compiler format identity and shared plan types                                                         |
-| `@qubu/migrate/plan`       | Runtime          | Pure migration planning with dependencies, decisions, preconditions, and explicit custom SQL                     |
-| `@qubu/migrate/ddl`        | Runtime          | DDL preflight and deterministic PostgreSQL, SQLite, or MySQL emission from a migration plan                      |
-| `@qubu/migrate/artifact`   | Runtime          | Versioned programs, strict artifacts and baselines, canonical encoding, and SHA-256 integrity                    |
-| `@qubu/migrate/repository` | Runtime          | Strict full-chain and journal-prefix verification                                                                |
-| `@qubu/migrate/journal`    | Runtime          | Storage-neutral journal records, transitions, validation, and reference storage                                  |
-| `@qubu/migrate/executor`   | Runtime          | Portable execution, structured errors, checkpointing, and explicit reconciliation                                |
-| `@qubu/migrate/baseline`   | Runtime          | Strict live baseline verification and physical managed-schema comparison                                         |
-| `@qubu/migrate/status`     | Runtime          | Pending chain, managed drift, unmanaged objects, interrupted attempts, and incompatible requirements             |
-| `@qubu/migrate/bootstrap`  | Runtime          | Fresh SQLite schema planning through the normal diff, plan, and program compiler                                 |
-| `@qubu/migrate/testing`    | Runtime          | Deterministic fake adapters, fault boundaries, and adapter conformance checks                                    |
-| `@qubu/cli`                | Runtime and CLI  | `@alloc/cmd-ts` commands, typed config, filesystem repositories, stable output, and exit codes                   |
-| `@qubu/drizzle`            | Runtime          | Shared Drizzle conversion errors and dialect types                                                               |
-| `@qubu/drizzle/mysql`      | Runtime          | Runtime conversion from Qubu schemas to MySQL Drizzle tables                                                     |
-| `@qubu/drizzle/postgres`   | Runtime          | Runtime conversion from Qubu schemas to PostgreSQL Drizzle tables                                                |
-| `@qubu/drizzle/sqlite`     | Runtime          | Runtime conversion from Qubu schemas to SQLite Drizzle tables                                                    |
-| `@qubu/better-auth`        | Runtime          | Better Auth schema derivation and native PostgreSQL, MySQL, and SQLite adapter behavior                          |
-| `@qubu/adapter-neon`       | Runtime          | Experimental Neon HTTP PostgreSQL `QueryAdapter` behavior                                                       |
-| `@qubu/adapter-planetscale` | Runtime          | Experimental PlanetScale serverless MySQL `QueryAdapter` and transaction behavior                              |
-| `@qubu/adapter-aws-rds-data-api` | Runtime     | Experimental Aurora PostgreSQL/MySQL AWS RDS Data API adapter behavior                                         |
-| `@qubu/adapter-sqlite-wasm` | Runtime          | Official SQLite WASM OO1 `QueryAdapter` for browser and web-worker databases                                     |
-| `qubu/globals`             | TypeScript types | Opt-in ambient declarations for directive-bearing modules                                                        |
+| Import                                    | Kind             | Use it for                                                                                                       |
+| ----------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `qubu`                                    | Runtime          | Ordinary query and schema definitions, reads, writes, SQL templates, rendering, EXPLAIN, and execution contracts |
+| `qubu/core`                               | Runtime          | Fragment and rendering primitives, dialect construction, SQL types, and extension constructors                   |
+| `qubu/codegen`                            | Runtime          | Deterministic machine-owned TypeScript schemas from complete, non-lossy introspection                            |
+| `qubu/diff`                               | Runtime          | Canonical Snapshot v1 or v2 comparison, rename hints, suggestions, and safety diagnostics                        |
+| `qubu/introspection`                      | Runtime          | Catalog readers, normalized catalogs, and mapping to Snapshot v1 or v2                                           |
+| `qubu/mysql`                              | Runtime          | The MySQL query dialect policy                                                                                   |
+| `qubu/postgres`                           | Runtime          | PostgreSQL query dialect helpers such as `postgresDialect()` and `ilike()`                                       |
+| `qubu/schema`                             | Runtime          | Advanced schema metadata, storage and constraint models, source models, and schema-expression extensions         |
+| `qubu/snapshot`                           | Runtime          | Canonical Snapshot v1 and v2 traversal, encoding, decoding, diagnostics, and fingerprints                        |
+| `qubu/sqlite`                             | Runtime          | The SQLite query dialect policy and native SQLite column factories                                               |
+| `qubu/vite`                               | Runtime          | The optional `qubu()` Vite compiler hint                                                                         |
+| `qubu/package.json`                       | JSON             | The published package manifest                                                                                   |
+| `@qubu/migrate`                           | Runtime          | Migration compiler format identity and shared plan types                                                         |
+| `@qubu/migrate/plan`                      | Runtime          | Pure migration planning with dependencies, decisions, preconditions, and explicit custom SQL                     |
+| `@qubu/migrate/ddl`                       | Runtime          | DDL preflight and deterministic PostgreSQL, SQLite, or MySQL emission from a migration plan                      |
+| `@qubu/migrate/artifact`                  | Runtime          | Versioned programs, strict artifacts and baselines, canonical encoding, and SHA-256 integrity                    |
+| `@qubu/migrate/repository`                | Runtime          | Strict full-chain and journal-prefix verification                                                                |
+| `@qubu/migrate/journal`                   | Runtime          | Storage-neutral journal records, transitions, validation, and reference storage                                  |
+| `@qubu/migrate/executor`                  | Runtime          | Portable execution, structured errors, checkpointing, and explicit reconciliation                                |
+| `@qubu/migrate/baseline`                  | Runtime          | Strict live baseline verification and physical managed-schema comparison                                         |
+| `@qubu/migrate/status`                    | Runtime          | Pending chain, managed drift, unmanaged objects, interrupted attempts, and incompatible requirements             |
+| `@qubu/migrate/bootstrap`                 | Runtime          | Fresh SQLite schema planning through the normal diff, plan, and program compiler                                 |
+| `@qubu/migrate/testing`                   | Runtime          | Deterministic fake adapters, fault boundaries, and adapter conformance checks                                    |
+| `@qubu/cli`                               | Runtime and CLI  | `@alloc/cmd-ts` commands, typed config, filesystem repositories, stable output, and exit codes                   |
+| `@qubu/drizzle`                           | Runtime          | Shared Drizzle conversion errors and dialect types                                                               |
+| `@qubu/drizzle/mysql`                     | Runtime          | Runtime conversion from Qubu schemas to MySQL Drizzle tables                                                     |
+| `@qubu/drizzle/postgres`                  | Runtime          | Runtime conversion from Qubu schemas to PostgreSQL Drizzle tables                                                |
+| `@qubu/drizzle/sqlite`                    | Runtime          | Runtime conversion from Qubu schemas to SQLite Drizzle tables                                                    |
+| `@qubu/better-auth`                       | Runtime          | Better Auth schema derivation and native PostgreSQL, MySQL, and SQLite adapter behavior                          |
+| `@qubu/adapter-neon`                      | Runtime          | Experimental Neon HTTP PostgreSQL `QueryAdapter` behavior                                                        |
+| `@qubu/adapter-planetscale`               | Runtime          | Experimental PlanetScale serverless MySQL `QueryAdapter` and transaction behavior                                |
+| `@qubu/adapter-aws-rds-data-api/postgres` | Runtime          | Experimental Aurora PostgreSQL AWS RDS Data API adapter behavior                                                 |
+| `@qubu/adapter-aws-rds-data-api/mysql`    | Runtime          | Experimental Aurora MySQL AWS RDS Data API adapter behavior                                                      |
+| `@qubu/adapter-sqlite-wasm`               | Runtime          | Official SQLite WASM OO1 `QueryAdapter` for browser and web-worker databases                                     |
+| `qubu/globals`                            | TypeScript types | Opt-in ambient declarations for directive-bearing modules                                                        |
 
 The package validator checks every declared entrypoint in each packed workspace
 package. Concrete dialect constructors live on their database subpaths. The

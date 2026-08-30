@@ -1,9 +1,31 @@
 import { defineConfig } from "tsdown"
 
 export default defineConfig({
-  entry: ["src/index.ts"],
+  entry: {
+    mysql: "src/mysql.ts",
+    postgres: "src/postgres.ts",
+  },
   format: "esm",
   fixedExtension: true,
   dts: true,
-  exports: { devExports: true },
+  clean: true,
+  exports: {
+    devExports: true,
+    customExports(exports, { isPublish }) {
+      if (isPublish) {
+        for (const [subpath, target] of Object.entries(exports)) {
+          if (typeof target !== "string" || !target.endsWith(".mjs")) {
+            continue
+          }
+
+          exports[subpath] = {
+            types: target.replace(/\.mjs$/, ".d.mts"),
+            import: target,
+          }
+        }
+      }
+
+      return exports
+    },
+  },
 })

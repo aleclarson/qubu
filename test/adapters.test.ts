@@ -2,7 +2,8 @@ import { DatabaseSync } from "node:sqlite"
 
 import { describe, expect, test, vi } from "vitest"
 
-import { rdsDataApiAdapter } from "../adapters/aws-rds-data-api/src/index.ts"
+import { rdsDataApiAdapter as rdsDataApiMysqlAdapter } from "../adapters/aws-rds-data-api/src/mysql.ts"
+import { rdsDataApiAdapter as rdsDataApiPostgresAdapter } from "../adapters/aws-rds-data-api/src/postgres.ts"
 import { bunSqlAdapter } from "../adapters/bun-sql/src/index.ts"
 import { d1Adapter } from "../adapters/cloudflare-d1/src/index.ts"
 import { mysql2Adapter } from "../adapters/mysql2/src/index.ts"
@@ -387,8 +388,7 @@ describe("workspace adapters", () => {
         return { transactionId: "tx-1" }
       },
     }
-    const adapter = rdsDataApiAdapter(client as never, {
-      engine: "postgresql",
+    const adapter = rdsDataApiPostgresAdapter(client as never, {
       resourceArn: "arn:aws:rds:us-east-1:123456789012:cluster:qubu",
       secretArn: "arn:aws:secretsmanager:us-east-1:123456789012:secret:qubu",
       database: "app",
@@ -452,8 +452,7 @@ describe("workspace adapters", () => {
         return { transactionId: "tx-1" }
       },
     }
-    const adapter = rdsDataApiAdapter(client as never, {
-      engine: "mysql",
+    const adapter = rdsDataApiMysqlAdapter(client as never, {
       resourceArn: "resource",
       secretArn: "secret",
     })

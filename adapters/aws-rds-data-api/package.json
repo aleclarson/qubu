@@ -12,13 +12,20 @@
   ],
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
+    "./mysql": "./src/mysql.ts",
+    "./postgres": "./src/postgres.ts",
     "./package.json": "./package.json"
   },
   "publishConfig": {
-    "types": "./dist/index.d.mts",
     "exports": {
-      ".": "./dist/index.mjs",
+      "./mysql": {
+        "types": "./dist/mysql.d.mts",
+        "import": "./dist/mysql.mjs"
+      },
+      "./postgres": {
+        "types": "./dist/postgres.d.mts",
+        "import": "./dist/postgres.mjs"
+      },
       "./package.json": "./package.json"
     }
   },

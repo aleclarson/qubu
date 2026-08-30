@@ -5,7 +5,11 @@ import type { ClientBase } from "pg"
 import type { Sql } from "postgres"
 import { expectTypeOf } from "vitest"
 
-import { rdsDataApiAdapter, type RdsDataApiClient } from "../adapters/aws-rds-data-api/src/index.ts"
+import {
+  rdsDataApiAdapter as rdsDataApiMysqlAdapter,
+  type RdsDataApiClient,
+} from "../adapters/aws-rds-data-api/src/mysql.ts"
+import { rdsDataApiAdapter as rdsDataApiPostgresAdapter } from "../adapters/aws-rds-data-api/src/postgres.ts"
 import { bunSqlAdapter, type BunSqlClient } from "../adapters/bun-sql/src/index.ts"
 import { d1Adapter, type D1Database } from "../adapters/cloudflare-d1/src/index.ts"
 import { mysql2Adapter, type Mysql2Connection } from "../adapters/mysql2/src/index.ts"
@@ -69,11 +73,18 @@ qubu(planetscaleAdapter(planetscale)).transaction(async (transaction) => {
 // @ts-expect-error PlanetScale does not expose streaming.
 qubu(planetscaleAdapter(planetscale)).stream(async function* () {})
 
-const rdsDataApiPostgres = rdsDataApiAdapter(rdsDataApi, {
-  engine: "postgresql",
+const rdsDataApiPostgres = rdsDataApiPostgresAdapter(rdsDataApi, {
   resourceArn: "resource",
   secretArn: "secret",
 })
+
+const rdsDataApiMysql = rdsDataApiMysqlAdapter(rdsDataApi, {
+  resourceArn: "resource",
+  secretArn: "secret",
+})
+
+expectTypeOf(rdsDataApiPostgres.engine).toEqualTypeOf<"postgresql">()
+expectTypeOf(rdsDataApiMysql.engine).toEqualTypeOf<"mysql">()
 
 qubu(rdsDataApiPostgres).transaction(async (transaction) => {
   expectTypeOf(transaction.explain).toBeFunction()
