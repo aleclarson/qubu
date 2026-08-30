@@ -1,6 +1,6 @@
 {
   "name": "@qubu/adapter-planetscale",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "description": "Experimental Qubu adapter for the PlanetScale serverless MySQL client.",
   "repository": {
     "type": "git",
@@ -32,6 +32,6 @@
   },
   "peerDependencies": {
     "@planetscale/database": ">=1.13.0 <2.0.0",
-    "qubu": "0.4.3"
+    "qubu": "0.5.0"
   }
 }
