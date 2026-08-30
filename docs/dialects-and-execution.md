@@ -111,6 +111,24 @@ const adapter: QueryAdapter = {
 }
 ```
 
+### Experimental cloud adapters
+
+The workspace also publishes experimental adapters for HTTP and serverless
+database clients. They are not production-ready and are intentionally outside
+provider-backed CI until funded infrastructure and an external maintainer are
+available.
+
+| Package | Driver boundary | Advertised capabilities |
+| --- | --- | --- |
+| `@qubu/adapter-neon` | Neon HTTP PostgreSQL query function | PostgreSQL rendering, object rows, mutation counts, EXPLAIN, and fetch cancellation |
+| `@qubu/adapter-planetscale` | PlanetScale serverless MySQL client | MySQL rendering, rows, mutation metadata, EXPLAIN, and provider transaction callbacks |
+| `@qubu/adapter-aws-rds-data-api` | AWS RDS Data API for Aurora PostgreSQL or MySQL | Engine-specific rendering, typed Data API values/results, EXPLAIN, mutation metadata, and transaction IDs |
+
+Neon HTTP and the RDS Data API do not advertise interactive streaming. The
+RDS adapter uses named placeholders (`:p1`, `:p2`, ...), while PlanetScale uses
+the MySQL dialect and the provider's own value formatting. Read each package's
+README for its experimental boundary and required provider setup.
+
 ### Decode schema-aware result values
 
 Portable boolean, date, timestamp, and JSON columns retain their logical

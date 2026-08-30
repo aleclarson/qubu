@@ -1,0 +1,37 @@
+{
+  "name": "@qubu/adapter-aws-rds-data-api",
+  "version": "0.4.3",
+  "description": "Experimental Qubu adapter for the AWS Aurora RDS Data API.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aleclarson/qubu",
+    "directory": "adapters/aws-rds-data-api"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "types": "./dist/index.d.mts",
+    "exports": {
+      ".": "./dist/index.mjs",
+      "./package.json": "./package.json"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-rds-data": "^3.1121.0",
+    "qubu": "workspace:*"
+  },
+  "peerDependencies": {
+    "@aws-sdk/client-rds-data": ">=3.600.0 <4.0.0",
+    "qubu": "0.4.3"
+  }
+}

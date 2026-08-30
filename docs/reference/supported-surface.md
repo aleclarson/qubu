@@ -35,6 +35,9 @@
 | `@qubu/drizzle/postgres`   | Runtime          | Runtime conversion from Qubu schemas to PostgreSQL Drizzle tables                                                |
 | `@qubu/drizzle/sqlite`     | Runtime          | Runtime conversion from Qubu schemas to SQLite Drizzle tables                                                    |
 | `@qubu/better-auth`        | Runtime          | Better Auth schema derivation and native PostgreSQL, MySQL, and SQLite adapter behavior                          |
+| `@qubu/adapter-neon`       | Runtime          | Experimental Neon HTTP PostgreSQL `QueryAdapter` behavior                                                       |
+| `@qubu/adapter-planetscale` | Runtime          | Experimental PlanetScale serverless MySQL `QueryAdapter` and transaction behavior                              |
+| `@qubu/adapter-aws-rds-data-api` | Runtime     | Experimental Aurora PostgreSQL/MySQL AWS RDS Data API adapter behavior                                         |
 | `qubu/globals`             | TypeScript types | Opt-in ambient declarations for directive-bearing modules                                                        |
 
 The package validator checks every declared entrypoint in each packed workspace

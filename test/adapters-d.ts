@@ -5,12 +5,15 @@ import type { ClientBase } from "pg"
 import type { Sql } from "postgres"
 import { expectTypeOf } from "vitest"
 
+import { rdsDataApiAdapter, type RdsDataApiClient } from "../adapters/aws-rds-data-api/src/index.ts"
 import { bunSqlAdapter, type BunSqlClient } from "../adapters/bun-sql/src/index.ts"
 import { d1Adapter, type D1Database } from "../adapters/cloudflare-d1/src/index.ts"
 import { mysql2Adapter, type Mysql2Connection } from "../adapters/mysql2/src/index.ts"
+import { neonAdapter, type NeonHttpClient } from "../adapters/neon/src/index.ts"
 import { nodeSqliteAdapter } from "../adapters/node-sqlite/src/index.ts"
 import { pgAdapter } from "../adapters/pg/src/index.ts"
 import { pgliteAdapter } from "../adapters/pglite/src/index.ts"
+import { planetscaleAdapter, type PlanetScaleClient } from "../adapters/planetscale/src/index.ts"
 import { postgresJsAdapter } from "../adapters/postgresjs/src/index.ts"
 import { qubu, type QubuExplainableClient } from "../src/index.ts"
 
@@ -21,6 +24,9 @@ declare const bunSql: BunSqlClient
 declare const postgresJs: Sql
 declare const d1: D1Database
 declare const pglite: PGliteInterface
+declare const neon: NeonHttpClient
+declare const planetscale: PlanetScaleClient
+declare const rdsDataApi: RdsDataApiClient
 
 qubu(nodeSqliteAdapter(nodeSqlite)).transaction(async (transaction) => {
   expectTypeOf(transaction.explain).toBeFunction()
@@ -46,3 +52,29 @@ expectTypeOf(qubu(d1Adapter(d1))).toEqualTypeOf<
 >()
 // @ts-expect-error D1 does not expose an interactive transaction primitive.
 qubu(d1Adapter(d1)).transaction(async () => undefined)
+
+expectTypeOf(qubu(neonAdapter(neon))).toEqualTypeOf<
+  QubuExplainableClient<ReturnType<typeof neonAdapter>>
+>()
+// @ts-expect-error Neon HTTP does not expose an interactive transaction primitive.
+qubu(neonAdapter(neon)).transaction(async () => undefined)
+// @ts-expect-error Neon HTTP does not expose streaming.
+qubu(neonAdapter(neon)).stream(async function* () {})
+
+qubu(planetscaleAdapter(planetscale)).transaction(async (transaction) => {
+  expectTypeOf(transaction.explain).toBeFunction()
+})
+// @ts-expect-error PlanetScale does not expose streaming.
+qubu(planetscaleAdapter(planetscale)).stream(async function* () {})
+
+const rdsDataApiPostgres = rdsDataApiAdapter(rdsDataApi, {
+  engine: "postgresql",
+  resourceArn: "resource",
+  secretArn: "secret",
+})
+
+qubu(rdsDataApiPostgres).transaction(async (transaction) => {
+  expectTypeOf(transaction.explain).toBeFunction()
+})
+// @ts-expect-error RDS Data API does not expose streaming.
+qubu(rdsDataApiPostgres).stream(async function* () {})
