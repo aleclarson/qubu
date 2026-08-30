@@ -1,6 +1,6 @@
 {
   "name": "@qubu/adapter-cloudflare-d1",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/aleclarson/qubu",
@@ -32,7 +32,7 @@
     "qubu": "workspace:*"
   },
   "peerDependencies": {
-    "@qubu/migrate": "0.4.3",
-    "qubu": "0.4.3"
+    "@qubu/migrate": "0.5.0",
+    "qubu": "0.5.0"
   }
 }

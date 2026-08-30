@@ -1,6 +1,6 @@
 {
   "name": "@qubu/adapter-pglite",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/aleclarson/qubu",
@@ -34,7 +34,7 @@
   },
   "peerDependencies": {
     "@electric-sql/pglite": ">=0.5.6 <0.6.0",
-    "@qubu/migrate": "0.4.3",
-    "qubu": "0.4.3"
+    "@qubu/migrate": "0.5.0",
+    "qubu": "0.5.0"
   }
 }
