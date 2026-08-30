@@ -12,6 +12,7 @@ import { pgAdapter } from "../adapters/pg/src/index.ts"
 import { pgliteAdapter } from "../adapters/pglite/src/index.ts"
 import { planetscaleAdapter } from "../adapters/planetscale/src/index.ts"
 import { postgresJsAdapter } from "../adapters/postgresjs/src/index.ts"
+import { sqliteWasmAdapter } from "../adapters/sqlite-wasm/src/index.ts"
 import type { ExecutionRequest } from "../src/execution.ts"
 import { eq, executeRows, from, integer, render, select, table, text, where } from "../src/index.ts"
 
@@ -64,6 +65,91 @@ describe("workspace adapters", () => {
     } finally {
       database.close()
     }
+  })
+
+  test("official SQLite WASM finalizes statements and maps bound mutation metadata", async () => {
+    const mutationStatement = {
+      bind: vi.fn(),
+      columnCount: 0,
+      finalize: vi.fn(),
+      get: vi.fn(),
+      step: vi.fn(() => false),
+    }
+    const selectStatement = {
+      bind: vi.fn(),
+      columnCount: 2,
+      finalize: vi.fn(),
+      get: vi.fn((target: Record<string, unknown>) =>
+        Object.assign(target, { id: 1, name: "Ada" }),
+      ),
+      step: vi.fn().mockReturnValueOnce(true).mockReturnValueOnce(false),
+    }
+    const database = {
+      changes: vi.fn(() => 1),
+      close: vi.fn(),
+      prepare: vi.fn().mockReturnValueOnce(mutationStatement).mockReturnValueOnce(selectStatement),
+      selectValue: vi.fn(() => 7),
+    }
+    const adapter = sqliteWasmAdapter(database as never)
+
+    await expect(
+      adapter.execute({
+        statement: {
+          text: "INSERT INTO records (name) VALUES (?)",
+          parameters: ["Ada"],
+        },
+        queryKind: "insert",
+        resultShape: { fields: [] },
+      }),
+    ).resolves.toEqual({
+      rows: [],
+      affectedRows: 1,
+      insertId: 7,
+    })
+    const selected = await adapter.execute({
+      statement: {
+        text: "SELECT id, name FROM records WHERE id = ?",
+        parameters: [1],
+      },
+      queryKind: "select",
+      resultShape: { fields: [] },
+    })
+
+    expect(selected).toEqual({ rows: [{ id: 1, name: "Ada" }] })
+    expect(Object.getPrototypeOf(selected.rows[0])).toBe(Object.prototype)
+    expect(mutationStatement.bind).toHaveBeenCalledWith(["Ada"])
+    expect(selectStatement.bind).toHaveBeenCalledWith([1])
+    expect(mutationStatement.finalize).toHaveBeenCalledOnce()
+    expect(selectStatement.finalize).toHaveBeenCalledOnce()
+    expect(database.selectValue).toHaveBeenCalledWith("SELECT last_insert_rowid()")
+
+    adapter.close()
+    adapter.close()
+    expect(database.close).toHaveBeenCalledOnce()
+  })
+
+  test("official SQLite WASM finalizes a statement when execution fails", async () => {
+    const error = new Error("step failed")
+    const statement = {
+      bind: vi.fn(),
+      columnCount: 0,
+      finalize: vi.fn(),
+      get: vi.fn(),
+      step: vi.fn(() => {
+        throw error
+      }),
+    }
+    const database = {
+      changes: vi.fn(() => 0),
+      close: vi.fn(),
+      prepare: vi.fn(() => statement),
+      selectValue: vi.fn(),
+    }
+
+    await expect(sqliteWasmAdapter(database as never).execute(request("update"))).rejects.toBe(
+      error,
+    )
+    expect(statement.finalize).toHaveBeenCalledOnce()
   })
 
   test("pg normalizes rows and affected row counts", async () => {

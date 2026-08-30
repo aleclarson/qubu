@@ -15,6 +15,7 @@ import { pgAdapter } from "../adapters/pg/src/index.ts"
 import { pgliteAdapter } from "../adapters/pglite/src/index.ts"
 import { planetscaleAdapter, type PlanetScaleClient } from "../adapters/planetscale/src/index.ts"
 import { postgresJsAdapter } from "../adapters/postgresjs/src/index.ts"
+import { sqliteWasmAdapter, type SqliteWasmDatabase } from "../adapters/sqlite-wasm/src/index.ts"
 import { qubu, type QubuExplainableClient } from "../src/index.ts"
 
 declare const nodeSqlite: DatabaseSync
@@ -27,6 +28,7 @@ declare const pglite: PGliteInterface
 declare const neon: NeonHttpClient
 declare const planetscale: PlanetScaleClient
 declare const rdsDataApi: RdsDataApiClient
+declare const sqliteWasm: SqliteWasmDatabase
 
 qubu(nodeSqliteAdapter(nodeSqlite)).transaction(async (transaction) => {
   expectTypeOf(transaction.explain).toBeFunction()
@@ -78,3 +80,9 @@ qubu(rdsDataApiPostgres).transaction(async (transaction) => {
 })
 // @ts-expect-error RDS Data API does not expose streaming.
 qubu(rdsDataApiPostgres).stream(async function* () {})
+
+expectTypeOf(qubu(sqliteWasmAdapter(sqliteWasm))).toEqualTypeOf<
+  QubuExplainableClient<ReturnType<typeof sqliteWasmAdapter>>
+>()
+// @ts-expect-error SQLite WASM adapter does not expose an interactive transaction primitive.
+qubu(sqliteWasmAdapter(sqliteWasm)).transaction(async () => undefined)

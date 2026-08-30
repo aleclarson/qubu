@@ -129,6 +129,21 @@ RDS adapter uses named placeholders (`:p1`, `:p2`, ...), while PlanetScale uses
 the MySQL dialect and the provider's own value formatting. Read each package's
 README for its experimental boundary and required provider setup.
 
+### Official SQLite WASM adapter
+
+`@qubu/adapter-sqlite-wasm` adapts the official SQLite WASM OO1
+`sqlite3.oo1.DB` API for browser and web-worker use. It prepares one statement
+per request, binds Qubu's ordered parameters, copies object rows, and finalizes
+the statement in a `finally` block. SQLite's change count and generated row ID
+are returned as mutation metadata when the request is a mutation.
+
+The package does not create or terminate workers. Initialize the official
+SQLite module inside a dedicated worker, construct the adapter around its
+`sqlite3.oo1.DB`, and close the adapter before terminating that worker. The
+browser build must serve the package's `sqlite3.wasm` asset beside the bundled
+worker module; the combo runner's verified browser scenario demonstrates this
+lifecycle.
+
 ### Decode schema-aware result values
 
 Portable boolean, date, timestamp, and JSON columns retain their logical
