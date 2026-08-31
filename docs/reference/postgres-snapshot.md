@@ -4,14 +4,11 @@
 > PostgreSQL facts Qubu v1 can encode and the cases that need a later server
 > version policy.
 
-Import the adapter from the optional snapshot entrypoint:
+Import the adapter from the PostgreSQL snapshot subpath:
 
 ```ts
-import {
-  createSchemaSnapshot,
-  createPostgresSchemaSnapshot,
-  postgresSnapshotAdapter,
-} from "qubu/snapshot"
+import { createSchemaSnapshot } from "qubu/snapshot"
+import { createPostgresSchemaSnapshot, postgresSnapshotAdapter } from "qubu/snapshot/postgres"
 
 const snapshot = createPostgresSchemaSnapshot(appSchema)
 // Equivalent: createSchemaSnapshot(appSchema, { adapter: postgresSnapshotAdapter })
@@ -46,7 +43,7 @@ schema and application boundaries.
 Use the non-throwing form when a schema may contain a server-specific feature:
 
 ```ts
-import { tryCreatePostgresSchemaSnapshot } from "qubu/snapshot"
+import { tryCreatePostgresSchemaSnapshot } from "qubu/snapshot/postgres"
 
 const result = tryCreatePostgresSchemaSnapshot(appSchema)
 if (!result.ok) {

@@ -1,5 +1,7 @@
 import type { SchemaDialect } from "qubu/schema"
-import { mysqlSchemaDialect, postgresSchemaDialect, sqliteSchemaDialect } from "qubu/snapshot"
+import { mysqlSchemaDialect } from "qubu/snapshot/mysql"
+import { postgresSchemaDialect } from "qubu/snapshot/postgres"
+import { sqliteSchemaDialect } from "qubu/snapshot/sqlite"
 
 import type { MigrationPlan } from "../plan/index.ts"
 import { mysqlDdlEmitter } from "./mysql.ts"

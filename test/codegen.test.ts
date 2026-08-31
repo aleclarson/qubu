@@ -12,12 +12,13 @@ import type {
   IntrospectionCatalog,
   IntrospectionSuccess,
 } from "../src/introspection/index.ts"
-import { createPostgresSchemaSnapshot, createSqliteSchemaSnapshot } from "../src/snapshot/index.ts"
 import type {
   SchemaSnapshot,
   SnapshotConstraint,
   SnapshotIndexTerm,
 } from "../src/snapshot/index.ts"
+import { createPostgresSchemaSnapshot } from "../src/snapshot/postgres.ts"
+import { createSqliteSchemaSnapshot } from "../src/snapshot/sqlite.ts"
 import { cycleDataSchema } from "./codegen-cycle.generated.ts"
 import { emptyDataSchema } from "./codegen-empty.generated.ts"
 import {

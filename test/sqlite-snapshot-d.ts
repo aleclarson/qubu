@@ -3,13 +3,15 @@ import { expectTypeOf } from "vitest"
 import { identityColumn, integer, schema, table } from "../src/index.ts"
 import {
   createSchemaSnapshot,
-  createSqliteSchemaSnapshot,
-  sqliteSnapshotAdapter,
-  sqliteStorageAffinity,
   type SchemaSnapshot,
   type SchemaSnapshotAdapter,
   type SnapshotStorage,
 } from "../src/snapshot/index.ts"
+import {
+  createSqliteSchemaSnapshot,
+  sqliteSnapshotAdapter,
+  sqliteStorageAffinity,
+} from "../src/snapshot/sqlite.ts"
 
 const records = table("records", {
   id: integer({

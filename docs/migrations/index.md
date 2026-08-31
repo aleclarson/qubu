@@ -4,13 +4,13 @@
 
 Qubu migrations are split across explicit ownership boundaries:
 
-| Owner           | Imports                                            | Responsibility                                                                                                               |
-| --------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `qubu`          | `qubu/snapshot`, `qubu/diff`, `qubu/introspection` | Pure schema snapshots, comparison, and catalog mapping                                                                       |
-| `@qubu/migrate` | Focused subpaths listed below                      | Pure planning and compilation plus portable artifacts, journals, execution, status, baselines, and bootstrap                 |
-| `@qubu/cli`     | `@qubu/cli/config`, `@qubu/cli/repository`         | Node.js configuration loading, artifact files, commands, output, and process exit behavior                                   |
-| Adapter package | `@qubu/adapter-*/migration`                        | Pinned driver sessions, parameter binding, transactions, leases, locks, database journal storage, and failure classification |
-| Application     | Its own configuration and deployment code          | Credentials, environment selection, approval policy, custom SQL, rollout timing, and legacy cutover decisions                |
+| Owner           | Imports                                                                                                                     | Responsibility                                                                                                               |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `qubu`          | `qubu/snapshot`, `qubu/snapshot/postgres`, `qubu/snapshot/sqlite`, `qubu/snapshot/mysql`, `qubu/diff`, `qubu/introspection` | Pure schema snapshots, comparison, and catalog mapping                                                                       |
+| `@qubu/migrate` | Focused subpaths listed below                                                                                               | Pure planning and compilation plus portable artifacts, journals, execution, status, baselines, and bootstrap                 |
+| `@qubu/cli`     | `@qubu/cli/config`, `@qubu/cli/repository`                                                                                  | Node.js configuration loading, artifact files, commands, output, and process exit behavior                                   |
+| Adapter package | `@qubu/adapter-*/migration`                                                                                                 | Pinned driver sessions, parameter binding, transactions, leases, locks, database journal storage, and failure classification |
+| Application     | Its own configuration and deployment code                                                                                   | Credentials, environment selection, approval policy, custom SQL, rollout timing, and legacy cutover decisions                |
 
 The pre-alpha `qubu/migration` and `qubu/ddl` entrypoints no longer exist. Use
 the extracted compiler entrypoints:

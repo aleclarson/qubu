@@ -20,10 +20,10 @@ import {
   createSchemaSnapshot,
   decodeSchemaSnapshot,
   encodeSchemaSnapshot,
-  postgresSchemaDialect,
   schemaSnapshotFingerprint,
-  sqliteSchemaDialect,
 } from "../src/snapshot/index.ts"
+import { postgresSchemaDialect } from "../src/snapshot/postgres.ts"
+import { sqliteSchemaDialect } from "../src/snapshot/sqlite.ts"
 
 const accounts = table(
   "accounts",

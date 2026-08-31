@@ -31,13 +31,10 @@ import { createMigrationPlan } from "@qubu/migrate/plan"
 import { verifyArtifactChain } from "@qubu/migrate/repository"
 import { readMigrationStatus } from "@qubu/migrate/status"
 import { diffSnapshots } from "qubu/diff"
-import {
-  mysqlSchemaDialect,
-  postgresSchemaDialect,
-  sqliteSchemaDialect,
-  type SchemaDialect,
-  type SchemaSnapshot,
-} from "qubu/snapshot"
+import type { SchemaDialect, SchemaSnapshot } from "qubu/snapshot"
+import { mysqlSchemaDialect } from "qubu/snapshot/mysql"
+import { postgresSchemaDialect } from "qubu/snapshot/postgres"
+import { sqliteSchemaDialect } from "qubu/snapshot/sqlite"
 
 import { resolveAdapter, resolveConfigSnapshot, type QubuCliConfig } from "./config.ts"
 import { FileArtifactRepository } from "./repository.ts"

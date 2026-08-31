@@ -22,14 +22,16 @@ import {
 } from "../src/index.ts"
 import { unsafeSchemaSql } from "../src/schema/index.ts"
 import {
-  createSqliteSchemaSnapshot,
   decodeSchemaSnapshot,
   encodeSchemaSnapshot,
   schemaSnapshotFingerprint,
+} from "../src/snapshot/index.ts"
+import {
+  createSqliteSchemaSnapshot,
   sqliteSnapshotAdapter,
   sqliteStorageAffinity,
   tryCreateSqliteSchemaSnapshot,
-} from "../src/snapshot/index.ts"
+} from "../src/snapshot/sqlite.ts"
 
 const accounts = table(
   "account_records",

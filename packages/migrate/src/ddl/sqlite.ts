@@ -1,4 +1,4 @@
-import { sqliteSchemaDialect } from "qubu/snapshot"
+import { sqliteSchemaDialect } from "qubu/snapshot/sqlite"
 
 import type { MigrationPlan } from "../plan/index.ts"
 import { createDdlEmitter } from "./emitter.ts"

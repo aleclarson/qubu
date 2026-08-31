@@ -22,7 +22,7 @@ import {
   type PgTableWithColumns,
 } from "drizzle-orm/pg-core"
 import type * as qubu from "qubu"
-import { createPostgresSchemaSnapshot } from "qubu/snapshot"
+import { createPostgresSchemaSnapshot } from "qubu/snapshot/postgres"
 
 import {
   convertDrizzleSchema,

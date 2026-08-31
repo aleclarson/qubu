@@ -1,4 +1,4 @@
-import { postgresSchemaDialect } from "qubu/snapshot"
+import { postgresSchemaDialect } from "qubu/snapshot/postgres"
 
 import type { MigrationPlan } from "../plan/index.ts"
 import { createDdlEmitter } from "./emitter.ts"

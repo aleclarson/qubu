@@ -15,6 +15,9 @@
 | `qubu/postgres`                           | Runtime          | PostgreSQL query dialect helpers such as `postgresDialect()` and `ilike()`                                       |
 | `qubu/schema`                             | Runtime          | Advanced schema metadata, storage and constraint models, source models, and schema-expression extensions         |
 | `qubu/snapshot`                           | Runtime          | Canonical Snapshot v1 and v2 traversal, encoding, decoding, diagnostics, and fingerprints                        |
+| `qubu/snapshot/mysql`                     | Runtime          | MySQL snapshot adapter, schema dialect, and convenience creators                                                 |
+| `qubu/snapshot/postgres`                  | Runtime          | PostgreSQL snapshot adapter, schema dialect, and convenience creators                                            |
+| `qubu/snapshot/sqlite`                    | Runtime          | SQLite snapshot adapter, schema dialect, affinity helper, and convenience creators                               |
 | `qubu/sqlite`                             | Runtime          | The SQLite query dialect policy and native SQLite column factories                                               |
 | `qubu/vite`                               | Runtime          | The optional `qubu()` Vite compiler hint                                                                         |
 | `qubu/package.json`                       | JSON             | The published package manifest                                                                                   |

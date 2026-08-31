@@ -23,12 +23,12 @@ import {
   gt,
 } from "../src/index.ts"
 import { unsafeSchemaSql } from "../src/schema/index.ts"
+import { schemaSnapshotFingerprint } from "../src/snapshot/index.ts"
 import {
   createPostgresSchemaSnapshot,
   postgresSnapshotAdapter,
-  schemaSnapshotFingerprint,
   tryCreatePostgresSchemaSnapshot,
-} from "../src/snapshot/index.ts"
+} from "../src/snapshot/postgres.ts"
 
 const accounts = table(
   "account_records",

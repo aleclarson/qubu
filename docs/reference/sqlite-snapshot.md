@@ -2,10 +2,10 @@
 
 > Use this matrix to decide which SQLite schema facts Qubu v1 can serialize and which combinations must be diagnosed before a snapshot is written.
 
-Import the adapter from the optional snapshot entrypoint:
+Import the adapter from the SQLite snapshot subpath:
 
 ```ts
-import { createSqliteSchemaSnapshot, tryCreateSqliteSchemaSnapshot } from "qubu/snapshot"
+import { createSqliteSchemaSnapshot, tryCreateSqliteSchemaSnapshot } from "qubu/snapshot/sqlite"
 
 const snapshot = createSqliteSchemaSnapshot(appSchema)
 const result = tryCreateSqliteSchemaSnapshot(appSchema)

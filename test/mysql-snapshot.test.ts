@@ -22,17 +22,19 @@ import {
 } from "../src/index.ts"
 import { defineSchemaExpression, unsafeSchemaSql } from "../src/schema/index.ts"
 import {
-  createMysqlSchemaSnapshot,
   createSchemaSnapshot,
   decodeSchemaSnapshot,
   encodeSchemaSnapshot,
+  schemaSnapshotFingerprint,
+} from "../src/snapshot/index.ts"
+import {
+  createMysqlSchemaSnapshot,
   mysqlSnapshotAdapter,
   mysqlSnapshotDialect,
-  schemaSnapshotFingerprint,
-  tryCreatePostgresSchemaSnapshot,
-  tryCreateSqliteSchemaSnapshot,
   tryCreateMysqlSchemaSnapshot,
-} from "../src/snapshot/index.ts"
+} from "../src/snapshot/mysql.ts"
+import { tryCreatePostgresSchemaSnapshot } from "../src/snapshot/postgres.ts"
+import { tryCreateSqliteSchemaSnapshot } from "../src/snapshot/sqlite.ts"
 
 const currentTimestamp = defineSchemaExpression("function", (context) => {
   context.append("CURRENT_TIMESTAMP")

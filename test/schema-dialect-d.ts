@@ -5,7 +5,7 @@ import type { Dialect } from "../src/core/index.ts"
 import { postgresDialect } from "../src/dialects/postgres.ts"
 import { createSchemaDialect } from "../src/schema/index.ts"
 import type { SchemaDialect } from "../src/schema/index.ts"
-import { postgresSchemaDialect } from "../src/snapshot/index.ts"
+import { postgresSchemaDialect } from "../src/snapshot/postgres.ts"
 
 const queryDialect = postgresDialect()
 const schemaDialect = createSchemaDialect(queryDialect, { version: 1 })

@@ -9,7 +9,7 @@ plan returns diagnostics and no SQL.
 
 ```ts
 import { emitMigrationPlan } from "@qubu/migrate/ddl"
-import { postgresSchemaDialect } from "qubu/snapshot"
+import { postgresSchemaDialect } from "qubu/snapshot/postgres"
 
 const result = emitMigrationPlan(plan, postgresSchemaDialect)
 if (!result.ok) {

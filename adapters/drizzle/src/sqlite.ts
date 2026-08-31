@@ -15,7 +15,7 @@ import {
   type SQLiteTableWithColumns,
 } from "drizzle-orm/sqlite-core"
 import type * as qubu from "qubu"
-import { createSqliteSchemaSnapshot } from "qubu/snapshot"
+import { createSqliteSchemaSnapshot } from "qubu/snapshot/sqlite"
 
 import {
   convertDrizzleSchema,

@@ -8,6 +8,9 @@ import type {
 } from "qubu/introspection"
 import * as snapshot from "qubu/snapshot"
 import type { SchemaSnapshot } from "qubu/snapshot"
+import * as mysqlSnapshot from "qubu/snapshot/mysql"
+import * as postgresSnapshot from "qubu/snapshot/postgres"
+import * as sqliteSnapshot from "qubu/snapshot/sqlite"
 import { expectTypeOf } from "vitest"
 
 expectTypeOf(introspection.readPostgresCatalog).toBeFunction()
@@ -20,6 +23,12 @@ expectTypeOf<CatalogIntrospector>().toMatchTypeOf<
 >()
 expectTypeOf<SchemaSnapshot>().toMatchTypeOf<object>()
 expectTypeOf(snapshot.createSchemaSnapshot).toBeFunction()
+expectTypeOf(postgresSnapshot.createPostgresSchemaSnapshot).toBeFunction()
+expectTypeOf(sqliteSnapshot.createSqliteSchemaSnapshot).toBeFunction()
+expectTypeOf(mysqlSnapshot.createMysqlSchemaSnapshot).toBeFunction()
+
+// @ts-expect-error Dialect-specific snapshot creators have dedicated entrypoints.
+snapshot.createPostgresSchemaSnapshot
 
 // @ts-expect-error Introspection is intentionally not re-exported from qubu.
 root.readPostgresCatalog

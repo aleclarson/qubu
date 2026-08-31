@@ -1,12 +1,10 @@
 import { diffSnapshots } from "qubu/diff"
 import type { SchemaDialect } from "qubu/schema"
-import {
-  mysqlSchemaDialect,
-  postgresSchemaDialect,
-  sqliteSchemaDialect,
-  type SnapshotJsonValue,
-} from "qubu/snapshot"
+import type { SnapshotJsonValue } from "qubu/snapshot"
 import type { SchemaSnapshot, SnapshotTable } from "qubu/snapshot"
+import { mysqlSchemaDialect } from "qubu/snapshot/mysql"
+import { postgresSchemaDialect } from "qubu/snapshot/postgres"
+import { sqliteSchemaDialect } from "qubu/snapshot/sqlite"
 
 import { ddlEmitterForDialect } from "../ddl/index.ts"
 import { assertMigrationPlan, type MigrationOperation, type MigrationPlan } from "../plan/index.ts"

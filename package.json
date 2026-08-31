@@ -21,6 +21,9 @@
     "./postgres": "./src/dialects/postgres.ts",
     "./schema": "./src/schema/index.ts",
     "./snapshot": "./src/snapshot/index.ts",
+    "./snapshot/mysql": "./src/snapshot/mysql.ts",
+    "./snapshot/postgres": "./src/snapshot/postgres.ts",
+    "./snapshot/sqlite": "./src/snapshot/sqlite.ts",
     "./sqlite": "./src/dialects/sqlite.ts",
     "./vite": "./src/vite/index.ts",
     "./package.json": "./package.json",
@@ -65,6 +68,18 @@
       "./snapshot": {
         "types": "./dist/snapshot.d.mts",
         "import": "./dist/snapshot.mjs"
+      },
+      "./snapshot/mysql": {
+        "types": "./dist/snapshot/mysql.d.mts",
+        "import": "./dist/snapshot/mysql.mjs"
+      },
+      "./snapshot/postgres": {
+        "types": "./dist/snapshot/postgres.d.mts",
+        "import": "./dist/snapshot/postgres.mjs"
+      },
+      "./snapshot/sqlite": {
+        "types": "./dist/snapshot/sqlite.d.mts",
+        "import": "./dist/snapshot/sqlite.mjs"
       },
       "./sqlite": {
         "types": "./dist/sqlite.d.mts",

@@ -22,7 +22,7 @@ import {
   type MySqlTableWithColumns,
 } from "drizzle-orm/mysql-core"
 import type * as qubu from "qubu"
-import { createMysqlSchemaSnapshot } from "qubu/snapshot"
+import { createMysqlSchemaSnapshot } from "qubu/snapshot/mysql"
 
 import {
   convertDrizzleSchema,

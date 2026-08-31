@@ -7,7 +7,7 @@ import { sqliteDialect } from "../src/dialects/sqlite.ts"
 import { value } from "../src/index.ts"
 import { createSchemaDialect } from "../src/schema/index.ts"
 import { renderSchemaExpression, unsafeSchemaSql } from "../src/schema/index.ts"
-import { postgresSchemaDialect, postgresSnapshotAdapter } from "../src/snapshot/index.ts"
+import { postgresSchemaDialect, postgresSnapshotAdapter } from "../src/snapshot/postgres.ts"
 
 test("inherits query identifier, placeholder, and capability policy", () => {
   const queryDialect = postgresDialect()

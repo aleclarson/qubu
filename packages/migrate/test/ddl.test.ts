@@ -1,5 +1,6 @@
 import { diffSnapshots } from "qubu/diff"
-import { postgresSchemaDialect, type SchemaSnapshot } from "qubu/snapshot"
+import type { SchemaSnapshot } from "qubu/snapshot"
+import { postgresSchemaDialect } from "qubu/snapshot/postgres"
 import { expect, test } from "vitest"
 
 import {

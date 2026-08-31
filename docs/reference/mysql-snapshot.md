@@ -4,10 +4,10 @@
 > MySQL facts Qubu v1 can encode and the combinations that need a later server
 > version or engine policy.
 
-Import the adapter from the optional snapshot entrypoint:
+Import the adapter from the MySQL snapshot subpath:
 
 ```ts
-import { createMysqlSchemaSnapshot, tryCreateMysqlSchemaSnapshot } from "qubu/snapshot"
+import { createMysqlSchemaSnapshot, tryCreateMysqlSchemaSnapshot } from "qubu/snapshot/mysql"
 
 const snapshot = createMysqlSchemaSnapshot(appSchema)
 const result = tryCreateMysqlSchemaSnapshot(appSchema)

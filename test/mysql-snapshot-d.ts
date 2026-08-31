@@ -11,13 +11,12 @@ import {
 } from "../src/index.ts"
 import { defineSchemaExpression } from "../src/schema/index.ts"
 import {
-  createMysqlSchemaSnapshot,
   createSchemaSnapshot,
-  mysqlSnapshotAdapter,
   type SchemaSnapshot,
   type SchemaSnapshotAdapter,
   type SnapshotStorage,
 } from "../src/snapshot/index.ts"
+import { createMysqlSchemaSnapshot, mysqlSnapshotAdapter } from "../src/snapshot/mysql.ts"
 
 const currentTimestamp = defineSchemaExpression("function", (context) => {
   context.append("CURRENT_TIMESTAMP")

@@ -65,6 +65,18 @@ envelope. A dialect adapter owns physical storage mapping, SQL literal and
 expression encoding, dialect extensions, capability checks, and any dialect
 naming policy. PostgreSQL, SQLite, and MySQL adapters can implement
 `SchemaSnapshotAdapter` without duplicating traversal or decoder rules.
+The neutral API stays at `qubu/snapshot`; built-in dialect adapters have
+dedicated subpaths so importing neutral snapshot utilities does not widen that
+API:
+
+```ts
+import { createSchemaSnapshot } from "qubu/snapshot"
+import { createPostgresSchemaSnapshot } from "qubu/snapshot/postgres"
+
+const neutral = createSchemaSnapshot(appSchema)
+const postgres = createPostgresSchemaSnapshot(appSchema)
+```
+
 The PostgreSQL adapter is documented in the [PostgreSQL snapshot support
 matrix](../reference/postgres-snapshot.md). Its schema dialect extends the
 `postgresql` query dialect, and snapshot metadata uses that same identity.

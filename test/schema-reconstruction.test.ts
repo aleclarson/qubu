@@ -9,7 +9,8 @@ import {
   schema,
   table,
 } from "../src/index.ts"
-import { createSchemaSnapshot, postgresSchemaDialect } from "../src/snapshot/index.ts"
+import { createSchemaSnapshot } from "../src/snapshot/index.ts"
+import { postgresSchemaDialect } from "../src/snapshot/postgres.ts"
 
 test("serializes catalog reconstruction as ordinary schema metadata", () => {
   const parent = table(

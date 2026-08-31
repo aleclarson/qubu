@@ -1,5 +1,6 @@
 import { diffSnapshots } from "qubu/diff"
-import { sqliteSchemaDialect, type SchemaSnapshot } from "qubu/snapshot"
+import type { SchemaSnapshot } from "qubu/snapshot"
+import { sqliteSchemaDialect } from "qubu/snapshot/sqlite"
 
 import {
   compileMigrationProgram,

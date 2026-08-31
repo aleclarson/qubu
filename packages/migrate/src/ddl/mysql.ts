@@ -1,4 +1,4 @@
-import { mysqlSchemaDialect } from "qubu/snapshot"
+import { mysqlSchemaDialect } from "qubu/snapshot/mysql"
 
 import type { MigrationPlan } from "../plan/index.ts"
 import { createDdlEmitter } from "./emitter.ts"
