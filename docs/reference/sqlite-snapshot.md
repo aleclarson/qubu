@@ -5,10 +5,10 @@
 Import the adapter from the SQLite snapshot subpath:
 
 ```ts
-import { createSqliteSchemaSnapshot, tryCreateSqliteSchemaSnapshot } from "qubu/snapshot/sqlite"
+import { createSchemaSnapshot, tryCreateSchemaSnapshot } from "qubu/snapshot/sqlite"
 
-const snapshot = createSqliteSchemaSnapshot(appSchema)
-const result = tryCreateSqliteSchemaSnapshot(appSchema)
+const snapshot = createSchemaSnapshot(appSchema)
+const result = tryCreateSchemaSnapshot(appSchema)
 ```
 
 The snapshot dialect is `sqlite`, the same name used by Qubu's query dialect.
@@ -36,7 +36,7 @@ Capability checks run before common traversal. Use the non-throwing form when a
 schema may include a feature that depends on a SQLite version or table shape:
 
 ```ts
-const result = tryCreateSqliteSchemaSnapshot(appSchema)
+const result = tryCreateSchemaSnapshot(appSchema)
 if (!result.ok) {
   for (const issue of result.diagnostics) {
     console.error(issue.path.join("."), issue.code, issue.message)

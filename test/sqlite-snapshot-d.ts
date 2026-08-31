@@ -8,7 +8,7 @@ import {
   type SnapshotStorage,
 } from "../src/snapshot/index.ts"
 import {
-  createSqliteSchemaSnapshot,
+  createSchemaSnapshot as createSqliteSchemaSnapshot,
   sqliteSnapshotAdapter,
   sqliteStorageAffinity,
 } from "../src/snapshot/sqlite.ts"

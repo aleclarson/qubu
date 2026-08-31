@@ -23,12 +23,15 @@ expectTypeOf<CatalogIntrospector>().toMatchTypeOf<
 >()
 expectTypeOf<SchemaSnapshot>().toMatchTypeOf<object>()
 expectTypeOf(snapshot.createSchemaSnapshot).toBeFunction()
-expectTypeOf(postgresSnapshot.createPostgresSchemaSnapshot).toBeFunction()
-expectTypeOf(sqliteSnapshot.createSqliteSchemaSnapshot).toBeFunction()
-expectTypeOf(mysqlSnapshot.createMysqlSchemaSnapshot).toBeFunction()
+expectTypeOf(postgresSnapshot.createSchemaSnapshot).toBeFunction()
+expectTypeOf(sqliteSnapshot.createSchemaSnapshot).toBeFunction()
+expectTypeOf(mysqlSnapshot.createSchemaSnapshot).toBeFunction()
 
 // @ts-expect-error Dialect-specific snapshot creators have dedicated entrypoints.
 snapshot.createPostgresSchemaSnapshot
+
+// @ts-expect-error The PostgreSQL subpath uses the shared creator name.
+postgresSnapshot.createPostgresSchemaSnapshot
 
 // @ts-expect-error Introspection is intentionally not re-exported from qubu.
 root.readPostgresCatalog

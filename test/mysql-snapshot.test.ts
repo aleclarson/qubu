@@ -28,13 +28,13 @@ import {
   schemaSnapshotFingerprint,
 } from "../src/snapshot/index.ts"
 import {
-  createMysqlSchemaSnapshot,
+  createSchemaSnapshot as createMysqlSchemaSnapshot,
   mysqlSnapshotAdapter,
   mysqlSnapshotDialect,
-  tryCreateMysqlSchemaSnapshot,
+  tryCreateSchemaSnapshot as tryCreateMysqlSchemaSnapshot,
 } from "../src/snapshot/mysql.ts"
-import { tryCreatePostgresSchemaSnapshot } from "../src/snapshot/postgres.ts"
-import { tryCreateSqliteSchemaSnapshot } from "../src/snapshot/sqlite.ts"
+import { tryCreateSchemaSnapshot as tryCreatePostgresSchemaSnapshot } from "../src/snapshot/postgres.ts"
+import { tryCreateSchemaSnapshot as tryCreateSqliteSchemaSnapshot } from "../src/snapshot/sqlite.ts"
 
 const currentTimestamp = defineSchemaExpression("function", (context) => {
   context.append("CURRENT_TIMESTAMP")

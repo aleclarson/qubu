@@ -27,10 +27,10 @@ import {
   schemaSnapshotFingerprint,
 } from "../src/snapshot/index.ts"
 import {
-  createSqliteSchemaSnapshot,
+  createSchemaSnapshot as createSqliteSchemaSnapshot,
   sqliteSnapshotAdapter,
   sqliteStorageAffinity,
-  tryCreateSqliteSchemaSnapshot,
+  tryCreateSchemaSnapshot as tryCreateSqliteSchemaSnapshot,
 } from "../src/snapshot/sqlite.ts"
 
 const accounts = table(

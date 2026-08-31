@@ -11,8 +11,8 @@ import type { Schema, SchemaTableEntry } from "../schema/registry.ts"
 import type { AnyTable, TableDefinitions } from "../schema/table.ts"
 import { toSnapshotJsonValue } from "./canonical.ts"
 import {
-  createSchemaSnapshot,
-  tryCreateSchemaSnapshot,
+  createSchemaSnapshot as createNeutralSchemaSnapshot,
+  tryCreateSchemaSnapshot as tryCreateNeutralSchemaSnapshot,
   type SchemaSnapshotOptions,
 } from "./serialize.ts"
 import {
@@ -79,22 +79,22 @@ export const postgresSnapshotAdapter: SchemaSnapshotAdapter<
 })
 
 /** Create a canonical PostgreSQL schema snapshot. */
-export function createPostgresSchemaSnapshot<TSchema extends Schema<any>>(
+export function createSchemaSnapshot<TSchema extends Schema<any>>(
   schema: TSchema,
   options: PostgresSnapshotOptions = {},
 ): SchemaSnapshot {
-  return createSchemaSnapshot(schema, {
+  return createNeutralSchemaSnapshot(schema, {
     ...options,
     adapter: postgresSnapshotAdapter,
   })
 }
 
 /** Return PostgreSQL capability diagnostics without throwing. */
-export function tryCreatePostgresSchemaSnapshot<TSchema extends Schema<any>>(
+export function tryCreateSchemaSnapshot<TSchema extends Schema<any>>(
   schema: TSchema,
   options: PostgresSnapshotOptions = {},
 ): SnapshotCreateResult {
-  return tryCreateSchemaSnapshot(schema, {
+  return tryCreateNeutralSchemaSnapshot(schema, {
     ...options,
     adapter: postgresSnapshotAdapter,
   })

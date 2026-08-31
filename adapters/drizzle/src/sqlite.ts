@@ -15,7 +15,7 @@ import {
   type SQLiteTableWithColumns,
 } from "drizzle-orm/sqlite-core"
 import type * as qubu from "qubu"
-import { createSqliteSchemaSnapshot } from "qubu/snapshot/sqlite"
+import { createSchemaSnapshot } from "qubu/snapshot/sqlite"
 
 import {
   convertDrizzleSchema,
@@ -54,7 +54,7 @@ export type SqliteDrizzleSchema<TSchema extends qubu.Schema<any>> = {
 
 const sqliteAdapter: DialectAdapter = {
   dialect: "sqlite",
-  createSnapshot: createSqliteSchemaSnapshot,
+  createSnapshot: createSchemaSnapshot,
   createTableFactory() {
     return sqliteTable as unknown as TableFactory
   },

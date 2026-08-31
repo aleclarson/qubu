@@ -16,7 +16,10 @@ import {
   type SchemaSnapshotAdapter,
   type SnapshotStorage,
 } from "../src/snapshot/index.ts"
-import { createMysqlSchemaSnapshot, mysqlSnapshotAdapter } from "../src/snapshot/mysql.ts"
+import {
+  createSchemaSnapshot as createMysqlSchemaSnapshot,
+  mysqlSnapshotAdapter,
+} from "../src/snapshot/mysql.ts"
 
 const currentTimestamp = defineSchemaExpression("function", (context) => {
   context.append("CURRENT_TIMESTAMP")

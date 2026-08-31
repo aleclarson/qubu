@@ -17,8 +17,8 @@ import type {
   SnapshotConstraint,
   SnapshotIndexTerm,
 } from "../src/snapshot/index.ts"
-import { createPostgresSchemaSnapshot } from "../src/snapshot/postgres.ts"
-import { createSqliteSchemaSnapshot } from "../src/snapshot/sqlite.ts"
+import { createSchemaSnapshot as createPostgresSchemaSnapshot } from "../src/snapshot/postgres.ts"
+import { createSchemaSnapshot as createSqliteSchemaSnapshot } from "../src/snapshot/sqlite.ts"
 import { cycleDataSchema } from "./codegen-cycle.generated.ts"
 import { emptyDataSchema } from "./codegen-empty.generated.ts"
 import {

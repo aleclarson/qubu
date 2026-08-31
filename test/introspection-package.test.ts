@@ -48,9 +48,12 @@ test("resolves optional entrypoints without widening existing entrypoints", () =
   expect(snapshot).not.toHaveProperty("createPostgresSchemaSnapshot")
   expect(snapshot).not.toHaveProperty("createSqliteSchemaSnapshot")
   expect(snapshot).not.toHaveProperty("createMysqlSchemaSnapshot")
-  expect(postgresSnapshot.createPostgresSchemaSnapshot).toBeTypeOf("function")
-  expect(sqliteSnapshot.createSqliteSchemaSnapshot).toBeTypeOf("function")
-  expect(mysqlSnapshot.createMysqlSchemaSnapshot).toBeTypeOf("function")
+  expect(postgresSnapshot.createSchemaSnapshot).toBeTypeOf("function")
+  expect(sqliteSnapshot.createSchemaSnapshot).toBeTypeOf("function")
+  expect(mysqlSnapshot.createSchemaSnapshot).toBeTypeOf("function")
+  expect(postgresSnapshot).not.toHaveProperty("createPostgresSchemaSnapshot")
+  expect(sqliteSnapshot).not.toHaveProperty("createSqliteSchemaSnapshot")
+  expect(mysqlSnapshot).not.toHaveProperty("createMysqlSchemaSnapshot")
 })
 
 test("keeps source and publish exports aligned with the build entry", () => {

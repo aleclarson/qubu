@@ -49,10 +49,10 @@ baseline for the next catalog read:
 
 ```ts
 import { mapCatalogToSnapshot } from "qubu/introspection"
-import { createSqliteSchemaSnapshot } from "qubu/snapshot/sqlite"
+import { createSchemaSnapshot } from "qubu/snapshot/sqlite"
 import { mainSchema } from "./schema.generated.ts"
 
-const previousSnapshot = createSqliteSchemaSnapshot(mainSchema)
+const previousSnapshot = createSchemaSnapshot(mainSchema)
 const next = mapCatalogToSnapshot(nextCatalog, {
   namespace: "main",
   previousSnapshot,

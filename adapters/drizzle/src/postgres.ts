@@ -22,7 +22,7 @@ import {
   type PgTableWithColumns,
 } from "drizzle-orm/pg-core"
 import type * as qubu from "qubu"
-import { createPostgresSchemaSnapshot } from "qubu/snapshot/postgres"
+import { createSchemaSnapshot } from "qubu/snapshot/postgres"
 
 import {
   convertDrizzleSchema,
@@ -65,7 +65,7 @@ export type PostgresDrizzleSchema<TSchema extends qubu.Schema<any>> = {
 
 const postgresAdapter: DialectAdapter = {
   dialect: "postgresql",
-  createSnapshot: createPostgresSchemaSnapshot,
+  createSnapshot: createSchemaSnapshot,
   createTableFactory(namespace) {
     return (namespace === undefined
       ? pgTable

@@ -8,9 +8,12 @@ Import the adapter from the PostgreSQL snapshot subpath:
 
 ```ts
 import { createSchemaSnapshot } from "qubu/snapshot"
-import { createPostgresSchemaSnapshot, postgresSnapshotAdapter } from "qubu/snapshot/postgres"
+import {
+  createSchemaSnapshot as createPostgresSnapshot,
+  postgresSnapshotAdapter,
+} from "qubu/snapshot/postgres"
 
-const snapshot = createPostgresSchemaSnapshot(appSchema)
+const snapshot = createPostgresSnapshot(appSchema)
 // Equivalent: createSchemaSnapshot(appSchema, { adapter: postgresSnapshotAdapter })
 ```
 
@@ -43,9 +46,9 @@ schema and application boundaries.
 Use the non-throwing form when a schema may contain a server-specific feature:
 
 ```ts
-import { tryCreatePostgresSchemaSnapshot } from "qubu/snapshot/postgres"
+import { tryCreateSchemaSnapshot } from "qubu/snapshot/postgres"
 
-const result = tryCreatePostgresSchemaSnapshot(appSchema)
+const result = tryCreateSchemaSnapshot(appSchema)
 if (!result.ok) {
   for (const issue of result.diagnostics) {
     console.error(issue.path.join("."), issue.code, issue.message)

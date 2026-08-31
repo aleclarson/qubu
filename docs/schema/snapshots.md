@@ -71,10 +71,10 @@ API:
 
 ```ts
 import { createSchemaSnapshot } from "qubu/snapshot"
-import { createPostgresSchemaSnapshot } from "qubu/snapshot/postgres"
+import { createSchemaSnapshot as createPostgresSnapshot } from "qubu/snapshot/postgres"
 
 const neutral = createSchemaSnapshot(appSchema)
-const postgres = createPostgresSchemaSnapshot(appSchema)
+const postgres = createPostgresSnapshot(appSchema)
 ```
 
 The PostgreSQL adapter is documented in the [PostgreSQL snapshot support

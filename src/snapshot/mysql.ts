@@ -13,8 +13,8 @@ import type { Schema, SchemaTableEntry } from "../schema/registry.ts"
 import type { AnyTable, TableDefinitions } from "../schema/table.ts"
 import { toSnapshotJsonValue } from "./canonical.ts"
 import {
-  createSchemaSnapshot,
-  tryCreateSchemaSnapshot,
+  createSchemaSnapshot as createNeutralSchemaSnapshot,
+  tryCreateSchemaSnapshot as tryCreateNeutralSchemaSnapshot,
   type SchemaSnapshotOptions,
 } from "./serialize.ts"
 import {
@@ -80,22 +80,22 @@ export const mysqlSnapshotAdapter: SchemaSnapshotAdapter<"json" | "row-locking">
 })
 
 /** Create a canonical MySQL schema snapshot. */
-export function createMysqlSchemaSnapshot<TSchema extends Schema<any>>(
+export function createSchemaSnapshot<TSchema extends Schema<any>>(
   schema: TSchema,
   options: MysqlSnapshotOptions = {},
 ): SchemaSnapshot {
-  return createSchemaSnapshot(schema, {
+  return createNeutralSchemaSnapshot(schema, {
     ...options,
     adapter: mysqlSnapshotAdapter,
   })
 }
 
 /** Return MySQL capability diagnostics without throwing. */
-export function tryCreateMysqlSchemaSnapshot<TSchema extends Schema<any>>(
+export function tryCreateSchemaSnapshot<TSchema extends Schema<any>>(
   schema: TSchema,
   options: MysqlSnapshotOptions = {},
 ): SnapshotCreateResult {
-  return tryCreateSchemaSnapshot(schema, {
+  return tryCreateNeutralSchemaSnapshot(schema, {
     ...options,
     adapter: mysqlSnapshotAdapter,
   })

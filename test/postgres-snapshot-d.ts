@@ -4,7 +4,10 @@ import { schema, table, text } from "../src/index.ts"
 import type { SchemaDialect } from "../src/index.ts"
 import { createSchemaSnapshot } from "../src/snapshot/index.ts"
 import type { SchemaSnapshot, SchemaSnapshotAdapter } from "../src/snapshot/index.ts"
-import { createPostgresSchemaSnapshot, postgresSnapshotAdapter } from "../src/snapshot/postgres.ts"
+import {
+  createSchemaSnapshot as createPostgresSchemaSnapshot,
+  postgresSnapshotAdapter,
+} from "../src/snapshot/postgres.ts"
 
 const records = table("records", { name: text() })
 const registry = schema({ records })

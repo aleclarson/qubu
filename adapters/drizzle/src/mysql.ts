@@ -22,7 +22,7 @@ import {
   type MySqlTableWithColumns,
 } from "drizzle-orm/mysql-core"
 import type * as qubu from "qubu"
-import { createMysqlSchemaSnapshot } from "qubu/snapshot/mysql"
+import { createSchemaSnapshot } from "qubu/snapshot/mysql"
 
 import {
   convertDrizzleSchema,
@@ -63,7 +63,7 @@ export type MysqlDrizzleSchema<TSchema extends qubu.Schema<any>> = {
 
 const mysqlAdapter: DialectAdapter = {
   dialect: "mysql",
-  createSnapshot: createMysqlSchemaSnapshot,
+  createSnapshot: createSchemaSnapshot,
   createTableFactory(namespace) {
     return (namespace === undefined
       ? mysqlTable

@@ -12,8 +12,8 @@ import type { Schema, SchemaTableEntry } from "../schema/registry.ts"
 import type { AnyTable, TableDefinitions } from "../schema/table.ts"
 import { toSnapshotJsonValue } from "./canonical.ts"
 import {
-  createSchemaSnapshot,
-  tryCreateSchemaSnapshot,
+  createSchemaSnapshot as createNeutralSchemaSnapshot,
+  tryCreateSchemaSnapshot as tryCreateNeutralSchemaSnapshot,
   type SchemaSnapshotOptions,
 } from "./serialize.ts"
 import {
@@ -109,22 +109,22 @@ export const sqliteSnapshotAdapter: SchemaSnapshotAdapter<"json" | "on-conflict"
 })
 
 /** Create a canonical SQLite schema snapshot. */
-export function createSqliteSchemaSnapshot<TSchema extends Schema<any>>(
+export function createSchemaSnapshot<TSchema extends Schema<any>>(
   schema: TSchema,
   options: SqliteSnapshotOptions = {},
 ): SchemaSnapshot {
-  return createSchemaSnapshot(schema, {
+  return createNeutralSchemaSnapshot(schema, {
     ...options,
     adapter: sqliteSnapshotAdapter,
   })
 }
 
 /** Return SQLite capability diagnostics without throwing. */
-export function tryCreateSqliteSchemaSnapshot<TSchema extends Schema<any>>(
+export function tryCreateSchemaSnapshot<TSchema extends Schema<any>>(
   schema: TSchema,
   options: SqliteSnapshotOptions = {},
 ): SnapshotCreateResult {
-  return tryCreateSchemaSnapshot(schema, {
+  return tryCreateNeutralSchemaSnapshot(schema, {
     ...options,
     adapter: sqliteSnapshotAdapter,
   })

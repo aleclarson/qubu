@@ -7,10 +7,10 @@
 Import the adapter from the MySQL snapshot subpath:
 
 ```ts
-import { createMysqlSchemaSnapshot, tryCreateMysqlSchemaSnapshot } from "qubu/snapshot/mysql"
+import { createSchemaSnapshot, tryCreateSchemaSnapshot } from "qubu/snapshot/mysql"
 
-const snapshot = createMysqlSchemaSnapshot(appSchema)
-const result = tryCreateMysqlSchemaSnapshot(appSchema)
+const snapshot = createSchemaSnapshot(appSchema)
+const result = tryCreateSchemaSnapshot(appSchema)
 ```
 
 The snapshot dialect is named `mysql`, the same name used by Qubu's query
@@ -38,7 +38,7 @@ Capability checks run before common traversal. Use the non-throwing form when
 a schema may include a MySQL engine or version-specific feature:
 
 ```ts
-const result = tryCreateMysqlSchemaSnapshot(appSchema)
+const result = tryCreateSchemaSnapshot(appSchema)
 if (!result.ok) {
   for (const issue of result.diagnostics) {
     console.error(issue.path.join("."), issue.code, issue.message)

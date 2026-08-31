@@ -25,9 +25,9 @@ import {
 import { unsafeSchemaSql } from "../src/schema/index.ts"
 import { schemaSnapshotFingerprint } from "../src/snapshot/index.ts"
 import {
-  createPostgresSchemaSnapshot,
+  createSchemaSnapshot as createPostgresSchemaSnapshot,
   postgresSnapshotAdapter,
-  tryCreatePostgresSchemaSnapshot,
+  tryCreateSchemaSnapshot as tryCreatePostgresSchemaSnapshot,
 } from "../src/snapshot/postgres.ts"
 
 const accounts = table(
