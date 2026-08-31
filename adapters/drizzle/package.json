@@ -1,6 +1,6 @@
 {
   "name": "@qubu/drizzle",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/aleclarson/qubu",
@@ -49,6 +49,6 @@
   },
   "peerDependencies": {
     "drizzle-orm": ">=1.0.0-rc.4 <2.0.0",
-    "qubu": "0.5.1"
+    "qubu": "0.6.0"
   }
 }

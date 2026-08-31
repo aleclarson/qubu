@@ -1,6 +1,6 @@
 {
   "name": "@qubu/adapter-node-sqlite",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/aleclarson/qubu",
@@ -33,7 +33,7 @@
     "qubu": "workspace:*"
   },
   "peerDependencies": {
-    "@qubu/migrate": "0.5.1",
-    "qubu": "0.5.1"
+    "@qubu/migrate": "0.6.0",
+    "qubu": "0.6.0"
   }
 }
