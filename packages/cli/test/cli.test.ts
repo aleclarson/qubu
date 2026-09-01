@@ -183,7 +183,7 @@ async function temporaryDirectory(): Promise<string> {
 function snapshot(names: readonly string[] = []): SchemaSnapshot {
   return {
     format: "qubu-schema",
-    version: 2,
+    version: 1,
     dialect: {
       name: "sqlite",
       version: 1,
@@ -233,7 +233,7 @@ function snapshot(names: readonly string[] = []): SchemaSnapshot {
 function postgresSnapshot(): CompleteSchemaSnapshot {
   return {
     format: "qubu-schema",
-    version: 2,
+    version: 1,
     dialect: { name: "postgresql", version: 1 },
     namingPolicy: { name: "introspected-physical", version: 1 },
     namespace: { kind: "postgres-schema", name: "public" },

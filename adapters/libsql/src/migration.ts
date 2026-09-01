@@ -683,7 +683,7 @@ function isSchemaSnapshot(value: unknown): value is SchemaSnapshot {
     "format" in value &&
     value.format === "qubu-schema" &&
     "version" in value &&
-    value.version === 2
+    value.version === 1
   )
 }
 function truthy(value: unknown): boolean {

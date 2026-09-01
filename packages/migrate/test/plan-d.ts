@@ -24,7 +24,7 @@ void decision
 
 const snapshot: SchemaSnapshot = {
   format: "qubu-schema",
-  version: 2,
+  version: 1,
   dialect: {
     name: "neutral",
     version: 1,

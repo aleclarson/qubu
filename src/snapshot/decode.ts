@@ -11,12 +11,12 @@ export class SnapshotValidationError extends CompleteSnapshotValidationError {
   readonly name: string = "SnapshotValidationError"
 }
 
-/** Decode and strictly validate the canonical Snapshot v2 JSON value. */
+/** Decode and strictly validate the canonical Snapshot v1 JSON value. */
 export function decodeSchemaSnapshot(input: string | unknown): SnapshotDecodeResult {
   return decodeCompleteSchemaSnapshot(input)
 }
 
-/** Validate a Snapshot v2 value and throw one structured error if it is malformed. */
+/** Validate a Snapshot v1 value and throw one structured error if it is malformed. */
 export function assertSchemaSnapshot(input: SchemaSnapshotInput | string): SchemaSnapshot {
   const result = decodeSchemaSnapshot(input)
 
@@ -27,10 +27,10 @@ export function assertSchemaSnapshot(input: SchemaSnapshotInput | string): Schem
   return result.value
 }
 
-/** Return a fixed-order, deeply immutable copy of a valid Snapshot v2 value. */
+/** Return a fixed-order, deeply immutable copy of a valid Snapshot v1 value. */
 export function canonicalizeSchemaSnapshot(input: SchemaSnapshotInput): SchemaSnapshot {
   return canonicalizeCompleteSchemaSnapshot(input)
 }
 
-/** Keep the complete decoder available under its explicit v2 name. */
+/** Keep the complete decoder available under its explicit complete names. */
 export { assertCompleteSchemaSnapshot, decodeCompleteSchemaSnapshot }

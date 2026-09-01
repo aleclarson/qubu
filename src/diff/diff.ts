@@ -36,7 +36,7 @@ interface InternalObject {
 }
 
 interface DecodedSnapshot {
-  readonly version: 2
+  readonly version: 1
   readonly value: SchemaSnapshot
   readonly records: readonly InternalObject[]
   readonly fingerprint: string
@@ -80,7 +80,7 @@ const operationOrder = new Map([
 ])
 
 /**
- * Compare Snapshot v2 values and return immutable, reviewable data.
+ * Compare Snapshot v1 values and return immutable, reviewable data.
  *
  * The function never opens a connection, renders SQL, or turns a heuristic match into a rename.
  * Invalid input and malformed hints are represented by diagnostics in the returned value.
@@ -492,7 +492,7 @@ export function diffSnapshots(
 /** Alias that reads naturally in comparison-oriented callers. */
 export const compareSnapshots = diffSnapshots
 
-/** Decode and normalize a Snapshot v2 value without throwing. */
+/** Decode and normalize a Snapshot v1 value without throwing. */
 export function decodeSnapshotForDiff(input: SnapshotDiffInput): SnapshotDiffDecodeResult {
   const decoded = decodeSnapshot(input)
 
@@ -701,7 +701,7 @@ function decodeSnapshot(input: SnapshotDiffInput): {
   const version = value.version
   const normalized = sortSnapshotArrays(value)
 
-  if (version === 2) {
+  if (version === 1) {
     const result = decodeCompleteSchemaSnapshot(normalized)
 
     if (!result.ok) {
@@ -714,7 +714,7 @@ function decodeSnapshot(input: SnapshotDiffInput): {
     return {
       diagnostics,
       snapshot: {
-        version: 2,
+        version: 1,
         value: snapshot,
         records: extractSnapshotObjects(snapshot),
         fingerprint: completeSchemaSnapshotFingerprint(snapshot),

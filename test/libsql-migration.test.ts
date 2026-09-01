@@ -45,7 +45,7 @@ function client(): Client {
 function snapshot(names: readonly string[]): SchemaSnapshot {
   return {
     format: "qubu-schema",
-    version: 2,
+    version: 1,
     dialect,
     namingPolicy: { name: "live-test", version: 1 },
     namespace: { kind: "sqlite-database", name: "main" },
@@ -347,7 +347,7 @@ test("bootstraps inline SQLite constraints and round trips through strict intros
   const database = client()
   const target: SchemaSnapshot = {
     format: "qubu-schema",
-    version: 2,
+    version: 1,
     dialect,
     namingPolicy: { name: "fixture", version: 1 },
     namespace: { kind: "sqlite-database", name: "main" },
@@ -450,7 +450,7 @@ test("bootstraps inline SQLite constraints and round trips through strict intros
   await executeMigrations({ repository: [migration], adapter: libsqlMigrationAdapter(database) })
   const inspection = await readLibsqlMigrationSnapshot(database, target)
 
-  if (inspection.snapshot.version !== 2) throw new Error("Expected a version 2 SQLite snapshot")
+  if (inspection.snapshot.version !== 1) throw new Error("Expected a version 1 SQLite snapshot")
 
   const comparison = compareManagedSnapshots(target, inspection.snapshot)
   expect(comparison.matches, JSON.stringify(comparison)).toBe(true)

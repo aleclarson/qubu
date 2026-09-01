@@ -48,7 +48,7 @@ async function resetFixture() {
 function completePostgresSnapshot(): CompleteSchemaSnapshot {
   return {
     format: "qubu-schema",
-    version: 2,
+    version: 1,
     dialect: { name: "postgresql", version: 1 },
     namingPolicy: { name: "postgres-live-test", version: 1 },
     namespace: { kind: "postgres-schema", name: "public" },
@@ -115,7 +115,7 @@ function completePostgresSnapshot(): CompleteSchemaSnapshot {
 function snapshot(names: readonly string[] = []): SchemaSnapshot {
   return {
     format: "qubu-schema",
-    version: 2,
+    version: 1,
     dialect: {
       name: "postgresql",
       version: 1,

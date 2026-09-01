@@ -1,6 +1,6 @@
 # Generate a schema from introspection
 
-> Turn one complete, non-lossy Snapshot v2 introspection result into a deterministic, machine-owned TypeScript schema module.
+> Turn one complete, non-lossy Snapshot v1 introspection result into a deterministic, machine-owned TypeScript schema module.
 
 Source generation is an optional capability exported from `qubu/codegen`. It
 is a pure handoff after introspection: it opens no connection, runs no catalog
@@ -33,7 +33,7 @@ returns data. A successful result contains deterministic `source` and every
 retained diagnostic. A failed result contains diagnostics and no partial
 source.
 
-The module exports one declaration for every ordinary Snapshot v2 table and
+The module exports one declaration for every ordinary Snapshot v1 table and
 one schema registry. It reconstructs physical names, exact native storage,
 column write behavior, defaults, generated and identity metadata, constraints,
 indexes, opaque predicates and expressions, and dialect extensions. Checks use
@@ -101,14 +101,14 @@ diagnostics and no source.
 ## Diagnostics and source safety
 
 Generation rejects failed or lossy introspection, an altered snapshot that no
-longer matches its catalog, omitted Snapshot v2 facts, unresolved references,
+longer matches its catalog, omitted Snapshot v1 facts, unresolved references,
 unsafe names, invalid mapping tokens, and data that cannot be represented
 without source injection. Existing introspection diagnostics stay attached to
 the result.
 
 > [!IMPORTANT]
 > A database can allow a foreign key to reference a nullable `UNIQUE`
-> constraint. Snapshot v2 retains that constraint as nullable uniqueness, not
+> constraint. Snapshot v1 retains that constraint as nullable uniqueness, not
 > as a Qubu candidate key. Source generation returns an
 > `unrepresentable-fact` diagnostic instead of weakening the generated
 > `references()` proof. Use a non-null primary key, strict unique key, or
@@ -124,9 +124,9 @@ The public types and TSDoc on `generateSchemaSource()`,
 `SchemaCodegenOptions`, and `CodegenDiagnostic` define the exact callback and
 result contracts.
 
-## Snapshot v2 boundary
+## Snapshot v1 boundary
 
-Generation covers ordinary Snapshot v2 tables in one namespace. Complete
+Generation covers ordinary Snapshot v1 tables in one namespace. Complete
 catalog families outside that model—views, materialized views, sequences,
 enums, domains, routines, triggers, partitions, policies, collations,
 extensions, comments, ownership, and retained opaque or deferred objects—are

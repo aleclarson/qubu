@@ -133,7 +133,7 @@ const excludedFamilies = [
  * Generate a deterministic TypeScript module from one introspection result.
  *
  * @remarks
- *   Generation accepts only a successful, non-lossy Snapshot v2 result for one PostgreSQL, SQLite,
+ *   Generation accepts only a successful, non-lossy Snapshot v1 result for one PostgreSQL, SQLite,
  *   or MySQL namespace. It is pure: it opens no connection, performs no filesystem writes, and
  *   never evaluates catalog SQL. Existing introspection diagnostics are copied into the result. Any
  *   error returns no source. The generated module exports every ordinary table plus one schema
@@ -288,7 +288,7 @@ function validateInputEnvelope(
     diagnostics.push(
       errorDiagnostic(
         "unsupported-snapshot",
-        `Code generation supports Snapshot v2 dialect extensions, received version ${snapshot.dialect.version}`,
+        `Code generation supports Snapshot v1 dialect extensions, received version ${snapshot.dialect.version}`,
         ["snapshot", "dialect", "version"],
       ),
     )
@@ -321,7 +321,7 @@ function validatePhysicalFacts(
     diagnostics.push(
       errorDiagnostic(
         "omitted-fact",
-        "The normalized catalog cannot be mapped to a complete strict Snapshot v2",
+        "The normalized catalog cannot be mapped to a complete strict Snapshot v1",
         ["catalog", "tables"],
         "Resolve the strict introspection diagnostics before generating source.",
       ),
@@ -336,7 +336,7 @@ function validatePhysicalFacts(
     diagnostics.push(
       errorDiagnostic(
         "omitted-fact",
-        "The introspection snapshot does not contain the catalog's complete Snapshot v2 table facts",
+        "The introspection snapshot does not contain the catalog's complete Snapshot v1 table facts",
         ["snapshot", "tables"],
         "Use the snapshot returned with this exact strict catalog result.",
       ),
@@ -1297,9 +1297,9 @@ function appendExcludedFamilyDiagnostics(
     diagnostics.push({
       severity: "warning",
       code: "excluded-object-family",
-      message: `Snapshot v2 source generation excludes ${values.length} ${label}`,
+      message: `Snapshot v1 source generation excludes ${values.length} ${label}`,
       path: Object.freeze(["catalog", property]),
-      remediation: "Use the complete normalized catalog or Snapshot v2 for this object family.",
+      remediation: "Use the complete normalized catalog or Snapshot v1 for this object family.",
     })
   }
 }

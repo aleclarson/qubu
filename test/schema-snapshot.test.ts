@@ -80,7 +80,7 @@ test("serializes the complete neutral table model without executable values", ()
 
   expect(snapshot).toMatchObject({
     format: "qubu-schema",
-    version: 2,
+    version: 1,
     dialect: {
       name: "neutral",
       version: 1,
@@ -201,7 +201,7 @@ test("round trips immutable data and rejects unknown or future fields", () => {
   }
 })
 
-test("rejects Snapshot v1 input after the v2 cutover", () => {
+test("rejects the legacy table-only snapshot shape after the format rename", () => {
   const result = decodeSchemaSnapshot({
     format: "qubu-schema",
     version: 1,
@@ -221,10 +221,8 @@ test("rejects Snapshot v1 input after the v2 cutover", () => {
   if (!result.ok) {
     expect(result.diagnostics).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          code: "invalid-snapshot",
-          path: ["version"],
-        }),
+        expect.objectContaining({ code: "invalid-snapshot", path: ["namespace"] }),
+        expect.objectContaining({ code: "invalid-snapshot", path: ["capabilities"] }),
       ]),
     )
   }

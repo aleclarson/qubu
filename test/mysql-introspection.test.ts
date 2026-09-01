@@ -623,7 +623,7 @@ test("reads constraints, referential actions, STATISTICS terms, and prefix diagn
   )
 })
 
-test("normalizes complete MySQL object families, retains boundaries, and maps Snapshot v2", async () => {
+test("normalizes complete MySQL object families, retains boundaries, and maps Snapshot v1", async () => {
   const fake = completeConnection()
   const catalog = await readCatalog(fake.connection, options())
 
@@ -795,7 +795,7 @@ test("normalizes complete MySQL object families, retains boundaries, and maps Sn
     return
   }
 
-  expect(mapped.snapshot.version).toBe(2)
+  expect(mapped.snapshot.version).toBe(1)
   expect(mapped.snapshot.tables).toHaveLength(2)
   expect(mapped.snapshot.views).toHaveLength(1)
   expect(mapped.snapshot.collations).toHaveLength(1)

@@ -20,7 +20,7 @@ function snapshot(names: string | readonly string[] = []): SchemaSnapshot {
   const values = typeof names === "string" ? [names] : names
   return {
     format: "qubu-schema",
-    version: 2,
+    version: 1,
     dialect,
     namingPolicy: {
       name: "test",

@@ -606,8 +606,8 @@ async function createMigration(
       : previous.snapshot.value
     : emptySnapshot(target)
 
-  if (!before || before.format !== "qubu-schema" || before.version !== 2) {
-    throw new CliFailure("validation", "The previous artifact must embed a version 2 snapshot")
+  if (!before || before.format !== "qubu-schema" || before.version !== 1) {
+    throw new CliFailure("validation", "The previous artifact must embed a version 1 snapshot")
   }
 
   const planned = createMigrationPlan(diffSnapshots(before, target), {

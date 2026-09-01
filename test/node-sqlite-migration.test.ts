@@ -33,7 +33,7 @@ function database(): DatabaseSync {
 function snapshot(names: readonly string[]): SchemaSnapshot {
   return {
     format: "qubu-schema",
-    version: 2,
+    version: 1,
     dialect,
     namingPolicy: {
       name: "node-sqlite-live-test",

@@ -1,16 +1,16 @@
 import {
   assertCompleteSchemaSnapshot,
   completeSchemaSnapshotFingerprint,
-  decodeSchemaSnapshotV2,
-  encodeSchemaSnapshotV2,
-  type SchemaSnapshotV2,
+  decodeSchemaSnapshotV1,
+  encodeSchemaSnapshotV1,
+  type SchemaSnapshotV1,
 } from "../src/snapshot/index.ts"
 
-declare const snapshot: SchemaSnapshotV2
-const decoded = decodeSchemaSnapshotV2(encodeSchemaSnapshotV2(snapshot))
+declare const snapshot: SchemaSnapshotV1
+const decoded = decodeSchemaSnapshotV1(encodeSchemaSnapshotV1(snapshot))
 
 if (decoded.ok) {
-  const value: SchemaSnapshotV2 = assertCompleteSchemaSnapshot(decoded.value)
+  const value: SchemaSnapshotV1 = assertCompleteSchemaSnapshot(decoded.value)
   const fingerprint: string = completeSchemaSnapshotFingerprint(value)
 
   void fingerprint

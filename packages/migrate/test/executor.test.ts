@@ -20,7 +20,7 @@ const dialect = { name: "sqlite", version: 1 } as const
 function snapshot(withTable = false): SchemaSnapshot {
   return {
     format: "qubu-schema",
-    version: 2,
+    version: 1,
     dialect,
     namingPolicy: { name: "test", version: 1 },
     namespace: { kind: "sqlite-database", name: "main" },

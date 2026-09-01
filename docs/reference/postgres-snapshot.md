@@ -1,7 +1,7 @@
 # PostgreSQL snapshot support
 
 > Use this matrix before selecting `postgresSnapshotAdapter`; it records the
-> PostgreSQL facts Qubu v2 can encode and the cases that need a later server
+> PostgreSQL facts Qubu v1 can encode and the cases that need a later server
 > version policy.
 
 Import the adapter from the PostgreSQL snapshot subpath:
@@ -22,7 +22,7 @@ snapshot metadata and `unsafeSchemaSql()` use `postgresql` consistently.
 
 ## Support matrix
 
-| Schema fact         | PostgreSQL v2 behavior                                                                                                                                                                                                       |
+| Schema fact         | PostgreSQL v1 behavior                                                                                                                                                                                                       |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Portable storage    | Emits PostgreSQL declarations: `INTEGER`, `NUMERIC`, `TEXT`, `BOOLEAN`, `DATE`, `TIMESTAMP`, `UUID`, `JSONB`, `BIGINT`, and `BYTEA`.                                                                                         |
 | Native storage      | Preserves a non-empty declaration tagged `postgresql` exactly. Other dialect tags fail.                                                                                                                                      |
@@ -32,7 +32,7 @@ snapshot metadata and `unsafeSchemaSql()` use `postgresql` consistently.
 | Generated columns   | Stored expressions are supported. Virtual generated columns fail with a capability diagnostic.                                                                                                                               |
 | Keys and checks     | Primary keys, strict unique keys, ordinary unique constraints, foreign keys, and checks retain names, timing, actions, and expressions. Checks cannot be deferrable.                                                         |
 | Foreign-key match   | `simple` and `full` are retained. `partial` fails because PostgreSQL does not implement it.                                                                                                                                  |
-| Nullable uniqueness | `nulls: 'distinct'` is portable. `nulls: 'not-distinct'` needs a PostgreSQL 15-or-newer policy and is rejected by v2.                                                                                                        |
+| Nullable uniqueness | `nulls: 'distinct'` is portable. `nulls: 'not-distinct'` needs a PostgreSQL 15-or-newer policy and is rejected by v1.                                                                                                        |
 | Indexes             | Ordered terms, expressions, predicates, included columns, uniqueness, and candidate-key evidence are retained. PostgreSQL method, concurrency, operator class, and storage-parameter extensions are encoded under `dialect`. |
 | Names               | Table, column, constraint, and index names are checked against PostgreSQL's 63-byte identifier limit. Relation names are checked for collisions across tables and indexes.                                                   |
 

@@ -590,7 +590,7 @@ export type CatalogCompleteObject =
 /** Short alias for the complete normalized object union. */
 export type CatalogObject = CatalogCompleteObject
 
-/** The complete normalized catalog shape used by the v2 snapshot mapper. */
+/** The complete normalized catalog shape used by the v1 snapshot mapper. */
 export interface CompleteIntrospectionCatalog {
   readonly dialect: CatalogDialect
   readonly server: CatalogServerInfo

@@ -1,10 +1,10 @@
 # Introspection support
 
-> Look up which catalog facts each adapter reads, which versions it accepts, and which database features remain outside Snapshot v2.
+> Look up which catalog facts each adapter reads, which versions it accepts, and which database features remain outside Snapshot v1.
 
 The optional `qubu/introspection` entrypoint reads one selected database
 namespace through a user-owned `CatalogConnection`. It returns normalized
-catalog data and can map that data to canonical Snapshot v2. The
+catalog data and can map that data to canonical Snapshot v1. The
 application owns the driver and connection lifecycle. Snapshot diffing,
 migration planning, and DDL emission are separate Qubu capabilities; see the
 [ownership map](supported-surface.md#ownership-boundary).
@@ -46,7 +46,7 @@ SQL.
 ## PostgreSQL complete catalog surface
 
 The PostgreSQL reader also fills the complete normalized catalog used by
-Snapshot v2. It keeps PostgreSQL OIDs in current-run physical references and
+Snapshot v1. It keeps PostgreSQL OIDs in current-run physical references and
 keeps decompiler output such as `pg_get_viewdef`, `pg_get_triggerdef`, and
 `pg_get_functiondef` as tagged SQL data. It does not evaluate that text.
 
@@ -57,7 +57,7 @@ declarations.
 
 Use `mapCatalogToSnapshot()` or its explicit
 `mapCatalogToCompleteSnapshot()` alias for this object set. Both produce the
-canonical Snapshot v2 shape.
+canonical Snapshot v1 shape.
 
 ## SQLite complete catalog surface
 
@@ -88,14 +88,14 @@ does not fabricate them.
 
 `mapCatalogToSnapshot()` delegates to `mapCatalogToCompleteSnapshot()` and
 retains typed views, triggers, deferred objects, opaque boundaries, and dialect
-extensions in Snapshot v2.
+extensions in Snapshot v1.
 
 The query and normalization seams follow the catalog-reading portions of the
 [Drizzle SQLite introspector](https://github.com/drizzle-team/drizzle-orm/blob/main/drizzle-kit/src/introspect-sqlite.ts).
 Drizzle's module generates source declarations; Qubu keeps the same SQLite
 metadata sources as normalized data and never evaluates database-provided SQL.
 The optional [source generator](../schema/code-generation.md) consumes the
-strict Snapshot v2 result through a separate controlled printer.
+strict Snapshot v1 result through a separate controlled printer.
 
 ## MySQL 8 complete catalog surface
 
@@ -109,13 +109,13 @@ MySQL has typed complete records for views, routines and their parameters,
 triggers, partitions, collations used by selected tables or columns, and
 comments. View definitions come from `INFORMATION_SCHEMA.VIEWS`; each view's
 columns are joined back to the matching `COLUMNS` rows by physical table name,
-so the complete Snapshot v2 cross-reference points at the view's own column
+so the complete Snapshot v1 cross-reference points at the view's own column
 IDs. Missing view definitions or unresolved trigger, partition, or other
 object references become deferred records with diagnostics.
 
 Scheduled events are retained as `CatalogOpaqueObject` records. Their event
 metadata and definition remain opaque, and the reader emits an
-`unmodeled-object` warning. Snapshot v2 keeps these records in
+`unmodeled-object` warning. Snapshot v1 keeps these records in
 `opaqueObjects`; they are not treated as typed routines, triggers, or
 migration operations.
 
@@ -132,11 +132,11 @@ while Qubu keeps the result as typed data instead of generating TypeScript
 declarations.
 
 Use `mapCatalogToSnapshot()` or `mapCatalogToCompleteSnapshot()` to retain these
-typed MySQL families and the opaque or deferred boundaries in Snapshot v2.
+typed MySQL families and the opaque or deferred boundaries in Snapshot v1.
 
-## Snapshot v2 surface
+## Snapshot v1 surface
 
-The mapper emits these facts in canonical Snapshot v2:
+The mapper emits these facts in canonical Snapshot v1:
 
 - one namespace and ordinary tables;
 - exact dialect-native column storage;
@@ -155,7 +155,7 @@ canonical content, not an identity or rename marker.
 ## Deferred and limited features
 
 The following remain catalog facts or diagnostics rather than fabricated
-Snapshot v2 objects:
+Snapshot v1 objects:
 
 - views and materialized views;
 - sequences, enums, domains, routines, triggers, policies, extensions,
@@ -166,7 +166,7 @@ Snapshot v2 objects:
 - MySQL/MariaDB differences, prefix indexes, invisible indexes, and advanced
   functional, full-text, or spatial index semantics.
 
-Use the Snapshot v2 mapper to retain supported PostgreSQL and MySQL families.
+Use the Snapshot v1 mapper to retain supported PostgreSQL and MySQL families.
 MySQL scheduled events stay opaque, and MySQL sequences,
 materialized views, row-level security (RLS) policies, extension objects, and
 ownership stay unsupported or deferred. When a row cannot be normalized safely, the reader
@@ -183,7 +183,7 @@ keeping Qubu's output data-only:
 - [Drizzle MySQL introspector](https://github.com/drizzle-team/drizzle-orm/blob/main/drizzle-kit/src/introspect-mysql.ts)
 
 Those modules generate TypeScript declarations as part of their workflows.
-Qubu keeps catalog normalization, Snapshot v2 mapping, and optional source
+Qubu keeps catalog normalization, Snapshot v1 mapping, and optional source
 generation as separate pure boundaries, so diffing and planning do not depend
 on source generation.
 

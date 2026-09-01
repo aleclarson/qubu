@@ -1393,7 +1393,7 @@ function mapEnums(rows: readonly PostgresEnumRow[], namespace: string): readonly
       .map((row, index) => ({
         value: text(row.value) ?? "",
         // pg_enum uses float4 so a label inserted between two existing labels
-        // can have a fractional sort order. Snapshot v2 stores the observed
+        // can have a fractional sort order. Snapshot v1 stores the observed
         // order as a canonical integer position and keeps the catalog OID in
         // provenance.
         ordinalPosition: index + 1,
