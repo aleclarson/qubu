@@ -17,7 +17,7 @@ import {
   type MigrationProgram,
   type Sha256Digest,
 } from "../packages/migrate/src/artifact/index.ts"
-import { compileSqliteMigrationProgram } from "../packages/migrate/src/artifact/sqlite.ts"
+import { compileMigrationProgram } from "../packages/migrate/src/artifact/sqlite.ts"
 import { compareManagedSnapshots, createBaseline } from "../packages/migrate/src/baseline/index.ts"
 import { planSchemaBootstrap } from "../packages/migrate/src/bootstrap/sqlite.ts"
 import { executeMigrations } from "../packages/migrate/src/executor/index.ts"
@@ -80,7 +80,7 @@ async function artifact(
   const after = snapshot(afterNames)
   const planned = createMigrationPlan(diffSnapshots(before, after))
   if (!planned.ok) throw new Error("Migration fixture planning failed")
-  const compiled = compileSqliteMigrationProgram(planned.plan)
+  const compiled = compileMigrationProgram(planned.plan)
   if (!compiled.ok) throw new Error("Migration fixture compilation failed")
   const program: MigrationProgram = {
     ...compiled.program,
@@ -496,7 +496,7 @@ test("rolls back an explicit SQLite rebuild when data-copy validation fails", as
         .sort(),
       reason: "Reviewed NOT NULL rebuild",
     }))
-  const compiled = compileSqliteMigrationProgram(planned.plan, {
+  const compiled = compileMigrationProgram(planned.plan, {
     beforeSnapshot: before,
     afterSnapshot: after,
     approvals,

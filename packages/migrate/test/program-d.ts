@@ -1,10 +1,10 @@
 import { type CustomProgramSubstitution, type MigrationProgram } from "@qubu/migrate/artifact"
-import { compileSqliteMigrationProgram } from "@qubu/migrate/artifact/sqlite"
+import { compileMigrationProgram } from "@qubu/migrate/artifact/sqlite"
 import type { MigrationPlan } from "@qubu/migrate/plan"
 
 declare const plan: MigrationPlan
 
-const result = compileSqliteMigrationProgram(plan, {
+const result = compileMigrationProgram(plan, {
   customPrograms: [
     {
       operationId: "op_1",

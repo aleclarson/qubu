@@ -6,7 +6,7 @@ import { afterEach, expect, test } from "vitest"
 
 import { nodeSqliteMigrationAdapter } from "../adapters/node-sqlite/src/migration.ts"
 import { sealExecutableArtifact } from "../packages/migrate/src/artifact/index.ts"
-import { compileSqliteMigrationProgram } from "../packages/migrate/src/artifact/sqlite.ts"
+import { compileMigrationProgram } from "../packages/migrate/src/artifact/sqlite.ts"
 import { executeMigrations } from "../packages/migrate/src/executor/index.ts"
 import { createMigrationPlan } from "../packages/migrate/src/plan/index.ts"
 import { verifyMigrationAdapterConformance } from "../packages/migrate/src/testing/index.ts"
@@ -142,7 +142,7 @@ test("applies and journals a transactional node:sqlite migration", async () => {
   if (!planned.ok) {
     throw new Error("Migration fixture planning failed")
   }
-  const compiled = compileSqliteMigrationProgram(planned.plan)
+  const compiled = compileMigrationProgram(planned.plan)
 
   if (!compiled.ok) {
     throw new Error("Migration fixture compilation failed")

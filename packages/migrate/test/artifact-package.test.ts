@@ -24,9 +24,9 @@ const manifest = JSON.parse(
 
 test("publishes dedicated artifact entrypoints for each dialect", () => {
   expect(artifact.compileMigrationProgram).toBeTypeOf("function")
-  expect(mysqlArtifact.compileMysqlMigrationProgram).toBeTypeOf("function")
-  expect(postgresArtifact.compilePostgresMigrationProgram).toBeTypeOf("function")
-  expect(sqliteArtifact.compileSqliteMigrationProgram).toBeTypeOf("function")
+  expect(mysqlArtifact.compileMigrationProgram).toBeTypeOf("function")
+  expect(postgresArtifact.compileMigrationProgram).toBeTypeOf("function")
+  expect(sqliteArtifact.compileMigrationProgram).toBeTypeOf("function")
   expect(artifact).not.toHaveProperty("compileMysqlMigrationProgram")
   expect(artifact).not.toHaveProperty("compilePostgresMigrationProgram")
   expect(artifact).not.toHaveProperty("compileSqliteMigrationProgram")

@@ -8,7 +8,7 @@ import {
   type OperationApproval,
   validateMigrationProgram,
 } from "../src/artifact/index.ts"
-import { compileSqliteMigrationProgram } from "../src/artifact/sqlite.ts"
+import { compileMigrationProgram } from "../src/artifact/sqlite.ts"
 import { createMigrationPlan, type MigrationPlan } from "../src/plan/index.ts"
 
 const dialect = { name: "sqlite", version: 1 } as const
@@ -118,7 +118,7 @@ function approvalFor(
 
 test("compiles a plan into contiguous authoritative phases and statements", () => {
   const plan = creationPlan()
-  const result = compileSqliteMigrationProgram(plan)
+  const result = compileMigrationProgram(plan)
 
   expect(result.ok).toBe(true)
   if (!result.ok) return
@@ -159,13 +159,13 @@ test("requires exact custom-program approval and preserves tagged parameters and
   }
 
   expect(
-    compileSqliteMigrationProgram(plan, {
+    compileMigrationProgram(plan, {
       approvals: [approvalFor(plan, "approve")],
       customPrograms: [customProgram],
     }),
   ).toMatchObject({ ok: false })
 
-  const result = compileSqliteMigrationProgram(plan, {
+  const result = compileMigrationProgram(plan, {
     approvals: [approvalFor(plan, "custom-program")],
     customPrograms: [customProgram],
   })
@@ -242,7 +242,7 @@ test("compiles SQLite table rebuilds into explicit copy and swap statements", ()
       reason: "Reviewed rebuild",
     }))
 
-  const result = compileSqliteMigrationProgram(planned.plan, {
+  const result = compileMigrationProgram(planned.plan, {
     beforeSnapshot: before,
     afterSnapshot: after,
     approvals,
@@ -273,7 +273,7 @@ test("rejects custom transaction conflicts instead of weakening requirements", (
       transaction: "required" as const,
     })),
   }
-  const result = compileSqliteMigrationProgram(requiredPlan, {
+  const result = compileMigrationProgram(requiredPlan, {
     approvals: [approvalFor(requiredPlan, "custom-program")],
     customPrograms: [
       {
@@ -295,7 +295,7 @@ test("rejects custom transaction conflicts instead of weakening requirements", (
 test("rejects malformed tagged custom parameters before producing a program", () => {
   const plan = customPlan()
   const operationId = plan.operations[0]!.id
-  const result = compileSqliteMigrationProgram(plan, {
+  const result = compileMigrationProgram(plan, {
     approvals: [approvalFor(plan, "custom-program")],
     customPrograms: [
       {

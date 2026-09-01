@@ -6,7 +6,7 @@ import {
   sealExecutableArtifact,
   type ProgramTransactionRequirement,
 } from "../src/artifact/index.ts"
-import { compileSqliteMigrationProgram } from "../src/artifact/sqlite.ts"
+import { compileMigrationProgram } from "../src/artifact/sqlite.ts"
 import {
   executeMigrations,
   MigrationExecutionError,
@@ -34,7 +34,7 @@ async function artifact(transaction: ProgramTransactionRequirement = "required")
   const before = snapshot()
   const plan = createMigrationPlan(diffSnapshots(before, snapshot(true)))
   if (!plan.ok) throw new Error("fixture plan failed")
-  const compiled = compileSqliteMigrationProgram(plan.plan)
+  const compiled = compileMigrationProgram(plan.plan)
   if (!compiled.ok) throw new Error("fixture program failed")
   return sealExecutableArtifact({
     format: "qubu-executable-migration",

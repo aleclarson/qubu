@@ -29,10 +29,10 @@ entrypoint:
 | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `@qubu/migrate/plan`               | Create, encode, decode, fingerprint, and validate migration plans                                                             |
 | `@qubu/migrate/ddl`                | Preview deterministic dialect SQL without opening a database                                                                  |
-| `@qubu/migrate/artifact`           | Compile programs with a caller-supplied `SchemaDialect`; canonicalize, digest, seal, encode, and decode artifacts           |
-| `@qubu/migrate/artifact/postgres`  | Compile reviewed plans with PostgreSQL's schema dialect                                                                      |
+| `@qubu/migrate/artifact`           | Compile programs with a caller-supplied `SchemaDialect`; canonicalize, digest, seal, encode, and decode artifacts             |
+| `@qubu/migrate/artifact/postgres`  | Compile reviewed plans with PostgreSQL's schema dialect                                                                       |
 | `@qubu/migrate/artifact/sqlite`    | Compile reviewed plans with SQLite's schema dialect, including table rebuilds                                                 |
-| `@qubu/migrate/artifact/mysql`     | Compile reviewed plans with MySQL's schema dialect                                                                           |
+| `@qubu/migrate/artifact/mysql`     | Compile reviewed plans with MySQL's schema dialect                                                                            |
 | `@qubu/migrate/repository`         | Verify a complete artifact chain and its journal prefix                                                                       |
 | `@qubu/migrate/journal`            | Implement or inspect the storage-neutral journal contract                                                                     |
 | `@qubu/migrate/executor`           | Apply artifacts and reconcile uncertain attempts                                                                              |
@@ -65,7 +65,7 @@ only their matching schema dialect.
 Use the same entrypoint pattern for convenience artifact compilers:
 
 ```ts
-import { compilePostgresMigrationProgram } from "@qubu/migrate/artifact/postgres"
+import { compileMigrationProgram } from "@qubu/migrate/artifact/postgres"
 
-const compiled = compilePostgresMigrationProgram(plan)
+const compiled = compileMigrationProgram(plan)
 ```

@@ -3,7 +3,10 @@ import type { SchemaSnapshot, SnapshotTable } from "qubu/snapshot"
 import { sqliteSchemaDialect } from "qubu/snapshot/sqlite"
 
 import { createMigrationPlan, type MigrationPlan } from "../plan/index.ts"
-import { compileMigrationProgram, type CompileMigrationProgramOptions } from "./program.ts"
+import {
+  compileMigrationProgram as compileGenericMigrationProgram,
+  type CompileMigrationProgramOptions,
+} from "./program.ts"
 import {
   migrationProgramFormat,
   migrationProgramVersion,
@@ -20,7 +23,7 @@ export interface CompileSqliteMigrationProgramOptions extends CompileMigrationPr
 }
 
 /** Compile a reviewed migration plan with SQLite's schema dialect and rebuild support. */
-export function compileSqliteMigrationProgram(
+export function compileMigrationProgram(
   plan: MigrationPlan,
   options: CompileSqliteMigrationProgramOptions = {},
 ): MigrationProgramCompilationResult {
@@ -34,7 +37,7 @@ export function compileSqliteMigrationProgram(
       )
     return compileSqliteRebuildProgram(plan, rebuildTables, options)
   }
-  return compileMigrationProgram(plan, sqliteSchemaDialect, options)
+  return compileGenericMigrationProgram(plan, sqliteSchemaDialect, options)
 }
 
 function sqliteRebuildTableIds(plan: MigrationPlan): readonly string[] {
@@ -180,7 +183,7 @@ function sqliteCreateStatements(
       "afterSnapshot",
       "tables",
     ]) as Extract<MigrationProgramCompilationResult, { readonly ok: false }>
-  const compiled = compileMigrationProgram(planned.plan, sqliteSchemaDialect)
+  const compiled = compileGenericMigrationProgram(planned.plan, sqliteSchemaDialect)
   if (!compiled.ok) return compiled
   const statements = compiled.program.phases.flatMap((phase) =>
     phase.statements.map((item) => item.sql),
