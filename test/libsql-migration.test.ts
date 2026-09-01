@@ -389,6 +389,8 @@ test("bootstraps inline SQLite constraints and round trips through strict intros
   await executeMigrations({ repository: [migration], adapter: libsqlMigrationAdapter(database) })
   const inspection = await readLibsqlMigrationSnapshot(database, target)
 
+  if (inspection.snapshot.version !== 1) throw new Error("Expected a version 1 SQLite snapshot")
+
   const comparison = compareManagedSnapshots(target, inspection.snapshot)
   expect(comparison.matches, JSON.stringify(comparison)).toBe(true)
   expect(inspection.unmanagedObjects).toEqual([])

@@ -25,18 +25,18 @@ The `@qubu/migrate` root intentionally exports only format/version constants
 and the central plan and artifact types. Import behavior from its focused
 entrypoint:
 
-| Entrypoint                 | Use it for                                                                 |
-| -------------------------- | -------------------------------------------------------------------------- |
-| `@qubu/migrate/plan`       | Create, encode, decode, fingerprint, and validate migration plans          |
-| `@qubu/migrate/ddl`        | Preview deterministic dialect SQL without opening a database               |
-| `@qubu/migrate/artifact`   | Compile programs; canonicalize, digest, seal, encode, and decode artifacts |
-| `@qubu/migrate/repository` | Verify a complete artifact chain and its journal prefix                    |
-| `@qubu/migrate/journal`    | Implement or inspect the storage-neutral journal contract                  |
-| `@qubu/migrate/executor`   | Apply artifacts and reconcile uncertain attempts                           |
-| `@qubu/migrate/baseline`   | Verify and record the initial non-executable baseline                      |
-| `@qubu/migrate/status`     | Inspect pending work, drift, requirements, and interrupted attempts        |
-| `@qubu/migrate/bootstrap`  | Plan a fresh SQLite database through the normal compiler                   |
-| `@qubu/migrate/testing`    | Test adapter capabilities and deterministic failure boundaries             |
+| Entrypoint                 | Use it for                                                                    |
+| -------------------------- | ----------------------------------------------------------------------------- |
+| `@qubu/migrate/plan`       | Create, encode, decode, fingerprint, and validate migration plans             |
+| `@qubu/migrate/ddl`        | Preview deterministic dialect SQL without opening a database                  |
+| `@qubu/migrate/artifact`   | Compile programs; canonicalize, digest, seal, encode, and decode artifacts    |
+| `@qubu/migrate/repository` | Verify a complete artifact chain and its journal prefix                       |
+| `@qubu/migrate/journal`    | Implement or inspect the storage-neutral journal contract                     |
+| `@qubu/migrate/executor`   | Apply artifacts and reconcile uncertain attempts                              |
+| `@qubu/migrate/baseline`   | Verify and record the initial non-executable baseline                         |
+| `@qubu/migrate/status`     | Inspect pending work, drift, requirements, and interrupted attempts           |
+| `@qubu/migrate/bootstrap`  | Plan a fresh SQLite or complete PostgreSQL schema through the normal compiler |
+| `@qubu/migrate/testing`    | Test adapter capabilities and deterministic failure boundaries                |
 
 Start with [Artifacts and approval policy](artifacts-and-policy.md) when
 reviewing a migration format. Check [Adapter capability

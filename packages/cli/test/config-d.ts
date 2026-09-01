@@ -1,4 +1,8 @@
+import type { CompleteSchemaSnapshot } from "qubu/snapshot"
+
 import { defineConfig } from "../src/config.ts"
+
+declare const completePostgresSnapshot: CompleteSchemaSnapshot
 
 defineConfig({
   artifacts: "migrations",
@@ -8,6 +12,11 @@ defineConfig({
       throw new Error("type fixture")
     },
   }),
+})
+
+defineConfig({
+  artifacts: "migrations",
+  snapshot: completePostgresSnapshot,
 })
 
 defineConfig({

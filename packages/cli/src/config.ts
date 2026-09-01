@@ -8,9 +8,12 @@ import type {
 } from "@qubu/migrate/artifact"
 import type { MigrationAdapter } from "@qubu/migrate/executor"
 import type { Schema } from "qubu/schema"
-import type { SchemaSnapshot, SnapshotJsonValue } from "qubu/snapshot"
+import type { CompleteSchemaSnapshot, SchemaSnapshot, SnapshotJsonValue } from "qubu/snapshot"
 
-export type ConfigSnapshot = SchemaSnapshot | (() => SchemaSnapshot | Promise<SchemaSnapshot>)
+export type ConfigSnapshotValue = SchemaSnapshot | CompleteSchemaSnapshot
+export type ConfigSnapshot =
+  | ConfigSnapshotValue
+  | (() => ConfigSnapshotValue | Promise<ConfigSnapshotValue>)
 
 export interface MigrationApprovalContext {
   readonly operation: MigrationOperation
@@ -41,7 +44,7 @@ export interface QubuCliConfig {
   readonly verifyReconciliation?: (input: {
     readonly attemptId: string
     readonly outcome: "applied" | "rolled_back"
-    readonly snapshot: SchemaSnapshot
+    readonly snapshot: ConfigSnapshotValue
     readonly signal: AbortSignal
   }) => boolean | Promise<boolean>
 }
@@ -50,7 +53,7 @@ export function defineConfig(config: QubuCliConfig): QubuCliConfig {
   return config
 }
 
-export async function resolveConfigSnapshot(config: QubuCliConfig): Promise<SchemaSnapshot> {
+export async function resolveConfigSnapshot(config: QubuCliConfig): Promise<ConfigSnapshotValue> {
   if (config.snapshot) {
     return typeof config.snapshot === "function" ? await config.snapshot() : config.snapshot
   }

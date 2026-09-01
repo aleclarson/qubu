@@ -12,6 +12,7 @@ import { createMigrationPlan } from "@qubu/migrate/plan"
 import { DeterministicFakeMigrationAdapter } from "@qubu/migrate/testing"
 import { diffSnapshots } from "qubu/diff"
 import type { SchemaSnapshot } from "qubu/snapshot"
+import type { CompleteSchemaSnapshot } from "qubu/snapshot"
 import { sqliteSchemaDialect } from "qubu/snapshot/sqlite"
 import { afterEach, expect, test } from "vitest"
 
@@ -126,6 +127,31 @@ test("requires all seven baseline facts without prompting", async () => {
   expect(errors.join("")).toContain("all seven")
 })
 
+test("dry-runs a complete PostgreSQL bootstrap with enums in dependency order", async () => {
+  const output: string[] = []
+  const exit = await runCli(
+    ["schema", "bootstrap", "--dry-run", "--format", "json", "--non-interactive"],
+    {
+      loadConfig: async () => ({
+        artifacts: "migrations",
+        snapshot: postgresSnapshot(),
+      }),
+      stdout: (text) => output.push(text),
+    },
+  )
+
+  expect(exit).toBe(0)
+  const result = JSON.parse(output.join(""))
+  expect(
+    result.phases.flatMap((phase: { statements: { sql: string }[] }) =>
+      phase.statements.map((statement) => statement.sql),
+    ),
+  ).toEqual([
+    `CREATE TYPE "public"."account_role" AS ENUM ('member', 'owner')`,
+    `CREATE TABLE "public"."accounts" ("role" account_role NOT NULL)`,
+  ])
+})
+
 test("redacts credentials from failures and returns an adapter exit code", async () => {
   const cwd = await temporaryDirectory()
   const errors: string[] = []
@@ -174,6 +200,73 @@ function snapshot(names: readonly string[] = []): SchemaSnapshot {
       constraints: [],
       indexes: [],
     })),
+  }
+}
+
+function postgresSnapshot(): CompleteSchemaSnapshot {
+  return {
+    format: "qubu-schema",
+    version: 2,
+    dialect: { name: "postgresql", version: 1 },
+    namingPolicy: { name: "introspected-physical", version: 1 },
+    namespace: { kind: "postgres-schema", name: "public" },
+    capabilities: {
+      generatedColumns: true,
+      identityMetadata: true,
+      checkConstraints: true,
+      checkConstraintEnforcement: "enforced",
+      expressionDecompilation: true,
+      indexExpressions: true,
+      indexPredicates: true,
+      indexIncludedColumns: true,
+      namespaces: true,
+      visibility: "complete",
+    },
+    tables: [
+      {
+        kind: "table",
+        id: "accounts",
+        physicalName: "accounts",
+        columns: [
+          {
+            kind: "column",
+            id: "role",
+            physicalName: "role",
+            ordinalPosition: 1,
+            nullable: false,
+            hasDefault: false,
+            generated: false,
+            storage: { kind: "native", dialect: "postgresql", type: "account_role" },
+          },
+        ],
+        constraints: [],
+        indexes: [],
+      },
+    ],
+    views: [],
+    sequences: [],
+    enums: [
+      {
+        kind: "enum",
+        id: "account-role",
+        physicalName: "account_role",
+        values: [
+          { value: "member", ordinalPosition: 1 },
+          { value: "owner", ordinalPosition: 2 },
+        ],
+      },
+    ],
+    domains: [],
+    collations: [],
+    triggers: [],
+    routines: [],
+    partitions: [],
+    policies: [],
+    extensions: [],
+    deferredObjects: [],
+    opaqueObjects: [],
+    comments: [],
+    ownership: [],
   }
 }
 

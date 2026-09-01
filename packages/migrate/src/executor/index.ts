@@ -89,12 +89,7 @@ export async function executeMigrations(
     for (const artifact of executable) {
       assertNotAborted(options.signal)
       const actual = await at(options, "read-snapshot", () =>
-        session!.currentSnapshotDigest(
-          artifact.beforeSnapshot.value?.format === "qubu-schema" &&
-            artifact.beforeSnapshot.value.version === 1
-            ? artifact.beforeSnapshot.value
-            : undefined,
-        ),
+        session!.currentSnapshotDigest(artifact.beforeSnapshot.value),
       )
       if (actual !== artifact.beforeSnapshot.digest)
         throw new MigrationExecutionError(

@@ -8,7 +8,7 @@ import {
   type VerifiedBaselineArtifact,
 } from "../artifact/index.ts"
 import { MigrationExecutionError } from "../executor/errors.ts"
-import type { MigrationAdapter, MigrationSession } from "../executor/types.ts"
+import type { MigrationAdapter, MigrationSession, MigrationSnapshot } from "../executor/types.ts"
 import { validateJournalState } from "../journal/index.ts"
 
 export interface BaselineConfirmation {
@@ -24,7 +24,7 @@ export interface BaselineConfirmation {
 export interface CreateBaselineInput {
   readonly adapter: MigrationAdapter
   readonly id: string
-  readonly snapshot: SchemaSnapshot
+  readonly snapshot: MigrationSnapshot
   readonly provenance: ArtifactProvenance
   readonly confirmation: BaselineConfirmation
   readonly operator?: SnapshotJsonValue
@@ -166,12 +166,14 @@ export interface ManagedSnapshotComparison {
 
 /** Logical IDs are retained for reporting, but equality is decided from resolved physical facts. */
 export function compareManagedSnapshots(
-  expected: SchemaSnapshot,
-  actual: SchemaSnapshot,
+  expected: MigrationSnapshot,
+  actual: MigrationSnapshot,
 ): ManagedSnapshotComparison {
   const result = diffSnapshots(expected, actual)
   const matches =
-    JSON.stringify(physicalProjection(expected)) === JSON.stringify(physicalProjection(actual))
+    expected.version === 1 && actual.version === 1
+      ? JSON.stringify(physicalProjection(expected)) === JSON.stringify(physicalProjection(actual))
+      : result.equal
   return Object.freeze({
     matches,
     operations: result.operations,

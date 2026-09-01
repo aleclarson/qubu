@@ -1,15 +1,18 @@
 import type { PGliteInterface, Row } from "@electric-sql/pglite"
 import type { Sha256Digest } from "@qubu/migrate/artifact"
-import { type MigrationAdapter, type MigrationSnapshotInspection } from "@qubu/migrate/executor"
-import type { SchemaSnapshot } from "qubu/snapshot"
+import {
+  type MigrationAdapter,
+  type MigrationSnapshot,
+  type MigrationSnapshotInspection,
+} from "@qubu/migrate/executor"
 
 import { postgresMigrationAdapter } from "../../pg/src/migration-support.ts"
 
 export interface PgliteMigrationAdapterOptions {
   readonly readSnapshot: (
     database: PGliteInterface,
-    expected?: SchemaSnapshot,
-  ) => Promise<SchemaSnapshot | Sha256Digest | MigrationSnapshotInspection>
+    expected?: MigrationSnapshot,
+  ) => Promise<MigrationSnapshot | Sha256Digest | MigrationSnapshotInspection>
   readonly serverVersion?: string
   readonly leasePollMilliseconds?: number
 }

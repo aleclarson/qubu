@@ -64,8 +64,7 @@ export async function readMigrationStatus(input: {
       : pending[0]?.format === "qubu-executable-migration"
         ? pending[0].beforeSnapshot.value
         : undefined
-    const snapshot =
-      expected?.format === "qubu-schema" && expected.version === 1 ? expected : undefined
+    const snapshot = expected?.format === "qubu-schema" ? expected : undefined
     const inspection =
       snapshot && session.readSnapshot ? await session.readSnapshot(snapshot) : undefined
     const incompatibleRequirements = pending.flatMap((artifact) =>

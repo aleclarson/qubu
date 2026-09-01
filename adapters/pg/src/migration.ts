@@ -1,15 +1,18 @@
 import type { Sha256Digest } from "@qubu/migrate/artifact"
-import { type MigrationAdapter, type MigrationSnapshotInspection } from "@qubu/migrate/executor"
+import {
+  type MigrationAdapter,
+  type MigrationSnapshot,
+  type MigrationSnapshotInspection,
+} from "@qubu/migrate/executor"
 import type { ClientBase, QueryResultRow } from "pg"
-import type { SchemaSnapshot } from "qubu/snapshot"
 
 import { postgresMigrationAdapter } from "./migration-support.ts"
 
 export interface PgMigrationAdapterOptions {
   readonly readSnapshot: (
     client: ClientBase,
-    expected?: SchemaSnapshot,
-  ) => Promise<SchemaSnapshot | Sha256Digest | MigrationSnapshotInspection>
+    expected?: MigrationSnapshot,
+  ) => Promise<MigrationSnapshot | Sha256Digest | MigrationSnapshotInspection>
   readonly serverVersion?: string
   readonly leasePollMilliseconds?: number
 }

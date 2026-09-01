@@ -21,7 +21,7 @@ import {
   type OperationApproval,
 } from "@qubu/migrate/artifact"
 import { createBaseline, type BaselineConfirmation } from "@qubu/migrate/baseline"
-import { planSchemaBootstrap } from "@qubu/migrate/bootstrap"
+import { prepareSchemaBootstrap } from "@qubu/migrate/bootstrap"
 import {
   executeMigrations,
   MigrationExecutionError,
@@ -36,7 +36,12 @@ import { mysqlSchemaDialect } from "qubu/snapshot/mysql"
 import { postgresSchemaDialect } from "qubu/snapshot/postgres"
 import { sqliteSchemaDialect } from "qubu/snapshot/sqlite"
 
-import { resolveAdapter, resolveConfigSnapshot, type QubuCliConfig } from "./config.ts"
+import {
+  resolveAdapter,
+  resolveConfigSnapshot,
+  type ConfigSnapshotValue,
+  type QubuCliConfig,
+} from "./config.ts"
 import { FileArtifactRepository } from "./repository.ts"
 
 export const cliExitCodes = Object.freeze({
@@ -434,7 +439,7 @@ export function createCli(runtime: CliRuntime = {}) {
     },
     handler: invoke(async (args, context) => {
       const target = await resolveConfigSnapshot(context.config)
-      const planned = planSchemaBootstrap(target)
+      const planned = prepareSchemaBootstrap(target)
 
       if (!planned.ok) {
         throw new CliFailure("validation", "Schema bootstrap planning failed", planned.diagnostics)
@@ -738,7 +743,7 @@ async function approvalsFor(
   return approvals
 }
 
-function renderer(config: QubuCliConfig, snapshot: SchemaSnapshot) {
+function renderer(config: QubuCliConfig, snapshot: ConfigSnapshotValue) {
   return (
     config.renderer ?? {
       id: `qubu-${snapshot.dialect.name}`,
@@ -748,12 +753,12 @@ function renderer(config: QubuCliConfig, snapshot: SchemaSnapshot) {
   )
 }
 
-function schemaDialectFor(snapshot: SchemaSnapshot): SchemaDialect {
+function schemaDialectFor(snapshot: ConfigSnapshotValue): SchemaDialect {
   if (snapshot.dialect.name === "sqlite") {
     return sqliteSchemaDialect
   }
 
-  if (snapshot.dialect.name === "postgres") {
+  if (snapshot.dialect.name === "postgresql") {
     return postgresSchemaDialect
   }
 

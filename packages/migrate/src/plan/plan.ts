@@ -1004,6 +1004,25 @@ function buildDependencies(
           addEdge(referenceContext.operation, operation, "reference-before-dependent")
         }
       }
+
+      if (operation.dialect.name === "postgresql") {
+        for (const nativeType of postgresNativeTypes(object.value)) {
+          const referenceContext = contexts.find((candidate) => {
+            const reference = candidate.operation.origin?.after
+
+            return (
+              candidate.operation.type === "add" &&
+              candidate.operation.kind === "enum" &&
+              reference !== undefined &&
+              postgresTypeMatches(nativeType, reference.physicalName, reference.namespace)
+            )
+          })
+
+          if (referenceContext !== undefined) {
+            addEdge(referenceContext.operation, operation, "reference-before-dependent")
+          }
+        }
+      }
     }
   }
 
@@ -1052,6 +1071,52 @@ function buildDependencies(
     ),
     byOperation,
   }
+}
+
+function postgresNativeTypes(value: SnapshotJsonValue): readonly string[] {
+  const result = new Set<string>()
+
+  const visit = (current: SnapshotJsonValue): void => {
+    if (Array.isArray(current)) {
+      for (const item of current) visit(item)
+      return
+    }
+
+    if (!isJsonRecord(current)) return
+
+    if (
+      current.kind === "native" &&
+      current.dialect === "postgresql" &&
+      typeof current.type === "string"
+    ) {
+      result.add(current.type)
+    }
+
+    for (const child of Object.values(current)) visit(child)
+  }
+
+  visit(value)
+  return [...result].sort()
+}
+
+function postgresTypeMatches(
+  type: string,
+  physicalName: string | undefined,
+  namespace: string | undefined,
+): boolean {
+  if (physicalName === undefined) return false
+
+  const normalized = type
+    .trim()
+    .replace(/\[\]$/u, "")
+    .split(".")
+    .map((part) => part.trim().replace(/^"|"$/gu, "").replaceAll('""', '"'))
+  const name = normalized.at(-1)
+
+  return (
+    name === physicalName &&
+    (normalized.length === 1 || namespace === undefined || normalized.at(-2) === namespace)
+  )
 }
 
 function topologicalOrder(

@@ -5,6 +5,7 @@ import type {
   MigrationAdapter,
   MigrationAwaitBoundary,
   MigrationSession,
+  MigrationSnapshot,
   MigrationSnapshotInspection,
 } from "@qubu/migrate/executor"
 import {
@@ -20,7 +21,7 @@ import {
   type PhaseCheckpoint,
   type ReconciliationRecord,
 } from "@qubu/migrate/journal"
-import type { SchemaSnapshot, SnapshotJsonValue } from "qubu/snapshot"
+import type { SnapshotJsonValue } from "qubu/snapshot"
 
 export interface PostgresMigrationResult {
   readonly rows: readonly Record<string, unknown>[]
@@ -34,8 +35,8 @@ export interface PostgresMigrationAdapterOptions {
   readonly openConnection: (signal?: AbortSignal) => Promise<PostgresMigrationConnection>
   readonly readSnapshot: (
     connection: PostgresMigrationConnection,
-    expected?: SchemaSnapshot,
-  ) => Promise<SchemaSnapshot | Sha256Digest | MigrationSnapshotInspection>
+    expected?: MigrationSnapshot,
+  ) => Promise<MigrationSnapshot | Sha256Digest | MigrationSnapshotInspection>
   readonly serverVersion?: string
   readonly leasePollMilliseconds?: number
 }
@@ -202,7 +203,7 @@ class PostgresMigrationSession implements MigrationSession {
 
     return condition.type === "object-present" ? present : !present
   }
-  async readSnapshot(expected?: SchemaSnapshot): Promise<MigrationSnapshotInspection> {
+  async readSnapshot(expected?: MigrationSnapshot): Promise<MigrationSnapshotInspection> {
     const value = await this.options.readSnapshot(this.connection, expected)
 
     if (isSha256Digest(value)) {
@@ -215,7 +216,7 @@ class PostgresMigrationSession implements MigrationSession {
           unmanagedObjects: [],
         }
   }
-  async currentSnapshotDigest(expected?: SchemaSnapshot): Promise<Sha256Digest> {
+  async currentSnapshotDigest(expected?: MigrationSnapshot): Promise<Sha256Digest> {
     const value = await this.options.readSnapshot(this.connection, expected)
 
     if (isSha256Digest(value)) {

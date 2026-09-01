@@ -70,7 +70,7 @@ working directory.
 | `qubu migrate apply [--dry-run]`                                                                    | Applies the complete verified pending chain; dry-run performs status/preflight only                                                         | It never limits discovery to Git-added or branch-diff files                                                    |
 | `qubu migrate baseline <id> --confirm <fact>... [--dry-run]`                                        | Without dry-run, strictly compares the live managed schema, initializes an empty journal, records baseline, then writes the artifact        | Requires an empty artifact repository and all seven exact confirmations; dry-run does not inspect the database |
 | `qubu migrate reconcile <attempt-id> --outcome applied\|rolled_back --reason <text>`                | Runs application-owned verification, then records the explicit outcome                                                                      | Requires `verifyReconciliation` in config; no automatic inference                                              |
-| `qubu schema bootstrap [--approve <operation-id=reason>...] [--dry-run]`                            | Plans an empty SQLite snapshot through diff/plan/program; executes through the normal executor unless dry-run                               | Currently rejects non-SQLite targets                                                                           |
+| `qubu schema bootstrap [--approve <operation-id=reason>...] [--dry-run]`                            | Plans an empty SQLite or PostgreSQL snapshot through diff/plan/program; executes through the normal executor unless dry-run                 | Rejects other dialects; unsafe or incomplete facts still require exact approvals or custom programs            |
 
 JSON output is stable, newline-terminated, recursively key-sorted, and redacts
 credential-like keys and credentials or secrets embedded in URLs. Human output
@@ -94,11 +94,25 @@ snapshot. Logical IDs help reporting but do not prove equality. Objects not
 owned by the managed snapshot are returned separately as `unmanagedObjects`;
 Qubu journal objects are excluded by migration snapshot readers.
 
-`schema bootstrap` is for a fresh SQLite database. It produces the same
-versioned program and validation path as a migration. SQLite inline constraints
-are compiled into table creation, while table rebuilds are explicit phases with
-copy/postcondition checks. Session settings such as SQLite PRAGMAs remain in
-the application or adapter setup.
+`schema bootstrap` is for a fresh SQLite database or a fresh PostgreSQL schema.
+It produces the same reviewed plan, versioned program, sealed artifact, and
+executor path as a migration. A complete PostgreSQL snapshot retains standalone
+enums as authoritative objects; bootstrap creates each enum before a table that
+uses it as a native column type. SQLite inline constraints are compiled into
+table creation, while table rebuilds are explicit phases with copy/postcondition
+checks. Session settings such as SQLite PRAGMAs remain in the application or
+adapter setup.
+
+Use the reviewed complete snapshot directly as the PostgreSQL target:
+
+```bash
+qubu schema bootstrap --dry-run --format json --non-interactive
+```
+
+The dry run prints the ordered phases without opening the adapter. Remove
+`--dry-run` only after reviewing any operation IDs that require `--approve` or
+an application-owned custom program. Bootstrap does not import or replay
+Drizzle migration history.
 
 ## Baseline and cutover checklist
 
