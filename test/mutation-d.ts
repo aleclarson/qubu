@@ -40,7 +40,7 @@ insertInto(events, values({ updatedAt: new Date() }))
 insertInto(
   users,
   values({
-    name: upper(value("Ada")),
+    name: upper("Ada"),
     email: null,
   }),
 )
@@ -124,7 +124,10 @@ const updateFromQuery = update(
   { name: posts.name },
   updateFrom(posts),
   where(eq(users.name, posts.name)),
-  returning({ updatedName: users.name, sourceName: posts.name }),
+  returning({
+    updatedName: users.name,
+    sourceName: posts.name,
+  }),
 )
 
 render(updateFromQuery, postgresDialect())

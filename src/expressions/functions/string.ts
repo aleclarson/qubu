@@ -9,6 +9,11 @@ import type { ExpressionWithOutput } from "../types.ts"
 import type { ExpressionSqlType } from "../types.ts"
 import { schemaCall } from "./call.ts"
 
+type TextOperandValidation<TInput> = SqlCapabilityValidation<
+  OperandSqlType<TInput, SqlText>,
+  SqlTextLike
+>
+
 type TextArgumentsValidation<TArguments extends readonly unknown[]> = TArguments extends readonly [
   infer THead,
   ...infer TTail,
@@ -21,47 +26,46 @@ type CoalesceValidation<TFirst, TRest extends readonly unknown[]> = TRest extend
   infer THead,
   ...infer TTail,
 ]
-  ? SqlEqualityValidation<ExpressionSqlType<TFirst>, ExpressionSqlType<THead>> &
+  ? SqlEqualityValidation<
+      ExpressionSqlType<TFirst>,
+      OperandSqlType<THead, ExpressionSqlType<TFirst>>
+    > &
       CoalesceValidation<TFirst, TTail>
   : unknown
 
-export function lower<TExpression extends ExpressionWithOutput<string>>(
-  expression: TExpression & SqlCapabilityValidation<ExpressionSqlType<TExpression>, SqlTextLike>,
+export function lower<const TInput extends Operand<string>>(
+  input: TInput & TextOperandValidation<TInput>,
 ) {
   return schemaCall<
     string,
     "LOWER",
-    [TExpression],
-    import("../../core/fragment.ts").NullabilityOf<TExpression>,
+    [TInput],
+    import("../../core/fragment.ts").NullabilityOf<TInput>,
     SqlText
-  >("LOWER", expression)
+  >("LOWER", input)
 }
 
-export function upper<TExpression extends ExpressionWithOutput<string>>(
-  expression: TExpression & SqlCapabilityValidation<ExpressionSqlType<TExpression>, SqlTextLike>,
+export function upper<const TInput extends Operand<string>>(
+  input: TInput & TextOperandValidation<TInput>,
 ) {
   return schemaCall<
     string,
     "UPPER",
-    [TExpression],
-    import("../../core/fragment.ts").NullabilityOf<TExpression>,
+    [TInput],
+    import("../../core/fragment.ts").NullabilityOf<TInput>,
     SqlText
-  >("UPPER", expression)
+  >("UPPER", input)
 }
 
 export function coalesce<
   T,
-  const TExpressions extends readonly [ExpressionWithOutput<T>, ...ExpressionWithOutput<T>[]],
->(
-  ...expressions: TExpressions &
-    CoalesceValidation<
-      TExpressions[0],
-      TExpressions extends readonly [any, ...infer TRest] ? TRest : never
-    >
-) {
-  return schemaCall<T, "COALESCE", TExpressions, never, ExpressionSqlType<TExpressions[0]>>(
+  TFirst extends ExpressionWithOutput<T>,
+  const TRest extends readonly Operand<NoInfer<T>>[],
+>(first: TFirst, ...rest: TRest & CoalesceValidation<TFirst, TRest>) {
+  return schemaCall<T, "COALESCE", [TFirst, ...TRest], never, ExpressionSqlType<TFirst>>(
     "COALESCE",
-    ...(expressions as TExpressions),
+    first,
+    ...(rest as unknown as TRest),
   )
 }
 

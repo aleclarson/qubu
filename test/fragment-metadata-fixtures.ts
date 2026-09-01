@@ -21,7 +21,6 @@ import {
   table,
   text,
   upper,
-  value,
 } from "../src/index.ts"
 
 export const users = table("users", {
@@ -53,7 +52,7 @@ const fallbackTitle: string = "untitled"
 const presentStatus: string = "present"
 const missingStatus: string = "missing"
 
-export const coalescedPostTitle = coalesce(posts.title, value(fallbackTitle))
+export const coalescedPostTitle = coalesce(posts.title, fallbackTitle)
 export const literalCase = caseWhen(isNotNull(posts.title), presentStatus, missingStatus)
 export const nullPredicate = isNull(posts.title)
 export const notNullPredicate = isNotNull(posts.title)

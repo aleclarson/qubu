@@ -89,6 +89,14 @@ operation. This contextual typing does not relabel an expression: comparing a
 `SqlUuid` expression with a `SqlText` expression is still rejected. Cast when
 the database operation intentionally changes domains:
 
+Scalar text functions bind primitive operands automatically, and `coalesce()`
+uses its first expression to type primitive fallbacks:
+
+```ts
+upper("Ada") // UPPER(?)
+coalesce(metrics.label, "Anonymous") // COALESCE("metrics"."label", ?)
+```
+
 ```ts
 import { cast, like, text } from "qubu"
 

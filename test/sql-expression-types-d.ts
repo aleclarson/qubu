@@ -37,6 +37,7 @@ import {
   text,
   timestamp,
   union,
+  upper,
   uuid,
   value,
   where,
@@ -200,6 +201,9 @@ byTextId(nullableTextIds, "nullable")
 const added = add(records.count, 1)
 const averaged = avg(records.count)
 const lowered = lower(records.label)
+const loweredLiteral = lower("ADA")
+const upperLiteral = upper("ada")
+const labelFallback = coalesce(records.label, "missing")
 const predicate = eq(records.id, "108cb836-20d2-41b2-8c23-f0c94700aa7e")
 const conditional = caseWhen(predicate, records.label, "missing")
 
@@ -209,10 +213,13 @@ export type BuiltInPropagation = Assert<
       SqlTypeOf<typeof added>,
       SqlTypeOf<typeof averaged>,
       SqlTypeOf<typeof lowered>,
+      SqlTypeOf<typeof loweredLiteral>,
+      SqlTypeOf<typeof upperLiteral>,
+      SqlTypeOf<typeof labelFallback>,
       SqlTypeOf<typeof predicate>,
       SqlTypeOf<typeof conditional>,
     ],
-    [SqlInteger, SqlDecimal, SqlText, SqlBoolean, SqlText]
+    [SqlInteger, SqlDecimal, SqlText, SqlText, SqlText, SqlText, SqlBoolean, SqlText]
   >
 >
 

@@ -51,9 +51,9 @@ requirements; ordinary application values still pass through the column's
 parameter encoder:
 
 ```ts
-import { upper, value } from "qubu"
+import { upper } from "qubu"
 
-insertInto(users, values({ name: upper(value("Ada")) }))
+insertInto(users, values({ name: upper("Ada") }))
 ```
 
 An `INSERT ... VALUES` row does not introduce a relational source, so its

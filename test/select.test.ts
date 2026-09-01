@@ -6,6 +6,7 @@ import {
   all,
   and,
   asc,
+  coalesce,
   count,
   desc,
   distinct,
@@ -21,6 +22,7 @@ import {
   isDistinctFrom,
   isNotNull,
   leftJoin,
+  lower,
   lt,
   ne,
   notIn,
@@ -68,6 +70,22 @@ test("renders a parameterized standard SQL select", () => {
   expect(render(query)).toEqual({
     text: 'SELECT "users"."id" AS "id", "users"."name" AS "displayName" FROM "users" WHERE ("users"."id" = ?) ORDER BY "users"."name" DESC FETCH FIRST ? ROWS ONLY',
     parameters: [7, 10],
+  })
+})
+
+test("binds primitive scalar-function operands", () => {
+  const query = select(
+    {
+      fallbackEmail: coalesce(users.email, "missing@example.com"),
+      normalizedName: lower("ADA"),
+      upperName: upper("ada"),
+    },
+    from(users),
+  )
+
+  expect(render(query)).toEqual({
+    text: 'SELECT COALESCE("users"."email", ?) AS "fallbackEmail", LOWER(?) AS "normalizedName", UPPER(?) AS "upperName" FROM "users"',
+    parameters: ["missing@example.com", "ADA", "ada"],
   })
 })
 

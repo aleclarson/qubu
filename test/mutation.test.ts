@@ -28,7 +28,6 @@ import {
   text,
   update,
   upper,
-  value,
   unique,
   values,
   where,
@@ -97,10 +96,7 @@ test("renders INSERT expressions directly while encoding raw application values"
       },
     }),
   })
-  const query = insertInto(
-    labels,
-    values({ name: "encoded" }, { name: upper(value("expression")) }),
-  )
+  const query = insertInto(labels, values({ name: "encoded" }, { name: upper("expression") }))
 
   expect(render(query)).toEqual({
     text: 'INSERT INTO "labels" ("name") VALUES (?), (UPPER(?))',
@@ -258,7 +254,10 @@ test("renders PostgreSQL UPDATE FROM in clause order with source expressions", (
   const query = update(
     users,
     { name: upper(changes.name) },
-    returning({ id: users.id, sourceName: changes.name }),
+    returning({
+      id: users.id,
+      sourceName: changes.name,
+    }),
     where(eq(users.id, changes.userId)),
     updateFrom(changes),
   )
