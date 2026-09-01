@@ -4,6 +4,7 @@ import * as integration from "@qubu/valtio-sync"
 import { expect, test } from "vitest"
 
 type PackageManifest = {
+  version: string
   dependencies?: Record<string, string>
   devDependencies?: Record<string, string>
   exports: Record<string, unknown>
@@ -33,7 +34,7 @@ test("publishes the optional Valtio Sync integration as its own package", () => 
     "./package.json": "./package.json",
   })
   expect(manifest.peerDependencies).toMatchObject({
-    qubu: "0.6.0",
+    qubu: rootManifest.version,
     "valtio-sync": ">=0.3.1 <0.4.0",
   })
 })
