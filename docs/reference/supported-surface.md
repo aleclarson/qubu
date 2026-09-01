@@ -24,7 +24,10 @@
 | `@qubu/migrate`                           | Runtime          | Migration compiler format identity and shared plan types                                                         |
 | `@qubu/migrate/plan`                      | Runtime          | Pure migration planning with dependencies, decisions, preconditions, and explicit custom SQL                     |
 | `@qubu/migrate/ddl`                       | Runtime          | DDL preflight and deterministic PostgreSQL, SQLite, or MySQL emission from a migration plan                      |
-| `@qubu/migrate/artifact`                  | Runtime          | Versioned programs, strict artifacts and baselines, canonical encoding, and SHA-256 integrity                    |
+| `@qubu/migrate/artifact`                  | Runtime          | Generic versioned program compilation with a caller-supplied schema dialect, plus strict artifacts and baselines   |
+| `@qubu/migrate/artifact/postgres`        | Runtime          | PostgreSQL versioned program compilation                                                                            |
+| `@qubu/migrate/artifact/sqlite`          | Runtime          | SQLite versioned program compilation, including table rebuilds                                                     |
+| `@qubu/migrate/artifact/mysql`           | Runtime          | MySQL versioned program compilation                                                                                 |
 | `@qubu/migrate/repository`                | Runtime          | Strict full-chain and journal-prefix verification                                                                |
 | `@qubu/migrate/journal`                   | Runtime          | Storage-neutral journal records, transitions, validation, and reference storage                                  |
 | `@qubu/migrate/executor`                  | Runtime          | Portable execution, structured errors, checkpointing, and explicit reconciliation                                |

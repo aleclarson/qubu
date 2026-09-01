@@ -6,10 +6,8 @@ import { afterEach, beforeEach, describe, test } from "vitest"
 
 import { pgMigrationAdapter } from "../../adapters/pg/src/migration.ts"
 import { postgresJsMigrationAdapter } from "../../adapters/postgresjs/src/migration.ts"
-import {
-  compilePostgresMigrationProgram,
-  sealExecutableArtifact,
-} from "../../packages/migrate/src/artifact/index.ts"
+import { sealExecutableArtifact } from "../../packages/migrate/src/artifact/index.ts"
+import { compilePostgresMigrationProgram } from "../../packages/migrate/src/artifact/postgres.ts"
 import { planSchemaBootstrap } from "../../packages/migrate/src/bootstrap/postgres.ts"
 import { executeMigrations } from "../../packages/migrate/src/executor/index.ts"
 import { createMigrationPlan } from "../../packages/migrate/src/plan/index.ts"

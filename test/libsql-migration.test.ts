@@ -12,12 +12,12 @@ import {
   readLibsqlMigrationSnapshot,
 } from "../adapters/libsql/src/migration.ts"
 import {
-  compileSqliteMigrationProgram,
   sealExecutableArtifact,
   type ExecutableMigrationArtifact,
   type MigrationProgram,
   type Sha256Digest,
 } from "../packages/migrate/src/artifact/index.ts"
+import { compileSqliteMigrationProgram } from "../packages/migrate/src/artifact/sqlite.ts"
 import { compareManagedSnapshots, createBaseline } from "../packages/migrate/src/baseline/index.ts"
 import { planSchemaBootstrap } from "../packages/migrate/src/bootstrap/sqlite.ts"
 import { executeMigrations } from "../packages/migrate/src/executor/index.ts"

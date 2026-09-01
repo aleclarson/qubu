@@ -13,6 +13,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./artifact": "./src/artifact/index.ts",
+    "./artifact/mysql": "./src/artifact/mysql.ts",
+    "./artifact/postgres": "./src/artifact/postgres.ts",
+    "./artifact/sqlite": "./src/artifact/sqlite.ts",
     "./baseline": "./src/baseline/index.ts",
     "./bootstrap": "./src/bootstrap/index.ts",
     "./bootstrap/postgres": "./src/bootstrap/postgres.ts",
@@ -35,6 +38,18 @@
       "./artifact": {
         "types": "./dist/artifact.d.mts",
         "import": "./dist/artifact.mjs"
+      },
+      "./artifact/mysql": {
+        "types": "./dist/artifact/mysql.d.mts",
+        "import": "./dist/artifact/mysql.mjs"
+      },
+      "./artifact/postgres": {
+        "types": "./dist/artifact/postgres.d.mts",
+        "import": "./dist/artifact/postgres.mjs"
+      },
+      "./artifact/sqlite": {
+        "types": "./dist/artifact/sqlite.d.mts",
+        "import": "./dist/artifact/sqlite.mjs"
       },
       "./baseline": {
         "types": "./dist/baseline.d.mts",

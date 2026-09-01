@@ -3,10 +3,10 @@ import type { SchemaSnapshot } from "qubu/snapshot"
 import { expect, test } from "vitest"
 
 import {
-  compileSqliteMigrationProgram,
   sealExecutableArtifact,
   type ProgramTransactionRequirement,
 } from "../src/artifact/index.ts"
+import { compileSqliteMigrationProgram } from "../src/artifact/sqlite.ts"
 import {
   executeMigrations,
   MigrationExecutionError,

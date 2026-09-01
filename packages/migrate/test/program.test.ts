@@ -3,12 +3,12 @@ import type { SchemaSnapshot } from "qubu/snapshot"
 import { expect, test } from "vitest"
 
 import {
-  compileSqliteMigrationProgram,
   sealExecutableArtifact,
   type CustomProgramSubstitution,
   type OperationApproval,
   validateMigrationProgram,
 } from "../src/artifact/index.ts"
+import { compileSqliteMigrationProgram } from "../src/artifact/sqlite.ts"
 import { createMigrationPlan, type MigrationPlan } from "../src/plan/index.ts"
 
 const dialect = { name: "sqlite", version: 1 } as const
