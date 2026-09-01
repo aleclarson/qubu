@@ -115,7 +115,7 @@ function completePostgresSnapshot(): CompleteSchemaSnapshot {
 function snapshot(names: readonly string[] = []): SchemaSnapshot {
   return {
     format: "qubu-schema",
-    version: 1,
+    version: 2,
     dialect: {
       name: "postgresql",
       version: 1,
@@ -124,13 +124,28 @@ function snapshot(names: readonly string[] = []): SchemaSnapshot {
       name: "postgres-live-test",
       version: 1,
     },
-    namespace: "public",
+    namespace: { kind: "postgres-schema", name: "public" },
+    capabilities: {
+      generatedColumns: true,
+      identityMetadata: true,
+      checkConstraints: true,
+      checkConstraintEnforcement: "enforced",
+      expressionDecompilation: true,
+      indexExpressions: true,
+      indexPredicates: true,
+      indexIncludedColumns: true,
+      namespaces: true,
+      visibility: "complete",
+    },
     tables: names.map((name) => ({
+      kind: "table",
       id: name,
       physicalName: name,
       columns: [
         {
+          kind: "column",
           id: "value",
+          ordinalPosition: 1,
           physicalName: "value",
           nullable: false,
           hasDefault: false,
@@ -144,6 +159,20 @@ function snapshot(names: readonly string[] = []): SchemaSnapshot {
       constraints: [],
       indexes: [],
     })),
+    views: [],
+    sequences: [],
+    enums: [],
+    domains: [],
+    collations: [],
+    triggers: [],
+    routines: [],
+    partitions: [],
+    policies: [],
+    extensions: [],
+    deferredObjects: [],
+    opaqueObjects: [],
+    comments: [],
+    ownership: [],
   }
 }
 

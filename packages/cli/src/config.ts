@@ -8,9 +8,9 @@ import type {
 } from "@qubu/migrate/artifact"
 import type { MigrationAdapter } from "@qubu/migrate/executor"
 import type { Schema } from "qubu/schema"
-import type { CompleteSchemaSnapshot, SchemaSnapshot, SnapshotJsonValue } from "qubu/snapshot"
+import type { SchemaSnapshot, SnapshotJsonValue } from "qubu/snapshot"
 
-export type ConfigSnapshotValue = SchemaSnapshot | CompleteSchemaSnapshot
+export type ConfigSnapshotValue = SchemaSnapshot
 export type ConfigSnapshot =
   | ConfigSnapshotValue
   | (() => ConfigSnapshotValue | Promise<ConfigSnapshotValue>)

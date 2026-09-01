@@ -1,5 +1,4 @@
 import type {
-  SchemaSnapshotInput,
   SnapshotDefault,
   SnapshotDialect,
   SnapshotDialectExtension,
@@ -10,12 +9,13 @@ import type {
   SnapshotNamingPolicy,
   SnapshotStorage,
 } from "./types.ts"
+import { schemaSnapshotFormat, schemaSnapshotVersion } from "./types.ts"
 
-/** The stable envelope tag shared by Snapshot v1 and the complete model. */
-export const completeSchemaSnapshotFormat = "qubu-schema" as const
+/** The canonical schema snapshot envelope tag. */
+export const completeSchemaSnapshotFormat = schemaSnapshotFormat
 
-/** The strict format version for the complete catalog/object model. */
-export const completeSchemaSnapshotVersion = 2 as const
+/** The current strict format version for the complete catalog/object model. */
+export const completeSchemaSnapshotVersion = schemaSnapshotVersion
 
 /** Descriptive alias for consumers that select a numbered snapshot version. */
 export const schemaSnapshotV2Version = completeSchemaSnapshotVersion
@@ -70,7 +70,7 @@ export interface CompleteSnapshotPhysicalReference {
 
 /** Namespace identity and selected physical boundary for a snapshot. */
 export interface CompleteSnapshotNamespace extends CompleteSnapshotObjectMetadata {
-  readonly kind: "postgres-schema" | "sqlite-database" | "mysql-database"
+  readonly kind: "generic" | "postgres-schema" | "sqlite-database" | "mysql-database"
   readonly name: string
 }
 
@@ -443,10 +443,7 @@ export interface CompleteSchemaSnapshot {
 }
 
 /** Input accepted by the strict complete snapshot encoder. */
-export type CompleteSchemaSnapshotInput =
-  | CompleteSchemaSnapshot
-  | SchemaSnapshotInput
-  | Readonly<Record<string, unknown>>
+export type CompleteSchemaSnapshotInput = CompleteSchemaSnapshot | Readonly<Record<string, unknown>>
 
 /** A complete snapshot decoder result with immutable successful output. */
 export type CompleteSnapshotDecodeResult =

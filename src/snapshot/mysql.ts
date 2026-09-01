@@ -33,7 +33,7 @@ import {
   type SnapshotJsonValue,
 } from "./types.ts"
 
-/** MySQL's v1 snapshot extension identity. */
+/** MySQL's snapshot dialect-extension identity. */
 export const mysqlSnapshotDialect: SnapshotDialect = Object.freeze({
   name: "mysql",
   version: schemaSnapshotDialectVersion,
@@ -325,7 +325,7 @@ function validateTable(
     ) {
       diagnostics.push({
         code: "unsupported-dialect-option",
-        message: "MySQL v1 snapshots support MATCH SIMPLE foreign keys only",
+        message: "MySQL snapshots support MATCH SIMPLE foreign keys only",
         path: [...constraintPath, "match"],
       })
     }
@@ -344,7 +344,7 @@ function validateTable(
     if (constraint.kind === "unique-constraint" && constraint.nulls === "not-distinct") {
       diagnostics.push({
         code: "unsupported-dialect-option",
-        message: "MySQL ordinary UNIQUE constraints use distinct NULL semantics in v1",
+        message: "MySQL ordinary UNIQUE constraints use distinct NULL semantics",
         path: [...constraintPath, "nulls"],
       })
     }

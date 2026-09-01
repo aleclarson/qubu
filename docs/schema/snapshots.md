@@ -14,10 +14,11 @@ const snapshot = createSchemaSnapshot(appSchema)
 const json = encodeSchemaSnapshot(snapshot)
 ```
 
-The v1 envelope contains a format version, an independently versioned dialect
-extension, a versioned naming-policy description, an optional namespace, and
-arrays of tables. Tables, columns, constraints, and indexes are sorted by
-stable logical ID. Physical names are values in the snapshot, not identities:
+The Snapshot v2 envelope contains a format version, an independently versioned
+dialect extension, a versioned naming-policy description, a namespace,
+capability facts, and arrays for every supported object family. Tables,
+columns, constraints, and indexes are sorted by stable logical ID. Physical
+names are values in the snapshot, not identities:
 changing a physical name does not change the TypeScript field or metadata key.
 
 Snapshot data is deliberately not executable Qubu state. Expressions are
@@ -90,16 +91,16 @@ inside the column and identity metadata they describe.
 Snapshot serialization remains separate from database introspection,
 comparison, rename resolution, migration planning, and DDL emission. The
 optional `qubu/introspection` entrypoint can produce the same canonical
-Snapshot v1 data from a user-owned catalog connection. The complete normalized
-catalog can also be encoded as strict Snapshot v2 with the dedicated
-complete-snapshot APIs described in [the catalog model](catalog-model.md).
+Snapshot v2 data from a user-owned catalog connection. The complete normalized
+catalog can also be encoded with the explicit complete-snapshot APIs described
+in [the catalog model](catalog-model.md).
 Readers and connection lifecycle do not belong to this pure serialization
-layer. Diffing can compare either snapshot version. Resolved diffs feed
+layer. Diffing consumes Snapshot v2. Resolved diffs feed
 migration plans, and approved plans feed DDL emission. The package-wide
 [ownership map](../reference/supported-surface.md#ownership-boundary) keeps
 those pure steps separate from application-owned database execution.
 
 The optional [schema source generator](code-generation.md) consumes a complete,
 non-lossy introspection result and makes its generated schema the next identity
-baseline. It does not replace snapshot serialization or generate Snapshot v2
+baseline. It does not replace snapshot serialization or populate non-table
 object families.

@@ -24,7 +24,7 @@ import {
 } from "@qubu/migrate/journal"
 import { mapCatalogToSnapshot } from "qubu/introspection"
 import { readCatalog } from "qubu/introspection/sqlite"
-import type { CompleteSchemaSnapshot, SchemaSnapshot, SnapshotJsonValue } from "qubu/snapshot"
+import type { SchemaSnapshot, SnapshotJsonValue } from "qubu/snapshot"
 
 const metadataTable = "__qubu_migration_metadata"
 const appliedTable = "__qubu_migration_applied"
@@ -43,13 +43,7 @@ export interface LibsqlMigrationSnapshotReader {
       execute(statement: InStatement | string): Promise<ResultSet>
     },
     expected?: SchemaSnapshot,
-  ): Promise<
-    | SnapshotJsonValue
-    | SchemaSnapshot
-    | CompleteSchemaSnapshot
-    | Sha256Digest
-    | MigrationSnapshotInspection
-  >
+  ): Promise<SnapshotJsonValue | SchemaSnapshot | Sha256Digest | MigrationSnapshotInspection>
 }
 
 export interface LibsqlMigrationAdapterOptions {
@@ -106,7 +100,7 @@ export async function readLibsqlMigrationSnapshot(
       },
     },
     {
-      namespace: expected?.namespace ?? "main",
+      namespace: expected?.namespace.name ?? "main",
       mode: "strict",
       ...(expected === undefined ? {} : { previousSnapshot: expected }),
     },
@@ -141,7 +135,7 @@ export async function readLibsqlMigrationSnapshot(
           tables: withoutJournal.tables.filter((table) => expectedNames.has(table.physicalName)),
         }
   const mapped = mapCatalogToSnapshot(managedCatalog, {
-    namespace: expected?.namespace ?? "main",
+    namespace: expected?.namespace.name ?? "main",
     mode: "strict",
     ...(expected === undefined ? {} : { previousSnapshot: expected }),
   })
@@ -689,7 +683,7 @@ function isSchemaSnapshot(value: unknown): value is SchemaSnapshot {
     "format" in value &&
     value.format === "qubu-schema" &&
     "version" in value &&
-    value.version === 1
+    value.version === 2
   )
 }
 function truthy(value: unknown): boolean {

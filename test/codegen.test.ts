@@ -33,7 +33,7 @@ import { mainSchema } from "./codegen-sqlite.generated.ts"
 
 const prettierConfig = await resolveConfig(new URL("../package.json", import.meta.url).pathname)
 
-test("generates deterministic escaped source for complete Snapshot v1 facts", () => {
+test("generates deterministic escaped source for complete Snapshot v2 facts", () => {
   const first = generateSchemaSource(codegenInput)
   const second = generateSchemaSource(codegenInput)
 
@@ -388,7 +388,7 @@ test("round-trips generated SQLite native declarations and derived affinity", ()
   expect(physicalFacts(generated)).toEqual(physicalFacts(sqliteCodegenInput.snapshot))
 })
 
-test("round-trips representative physical Snapshot v1 table facts", () => {
+test("round-trips representative physical Snapshot v2 table facts", () => {
   const generated = createPostgresSchemaSnapshot(appDataSchema)
 
   expect(physicalFacts(generated)).toEqual(physicalFacts(codegenInput.snapshot))
@@ -404,7 +404,7 @@ test("resolves forward and cyclic generated foreign-key targets lazily", () => {
       ?.constraints.find((constraint) => constraint.kind === "foreign-key"),
   ).toMatchObject({
     target: {
-      table: "parentRecords",
+      table: { kind: "table", id: "parentRecords" },
       columns: ["id"],
     },
   })
@@ -415,13 +415,13 @@ test("resolves forward and cyclic generated foreign-key targets lazily", () => {
   ).toEqual([
     expect.objectContaining({
       target: {
-        table: "betaRecords",
+        table: { kind: "table", id: "betaRecords" },
         columns: ["id"],
       },
     }),
     expect.objectContaining({
       target: {
-        table: "alphaRecords",
+        table: { kind: "table", id: "alphaRecords" },
         columns: ["id"],
       },
     }),
@@ -443,7 +443,7 @@ function physicalFacts(snapshot: SchemaSnapshot): unknown {
     tables: [...snapshot.tables].sort(comparePhysical).map((table) => ({
       physicalName: table.physicalName,
       columns: [...table.columns].sort(comparePhysical).map((column) => {
-        const { id: _id, ...facts } = column
+        const { id: _id, ordinalPosition: _ordinalPosition, ...facts } = column
 
         void _id
         return facts
@@ -459,7 +459,18 @@ function physicalFacts(snapshot: SchemaSnapshot): unknown {
 
         return {
           ...facts,
-          terms: index.terms.map((term) => physicalIndexTerm(term, columns)),
+          terms: index.terms.map((term, position) => {
+            const physical = physicalIndexTerm(term, columns)
+
+            if (physical && typeof physical === "object" && !Array.isArray(physical)) {
+              const { position: _position, ...facts } = physical as Record<string, unknown>
+
+              void _position
+              return { ...facts, position }
+            }
+
+            return physical
+          }),
           includedColumns: index.includedColumns?.map(
             (column) => columns?.get(column) ?? `missing:${column}`,
           ),
@@ -498,9 +509,10 @@ function physicalConstraint(
     columns: local,
     target: {
       table:
-        tables.get(constraint.target.table)?.physicalName ?? `missing:${constraint.target.table}`,
+        tables.get(constraint.target.table.id)?.physicalName ??
+        `missing:${constraint.target.table.id}`,
       columns: constraint.target.columns.map(
-        (column) => columns.get(constraint.target.table)?.get(column) ?? `missing:${column}`,
+        (column) => columns.get(constraint.target.table.id)?.get(column) ?? `missing:${column}`,
       ),
     },
   }
@@ -521,16 +533,7 @@ function physicalIndexTerm(
     return term
   }
 
-  return {
-    ...term,
-    expression:
-      term.expression.kind === "column"
-        ? {
-            ...term.expression,
-            column: columns?.get(term.expression.column) ?? `missing:${term.expression.column}`,
-          }
-        : term.expression,
-  }
+  return term
 }
 
 function comparePhysical(

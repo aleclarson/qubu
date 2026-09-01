@@ -20,13 +20,48 @@ const dialect = { name: "sqlite", version: 1 } as const
 function snapshot(withTable = false): SchemaSnapshot {
   return {
     format: "qubu-schema",
-    version: 1,
+    version: 2,
     dialect,
     namingPolicy: { name: "test", version: 1 },
-    namespace: "main",
+    namespace: { kind: "sqlite-database", name: "main" },
+    capabilities: {
+      generatedColumns: true,
+      identityMetadata: true,
+      checkConstraints: true,
+      checkConstraintEnforcement: "enforced",
+      expressionDecompilation: true,
+      indexExpressions: true,
+      indexPredicates: true,
+      indexIncludedColumns: true,
+      namespaces: true,
+      visibility: "complete",
+    },
     tables: withTable
-      ? [{ id: "accounts", physicalName: "accounts", columns: [], constraints: [], indexes: [] }]
+      ? [
+          {
+            kind: "table",
+            id: "accounts",
+            physicalName: "accounts",
+            columns: [],
+            constraints: [],
+            indexes: [],
+          },
+        ]
       : [],
+    views: [],
+    sequences: [],
+    enums: [],
+    domains: [],
+    collations: [],
+    triggers: [],
+    routines: [],
+    partitions: [],
+    policies: [],
+    extensions: [],
+    deferredObjects: [],
+    opaqueObjects: [],
+    comments: [],
+    ownership: [],
   }
 }
 

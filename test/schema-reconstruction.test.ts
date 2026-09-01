@@ -59,7 +59,10 @@ test("serializes catalog reconstruction as ordinary schema metadata", () => {
       physicalName: "catalog_child_parent_fk",
       columns: ["parentId"],
       target: {
-        table: "parent",
+        table: {
+          kind: "table",
+          id: "parent",
+        },
         columns: ["id"],
       },
       onDelete: "cascade",

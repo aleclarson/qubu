@@ -2,12 +2,27 @@ import type { DialectCapability } from "../core/dialect.ts"
 import type { PortableColumnStorage, NativeColumnStorage } from "../schema/column.ts"
 import type { SchemaDialect } from "../schema/dialect.ts"
 import type { Schema } from "../schema/registry.ts"
+import type {
+  CompleteSchemaSnapshot,
+  CompleteSchemaSnapshotInput,
+  CompleteSnapshotCheckConstraint,
+  CompleteSnapshotColumn,
+  CompleteSnapshotConstraint,
+  CompleteSnapshotForeignKey,
+  CompleteSnapshotIdentity,
+  CompleteSnapshotIndex,
+  CompleteSnapshotIndexTerm,
+  CompleteSnapshotKeyConstraint,
+  CompleteSnapshotTable,
+  CompleteSnapshotCreateResult,
+  CompleteSnapshotDecodeResult,
+} from "./complete-types.ts"
 
 /** The JSON object tag used by Qubu schema snapshots. */
 export const schemaSnapshotFormat = "qubu-schema" as const
 
-/** The first canonical schema snapshot format version. */
-export const schemaSnapshotVersion = 1 as const
+/** The current canonical schema snapshot format version. */
+export const schemaSnapshotVersion = 2 as const
 
 /** The first version of the dialect-extension envelope. */
 export const schemaSnapshotDialectVersion = 1 as const
@@ -130,29 +145,11 @@ export type SnapshotGeneratedColumn =
       readonly kind: "external"
     }
 
-/** Identity behavior is deliberately separate from generated expressions. */
-export interface SnapshotIdentity {
-  readonly kind: "identity"
-  readonly generation: "always" | "by-default"
-  readonly dialect?: SnapshotDialectExtension
-}
-
-/** A canonical column record keyed by its stable logical field ID. */
-export interface SnapshotColumn {
-  readonly id: string
-  readonly physicalName: string
-  readonly nullable: boolean
-  readonly hasDefault: boolean
-  readonly generated: boolean
-  readonly storage?: SnapshotStorage
-  readonly default?: SnapshotDefault
-  readonly generatedColumn?: SnapshotGeneratedColumn
-  readonly identity?: SnapshotIdentity
-  /** MySQL's parameter-free column update expression, when supported. */
-  readonly onUpdate?: SnapshotExpression
-}
-
-/** An expression or bare column used by an index. */
+/** V2 object aliases kept in the short snapshot vocabulary used by consumers. */
+export type SnapshotIdentity = CompleteSnapshotIdentity
+export type SnapshotColumn = CompleteSnapshotColumn
+export type SnapshotIndexTerm = CompleteSnapshotIndexTerm
+/** The expression portion of an index term, without ordering metadata. */
 export type SnapshotIndexTermExpression =
   | {
       readonly kind: "column"
@@ -162,107 +159,16 @@ export type SnapshotIndexTermExpression =
       readonly kind: "expression"
       readonly expression: SnapshotExpression
     }
-
-/** One ordered index term. */
-export type SnapshotIndexTerm =
-  | SnapshotIndexTermExpression
-  | {
-      readonly kind: "order"
-      readonly expression: SnapshotIndexTermExpression
-      readonly direction?: "ASC" | "DESC"
-      readonly nulls?: "FIRST" | "LAST"
-    }
-
-/** Common key metadata shared by primary and strict unique constraints. */
-export interface SnapshotKeyConstraint {
-  readonly id: string
-  readonly kind: "primary-key" | "unique"
-  readonly physicalName: string
-  readonly columns: readonly string[]
-  readonly deferrable?: boolean
-  readonly initially?: "immediate" | "deferred"
-  readonly dialect?: SnapshotDialectExtension
-}
-
-/** Nullable database uniqueness, intentionally not a candidate-key proof. */
-export interface SnapshotUniqueConstraint {
-  readonly id: string
+export type SnapshotKeyConstraint = CompleteSnapshotKeyConstraint
+export type SnapshotUniqueConstraint = CompleteSnapshotKeyConstraint & {
   readonly kind: "unique-constraint"
-  readonly physicalName: string
-  readonly columns: readonly string[]
-  readonly nulls: "distinct" | "not-distinct"
-  readonly deferrable?: boolean
-  readonly initially?: "immediate" | "deferred"
-  readonly dialect?: SnapshotDialectExtension
 }
-
-/** A foreign key whose target is represented only by logical IDs. */
-export interface SnapshotForeignKey {
-  readonly id: string
-  readonly kind: "foreign-key"
-  readonly physicalName: string
-  readonly columns: readonly string[]
-  readonly target: {
-    readonly table: string
-    readonly columns: readonly string[]
-  }
-  readonly onUpdate?: "no-action" | "restrict" | "cascade" | "set-null" | "set-default"
-  readonly onDelete?: "no-action" | "restrict" | "cascade" | "set-null" | "set-default"
-  readonly match?: "simple" | "full" | "partial"
-  readonly deferrable?: boolean
-  readonly initially?: "immediate" | "deferred"
-  readonly dialect?: SnapshotDialectExtension
-}
-
-/** A table check constraint with a detached expression value. */
-export interface SnapshotCheckConstraint {
-  readonly id: string
-  readonly kind: "check"
-  readonly physicalName: string
-  readonly expression: SnapshotExpression
-  readonly deferrable?: boolean
-  readonly initially?: "immediate" | "deferred"
-  readonly dialect?: SnapshotDialectExtension
-}
-
-/** Every constraint represented by the v1 neutral model. */
-export type SnapshotConstraint =
-  | SnapshotKeyConstraint
-  | SnapshotUniqueConstraint
-  | SnapshotForeignKey
-  | SnapshotCheckConstraint
-
-/** A canonical index record keyed by its stable logical ID. */
-export interface SnapshotIndex {
-  readonly id: string
-  readonly kind: "index"
-  readonly physicalName: string
-  readonly terms: readonly SnapshotIndexTerm[]
-  readonly unique: boolean
-  readonly candidateKey: boolean
-  readonly predicate?: SnapshotExpression
-  readonly includedColumns?: readonly string[]
-  readonly dialect?: SnapshotDialectExtension
-}
-
-/** A table record keyed by its stable logical registry ID. */
-export interface SnapshotTable {
-  readonly id: string
-  readonly physicalName: string
-  readonly columns: readonly SnapshotColumn[]
-  readonly constraints: readonly SnapshotConstraint[]
-  readonly indexes: readonly SnapshotIndex[]
-}
-
-/** The immutable canonical schema snapshot envelope. */
-export interface SchemaSnapshot {
-  readonly format: typeof schemaSnapshotFormat
-  readonly version: typeof schemaSnapshotVersion
-  readonly dialect: SnapshotDialect
-  readonly namingPolicy: SnapshotNamingPolicy
-  readonly namespace?: string
-  readonly tables: readonly SnapshotTable[]
-}
+export type SnapshotForeignKey = CompleteSnapshotForeignKey
+export type SnapshotCheckConstraint = CompleteSnapshotCheckConstraint
+export type SnapshotConstraint = CompleteSnapshotConstraint
+export type SnapshotIndex = CompleteSnapshotIndex
+export type SnapshotTable = CompleteSnapshotTable
+export type SchemaSnapshot = CompleteSchemaSnapshot
 
 /** Schema-expression context supplied to a dialect adapter. */
 export interface SnapshotExpressionContext {
@@ -324,29 +230,13 @@ export interface SnapshotDiagnostic {
 }
 
 /** Result returned by the strict snapshot decoder. */
-export type SnapshotDecodeResult =
-  | {
-      readonly ok: true
-      readonly value: SchemaSnapshot
-    }
-  | {
-      readonly ok: false
-      readonly diagnostics: readonly SnapshotDiagnostic[]
-    }
+export type SnapshotDecodeResult = CompleteSnapshotDecodeResult
 
 /** Result returned by a non-throwing schema traversal helper. */
-export type SnapshotCreateResult =
-  | {
-      readonly ok: true
-      readonly value: SchemaSnapshot
-    }
-  | {
-      readonly ok: false
-      readonly diagnostics: readonly SnapshotDiagnostic[]
-    }
+export type SnapshotCreateResult = CompleteSnapshotCreateResult
 
 /** A schema snapshot input accepted by the canonical encoder. */
-export type SchemaSnapshotInput = SchemaSnapshot | Readonly<Record<string, unknown>>
+export type SchemaSnapshotInput = CompleteSchemaSnapshotInput
 
 /** Expose the schema generic in tooling declarations without widening APIs. */
 export type AnySchema = Schema<any>

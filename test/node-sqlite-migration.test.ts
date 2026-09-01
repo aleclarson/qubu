@@ -33,20 +33,35 @@ function database(): DatabaseSync {
 function snapshot(names: readonly string[]): SchemaSnapshot {
   return {
     format: "qubu-schema",
-    version: 1,
+    version: 2,
     dialect,
     namingPolicy: {
       name: "node-sqlite-live-test",
       version: 1,
     },
-    namespace: "main",
+    namespace: { kind: "sqlite-database", name: "main" },
+    capabilities: {
+      generatedColumns: true,
+      identityMetadata: true,
+      checkConstraints: true,
+      checkConstraintEnforcement: "enforced",
+      expressionDecompilation: true,
+      indexExpressions: true,
+      indexPredicates: true,
+      indexIncludedColumns: true,
+      namespaces: true,
+      visibility: "complete",
+    },
     tables: names.toSorted().map((name) => ({
+      kind: "table",
       id: name,
       physicalName: name,
       columns: [
         {
+          kind: "column",
           id: "value",
           physicalName: "value",
+          ordinalPosition: 1,
           nullable: false,
           hasDefault: false,
           generated: false,
@@ -59,6 +74,20 @@ function snapshot(names: readonly string[]): SchemaSnapshot {
       constraints: [],
       indexes: [],
     })),
+    views: [],
+    sequences: [],
+    enums: [],
+    domains: [],
+    collations: [],
+    triggers: [],
+    routines: [],
+    partitions: [],
+    policies: [],
+    extensions: [],
+    deferredObjects: [],
+    opaqueObjects: [],
+    comments: [],
+    ownership: [],
   }
 }
 

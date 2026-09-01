@@ -189,7 +189,7 @@ function printConstraintType(
   if (snapshot.kind === "unique-constraint") {
     return `readonly ${literal(constraint.name)}: _qubu.UniqueConstraint<
   ${columns},
-  ${literal(snapshot.nulls)}
+  ${literal(snapshot.nulls ?? "distinct")}
 >`
   }
 
@@ -252,19 +252,15 @@ function printIndexTermType(
   path: readonly (string | number)[],
   diagnostics: CodegenDiagnostic[],
 ): string | undefined {
-  if (term.kind !== "order") {
-    return printIndexTermExpressionType(table, term, columnsName, path, diagnostics)
+  const expression = printIndexTermExpressionType(table, term, columnsName, path, diagnostics)
+
+  if (expression === undefined) {
+    return undefined
   }
 
-  const expression = printIndexTermExpressionType(
-    table,
-    term.expression,
-    columnsName,
-    [...path, "expression"],
-    diagnostics,
-  )
-
-  return expression === undefined ? undefined : `_qubu.OrderTerm<unknown, ${expression}>`
+  return term.direction === undefined && term.nulls === undefined
+    ? expression
+    : `_qubu.OrderTerm<unknown, ${expression}>`
 }
 
 function printIndexTermExpressionType(
@@ -468,11 +464,11 @@ function printConstraint(
     expression = `_qubu.catalogCheck(${sql}, ${options})`
   } else if (snapshot.kind === "foreign-key") {
     const local = printColumns(table, snapshot.columns, path, diagnostics)
-    const targetTable = schema.tablesBySnapshotId.get(snapshot.target.table)
+    const targetTable = schema.tablesBySnapshotId.get(snapshot.target.table.id)
 
     if (targetTable === undefined) {
       diagnostics.push(
-        sourceError(`Foreign-key target table "${snapshot.target.table}" was not resolved`, [
+        sourceError(`Foreign-key target table "${snapshot.target.table.id}" was not resolved`, [
           ...path,
           "target",
           "table",
@@ -527,7 +523,7 @@ function printConstraintOptions(
   const properties = [`physicalName: ${literal(constraint.physicalName)}`]
 
   if (constraint.kind === "unique-constraint") {
-    properties.push(`nulls: ${literal(constraint.nulls)}`)
+    properties.push(`nulls: ${literal(constraint.nulls ?? "distinct")}`)
   }
 
   if (constraint.kind === "foreign-key") {
@@ -643,25 +639,17 @@ function printIndexTerm(
   path: readonly (string | number)[],
   diagnostics: CodegenDiagnostic[],
 ): string | undefined {
-  if (term.kind !== "order") {
-    return printIndexTermExpression(schema, table, term, path, diagnostics)
-  }
-
-  const expression = printIndexTermExpression(
-    schema,
-    table,
-    term.expression,
-    [...path, "expression"],
-    diagnostics,
-  )
+  const expression = printIndexTermExpression(schema, table, term, path, diagnostics)
 
   if (expression === undefined) {
     return undefined
   }
 
-  return `_qubu.order(${expression}, ${
-    term.direction === undefined ? "undefined" : literal(term.direction)
-  }, ${term.nulls === undefined ? "undefined" : literal(term.nulls)})`
+  return term.direction === undefined && term.nulls === undefined
+    ? expression
+    : `_qubu.order(${expression}, ${
+        term.direction === undefined ? "undefined" : literal(term.direction)
+      }, ${term.nulls === undefined ? "undefined" : literal(term.nulls)})`
 }
 
 function printIndexTermExpression(

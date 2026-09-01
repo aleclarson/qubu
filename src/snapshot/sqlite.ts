@@ -32,7 +32,7 @@ import {
   type SnapshotJsonValue,
 } from "./types.ts"
 
-/** SQLite's v1 snapshot extension identity. */
+/** SQLite's snapshot dialect-extension identity. */
 export const sqliteSnapshotDialect: SnapshotDialect = Object.freeze({
   name: "sqlite",
   version: schemaSnapshotDialectVersion,
@@ -426,7 +426,7 @@ function validateTable(
     if (constraint.kind === "unique-constraint" && constraint.nulls === "not-distinct") {
       diagnostics.push({
         code: "unsupported-dialect-option",
-        message: "SQLite UNIQUE constraints always use distinct NULL semantics in v1",
+        message: "SQLite UNIQUE constraints always use distinct NULL semantics",
         path: [...constraintPath, "nulls"],
       })
     }

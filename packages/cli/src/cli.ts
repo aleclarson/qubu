@@ -606,8 +606,8 @@ async function createMigration(
       : previous.snapshot.value
     : emptySnapshot(target)
 
-  if (!before || before.format !== "qubu-schema" || before.version !== 1) {
-    throw new CliFailure("validation", "The previous artifact must embed a version 1 snapshot")
+  if (!before || before.format !== "qubu-schema" || before.version !== 2) {
+    throw new CliFailure("validation", "The previous artifact must embed a version 2 snapshot")
   }
 
   const planned = createMigrationPlan(diffSnapshots(before, target), {
@@ -775,12 +775,22 @@ function provenance(config: QubuCliConfig) {
 
 function emptySnapshot(target: SchemaSnapshot): SchemaSnapshot {
   return {
-    format: "qubu-schema",
-    version: 1,
-    dialect: target.dialect,
-    namingPolicy: target.namingPolicy,
-    namespace: target.namespace,
+    ...target,
     tables: [],
+    views: [],
+    sequences: [],
+    enums: [],
+    domains: [],
+    collations: [],
+    triggers: [],
+    routines: [],
+    partitions: [],
+    policies: [],
+    extensions: [],
+    deferredObjects: [],
+    opaqueObjects: [],
+    comments: [],
+    ownership: [],
   }
 }
 

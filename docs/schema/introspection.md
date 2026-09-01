@@ -1,6 +1,6 @@
 # Database introspection
 
-> Read one existing database namespace into explainable catalog data and an optional canonical Snapshot v1 or complete Snapshot v2 without giving Qubu ownership of the connection.
+> Read one existing database namespace into explainable catalog data and a canonical Snapshot v2 without giving Qubu ownership of the connection.
 
 Database introspection is an optional capability exported from
 `qubu/introspection`. It discovers database facts; it does not recreate the
@@ -8,7 +8,7 @@ original TypeScript declarations. Planning and DDL emission use the separate
 `@qubu/migrate/plan` and `@qubu/migrate/ddl` entrypoints, while migration
 execution remains application-owned. The separate
 `qubu/codegen` entrypoint can create a new machine-owned schema module from a
-complete Snapshot v1 result.
+complete Snapshot v2 result.
 
 ## The pipeline
 
@@ -27,7 +27,7 @@ flowchart LR
 The reader owns catalog SQL and dialect-specific row normalization. The
 normalized catalog retains physical names, native types, opaque SQL text,
 provenance, current-run catalog references, capabilities, deferred objects,
-and diagnostics. The mapper owns Snapshot v1 shape, stable ordering, identity
+and diagnostics. The mapper owns Snapshot v2 shape, stable ordering, identity
 continuity, and strict versus lossy output.
 
 ## Supply a connection
@@ -72,7 +72,7 @@ if (!result.ok) {
   throw new Error(result.diagnostics.map((issue) => issue.message).join("\n"))
 }
 
-result.snapshot.tables // canonical Snapshot v1 data
+result.snapshot.tables // canonical Snapshot v2 data
 ```
 
 Pass the successful result itself—not a detached or edited snapshot—to
@@ -85,10 +85,10 @@ catalog. Use `createCompleteIntrospectionCatalog()` to materialize and freeze
 all optional collections, then `mapCatalogToCompleteSnapshot()` when an
 adapter-supported family such as views, routines, triggers, partitions,
 collations, comments, or retained opaque and deferred objects must cross the
-strict Snapshot v2 boundary. Snapshot v1 is still selected explicitly by
-`mapCatalogToSnapshot()` and remains table-shaped.
+strict Snapshot v2 boundary. `mapCatalogToSnapshot()` delegates to the complete
+mapper, so the canonical result is always Snapshot v2.
 
-The result is successful only when Snapshot v1 validation succeeds. A failed
+The result is successful only when Snapshot v2 validation succeeds. A failed
 result may retain the partial catalog and structured diagnostics, but it has no
 snapshot.
 
@@ -108,9 +108,9 @@ rename. Pass the previous snapshot or an identity hint when a later diff must
 preserve identity across a rename. See [snapshot diffing](diff.md) for the
 comparison and hint boundary.
 
-The first version selects one namespace: a PostgreSQL schema, MySQL database,
-or SQLite database such as `main`. It does not combine attached databases or
-multiple PostgreSQL schemas into one Snapshot v1 value.
+Each Snapshot v2 result selects one namespace: a PostgreSQL schema, MySQL
+database, or SQLite database such as `main`. It does not combine attached
+databases or multiple PostgreSQL schemas into one value.
 
 ## Strict and lossy output
 
@@ -130,9 +130,9 @@ strings are preserved.
 PostgreSQL readers expose views, materialized views, sequences, enums, domains,
 collations, routines, triggers, policies, partitions, extensions, comments,
 and ownership as typed complete catalog records. `mapCatalogToCompleteSnapshot`
-retains those records in Snapshot v2. The existing `mapCatalogToSnapshot`
-mapper still emits the table-only Snapshot v1 and does not fabricate these
-objects into tables. If a PostgreSQL catalog row lacks the evidence needed for
+retains those records in Snapshot v2. `mapCatalogToSnapshot()` uses the same
+complete mapping and does not fabricate these objects into tables. If a
+PostgreSQL catalog row lacks the evidence needed for
 safe normalization, the reader retains a deferred or opaque record and emits a
 diagnostic.
 
@@ -178,9 +178,8 @@ The reader keeps that metadata as normalized typed data and never evaluates
 database-provided SQL. Optional source generation remains a later, pure step
 with a controlled literal printer.
 
-Use `mapCatalogToCompleteSnapshot()` for the typed MySQL families and its
-opaque or deferred boundaries. Use `mapCatalogToSnapshot()` when the caller
-needs the table-only Snapshot v1.
+Use `mapCatalogToSnapshot()` or `mapCatalogToCompleteSnapshot()` for the typed
+MySQL families and their opaque or deferred boundaries.
 
 ## Diagnostics and safety
 
@@ -203,7 +202,7 @@ The canonical snapshot is the handoff to Qubu's pure schema pipeline:
 - rename resolution consumes previous/current snapshots and explicit hints;
 - migration planning consumes semantic diff operations;
 - DDL emitters consume approved plans and dialect capabilities;
-- source generation creates a new machine-owned Snapshot v1 schema baseline.
+- source generation creates a new machine-owned Snapshot v2 schema baseline.
 
 None of those layers opens a database connection or changes how introspection
 represents catalog facts. DDL emission produces statements; it does not apply

@@ -73,7 +73,7 @@ const identityHint: CatalogIdentityHint = {
 
 const previousSnapshot = {
   format: "qubu-schema",
-  version: 1,
+  version: 2,
   dialect: {
     name: "mysql",
     version: 1,
@@ -82,8 +82,34 @@ const previousSnapshot = {
     name: "introspected-physical",
     version: 1,
   },
-  namespace: "app",
+  namespace: { kind: "mysql-database", name: "app" },
+  capabilities: {
+    generatedColumns: true,
+    identityMetadata: true,
+    checkConstraints: true,
+    checkConstraintEnforcement: "enforced",
+    expressionDecompilation: true,
+    indexExpressions: true,
+    indexPredicates: true,
+    indexIncludedColumns: true,
+    namespaces: true,
+    visibility: "complete",
+  },
   tables: [],
+  views: [],
+  sequences: [],
+  enums: [],
+  domains: [],
+  collations: [],
+  triggers: [],
+  routines: [],
+  partitions: [],
+  policies: [],
+  extensions: [],
+  deferredObjects: [],
+  opaqueObjects: [],
+  comments: [],
+  ownership: [],
 } satisfies SchemaSnapshot
 
 const options: IntrospectionOptions = {

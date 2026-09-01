@@ -133,8 +133,8 @@ test("serializes MySQL storage, updates, generated modes, constraints, and index
   const membershipsTable = snapshot.tables.find((table) => table.id === "memberships")
 
   expect(snapshot.dialect).toEqual(mysqlSnapshotDialect)
-  expect(snapshot.namespace).toBe("app")
-  expect(accountsTable?.columns).toEqual([
+  expect(snapshot.namespace).toEqual({ kind: "mysql-database", name: "app" })
+  expect(accountsTable?.columns).toMatchObject([
     {
       id: "email",
       physicalName: "email",
@@ -244,7 +244,7 @@ test("serializes MySQL storage, updates, generated modes, constraints, and index
   expect(membershipsTable?.constraints[0]).toMatchObject({
     kind: "foreign-key",
     target: {
-      table: "accounts",
+      table: { kind: "table", id: "accounts" },
       columns: ["id"],
     },
     onDelete: "cascade",

@@ -25,6 +25,7 @@ import {
   schemaSnapshotFingerprint,
   toSnapshotJsonValue,
 } from "./canonical.ts"
+import type { CompleteSnapshotCapabilities, CompleteSnapshotNamespace } from "./complete-types.ts"
 import { assertSchemaSnapshot, SnapshotValidationError } from "./decode.ts"
 import {
   neutralSnapshotDialect,
@@ -46,13 +47,22 @@ import {
   type SnapshotIdentity,
   type SnapshotIndex,
   type SnapshotIndexTerm,
-  type SnapshotIndexTermExpression,
   type SnapshotKeyConstraint,
   type SnapshotLiteral,
   type SnapshotTable,
   type SnapshotUniqueConstraint,
 } from "./types.ts"
 import type { SnapshotDiagnostic, SnapshotExpressionContext } from "./types.ts"
+
+type IndexTermExpression =
+  | {
+      readonly kind: "column"
+      readonly column: string
+    }
+  | {
+      readonly kind: "expression"
+      readonly expression: SnapshotExpression
+    }
 
 const neutralSchemaDialect = createSchemaDialect(
   Object.freeze({
@@ -67,7 +77,7 @@ export class SnapshotSerializationError extends SnapshotValidationError {
   readonly name = "SnapshotSerializationError"
 }
 
-/** Options for the neutral traversal and a future dialect adapter. */
+/** Options for the schema traversal and a dialect adapter. */
 export interface SchemaSnapshotOptions {
   readonly adapter?: SchemaSnapshotAdapter
   readonly dialect?: SchemaDialect
@@ -81,7 +91,7 @@ export interface SchemaSnapshotOptions {
   }
 }
 
-/** Create a neutral or adapter-owned immutable snapshot from a live schema. */
+/** Create an immutable Snapshot v2 value from a live schema. */
 export function createSchemaSnapshot<TSchema extends Schema<any>>(
   schema: TSchema,
   options: SchemaSnapshotOptions = {},
@@ -197,6 +207,7 @@ export function tryCreateSchemaSnapshot<TSchema extends Schema<any>>(
     }
   }
 
+  const namespace = schema.namespace ?? "default"
   const rawSnapshot: SchemaSnapshot = {
     format: schemaSnapshotFormat,
     version: schemaSnapshotVersion,
@@ -208,8 +219,23 @@ export function tryCreateSchemaSnapshot<TSchema extends Schema<any>>(
       name: namingPolicy.name,
       version: namingPolicy.version ?? schemaSnapshotNamingPolicyVersion,
     }),
-    ...(schema.namespace === undefined ? {} : { namespace: schema.namespace }),
+    namespace: namespaceFor(dialect.name, namespace),
+    capabilities: capabilitiesFor(dialect.name),
     tables,
+    views: [],
+    sequences: [],
+    enums: [],
+    domains: [],
+    collations: [],
+    triggers: [],
+    routines: [],
+    partitions: [],
+    policies: [],
+    extensions: [],
+    deferredObjects: [],
+    opaqueObjects: [],
+    comments: [],
+    ownership: [],
   }
 
   try {
@@ -238,7 +264,7 @@ export function tryCreateSchemaSnapshot<TSchema extends Schema<any>>(
   }
 }
 
-/** Encode a valid snapshot using fixed property order and canonical JSON. */
+/** Encode a valid Snapshot v2 value using canonical JSON. */
 export function encodeSchemaSnapshot(snapshot: SchemaSnapshot): string {
   const canonical = assertSchemaSnapshot(snapshot)
 
@@ -283,11 +309,12 @@ function serializeTable(
     >
   }
   const columns = Object.entries(definitions)
-    .map(([fieldName, definition]) =>
+    .map(([fieldName, definition], ordinalPosition) =>
       serializeColumn(
         fieldName,
         definition,
         table.sqlNames[fieldName] ?? fieldName,
+        ordinalPosition + 1,
         dialect,
         options,
         diagnostics,
@@ -319,6 +346,7 @@ function serializeTable(
     .sort(compareId)
 
   return {
+    kind: "table",
     id,
     physicalName,
     columns,
@@ -331,6 +359,7 @@ function serializeColumn(
   id: string,
   definition: TableDefinitions[string],
   physicalName: string,
+  ordinalPosition: number,
   dialect: SchemaDialect,
   options: SchemaSnapshotOptions,
   diagnostics: SnapshotDiagnostic[],
@@ -377,8 +406,10 @@ function serializeColumn(
     : undefined
 
   return {
+    kind: "column",
     id,
     physicalName,
+    ordinalPosition,
     nullable: definition.nullable,
     hasDefault: definition.hasDefault,
     generated: definition.generated,
@@ -523,6 +554,7 @@ function encodeIdentity(
   return {
     kind: "identity",
     generation: value.generation,
+    options: {},
     ...(extension === undefined ? {} : { dialect: extension }),
   }
 }
@@ -540,7 +572,6 @@ function serializeConstraint(
   const physicalName = constraint.physicalName ?? generatedSchemaObjectName(id)
   const common = {
     id,
-    kind: constraint.kind,
     physicalName,
   }
 
@@ -756,7 +787,10 @@ function resolveForeignKeyTarget(
   }
 
   return {
-    table: targetId,
+    table: {
+      kind: "table",
+      id: targetId,
+    },
     columns: targetColumns,
   }
 }
@@ -784,6 +818,7 @@ function serializeIndex(
       term,
       table,
       dialect,
+      termIndex,
       ["indexes", id, "terms", termIndex],
       options,
       diagnostics,
@@ -846,6 +881,7 @@ function serializeIndexTerm(
   term: AnyExpression | OrderTerm<any>,
   table: AnyTable,
   dialect: SchemaDialect,
+  position: number,
   path: readonly (string | number)[],
   options: SchemaSnapshotOptions,
   diagnostics: SnapshotDiagnostic[],
@@ -863,14 +899,16 @@ function serializeIndexTerm(
     return expression === undefined
       ? undefined
       : {
-          kind: "order",
-          expression,
+          ...expression,
+          position,
           ...(term.direction === undefined ? {} : { direction: term.direction }),
           ...(term.nulls === undefined ? {} : { nulls: term.nulls }),
         }
   }
 
-  return serializeIndexTermExpression(term, table, dialect, path, options, diagnostics)
+  const expression = serializeIndexTermExpression(term, table, dialect, path, options, diagnostics)
+
+  return expression === undefined ? undefined : { ...expression, position }
 }
 
 function serializeIndexTermExpression(
@@ -880,7 +918,7 @@ function serializeIndexTermExpression(
   path: readonly (string | number)[],
   options: SchemaSnapshotOptions,
   diagnostics: SnapshotDiagnostic[],
-): SnapshotIndexTermExpression | undefined {
+): IndexTermExpression | undefined {
   if (isColumnReference(expression)) {
     if (!(expression.fieldName in table.definitions)) {
       diagnostics.push({
@@ -1074,4 +1112,32 @@ function isSchemaRoot(value: unknown): value is Schema<any> {
 
 function compareId(left: { readonly id: string }, right: { readonly id: string }): number {
   return left.id < right.id ? -1 : left.id > right.id ? 1 : 0
+}
+
+function namespaceFor(dialect: string, name: string): CompleteSnapshotNamespace {
+  const kind =
+    dialect === "postgresql"
+      ? "postgres-schema"
+      : dialect === "sqlite"
+        ? "sqlite-database"
+        : dialect === "mysql"
+          ? "mysql-database"
+          : "generic"
+
+  return { kind, name }
+}
+
+function capabilitiesFor(dialect: string): CompleteSnapshotCapabilities {
+  return {
+    generatedColumns: dialect !== "neutral",
+    identityMetadata: dialect !== "neutral",
+    checkConstraints: true,
+    checkConstraintEnforcement: "unknown",
+    expressionDecompilation: false,
+    indexExpressions: true,
+    indexPredicates: true,
+    indexIncludedColumns: dialect === "postgresql",
+    namespaces: dialect !== "neutral",
+    visibility: "complete",
+  }
 }

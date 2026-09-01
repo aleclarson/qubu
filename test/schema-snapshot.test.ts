@@ -80,7 +80,7 @@ test("serializes the complete neutral table model without executable values", ()
 
   expect(snapshot).toMatchObject({
     format: "qubu-schema",
-    version: 1,
+    version: 2,
     dialect: {
       name: "neutral",
       version: 1,
@@ -89,7 +89,7 @@ test("serializes the complete neutral table model without executable values", ()
       name: "snake-case",
       version: 1,
     },
-    namespace: "public",
+    namespace: { kind: "generic", name: "public" },
   })
   expect(snapshot.tables.map((table) => table.id)).toEqual(["accounts", "memberships"])
   expect(snapshot.tables[0]?.columns.map((column) => column.id)).toEqual(["display", "email", "id"])
@@ -109,7 +109,7 @@ test("serializes the complete neutral table model without executable values", ()
   expect(snapshot.tables[1]?.constraints[0]).toMatchObject({
     kind: "foreign-key",
     target: {
-      table: "accounts",
+      table: { kind: "table", id: "accounts" },
       columns: ["id"],
     },
     onDelete: "cascade",
@@ -164,12 +164,7 @@ test("fingerprints canonical content rather than JSON presentation", () => {
   const encoded = encodeSchemaSnapshot(createSchemaSnapshot(appSchema))
   const parsed = JSON.parse(encoded) as Record<string, unknown>
   const reordered = JSON.stringify({
-    tables: parsed.tables,
-    namespace: parsed.namespace,
-    namingPolicy: parsed.namingPolicy,
-    dialect: parsed.dialect,
-    version: parsed.version,
-    format: parsed.format,
+    ...Object.fromEntries(Object.entries(parsed).reverse()),
   })
 
   expect(schemaSnapshotFingerprint(reordered)).toBe(schemaSnapshotFingerprint(encoded))
@@ -197,12 +192,41 @@ test("round trips immutable data and rejects unknown or future fields", () => {
 
   const future = JSON.parse(encoded) as Record<string, unknown>
 
-  future.version = 2
+  future.version = 3
   const futureResult = decodeSchemaSnapshot(future)
 
   expect(futureResult.ok).toBe(false)
   if (!futureResult.ok) {
     expect(futureResult.diagnostics[0]?.code).toBe("future-version")
+  }
+})
+
+test("rejects Snapshot v1 input after the v2 cutover", () => {
+  const result = decodeSchemaSnapshot({
+    format: "qubu-schema",
+    version: 1,
+    dialect: {
+      name: "neutral",
+      version: 1,
+    },
+    namingPolicy: {
+      name: "snake-case",
+      version: 1,
+    },
+    namespace: "public",
+    tables: [],
+  })
+
+  expect(result.ok).toBe(false)
+  if (!result.ok) {
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "invalid-snapshot",
+          path: ["version"],
+        }),
+      ]),
+    )
   }
 })
 
@@ -212,14 +236,14 @@ test("reports broken foreign-key references as structured diagnostics", () => {
     tables: Array<{
       constraints: Array<{
         kind: string
-        target?: { table: string }
+        target?: { table: { id: string } }
       }>
     }>
   }
   const foreign = malformed.tables[1]?.constraints[0]
 
   if (foreign?.kind === "foreign-key" && foreign.target) {
-    foreign.target.table = "missing"
+    foreign.target.table.id = "missing"
   }
 
   const result = decodeSchemaSnapshot(malformed)

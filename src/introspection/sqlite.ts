@@ -1283,7 +1283,7 @@ function column(
     id: stableId(physicalName),
     identitySource: "physical-name",
     physicalName,
-    ordinalPosition: number(row.cid) ?? 0,
+    ordinalPosition: (number(row.cid) ?? 0) + 1,
     nullable:
       !boolean(row.not_null) &&
       !(

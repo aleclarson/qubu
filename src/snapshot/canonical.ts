@@ -150,7 +150,7 @@ export function canonicalJson(value: SnapshotJsonValue): string {
 
 /** Canonical JSON for a schema snapshot after fixed-order reconstruction. */
 export function encodeCanonicalSnapshot(snapshot: SchemaSnapshot): string {
-  return canonicalJson(snapshot as unknown as SnapshotJsonValue)
+  return canonicalJson(assertSchemaSnapshot(snapshot) as unknown as SnapshotJsonValue)
 }
 
 /**

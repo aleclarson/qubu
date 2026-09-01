@@ -27,6 +27,7 @@ import {
   type CompleteSnapshotValueFact,
   type CompleteSnapshotView,
 } from "../snapshot/index.ts"
+import { storageAffinity } from "../snapshot/sqlite.ts"
 import { createCompleteIntrospectionCatalog } from "./catalog.ts"
 import { createIntrospectionDiagnostic, type IntrospectionDiagnostic } from "./diagnostics.ts"
 import { introspectedPhysicalIdentityPolicy } from "./identity.ts"
@@ -55,6 +56,7 @@ import type {
   CatalogView,
   CompleteIntrospectionCatalog,
   IntrospectionCatalog,
+  IntrospectionOptions,
 } from "./types.ts"
 
 /** Result returned by the strict normalized-catalog to Snapshot v2 mapper. */
@@ -74,14 +76,14 @@ export type CompleteSnapshotMappingResult =
     }
 
 /**
- * Map a normalized catalog to strict Snapshot v2 data. This is intentionally separate from the
- * Snapshot v1 mapper: complete objects are never fabricated as tables, and catalog references
- * remain evidence rather than logical IDs.
+ * Map a normalized catalog to strict Snapshot v2 data. Complete objects are never fabricated as
+ * tables, and catalog references remain evidence rather than logical IDs.
  */
 export function mapCatalogToCompleteSnapshot(
   input: IntrospectionCatalog,
+  options?: IntrospectionOptions,
 ): CompleteSnapshotMappingResult {
-  const catalog = createCompleteIntrospectionCatalog(input)
+  const catalog = createCompleteIntrospectionCatalog(applyIdentityOptions(input, options))
   const diagnostics = [...catalog.diagnostics]
   const tableByPhysicalName = new Map(catalog.tables.map((table) => [table.physicalName, table]))
   const tables = catalog.tables.map((table) =>
@@ -218,8 +220,142 @@ export function mapCatalogToCompleteSnapshot(
   }
 }
 
-/** Numbered alias for callers that keep both snapshot mappers available. */
+/** Numbered alias for callers that prefer the explicit Snapshot v2 mapper name. */
 export const mapCatalogToSnapshotV2 = mapCatalogToCompleteSnapshot
+
+function applyIdentityOptions(
+  input: IntrospectionCatalog,
+  options: IntrospectionOptions | undefined,
+): IntrospectionCatalog {
+  if (options?.identityHints === undefined && options?.previousSnapshot === undefined) {
+    return input
+  }
+
+  const remappedTables = input.tables.map((table) => {
+    const columnIds = new Map(
+      table.columns.map((column) => [
+        column.physicalName,
+        resolveIdentity("column", column.id, column.physicalName, table.physicalName, options),
+      ]),
+    )
+    const constraintIds = new Map(
+      table.constraints.map((constraint) => {
+        const physicalName = constraint.physicalName ?? constraint.id
+        return [
+          physicalName,
+          resolveIdentity("constraint", constraint.id, physicalName, table.physicalName, options),
+        ] as const
+      }),
+    )
+    const indexIds = new Map(
+      table.indexes.map((index) => {
+        const physicalName = index.physicalName ?? index.id
+        return [
+          physicalName,
+          resolveIdentity("index", index.id, physicalName, table.physicalName, options),
+        ] as const
+      }),
+    )
+
+    return {
+      ...table,
+      id: resolveIdentity("table", table.id, table.physicalName, undefined, options),
+      columns: table.columns.map((column) => ({
+        ...column,
+        id: columnIds.get(column.physicalName) ?? column.id,
+      })),
+      constraints: table.constraints.map((constraint) => {
+        const backingIndex =
+          constraint.kind === "primary-key" || constraint.kind === "unique"
+            ? constraint.backingIndex
+            : undefined
+
+        return {
+          ...constraint,
+          id: constraintIds.get(constraint.physicalName ?? constraint.id) ?? constraint.id,
+          ...(constraint.kind === "foreign-key" ? { target: { ...constraint.target } } : {}),
+          ...(backingIndex === undefined
+            ? {}
+            : {
+                backingIndex: {
+                  ...backingIndex,
+                  id: indexIds.get(backingIndex.id) ?? backingIndex.id,
+                },
+              }),
+        }
+      }),
+      indexes: table.indexes.map((index) => ({
+        ...index,
+        id: indexIds.get(index.physicalName ?? index.id) ?? index.id,
+        ...(index.backingConstraint === undefined
+          ? {}
+          : {
+              backingConstraint: {
+                ...index.backingConstraint,
+                id: constraintIds.get(index.backingConstraint.id) ?? index.backingConstraint.id,
+              },
+            }),
+      })),
+    }
+  })
+
+  return {
+    ...input,
+    tables: remappedTables,
+  }
+}
+
+function resolveIdentity(
+  kind: "table" | "column" | "constraint" | "index",
+  currentId: string,
+  physicalName: string,
+  tablePhysicalName: string | undefined,
+  options: IntrospectionOptions,
+): string {
+  const hint = options.identityHints?.find(
+    (candidate) =>
+      candidate.kind === kind &&
+      candidate.physicalName === physicalName &&
+      candidate.tablePhysicalName === tablePhysicalName,
+  )
+
+  if (hint !== undefined) {
+    return hint.logicalId
+  }
+
+  const previous = options.previousSnapshot
+
+  if (previous !== undefined) {
+    const table = tablePhysicalName
+      ? previous.tables.find((candidate) => candidate.physicalName === tablePhysicalName)
+      : previous.tables.find((candidate) => candidate.physicalName === physicalName)
+
+    if (kind === "table" && table !== undefined) {
+      return table.id
+    }
+
+    if (table !== undefined && kind === "column") {
+      return (
+        table.columns.find((candidate) => candidate.physicalName === physicalName)?.id ?? currentId
+      )
+    }
+
+    if (table !== undefined && kind === "constraint") {
+      return (
+        table.constraints.find((candidate) => candidate.physicalName === physicalName)?.id ??
+        currentId
+      )
+    }
+
+    if (table !== undefined && kind === "index") {
+      return (
+        table.indexes.find((candidate) => candidate.physicalName === physicalName)?.id ?? currentId
+      )
+    }
+  }
+
+  return currentId || physicalName
+}
 
 function mapTable(
   table: CatalogTable,
@@ -229,8 +365,13 @@ function mapTable(
 ): CompleteSnapshotTable {
   const columns = table.columns.map((column) => mapColumn(column, dialect)).sort(compareId)
   const columnIds = new Map(table.columns.map((column) => [column.physicalName, column.id]))
+  const columnNullability = new Map(
+    table.columns.map((column) => [column.physicalName, column.nullable]),
+  )
   const constraints = table.constraints
-    .map((constraint) => mapConstraint(constraint, dialect, columnIds, tables, diagnostics))
+    .map((constraint) =>
+      mapConstraint(constraint, dialect, columnIds, columnNullability, tables, diagnostics),
+    )
     .filter((value): value is CompleteSnapshotConstraint => value !== undefined)
     .sort(compareId)
   const indexes = table.indexes.map((index) => mapIndex(index, dialect, columnIds)).sort(compareId)
@@ -265,9 +406,8 @@ function mapColumn(column: CatalogColumn, dialect: string): CompleteSnapshotColu
     physicalName: column.physicalName,
     ordinalPosition: column.ordinalPosition,
     nullable: column.nullable,
-    hasDefault:
-      defaultValue !== undefined || generatedColumn !== undefined || identity !== undefined,
-    generated: generatedColumn !== undefined,
+    hasDefault: defaultValue !== undefined,
+    generated: generatedColumn !== undefined || identity !== undefined,
     storage: mapStorage(column.storage, dialect),
     ...(defaultValue === undefined ? {} : { default: defaultValue }),
     ...(generatedColumn === undefined ? {} : { generatedColumn }),
@@ -281,6 +421,7 @@ function mapConstraint(
   constraint: CatalogConstraint,
   dialect: string,
   columns: ReadonlyMap<string, string>,
+  columnNullability: ReadonlyMap<string, boolean>,
   tables: ReadonlyMap<string, CatalogTable>,
   diagnostics: IntrospectionDiagnostic[],
 ): CompleteSnapshotConstraint | undefined {
@@ -337,6 +478,22 @@ function mapConstraint(
   }
 
   if (constraint.kind === "unique") {
+    const isNullable = constraint.columns.some((column) => columnNullability.get(column) === true)
+
+    if (!isNullable && constraint.nulls === "distinct") {
+      return {
+        kind: "unique",
+        ...common,
+        columns: mappedColumns ?? [],
+        ...(constraint.backingIndex === undefined
+          ? {}
+          : { backingIndex: mapReference(constraint.backingIndex) }),
+        ...(constraint.deferrable === undefined ? {} : { deferrable: constraint.deferrable }),
+        ...(constraint.initially === undefined ? {} : { initially: constraint.initially }),
+        ...(constraint.validated === undefined ? {} : { validated: constraint.validated }),
+      }
+    }
+
     return {
       kind: "unique-constraint",
       ...common,
@@ -713,17 +870,11 @@ function mapStorage(
   storage: import("./types.ts").CatalogStorageType,
   dialect: string,
 ): import("../snapshot/types.ts").SnapshotStorage {
-  if (storage.portable !== undefined) {
-    return {
-      kind: "portable",
-      type: storage.portable.type,
-    }
-  }
-
   return {
     kind: "native",
     dialect,
     type: storage.nativeType,
+    ...(dialect === "sqlite" ? { affinity: storageAffinity(storage.nativeType) } : {}),
   }
 }
 

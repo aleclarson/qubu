@@ -183,7 +183,7 @@ async function temporaryDirectory(): Promise<string> {
 function snapshot(names: readonly string[] = []): SchemaSnapshot {
   return {
     format: "qubu-schema",
-    version: 1,
+    version: 2,
     dialect: {
       name: "sqlite",
       version: 1,
@@ -192,14 +192,41 @@ function snapshot(names: readonly string[] = []): SchemaSnapshot {
       name: "test",
       version: 1,
     },
-    namespace: "main",
+    namespace: { kind: "sqlite-database", name: "main" },
+    capabilities: {
+      generatedColumns: true,
+      identityMetadata: true,
+      checkConstraints: true,
+      checkConstraintEnforcement: "enforced",
+      expressionDecompilation: true,
+      indexExpressions: true,
+      indexPredicates: true,
+      indexIncludedColumns: true,
+      namespaces: true,
+      visibility: "complete",
+    },
     tables: names.map((name) => ({
+      kind: "table" as const,
       id: name,
       physicalName: name,
       columns: [],
       constraints: [],
       indexes: [],
     })),
+    views: [],
+    sequences: [],
+    enums: [],
+    domains: [],
+    collations: [],
+    triggers: [],
+    routines: [],
+    partitions: [],
+    policies: [],
+    extensions: [],
+    deferredObjects: [],
+    opaqueObjects: [],
+    comments: [],
+    ownership: [],
   }
 }
 

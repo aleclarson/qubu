@@ -45,17 +45,32 @@ function client(): Client {
 function snapshot(names: readonly string[]): SchemaSnapshot {
   return {
     format: "qubu-schema",
-    version: 1,
+    version: 2,
     dialect,
     namingPolicy: { name: "live-test", version: 1 },
-    namespace: "main",
+    namespace: { kind: "sqlite-database", name: "main" },
+    capabilities: {
+      generatedColumns: true,
+      identityMetadata: true,
+      checkConstraints: true,
+      checkConstraintEnforcement: "enforced",
+      expressionDecompilation: true,
+      indexExpressions: true,
+      indexPredicates: true,
+      indexIncludedColumns: true,
+      namespaces: true,
+      visibility: "complete",
+    },
     tables: names.toSorted().map((name) => ({
+      kind: "table",
       id: name,
       physicalName: name,
       columns: [
         {
+          kind: "column",
           id: "value",
           physicalName: "value",
+          ordinalPosition: 1,
           nullable: false,
           hasDefault: false,
           generated: false,
@@ -65,6 +80,20 @@ function snapshot(names: readonly string[]): SchemaSnapshot {
       constraints: [],
       indexes: [],
     })),
+    views: [],
+    sequences: [],
+    enums: [],
+    domains: [],
+    collations: [],
+    triggers: [],
+    routines: [],
+    partitions: [],
+    policies: [],
+    extensions: [],
+    deferredObjects: [],
+    opaqueObjects: [],
+    comments: [],
+    ownership: [],
   }
 }
 
@@ -318,26 +347,43 @@ test("bootstraps inline SQLite constraints and round trips through strict intros
   const database = client()
   const target: SchemaSnapshot = {
     format: "qubu-schema",
-    version: 1,
+    version: 2,
     dialect,
     namingPolicy: { name: "fixture", version: 1 },
-    namespace: "main",
+    namespace: { kind: "sqlite-database", name: "main" },
+    capabilities: {
+      generatedColumns: true,
+      identityMetadata: true,
+      checkConstraints: true,
+      checkConstraintEnforcement: "enforced",
+      expressionDecompilation: true,
+      indexExpressions: true,
+      indexPredicates: true,
+      indexIncludedColumns: true,
+      namespaces: true,
+      visibility: "complete",
+    },
     tables: [
       {
+        kind: "table",
         id: "accountsLogical",
         physicalName: "accounts",
         columns: [
           {
+            kind: "column",
             id: "emailLogical",
             physicalName: "email_address",
+            ordinalPosition: 1,
             nullable: false,
             hasDefault: false,
             generated: false,
             storage: { kind: "native", dialect: "sqlite", type: "TEXT", affinity: "text" },
           },
           {
+            kind: "column",
             id: "idLogical",
             physicalName: "account_id",
+            ordinalPosition: 2,
             nullable: false,
             hasDefault: false,
             generated: true,
@@ -345,6 +391,7 @@ test("bootstraps inline SQLite constraints and round trips through strict intros
             identity: {
               kind: "identity",
               generation: "by-default",
+              options: {},
               dialect: { dialect: "sqlite", version: 1, data: { autoIncrement: false } },
             },
           },
@@ -366,6 +413,20 @@ test("bootstraps inline SQLite constraints and round trips through strict intros
         indexes: [],
       },
     ],
+    views: [],
+    sequences: [],
+    enums: [],
+    domains: [],
+    collations: [],
+    triggers: [],
+    routines: [],
+    partitions: [],
+    policies: [],
+    extensions: [],
+    deferredObjects: [],
+    opaqueObjects: [],
+    comments: [],
+    ownership: [],
   }
   const bootstrap = planSchemaBootstrap(target)
   expect(bootstrap.ok, JSON.stringify(bootstrap)).toBe(true)
@@ -389,7 +450,7 @@ test("bootstraps inline SQLite constraints and round trips through strict intros
   await executeMigrations({ repository: [migration], adapter: libsqlMigrationAdapter(database) })
   const inspection = await readLibsqlMigrationSnapshot(database, target)
 
-  if (inspection.snapshot.version !== 1) throw new Error("Expected a version 1 SQLite snapshot")
+  if (inspection.snapshot.version !== 2) throw new Error("Expected a version 2 SQLite snapshot")
 
   const comparison = compareManagedSnapshots(target, inspection.snapshot)
   expect(comparison.matches, JSON.stringify(comparison)).toBe(true)
