@@ -60,6 +60,45 @@ An `INSERT ... VALUES` row does not introduce a relational source, so its
 expressions cannot reference columns from the target table or another table.
 Use `insertSelect()` when inserted values need a query source.
 
+## Resolve PostgreSQL conflicts
+
+PostgreSQL upserts can target a primary key, a `unique()` constraint, or a
+declared unique index from the inserted table. A partial unique index carries
+its predicate into the conflict target so PostgreSQL can infer the same index:
+
+```ts
+import { boolean, eq, index, table, text, value } from "qubu"
+import { doUpdate, excluded, onConflict } from "qubu/postgres"
+
+const accounts = table(
+  "accounts",
+  { email: text(), active: boolean(), name: text() },
+  (accounts) => ({
+    constraints: {},
+    indexes: {
+      activeEmail: index([accounts.email], {
+        unique: true,
+        where: eq(accounts.active, value(true)),
+        dialect: { dialect: "postgresql" },
+      }),
+    },
+  }),
+)
+
+const incoming = excluded(accounts)
+const conflict = onConflict(
+  accounts,
+  accounts.indexes.activeEmail,
+  doUpdate({ name: incoming.name }),
+)
+```
+
+The index must be unique, declared on the insert target, and portable or marked
+for PostgreSQL. Index expressions and predicates use the same deterministic,
+parameter-free schema-expression rules as the declared index. Constraint-based
+targets keep their existing cross-dialect behavior; unique-index inference is
+PostgreSQL-specific.
+
 ## Update with a predicate
 
 `UPDATE` assignments accept either application values or expressions built from

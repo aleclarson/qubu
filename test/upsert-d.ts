@@ -11,7 +11,9 @@ import {
 import { sqliteDialect } from "../src/dialects/sqlite.ts"
 import {
   all,
+  eq,
   gt,
+  index,
   insertInto,
   integer,
   render,
@@ -19,6 +21,7 @@ import {
   table,
   text,
   unique,
+  value,
   values,
   where,
 } from "../src/index.ts"
@@ -35,7 +38,19 @@ const accounts = table(
     constraints: {
       emailKey: unique(accounts.email),
     },
-    indexes: {},
+    indexes: {
+      emailIndex: index([accounts.email], { unique: true }),
+      activeEmailIndex: index([accounts.email], {
+        unique: true,
+        where: eq(accounts.name, value("active")),
+        dialect: { dialect: "postgresql" },
+      }),
+      lookupIndex: index([accounts.name]),
+      sqliteEmailIndex: index([accounts.email], {
+        unique: true,
+        dialect: { dialect: "sqlite" },
+      }),
+    },
   }),
 )
 const other = table("other", { name: text() })
@@ -68,6 +83,15 @@ render(query, sqliteDialect())
 
 // @ts-expect-error ON CONFLICT is not advertised by MySQL.
 render(query, mysqlDialect())
+
+onConflict(accounts, accounts.indexes.emailIndex, doNothing())
+onConflict(accounts, accounts.indexes.activeEmailIndex, doUpdate({ name: incoming.name }))
+
+// @ts-expect-error Non-unique indexes cannot arbitrate a PostgreSQL conflict.
+onConflict(accounts, accounts.indexes.lookupIndex, doNothing())
+
+// @ts-expect-error Indexes declared for another dialect cannot arbitrate a PostgreSQL conflict.
+onConflict(accounts, accounts.indexes.sqliteEmailIndex, doNothing())
 
 insertInto(
   accounts,

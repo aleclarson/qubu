@@ -12,6 +12,8 @@ import { sqliteDialect, sqliteTimestamp } from "../src/dialects/sqlite.ts"
 import {
   all,
   allowAll,
+  asc,
+  boolean,
   defaultValues,
   deleteFrom,
   eq,
@@ -19,8 +21,10 @@ import {
   gt,
   insertInto,
   insertSelect,
+  index,
   integer,
   omit,
+  QueryValidationError,
   render,
   returning,
   select,
@@ -29,6 +33,7 @@ import {
   update,
   upper,
   unique,
+  value,
   values,
   where,
 } from "../src/index.ts"
@@ -55,6 +60,28 @@ const accounts = table(
       emailKey: unique(accounts.email),
     },
     indexes: {},
+  }),
+)
+
+const indexedAccounts = table(
+  "indexed_accounts",
+  {
+    id: integer({ generated: true }),
+    email: text(),
+    active: boolean(),
+    name: text(),
+  },
+  (accounts) => ({
+    constraints: {},
+    indexes: {
+      emailIndex: index([accounts.email], { unique: true }),
+      activeEmailIndex: index([asc(accounts.email, "LAST")], {
+        unique: true,
+        where: eq(accounts.active, value(true)),
+        dialect: { dialect: "postgresql" },
+      }),
+      nameLookup: index([accounts.name]),
+    },
   }),
 )
 
@@ -128,6 +155,76 @@ test("renders PostgreSQL ON CONFLICT DO UPDATE with excluded values and a condit
     text: 'INSERT INTO "accounts" ("email", "name", "version") VALUES ($1, $2, $3) ON CONFLICT ("email") DO UPDATE SET "name" = excluded."name" WHERE (excluded."version" > "accounts"."version") RETURNING "accounts"."id" AS "id", "accounts"."name" AS "name"',
     parameters: ["ada@example.com", "Ada", 2],
   })
+})
+
+test("renders ordinary and partial PostgreSQL unique indexes as conflict targets", () => {
+  const incoming = excluded(indexedAccounts)
+  const row = {
+    email: "ada@example.com",
+    active: true,
+    name: "Ada",
+  }
+
+  expect(
+    render(
+      insertInto(
+        indexedAccounts,
+        values(row),
+        onConflict(indexedAccounts, indexedAccounts.indexes.emailIndex, doNothing()),
+      ),
+      postgresDialect(),
+    ),
+  ).toEqual({
+    text: 'INSERT INTO "indexed_accounts" ("email", "active", "name") VALUES ($1, $2, $3) ON CONFLICT ("email") DO NOTHING',
+    parameters: ["ada@example.com", true, "Ada"],
+  })
+
+  expect(
+    render(
+      insertInto(
+        indexedAccounts,
+        values(row),
+        onConflict(
+          indexedAccounts,
+          indexedAccounts.indexes.activeEmailIndex,
+          doUpdate({ name: incoming.name }),
+        ),
+      ),
+      postgresDialect(),
+    ),
+  ).toEqual({
+    text: 'INSERT INTO "indexed_accounts" ("email", "active", "name") VALUES ($1, $2, $3) ON CONFLICT ("email") WHERE ("active" = TRUE) DO UPDATE SET "name" = excluded."name"',
+    parameters: ["ada@example.com", true, "Ada"],
+  })
+})
+
+test("rejects invalid unique-index conflict targets with structured diagnostics", () => {
+  let error: unknown
+
+  try {
+    onConflict(indexedAccounts, indexedAccounts.indexes.nameLookup as never, doNothing())
+  } catch (caught) {
+    error = caught
+  }
+
+  expect(error).toBeInstanceOf(QueryValidationError)
+  expect((error as QueryValidationError).issue).toMatchObject({
+    code: "invalid-mutation",
+    context: "upsert.conflict.target",
+    path: ["onConflict", "target"],
+  })
+
+  const portableQuery = insertInto(
+    indexedAccounts,
+    values({
+      email: "ada@example.com",
+      active: true,
+      name: "Ada",
+    }),
+    onConflict(indexedAccounts, indexedAccounts.indexes.emailIndex, doNothing()),
+  )
+
+  expect(() => render(portableQuery, sqliteDialect())).toThrowError(QueryValidationError)
 })
 
 test("renders SQLite ON CONFLICT DO NOTHING without a target", () => {

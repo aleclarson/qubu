@@ -12,6 +12,8 @@ import { createColumnReference, type ColumnReference } from "../../expressions/c
 import { isExpression } from "../../expressions/types.ts"
 import { columnResultValue, encodeColumnParameter } from "../../schema/column.ts"
 import type { KeyConstraint, SourceConstraintsRecord } from "../../schema/constraints.ts"
+import { renderSchemaExpression, SchemaExpressionError } from "../../schema/expressions.ts"
+import type { IndexTerm, SourceIndex, SourceIndexesRecord } from "../../schema/indexes.ts"
 import {
   createSource,
   exposeColumns,
@@ -129,8 +131,30 @@ type TableKeyConstraint<TTable extends AnyTable> = Extract<
   KeyConstraint
 >
 
-/** A declared primary or non-null unique key used as an upsert target. */
-export type ConflictTarget<TTable extends AnyTable = AnyTable> = TableKeyConstraint<TTable>
+type TableIndexes<TTable extends AnyTable> = TTable extends {
+  readonly indexes: infer TIndexes extends SourceIndexesRecord
+}
+  ? TIndexes
+  : never
+
+type PostgresUniqueIndex<TIndex> = TIndex extends SourceIndex
+  ? TIndex["unique"] extends true
+    ? [Exclude<TIndex["dialect"], undefined>] extends [never]
+      ? TIndex
+      : Exclude<TIndex["dialect"], undefined> extends { readonly dialect: "postgresql" }
+        ? TIndex
+        : never
+    : never
+  : never
+
+type TableConflictIndex<TTable extends AnyTable> = PostgresUniqueIndex<
+  TableIndexes<TTable>[keyof TableIndexes<TTable>]
+>
+
+/** A declared primary key, unique constraint, or PostgreSQL-compatible unique index. */
+export type ConflictTarget<TTable extends AnyTable = AnyTable> =
+  | TableKeyConstraint<TTable>
+  | TableConflictIndex<TTable>
 
 type ConflictSources<TTable extends AnyTable> =
   | SourceIdentity<TTable>
@@ -187,7 +211,7 @@ export interface OnConflictClause<TAction extends ConflictAction = ConflictActio
   RequiresCapabilityMeta<"on-conflict"> | ConflictActionCapabilities<TAction>
 > {
   readonly clauseKind: "on-conflict"
-  readonly target: KeyConstraint | undefined
+  readonly target: KeyConstraint | SourceIndex | undefined
   readonly action: TAction
 }
 
@@ -204,7 +228,9 @@ export function onConflict<
   action: TAction & ConflictActionValidation<TTable, TAction>,
 ): OnConflictClause<TAction>
 export function onConflict(
-  ...args: readonly [DoNothingAction] | readonly [AnyTable, KeyConstraint, ConflictAction]
+  ...args:
+    | readonly [DoNothingAction]
+    | readonly [AnyTable, KeyConstraint | SourceIndex, ConflictAction]
 ): OnConflictClause {
   const table = args.length === 1 ? undefined : args[0]
   const target = args.length === 1 ? undefined : args[1]
@@ -225,15 +251,41 @@ export function onConflict(
       context.append("ON CONFLICT")
 
       if (target !== undefined) {
-        context.append(" (")
-        target.columns.forEach((column, index) => {
-          if (index > 0) {
-            context.append(", ")
-          }
+        if (target.kind === "index" && context.dialect.name !== "postgresql") {
+          throw queryValidationError({
+            code: "invalid-mutation",
+            context: "upsert.conflict.target",
+            path: ["onConflict", "target", "dialect"],
+            message: "Unique-index conflict targets require the PostgreSQL dialect",
+            hint: "Render this query with postgresDialect(), or use a declared key constraint.",
+          })
+        }
 
-          context.render(identifier(table?.sqlNames[column.fieldName] ?? column.columnName))
-        })
+        context.append(" (")
+        if (target.kind === "index") {
+          target.terms.forEach((term, index) => {
+            if (index > 0) {
+              context.append(", ")
+            }
+
+            renderConflictIndexTerm(context, term, index)
+          })
+        } else {
+          target.columns.forEach((column, index) => {
+            if (index > 0) {
+              context.append(", ")
+            }
+
+            context.render(identifier(table?.sqlNames[column.fieldName] ?? column.columnName))
+          })
+        }
+
         context.append(")")
+
+        if (target.kind === "index" && target.predicate !== undefined) {
+          context.append(" WHERE ")
+          context.append(renderConflictIndexExpression(context, target.predicate, "predicate"))
+        }
       }
 
       if (action.actionKind === "do-nothing") {
@@ -255,6 +307,7 @@ export function onConflict(
             context.render(value)
           } else {
             const definition = table?.definitions[columnName]
+
             context.parameter(
               definition === undefined ? value : encodeColumnParameter(definition, value),
             )
@@ -269,7 +322,43 @@ export function onConflict(
   }) as OnConflictClause
 }
 
-function validateConflictTarget(table: AnyTable, target: KeyConstraint) {
+function validateConflictTarget(table: AnyTable, target: KeyConstraint | SourceIndex) {
+  if (target.kind === "index") {
+    const indexes = "indexes" in table ? (table.indexes as SourceIndexesRecord) : {}
+
+    if (!Object.values(indexes).includes(target)) {
+      throw queryValidationError({
+        code: "invalid-mutation",
+        context: "upsert.conflict.target",
+        path: ["onConflict", "target"],
+        message: "ON CONFLICT index target must be declared on the target table",
+        hint: "Use a unique index from the INSERT target table's indexes record.",
+      })
+    }
+
+    if (!target.unique || target.terms.length === 0) {
+      throw queryValidationError({
+        code: "invalid-mutation",
+        context: "upsert.conflict.target",
+        path: ["onConflict", "target"],
+        message: "ON CONFLICT index target must be a non-empty unique index",
+        hint: "Declare the target with index(terms, { unique: true }).",
+      })
+    }
+
+    if (target.dialect !== undefined && target.dialect.dialect !== "postgresql") {
+      throw queryValidationError({
+        code: "invalid-mutation",
+        context: "upsert.conflict.target",
+        path: ["onConflict", "target", "dialect"],
+        message: `ON CONFLICT cannot use an index declared for ${target.dialect.dialect}`,
+        hint: "Use a portable unique index or one declared for PostgreSQL.",
+      })
+    }
+
+    return
+  }
+
   if ((target.kind !== "primary-key" && target.kind !== "unique") || target.columns.length === 0) {
     throw queryValidationError({
       code: "invalid-mutation",
@@ -289,6 +378,35 @@ function validateConflictTarget(table: AnyTable, target: KeyConstraint) {
       path: ["onConflict", "target", "columns"],
       message: "ON CONFLICT target columns must belong to the target table",
       hint: "Use the key constraint declared on the INSERT target table.",
+    })
+  }
+}
+
+function renderConflictIndexTerm(context: RenderContext, term: IndexTerm, index: number): void {
+  const expression = "orderKind" in term ? term.expression : term
+  const text = renderConflictIndexExpression(context, expression, ["terms", index])
+
+  context.append(expression.expressionKind === "column" ? text : `(${text})`)
+}
+
+function renderConflictIndexExpression(
+  context: RenderContext,
+  expression: import("../../expressions/types.ts").AnyExpression,
+  path: string | readonly (string | number)[],
+): string {
+  try {
+    return renderSchemaExpression(expression as never, "index", context.dialect).text
+  } catch (error) {
+    if (!(error instanceof SchemaExpressionError)) {
+      throw error
+    }
+
+    throw queryValidationError({
+      code: "invalid-mutation",
+      context: "upsert.conflict.target",
+      path: ["onConflict", "target", ...(typeof path === "string" ? [path] : path)],
+      message: `ON CONFLICT index target is not representable: ${error.message}`,
+      hint: "Use deterministic PostgreSQL index terms and a deterministic partial predicate.",
     })
   }
 }
