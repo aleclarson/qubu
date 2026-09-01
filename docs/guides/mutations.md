@@ -44,6 +44,9 @@ render(query)
 
 Use `defaultValues()` only when every non-generated column has a database
 default. Use `insertSelect(query, columns)` for an `INSERT ... SELECT` source.
+An ordinary or recursive `withCte()` clause can prefix any mutation; see
+[Compose queries](compose-queries.md#turn-a-query-into-a-cte) for the typed
+`WITH ... INSERT`, `WITH ... UPDATE`, and `WITH ... DELETE` patterns.
 
 Each field may also be a typed expression whose output is compatible with the
 target column. Expressions render directly and retain their dialect

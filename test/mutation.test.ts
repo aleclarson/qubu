@@ -11,22 +11,28 @@ import {
 import { sqliteDialect, sqliteTimestamp } from "../src/dialects/sqlite.ts"
 import {
   all,
+  add,
   allowAll,
   asc,
   boolean,
+  cast,
+  cte,
   defaultValues,
   deleteFrom,
   eq,
   from,
   gt,
+  inQuery,
   insertInto,
   insertSelect,
   index,
   integer,
+  lt,
   omit,
   QueryValidationError,
   render,
   returning,
+  recursiveCte,
   select,
   table,
   text,
@@ -36,6 +42,7 @@ import {
   value,
   values,
   where,
+  withCte,
 } from "../src/index.ts"
 
 const users = table("users", {
@@ -300,6 +307,69 @@ test("composes INSERT ... SELECT with source parameters", () => {
   expect(render(query)).toEqual({
     text: 'INSERT INTO "user_archive" ("name") SELECT "users"."name" AS "name" FROM "users" WHERE ("users"."id" = ?)',
     parameters: [9],
+  })
+})
+
+test("prefixes insert, update, and delete mutations with ordinary and recursive CTEs", () => {
+  const selectedUsers = cte(
+    "selected_users",
+    select({ id: users.id, name: users.name }, from(users), where(eq(users.id, 7))),
+  )
+  const archive = table("user_archive", { name: text() })
+  const insertion = insertInto(
+    archive,
+    insertSelect(select({ name: selectedUsers.name }, from(selectedUsers)), ["name"]),
+    withCte(selectedUsers),
+    returning({ name: archive.name }),
+  )
+
+  expect(render(insertion)).toEqual({
+    text: 'WITH "selected_users" AS (SELECT "users"."id" AS "id", "users"."name" AS "name" FROM "users" WHERE ("users"."id" = ?)) INSERT INTO "user_archive" ("name") SELECT "selected_users"."name" AS "name" FROM "selected_users" RETURNING "user_archive"."name" AS "name"',
+    parameters: [7],
+  })
+
+  const numbers = recursiveCte("numbers", select({ id: cast(value(1), integer()) }), (self) =>
+    select({ id: add(self.id, 1) }, from(self), where(lt(self.id, 3))),
+  )
+  const change = update(
+    users,
+    { name: "Archived" },
+    withCte(numbers),
+    where(inQuery(users.id, select({ id: numbers.id }, from(numbers)))),
+  )
+
+  expect(render(change)).toEqual({
+    text: 'WITH RECURSIVE "numbers" ("id") AS (SELECT CAST(? AS INTEGER) AS "id" UNION ALL SELECT ("numbers"."id" + ?) AS "id" FROM "numbers" WHERE ("numbers"."id" < ?)) UPDATE "users" SET "name" = ? WHERE ("users"."id" IN (SELECT "numbers"."id" AS "id" FROM "numbers"))',
+    parameters: [1, 1, 3, "Archived"],
+  })
+
+  const removal = deleteFrom(
+    users,
+    withCte(selectedUsers),
+    where(inQuery(users.id, select({ id: selectedUsers.id }, from(selectedUsers)))),
+  )
+
+  expect(render(removal)).toEqual({
+    text: 'WITH "selected_users" AS (SELECT "users"."id" AS "id", "users"."name" AS "name" FROM "users" WHERE ("users"."id" = ?)) DELETE FROM "users" WHERE ("users"."id" IN (SELECT "selected_users"."id" AS "id" FROM "selected_users"))',
+    parameters: [7],
+  })
+})
+
+test("rejects duplicate mutation WITH clauses", () => {
+  const selectedUsers = cte("selected_users", select({ id: users.id }, from(users)))
+  let error: unknown
+
+  try {
+    deleteFrom(users, withCte(selectedUsers), withCte(selectedUsers), allowAll())
+  } catch (caught) {
+    error = caught
+  }
+
+  expect(error).toBeInstanceOf(QueryValidationError)
+  expect((error as QueryValidationError).issue).toMatchObject({
+    code: "duplicate-clause",
+    context: "mutation.delete.clauses",
+    path: ["clauses", "with"],
   })
 })
 

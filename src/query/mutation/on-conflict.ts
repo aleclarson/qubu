@@ -29,7 +29,7 @@ import type { WhereClause } from "../clauses/where.ts"
 import type { QueryTypeValidation } from "../errors.ts"
 import { queryValidationError } from "../errors.ts"
 import { omit } from "../omit.ts"
-import type { MutationReturningClause } from "./types.ts"
+import type { MutationReturningClause, MutationWithClause } from "./types.ts"
 import type { UpdateAssignments } from "./update.ts"
 
 export type ExcludedIdentity<TTableIdentity> = {
@@ -215,7 +215,7 @@ export interface OnConflictClause<TAction extends ConflictAction = ConflictActio
   readonly action: TAction
 }
 
-export type InsertClause = MutationReturningClause | OnConflictClause
+export type InsertClause = MutationReturningClause | OnConflictClause | MutationWithClause
 
 export function onConflict(action: DoNothingAction): OnConflictClause<DoNothingAction>
 export function onConflict<

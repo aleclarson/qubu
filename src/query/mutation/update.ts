@@ -14,8 +14,9 @@ import {
   type MutationRow,
   type MutationSafetyValidation,
   type MutationSqlTypes,
-  type MutationCapabilityMetadata,
+  type MutationMetadata,
   validateMutationClauses,
+  validateMutationWithClauses,
 } from "./types.ts"
 import type { UpdateFromClause, UpdateFromScope } from "./update-from.ts"
 
@@ -116,7 +117,7 @@ export function update<
 ): MutationQuery<{
   readonly row: MutationRow<TClauses>
   readonly kind: "update"
-  readonly metadata: MutationCapabilityMetadata<
+  readonly metadata: MutationMetadata<
     TClauses[number] | (TAssignments extends object ? TAssignments[keyof TAssignments] : never)
   >
   readonly sqlTypes: MutationSqlTypes<TClauses>
@@ -124,9 +125,11 @@ export function update<
   const normalizedClauses = clauses as readonly UpdateClause[]
 
   validateMutationClauses("UPDATE", normalizedClauses)
+  validateMutationWithClauses("UPDATE", normalizedClauses)
   const entries = validateUpdate(table, assignments)
 
   const whereClause = normalizedClauses.find((clause) => clause.clauseKind === "where")
+  const withClause = normalizedClauses.find((clause) => clause.clauseKind === "with")
   const fromClause = normalizedClauses.find((clause) => clause.clauseKind === "update-from")
   const returningClause = normalizedClauses.find((clause) => clause.clauseKind === "returning") as
     | MutationReturningClause
@@ -134,6 +137,11 @@ export function update<
   const row = returningClause?.row ?? {}
   const resultShape = returningClause?.resultShape ?? { fields: [] }
   const query = createMutation("update", row, resultShape, (context) => {
+    if (withClause) {
+      context.render(withClause)
+      context.append(" ")
+    }
+
     context.append("UPDATE ")
     context.render(table.reference)
     context.append(" SET ")
@@ -167,7 +175,7 @@ export function update<
   return query as unknown as MutationQuery<{
     readonly row: MutationRow<TClauses>
     readonly kind: "update"
-    readonly metadata: MutationCapabilityMetadata<
+    readonly metadata: MutationMetadata<
       TClauses[number] | (TAssignments extends object ? TAssignments[keyof TAssignments] : never)
     >
     readonly sqlTypes: MutationSqlTypes<TClauses>

@@ -18,6 +18,7 @@ import {
   boolean,
   booleanResultDecoder,
   cast,
+  cte,
   date,
   dateResultDecoder,
   eq,
@@ -26,6 +27,7 @@ import {
   fetchFirst,
   from,
   insertInto,
+  insertSelect,
   integer,
   json,
   jsonTextResultDecoder,
@@ -462,6 +464,58 @@ describe.skipIf(!selectedDialect)("live dialect E2E", () => {
       { id: 3 },
     ])
   }, 30_000)
+
+  test.skipIf(dialectName !== "postgresql")(
+    "executes a PostgreSQL insert backed by a CTE",
+    async () => {
+      if (!environment) {
+        throw new Error("E2E environment was not initialized")
+      }
+
+      await seedAda(environment)
+
+      const copiedRecords = cte(
+        "qubu_e2e_copied_records",
+        select(
+          {
+            id: add(records.id, 1),
+            name: records.name,
+            payload: records.payload,
+            active: records.active,
+            eventDate: records.eventDate,
+            createdAt: records.createdAt,
+          },
+          from(records),
+          where(eq(records.id, 1)),
+        ),
+      )
+      const rows = await executeRows(
+        insertInto(
+          records,
+          insertSelect(
+            select(
+              {
+                id: copiedRecords.id,
+                name: copiedRecords.name,
+                payload: copiedRecords.payload,
+                active: copiedRecords.active,
+                eventDate: copiedRecords.eventDate,
+                createdAt: copiedRecords.createdAt,
+              },
+              from(copiedRecords),
+            ),
+            ["id", "name", "payload", "active", "eventDate", "createdAt"],
+          ),
+          withCte(copiedRecords),
+          returning({ id: records.id, name: records.name }),
+        ),
+        environment.adapter,
+      )
+
+      expect(rows).toEqual([{ id: 2, name: "Ada" }])
+    },
+    30_000,
+  )
 
   test("executes mutations and observes their results", async () => {
     if (!environment) {

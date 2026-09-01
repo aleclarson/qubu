@@ -1,22 +1,31 @@
 import { withDialectCapability } from "../src/core/index.ts"
-import { postgresDialect, updateFrom } from "../src/dialects/postgres.ts"
+import { ilike, postgresDialect, updateFrom } from "../src/dialects/postgres.ts"
 import { sqliteTimestamp } from "../src/dialects/sqlite.ts"
 import {
   allowAll,
   type CapabilitiesOf,
+  correlate,
+  cte,
+  deleteFrom,
   eq,
+  from,
+  inQuery,
   integer,
   insertInto,
   omit,
   render,
   returning,
+  select,
   table,
   text,
   update,
   upper,
   value,
   values,
+  where,
+  withCte,
 } from "../src/index.ts"
+import type { RequiresOuterOf, SourceIdentity } from "../src/index.ts"
 
 const users = table("users", {
   id: integer({ generated: true }),
@@ -139,10 +148,43 @@ export type UpdateFromRetainsCapability = Assert<
   Equal<CapabilitiesOf<typeof updateFromQuery>, "update-from">
 >
 
+const matchingUsers = cte(
+  "matching_users",
+  select({ id: users.id }, from(users), where(ilike(users.name, "%active%"))),
+)
+const cteDelete = deleteFrom(
+  users,
+  withCte(matchingUsers),
+  where(inQuery(users.id, select({ id: matchingUsers.id }, from(matchingUsers)))),
+)
+
+export type MutationCteRetainsCapabilities = Assert<
+  Equal<CapabilitiesOf<typeof cteDelete>, "ilike">
+>
+
+const correlatedNames = cte("correlated_names", select({ name: posts.name }, correlate(posts)))
+const correlatedMutation = insertInto(
+  users,
+  values({ name: "Ada", email: null }),
+  withCte(correlatedNames),
+)
+
+export type MutationCteRetainsOuterRequirements = Assert<
+  Equal<RequiresOuterOf<typeof correlatedMutation>, SourceIdentity<typeof posts>>
+>
+
 update(
   users,
   { name: "Ada" },
   // @ts-expect-error UPDATE clauses cannot reference a source absent from the target and FROM list.
   updateFrom(posts),
   where(eq(users.name, sessions.token)),
+)
+
+update(
+  users,
+  { name: "Archived" },
+  // @ts-expect-error A WITH clause does not add its source directly to UPDATE scope.
+  withCte(matchingUsers),
+  where(inQuery(matchingUsers.id, select({ id: users.id }, from(users)))),
 )

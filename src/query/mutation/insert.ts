@@ -1,4 +1,9 @@
-import type { CapabilityMetadataOf, RenderContext, RequiresOf } from "../../core/fragment.ts"
+import type {
+  CapabilityMetadataOf,
+  RenderContext,
+  RequiresOf,
+  RequiresOuterMetadataOf,
+} from "../../core/fragment.ts"
 import { identifier } from "../../core/primitives/identifier.ts"
 import { isExpression, type ExpressionWithOutput } from "../../expressions/types.ts"
 import {
@@ -13,10 +18,11 @@ import type { InsertClause } from "./on-conflict.ts"
 import {
   createMutation,
   type MutationQuery,
-  type MutationCapabilityMetadata,
+  type MutationMetadata,
   type MutationRow,
   type MutationScopeValidation,
   type MutationSqlTypes,
+  validateMutationWithClauses,
 } from "./types.ts"
 
 export interface ValuesSource<TRows extends readonly object[] = readonly object[]> {
@@ -71,9 +77,9 @@ type RuntimeInsertDefinition = {
   readonly parameterEncoder?: (value: unknown) => unknown
 }
 
-type InsertSourceCapabilityMetadata<TSource extends InsertSource> =
+type InsertSourceMetadata<TSource extends InsertSource> =
   TSource extends InsertSelectSource<infer TQuery, any>
-    ? CapabilityMetadataOf<TQuery>
+    ? CapabilityMetadataOf<TQuery> | RequiresOuterMetadataOf<TQuery>
     : TSource extends ValuesSource<infer TRows>
       ? CapabilityMetadataOf<InsertRowsValue<TRows>>
       : never
@@ -218,18 +224,23 @@ export function insertInto<
 ): MutationQuery<{
   readonly row: MutationRow<TClauses>
   readonly kind: "insert"
-  readonly metadata:
-    | MutationCapabilityMetadata<TClauses[number]>
-    | InsertSourceCapabilityMetadata<TSource>
+  readonly metadata: MutationMetadata<TClauses[number]> | InsertSourceMetadata<TSource>
   readonly sqlTypes: MutationSqlTypes<TClauses>
 }> {
   validateInsert(table, source)
 
   const insertClauses = clauses as readonly InsertClause[]
+  validateMutationWithClauses("INSERT", insertClauses)
+  const withClause = insertClauses.find((clause) => clause.clauseKind === "with")
   const row = insertClauses.find((clause) => clause.clauseKind === "returning")?.row ?? {}
   const resultShape = insertClauses.find((clause) => clause.clauseKind === "returning")
     ?.resultShape ?? { fields: [] }
   const query = createMutation("insert", row, resultShape, (context) => {
+    if (withClause) {
+      context.render(withClause)
+      context.append(" ")
+    }
+
     context.append("INSERT INTO ")
     context.render(table.reference)
 
@@ -304,6 +315,10 @@ export function insertInto<
     }
 
     for (const clause of insertClauses) {
+      if (clause.clauseKind === "with") {
+        continue
+      }
+
       context.append(" ")
       context.render(clause)
     }
@@ -312,9 +327,7 @@ export function insertInto<
   return query as unknown as MutationQuery<{
     readonly row: MutationRow<TClauses>
     readonly kind: "insert"
-    readonly metadata:
-      | MutationCapabilityMetadata<TClauses[number]>
-      | InsertSourceCapabilityMetadata<TSource>
+    readonly metadata: MutationMetadata<TClauses[number]> | InsertSourceMetadata<TSource>
     readonly sqlTypes: MutationSqlTypes<TClauses>
   }>
 }

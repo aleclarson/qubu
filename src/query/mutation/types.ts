@@ -2,12 +2,14 @@ import type {
   CapabilityMetadataOf,
   Fragment,
   RenderFunction,
+  RequiresOuterMetadataOf,
   RequiresOf,
 } from "../../core/fragment.ts"
 import type { ResultShape } from "../../result.ts"
 import type { SourceIdentity } from "../../schema/source.ts"
 import type { UnknownSourceSqlTypes } from "../../schema/source.ts"
 import type { WhereClause } from "../clauses/where.ts"
+import type { WithClause } from "../clauses/with.ts"
 import type { QueryTypeValidation } from "../errors.ts"
 import { queryValidationError } from "../errors.ts"
 import type { Query, QueryConfig } from "../types.ts"
@@ -78,6 +80,9 @@ export function createMutation<
 
 export type MutationCapabilityMetadata<T> = CapabilityMetadataOf<T>
 
+/** Metadata inherited from clauses and expressions composed into a mutation. */
+export type MutationMetadata<T> = CapabilityMetadataOf<T> | RequiresOuterMetadataOf<T>
+
 export interface AllowAllClause extends Fragment<never> {
   readonly clauseKind: "allow-all"
 }
@@ -90,7 +95,12 @@ export function allowAll(): AllowAllClause {
 }
 
 export type MutationConditionClause = WhereClause<any>
-export type MutationClause = MutationConditionClause | AllowAllClause | MutationReturningClause
+export type MutationWithClause = WithClause<any>
+export type MutationClause =
+  | MutationConditionClause
+  | AllowAllClause
+  | MutationReturningClause
+  | MutationWithClause
 
 export type MutationSafetyValidation<TClauses extends readonly unknown[]> =
   Extract<TClauses[number], MutationConditionClause | AllowAllClause> extends never
@@ -169,6 +179,21 @@ export function validateMutationClauses(
       path: ["clauses"],
       message: `${kind} requires a WHERE clause; use allowAll() to opt into an unrestricted mutation`,
       hint: "Add where(...) to target rows, or add allowAll() to make the unrestricted intent explicit.",
+    })
+  }
+}
+
+export function validateMutationWithClauses(
+  kind: "INSERT" | "UPDATE" | "DELETE",
+  clauses: readonly { readonly clauseKind: string }[],
+) {
+  if (clauses.filter((clause) => clause.clauseKind === "with").length > 1) {
+    throw queryValidationError({
+      code: "duplicate-clause",
+      context: `mutation.${kind.toLowerCase()}.clauses`,
+      path: ["clauses", "with"],
+      message: `${kind} accepts only one WITH clause`,
+      hint: "Pass every CTE to one withCte() clause.",
     })
   }
 }

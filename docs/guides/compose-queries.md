@@ -28,6 +28,28 @@ The rendered statement includes the `WITH` clause before `SELECT`. Selected
 camelCase keys use snake_case while they belong to the CTE relation; the outer
 result projection aliases them back to camelCase for the returned row.
 
+Attach the same clause to an insert, update, or delete when the mutation reads
+through the CTE. For example, an insert can consume a filtered CTE through
+`insertSelect()`:
+
+```ts
+import { insertInto, insertSelect, returning } from "qubu"
+
+const archivedUsers = table("archived_users", { name: text() })
+const archive = insertInto(
+  archivedUsers,
+  insertSelect(select({ name: activeUsers.name }, from(activeUsers)), ["name"]),
+  withCte(activeUsers),
+  returning({ name: archivedUsers.name }),
+)
+```
+
+Qubu renders `WITH ... INSERT` and keeps CTE parameters before mutation
+parameters. For update and delete predicates, select from the CTE in a scalar,
+`IN`, or `EXISTS` subquery; `withCte()` defines the relation but does not add it
+directly to the mutation target's column scope. Recursive CTEs use the same
+pattern and render `WITH RECURSIVE` before the mutation keyword.
+
 ## Build a recursive CTE
 
 `recursiveCte()` uses the anchor projection as the contract for a recursive
