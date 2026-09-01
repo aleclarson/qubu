@@ -1,0 +1,39 @@
+{
+  "name": "@qubu/valtio-sync",
+  "version": "0.5.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aleclarson/qubu",
+    "directory": "adapters/valtio-sync"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "types": "./dist/index.d.mts",
+    "exports": {
+      ".": "./dist/index.mjs",
+      "./package.json": "./package.json"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest --run",
+    "typecheck": "vitest --typecheck --run"
+  },
+  "devDependencies": {
+    "qubu": "workspace:*",
+    "valtio-sync": "0.3.1",
+    "zod": "4.4.3"
+  },
+  "peerDependencies": {
+    "qubu": "0.5.1",
+    "valtio-sync": ">=0.3.1 <0.4.0",
+    "zod": ">=4.4.3 <5.0.0"
+  }
+}
