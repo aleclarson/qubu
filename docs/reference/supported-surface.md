@@ -30,7 +30,9 @@
 | `@qubu/migrate/executor`                  | Runtime          | Portable execution, structured errors, checkpointing, and explicit reconciliation                                |
 | `@qubu/migrate/baseline`                  | Runtime          | Strict live baseline verification and physical managed-schema comparison                                         |
 | `@qubu/migrate/status`                    | Runtime          | Pending chain, managed drift, unmanaged objects, interrupted attempts, and incompatible requirements             |
-| `@qubu/migrate/bootstrap`                 | Runtime          | Fresh SQLite and complete PostgreSQL schema planning through the normal diff, plan, and program compiler         |
+| `@qubu/migrate/bootstrap`                 | Runtime          | Shared bootstrap preparation, result types, and generic planning with a caller-supplied schema dialect           |
+| `@qubu/migrate/bootstrap/postgres`        | Runtime          | Fresh PostgreSQL schema planning through the normal diff, plan, and program compiler                             |
+| `@qubu/migrate/bootstrap/sqlite`          | Runtime          | Fresh SQLite schema planning through the normal diff, plan, and program compiler                                 |
 | `@qubu/migrate/testing`                   | Runtime          | Deterministic fake adapters, fault boundaries, and adapter conformance checks                                    |
 | `@qubu/cli`                               | Runtime and CLI  | `@alloc/cmd-ts` commands, typed config, filesystem repositories, stable output, and exit codes                   |
 | `@qubu/drizzle`                           | Runtime          | Shared Drizzle conversion errors and dialect types                                                               |

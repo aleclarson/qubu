@@ -6,6 +6,8 @@ export default defineConfig({
     artifact: "src/artifact/index.ts",
     baseline: "src/baseline/index.ts",
     bootstrap: "src/bootstrap/index.ts",
+    "bootstrap/postgres": "src/bootstrap/postgres.ts",
+    "bootstrap/sqlite": "src/bootstrap/sqlite.ts",
     plan: "src/plan/index.ts",
     ddl: "src/ddl/index.ts",
     executor: "src/executor/index.ts",

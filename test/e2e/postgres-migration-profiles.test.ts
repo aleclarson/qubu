@@ -10,7 +10,7 @@ import {
   compilePostgresMigrationProgram,
   sealExecutableArtifact,
 } from "../../packages/migrate/src/artifact/index.ts"
-import { planSchemaBootstrap } from "../../packages/migrate/src/bootstrap/index.ts"
+import { planSchemaBootstrap } from "../../packages/migrate/src/bootstrap/postgres.ts"
 import { executeMigrations } from "../../packages/migrate/src/executor/index.ts"
 import { createMigrationPlan } from "../../packages/migrate/src/plan/index.ts"
 import { verifyMigrationAdapterConformance } from "../../packages/migrate/src/testing/index.ts"

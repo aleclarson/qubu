@@ -1,7 +1,6 @@
 import { diffSnapshots } from "qubu/diff"
+import type { SchemaDialect } from "qubu/schema"
 import type { CompleteSchemaSnapshot, SchemaSnapshot } from "qubu/snapshot"
-import { postgresSchemaDialect } from "qubu/snapshot/postgres"
-import { sqliteSchemaDialect } from "qubu/snapshot/sqlite"
 
 import {
   compileMigrationProgram,
@@ -35,9 +34,8 @@ export function prepareSchemaBootstrap(
   targetSnapshot: BootstrapSnapshot,
 ): BootstrapPreparationResult {
   const beforeSnapshot = emptySnapshot(targetSnapshot)
-  const dialect = schemaDialect(targetSnapshot)
 
-  if (dialect === undefined) return unsupportedDialect()
+  if (!isSupportedBootstrapDialect(targetSnapshot.dialect.name)) return unsupportedDialect()
 
   const planned = createMigrationPlan(diffSnapshots(beforeSnapshot, targetSnapshot), {
     allowUnknown: true,
@@ -59,11 +57,12 @@ export function prepareSchemaBootstrap(
 /** Plan a fresh database through the same diff, plan, and program compiler used by migrations. */
 export function planSchemaBootstrap(
   targetSnapshot: BootstrapSnapshot,
+  schemaDialect: SchemaDialect,
   options: CompileMigrationProgramOptions = {},
 ): BootstrapPlanResult {
   const prepared = prepareSchemaBootstrap(targetSnapshot)
   if (!prepared.ok) return prepared
-  const compiled = compileMigrationProgram(prepared.plan, schemaDialect(targetSnapshot)!, options)
+  const compiled = compileMigrationProgram(prepared.plan, schemaDialect, options)
   if (!compiled.ok) return compiled
   return Object.freeze({
     ...prepared,
@@ -71,12 +70,8 @@ export function planSchemaBootstrap(
   })
 }
 
-function schemaDialect(target: BootstrapSnapshot) {
-  return target.dialect.name === "sqlite"
-    ? sqliteSchemaDialect
-    : target.dialect.name === "postgresql"
-      ? postgresSchemaDialect
-      : undefined
+function isSupportedBootstrapDialect(name: string): boolean {
+  return name === "sqlite" || name === "postgresql"
 }
 
 function unsupportedDialect(): Extract<BootstrapPreparationResult, { readonly ok: false }> {

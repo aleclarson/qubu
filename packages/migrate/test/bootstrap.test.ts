@@ -2,7 +2,8 @@ import type { CompleteSchemaSnapshot, SchemaSnapshot } from "qubu/snapshot"
 import { expect, test } from "vitest"
 
 import { compareManagedSnapshots } from "../src/baseline/index.ts"
-import { planSchemaBootstrap, prepareSchemaBootstrap } from "../src/bootstrap/index.ts"
+import { prepareSchemaBootstrap } from "../src/bootstrap/index.ts"
+import { planSchemaBootstrap as planPostgresSchemaBootstrap } from "../src/bootstrap/postgres.ts"
 
 function postgresSnapshot(): CompleteSchemaSnapshot {
   return {
@@ -73,7 +74,7 @@ function postgresSnapshot(): CompleteSchemaSnapshot {
 
 test("bootstraps a complete PostgreSQL snapshot with enums before dependent tables", () => {
   const target = postgresSnapshot()
-  const result = planSchemaBootstrap(target)
+  const result = planPostgresSchemaBootstrap(target)
 
   expect(result.ok).toBe(true)
   if (!result.ok) return
@@ -107,7 +108,7 @@ test("keeps unsupported bootstrap dialects explicit", () => {
     tables: [],
   }
 
-  expect(planSchemaBootstrap(target)).toEqual({
+  expect(planPostgresSchemaBootstrap(target)).toEqual({
     ok: false,
     diagnostics: [
       { code: "unsupported", message: "Bootstrap currently supports SQLite and PostgreSQL" },
@@ -135,7 +136,7 @@ test("retains exact policy requirements for incomplete PostgreSQL objects", () =
   const operation = prepared.plan.operations.find((item) => item.kind === "opaque-object")
 
   expect(operation).toMatchObject({ safety: "unknown", status: "approved" })
-  expect(planSchemaBootstrap(target)).toMatchObject({
+  expect(planPostgresSchemaBootstrap(target)).toMatchObject({
     ok: false,
     diagnostics: expect.arrayContaining([
       expect.objectContaining({ code: "approval-required", operationId: operation?.id }),

@@ -19,7 +19,7 @@ import {
   type Sha256Digest,
 } from "../packages/migrate/src/artifact/index.ts"
 import { compareManagedSnapshots, createBaseline } from "../packages/migrate/src/baseline/index.ts"
-import { planSchemaBootstrap } from "../packages/migrate/src/bootstrap/index.ts"
+import { planSchemaBootstrap } from "../packages/migrate/src/bootstrap/sqlite.ts"
 import { executeMigrations } from "../packages/migrate/src/executor/index.ts"
 import { createMigrationPlan } from "../packages/migrate/src/plan/index.ts"
 import { readMigrationStatus } from "../packages/migrate/src/status/index.ts"

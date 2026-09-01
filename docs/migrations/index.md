@@ -25,18 +25,20 @@ The `@qubu/migrate` root intentionally exports only format/version constants
 and the central plan and artifact types. Import behavior from its focused
 entrypoint:
 
-| Entrypoint                 | Use it for                                                                    |
-| -------------------------- | ----------------------------------------------------------------------------- |
-| `@qubu/migrate/plan`       | Create, encode, decode, fingerprint, and validate migration plans             |
-| `@qubu/migrate/ddl`        | Preview deterministic dialect SQL without opening a database                  |
-| `@qubu/migrate/artifact`   | Compile programs; canonicalize, digest, seal, encode, and decode artifacts    |
-| `@qubu/migrate/repository` | Verify a complete artifact chain and its journal prefix                       |
-| `@qubu/migrate/journal`    | Implement or inspect the storage-neutral journal contract                     |
-| `@qubu/migrate/executor`   | Apply artifacts and reconcile uncertain attempts                              |
-| `@qubu/migrate/baseline`   | Verify and record the initial non-executable baseline                         |
-| `@qubu/migrate/status`     | Inspect pending work, drift, requirements, and interrupted attempts           |
-| `@qubu/migrate/bootstrap`  | Plan a fresh SQLite or complete PostgreSQL schema through the normal compiler |
-| `@qubu/migrate/testing`    | Test adapter capabilities and deterministic failure boundaries                |
+| Entrypoint                         | Use it for                                                                                                                    |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `@qubu/migrate/plan`               | Create, encode, decode, fingerprint, and validate migration plans                                                             |
+| `@qubu/migrate/ddl`                | Preview deterministic dialect SQL without opening a database                                                                  |
+| `@qubu/migrate/artifact`           | Compile programs; canonicalize, digest, seal, encode, and decode artifacts                                                    |
+| `@qubu/migrate/repository`         | Verify a complete artifact chain and its journal prefix                                                                       |
+| `@qubu/migrate/journal`            | Implement or inspect the storage-neutral journal contract                                                                     |
+| `@qubu/migrate/executor`           | Apply artifacts and reconcile uncertain attempts                                                                              |
+| `@qubu/migrate/baseline`           | Verify and record the initial non-executable baseline                                                                         |
+| `@qubu/migrate/status`             | Inspect pending work, drift, requirements, and interrupted attempts                                                           |
+| `@qubu/migrate/bootstrap`          | Prepare a fresh schema diff and expose shared bootstrap types; accepts a caller-supplied `SchemaDialect` for generic planning |
+| `@qubu/migrate/bootstrap/postgres` | Plan a fresh PostgreSQL schema through the normal compiler                                                                    |
+| `@qubu/migrate/bootstrap/sqlite`   | Plan a fresh SQLite schema through the normal compiler                                                                        |
+| `@qubu/migrate/testing`            | Test adapter capabilities and deterministic failure boundaries                                                                |
 
 Start with [Artifacts and approval policy](artifacts-and-policy.md) when
 reviewing a migration format. Check [Adapter capability
@@ -44,3 +46,15 @@ profiles](adapters.md), use [Command line operations](operations.md) to
 configure an application, then keep [Recovery and reconciliation](recovery.md)
 with the deployment runbook. [Lotta Games adoption](lotta-adoption.md) records
 the downstream cutover boundary and current combo-matrix blocker.
+
+Choose the dialect-specific bootstrap entrypoint when using a built-in dialect:
+
+```ts
+import { planSchemaBootstrap } from "@qubu/migrate/bootstrap/postgres"
+
+const result = planSchemaBootstrap(targetSnapshot)
+```
+
+The neutral `@qubu/migrate/bootstrap` entrypoint contains the shared preparation
+logic and generic planner. The PostgreSQL and SQLite entrypoints each import
+only their matching schema dialect.

@@ -1,7 +1,8 @@
 import type { CompleteSchemaSnapshot } from "qubu/snapshot"
 import { expectTypeOf } from "vitest"
 
-import { planSchemaBootstrap, prepareSchemaBootstrap } from "../src/bootstrap/index.ts"
+import { prepareSchemaBootstrap } from "../src/bootstrap/index.ts"
+import { planSchemaBootstrap } from "../src/bootstrap/postgres.ts"
 
 declare const completePostgresSnapshot: CompleteSchemaSnapshot
 

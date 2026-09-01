@@ -15,6 +15,8 @@
     "./artifact": "./src/artifact/index.ts",
     "./baseline": "./src/baseline/index.ts",
     "./bootstrap": "./src/bootstrap/index.ts",
+    "./bootstrap/postgres": "./src/bootstrap/postgres.ts",
+    "./bootstrap/sqlite": "./src/bootstrap/sqlite.ts",
     "./ddl": "./src/ddl/index.ts",
     "./executor": "./src/executor/index.ts",
     "./journal": "./src/journal/index.ts",
@@ -41,6 +43,14 @@
       "./bootstrap": {
         "types": "./dist/bootstrap.d.mts",
         "import": "./dist/bootstrap.mjs"
+      },
+      "./bootstrap/postgres": {
+        "types": "./dist/bootstrap/postgres.d.mts",
+        "import": "./dist/bootstrap/postgres.mjs"
+      },
+      "./bootstrap/sqlite": {
+        "types": "./dist/bootstrap/sqlite.d.mts",
+        "import": "./dist/bootstrap/sqlite.mjs"
       },
       "./ddl": {
         "types": "./dist/ddl.d.mts",
