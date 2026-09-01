@@ -33,7 +33,7 @@ test("publishes the optional Valtio Sync integration as its own package", () => 
     "./package.json": "./package.json",
   })
   expect(manifest.peerDependencies).toMatchObject({
-    qubu: "0.5.1",
+    qubu: "0.6.0",
     "valtio-sync": ">=0.3.1 <0.4.0",
   })
 })
