@@ -1,4 +1,5 @@
 import { withDialectCapability } from "../src/core/index.ts"
+import { postgresDialect } from "../src/dialects/postgres.ts"
 import { sqliteTimestamp } from "../src/dialects/sqlite.ts"
 import {
   allowAll,
@@ -6,10 +7,12 @@ import {
   integer,
   insertInto,
   omit,
+  render,
   table,
   text,
   update,
   upper,
+  value,
   values,
 } from "../src/index.ts"
 
@@ -31,6 +34,45 @@ const events = table("events", {
 })
 
 insertInto(events, values({ updatedAt: new Date() }))
+
+insertInto(
+  users,
+  values({
+    name: upper(value("Ada")),
+    email: null,
+  }),
+)
+
+insertInto(
+  users,
+  // @ts-expect-error INSERT values expressions cannot reference the target or another source.
+  values({
+    name: upper(users.name),
+    email: null,
+  }),
+)
+
+insertInto(
+  users,
+  // @ts-expect-error INSERT expressions must produce a target-compatible value.
+  values({
+    name: value(42),
+    email: null,
+  }),
+)
+
+const insertCapabilityQuery = insertInto(
+  users,
+  values({
+    name: withDialectCapability(value("Ada"), "ilike"),
+    email: null,
+  }),
+)
+
+render(insertCapabilityQuery, postgresDialect())
+
+// @ts-expect-error Insert value capabilities remain required by the complete query.
+render(insertCapabilityQuery)
 
 declare const enabled: boolean
 
@@ -69,4 +111,8 @@ type Assert<TCondition extends true> = TCondition
 
 export type ConditionalAssignmentRetainsCapabilities = Assert<
   Equal<CapabilitiesOf<typeof capabilityQuery>, "ilike">
+>
+
+export type InsertValueRetainsCapabilities = Assert<
+  Equal<CapabilitiesOf<typeof insertCapabilityQuery>, "ilike">
 >

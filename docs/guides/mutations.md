@@ -45,6 +45,21 @@ render(query)
 Use `defaultValues()` only when every non-generated column has a database
 default. Use `insertSelect(query, columns)` for an `INSERT ... SELECT` source.
 
+Each field may also be a typed expression whose output is compatible with the
+target column. Expressions render directly and retain their dialect
+requirements; ordinary application values still pass through the column's
+parameter encoder:
+
+```ts
+import { upper, value } from "qubu"
+
+insertInto(users, values({ name: upper(value("Ada")) }))
+```
+
+An `INSERT ... VALUES` row does not introduce a relational source, so its
+expressions cannot reference columns from the target table or another table.
+Use `insertSelect()` when inserted values need a query source.
+
 ## Update with a predicate
 
 `UPDATE` assignments accept either application values or expressions built from

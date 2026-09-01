@@ -27,6 +27,7 @@ import {
   text,
   update,
   upper,
+  value,
   unique,
   values,
   where,
@@ -84,6 +85,26 @@ test("renders typed multi-row INSERT values and RETURNING projections", () => {
     id: number
     name: string
   }>()
+})
+
+test("renders INSERT expressions directly while encoding raw application values", () => {
+  const labels = table("labels", {
+    name: text({
+      codec: {
+        toDriver: (input: string) => input.toUpperCase(),
+        fromDriver: (value: unknown) => String(value).toLowerCase(),
+      },
+    }),
+  })
+  const query = insertInto(
+    labels,
+    values({ name: "encoded" }, { name: upper(value("expression")) }),
+  )
+
+  expect(render(query)).toEqual({
+    text: 'INSERT INTO "labels" ("name") VALUES (?), (UPPER(?))',
+    parameters: ["ENCODED", "expression"],
+  })
 })
 
 test("renders PostgreSQL ON CONFLICT DO UPDATE with excluded values and a condition", () => {

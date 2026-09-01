@@ -1,7 +1,6 @@
-import type { RenderContext } from "../../core/fragment.ts"
-import type { CapabilityMetadataOf } from "../../core/fragment.ts"
+import type { CapabilityMetadataOf, RenderContext, RequiresOf } from "../../core/fragment.ts"
 import { identifier } from "../../core/primitives/identifier.ts"
-import { isExpression } from "../../expressions/types.ts"
+import { isExpression, type ExpressionWithOutput } from "../../expressions/types.ts"
 import {
   encodeColumnParameter,
   type ColumnHasDefault,
@@ -73,19 +72,49 @@ type RuntimeInsertDefinition = {
 }
 
 type InsertSourceCapabilityMetadata<TSource extends InsertSource> =
-  TSource extends InsertSelectSource<infer TQuery, any> ? CapabilityMetadataOf<TQuery> : never
+  TSource extends InsertSelectSource<infer TQuery, any>
+    ? CapabilityMetadataOf<TQuery>
+    : TSource extends ValuesSource<infer TRows>
+      ? CapabilityMetadataOf<InsertRowsValue<TRows>>
+      : never
 
-type InsertRow<TTable extends AnyTable> = TableInsertInput<TTable["definitions"]>
+/** A raw application input or target-compatible expression accepted by an insert field. */
+export type InsertValue<T> = T | ExpressionWithOutput<T>
+
+/** Writable table fields accepted by {@link insertInto} through {@link values}. */
+export type InsertValuesRow<TTable extends AnyTable> = {
+  -readonly [K in keyof TableInsertInput<TTable["definitions"]>]: InsertValue<
+    TableInsertInput<TTable["definitions"]>[K]
+  >
+}
+
+type InsertRowsValue<TRows extends readonly object[]> = TRows[number] extends infer TRow
+  ? TRow extends object
+    ? TRow[keyof TRow]
+    : never
+  : never
+
+type InsertValuesScopeValidation<TSource extends InsertSource> =
+  TSource extends ValuesSource<infer TRows>
+    ? [RequiresOf<InsertRowsValue<TRows>>] extends [never]
+      ? unknown
+      : QueryTypeValidation<
+          "missing-source",
+          "insert.values.row",
+          "Use source-free expressions in INSERT values.",
+          RequiresOf<InsertRowsValue<TRows>>
+        >
+    : unknown
 
 type InvalidInsertRow<TTable extends AnyTable, TRow> =
-  TRow extends InsertRow<TTable>
-    ? Exclude<keyof TRow, keyof InsertRow<TTable>> extends never
+  TRow extends InsertValuesRow<TTable>
+    ? Exclude<keyof TRow, keyof InsertValuesRow<TTable>> extends never
       ? unknown
       : QueryTypeValidation<
           "invalid-insert",
           "insert.values.columns",
           "Use only columns declared by the insert table.",
-          Exclude<keyof TRow, keyof InsertRow<TTable>>
+          Exclude<keyof TRow, keyof InsertValuesRow<TTable>>
         >
     : QueryTypeValidation<
         "invalid-insert",
@@ -184,7 +213,7 @@ export function insertInto<
   const TClauses extends readonly InsertClause[],
 >(
   table: TTable,
-  source: TSource & ValidInsertSource<TTable, TSource>,
+  source: TSource & ValidInsertSource<TTable, TSource> & InsertValuesScopeValidation<TSource>,
   ...clauses: TClauses & MutationScopeValidation<TTable, TClauses>
 ): MutationQuery<{
   readonly row: MutationRow<TClauses>
@@ -235,6 +264,7 @@ export function insertInto<
             const input = Object.hasOwn(row, columnName)
               ? row[columnName]
               : definition.defaultFn?.()
+
             renderInsertValue(context, input, definition)
           })
           context.append(")")

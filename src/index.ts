@@ -455,6 +455,8 @@ export type {
   DefaultValuesSource,
   InsertSelectSource,
   InsertSource,
+  InsertValue,
+  InsertValuesRow,
   ValuesSource,
 } from "./query/mutation/insert.ts"
 export { update } from "./query/mutation/update.ts"
