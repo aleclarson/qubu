@@ -61,7 +61,7 @@ const query = insertInto(
   values({
     email: "ada@example.com",
     name: "Ada",
-    version: 2,
+    version: 1,
   }),
   onConflict(
     accounts,

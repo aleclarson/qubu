@@ -33,7 +33,7 @@ import { mainSchema } from "./codegen-sqlite.generated.ts"
 
 const prettierConfig = await resolveConfig(new URL("../package.json", import.meta.url).pathname)
 
-test("generates deterministic escaped source for complete Snapshot v2 facts", () => {
+test("generates deterministic escaped source for complete Snapshot v1 facts", () => {
   const first = generateSchemaSource(codegenInput)
   const second = generateSchemaSource(codegenInput)
 
@@ -388,7 +388,7 @@ test("round-trips generated SQLite native declarations and derived affinity", ()
   expect(physicalFacts(generated)).toEqual(physicalFacts(sqliteCodegenInput.snapshot))
 })
 
-test("round-trips representative physical Snapshot v2 table facts", () => {
+test("round-trips representative physical Snapshot v1 table facts", () => {
   const generated = createPostgresSchemaSnapshot(appDataSchema)
 
   expect(physicalFacts(generated)).toEqual(physicalFacts(codegenInput.snapshot))

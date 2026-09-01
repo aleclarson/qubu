@@ -22,7 +22,7 @@ import type {
 export const schemaSnapshotFormat = "qubu-schema" as const
 
 /** The current canonical schema snapshot format version. */
-export const schemaSnapshotVersion = 2 as const
+export const schemaSnapshotVersion = 1 as const
 
 /** The first version of the dialect-extension envelope. */
 export const schemaSnapshotDialectVersion = 1 as const
@@ -145,7 +145,7 @@ export type SnapshotGeneratedColumn =
       readonly kind: "external"
     }
 
-/** V2 object aliases kept in the short snapshot vocabulary used by consumers. */
+/** V1 object aliases kept in the short snapshot vocabulary used by consumers. */
 export type SnapshotIdentity = CompleteSnapshotIdentity
 export type SnapshotColumn = CompleteSnapshotColumn
 export type SnapshotIndexTerm = CompleteSnapshotIndexTerm

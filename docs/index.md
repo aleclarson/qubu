@@ -39,7 +39,7 @@ define a table, build a `SELECT`, and inspect its SQL and parameters.
 - [Inspect an existing database](schema/introspection.md) through the optional
   user-owned catalog boundary.
 - [Generate a schema module](schema/code-generation.md) from one complete,
-  non-lossy Snapshot v2 introspection result.
+  non-lossy Snapshot v1 introspection result.
 - [Compare snapshots](schema/diff.md) with explicit rename hints and reviewable
   safety diagnostics.
 - [Build migration plans](schema/migration-plans.md) as reviewed, deterministic
@@ -79,8 +79,8 @@ needs to preserve a fact across composition:
 | Query model              | [Source scope](query-model/source-scope.md)         | Source identity, result shapes, fragments, metadata, and query composition          |
 | Schema model             | [Tables and names](schema/tables-and-names.md)      | Tables, snapshots, diffs, migration plans, and DDL emission                         |
 | Migration operations     | [Migration operations](migrations/index.md)         | Artifacts, adapters, CLI policy, baselines, execution, and recovery                 |
-| Database introspection   | [Database introspection](schema/introspection.md)   | Catalog readers, Snapshot v2 mapping, identities, diagnostics, and support limits   |
-| Schema source generation | [Generate a schema](schema/code-generation.md)      | Machine-owned TypeScript, identity handoff, controlled mappings, and v2 exclusions  |
+| Database introspection   | [Database introspection](schema/introspection.md)   | Catalog readers, Snapshot v1 mapping, identities, diagnostics, and support limits   |
+| Schema source generation | [Generate a schema](schema/code-generation.md)      | Machine-owned TypeScript, identity handoff, controlled mappings, and v1 exclusions  |
 | Rendering and execution  | [Dialects and execution](dialects-and-execution.md) | Placeholder and identifier policies, capabilities, adapters, and raw-SQL boundaries |
 | SQL semantic types       | [SQL semantic types](sql-semantic-types.md)         | Application types, SQL domains, nullability, and compatible operations              |
 

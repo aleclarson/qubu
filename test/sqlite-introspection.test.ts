@@ -575,7 +575,7 @@ test("normalizes primary keys, user indexes, partial predicates, and grouped for
   ])
 })
 
-test("maps complete SQLite objects through the Snapshot v2 table surface", async () => {
+test("maps complete SQLite objects through the Snapshot v1 table surface", async () => {
   const catalog = await readCatalog(completeConnection().connection, options())
   const complete = mapCatalogToCompleteSnapshot(catalog)
 

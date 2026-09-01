@@ -91,7 +91,7 @@ export interface SchemaSnapshotOptions {
   }
 }
 
-/** Create an immutable Snapshot v2 value from a live schema. */
+/** Create an immutable Snapshot v1 value from a live schema. */
 export function createSchemaSnapshot<TSchema extends Schema<any>>(
   schema: TSchema,
   options: SchemaSnapshotOptions = {},
@@ -264,7 +264,7 @@ export function tryCreateSchemaSnapshot<TSchema extends Schema<any>>(
   }
 }
 
-/** Encode a valid Snapshot v2 value using canonical JSON. */
+/** Encode a valid Snapshot v1 value using canonical JSON. */
 export function encodeSchemaSnapshot(snapshot: SchemaSnapshot): string {
   const canonical = assertSchemaSnapshot(snapshot)
 

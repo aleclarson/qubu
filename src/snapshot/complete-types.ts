@@ -18,11 +18,11 @@ export const completeSchemaSnapshotFormat = schemaSnapshotFormat
 export const completeSchemaSnapshotVersion = schemaSnapshotVersion
 
 /** Descriptive alias for consumers that select a numbered snapshot version. */
-export const schemaSnapshotV2Version = completeSchemaSnapshotVersion
+export const schemaSnapshotV1Version = completeSchemaSnapshotVersion
 
 /** Explicit format-version aliases for generated tooling and fixtures. */
 export const schemaSnapshotCompleteVersion = completeSchemaSnapshotVersion
-export const schemaSnapshotVersion2 = completeSchemaSnapshotVersion
+export const schemaSnapshotVersion1 = completeSchemaSnapshotVersion
 
 /** Object families that may appear in a complete canonical snapshot. */
 export type CompleteSnapshotObjectKind =
@@ -417,7 +417,7 @@ export type CompleteSnapshotObject =
   | CompleteSnapshotComment
   | CompleteSnapshotOwnership
 
-/** The immutable strict Snapshot v2 envelope. */
+/** The immutable strict Snapshot v1 envelope. */
 export interface CompleteSchemaSnapshot {
   readonly format: typeof completeSchemaSnapshotFormat
   readonly version: typeof completeSchemaSnapshotVersion
@@ -459,7 +459,7 @@ export type CompleteSnapshotDecodeResult =
 /** A complete snapshot creation result with immutable successful output. */
 export type CompleteSnapshotCreateResult = CompleteSnapshotDecodeResult
 
-/** V2 aliases kept explicit for consumers that prefer numbered APIs. */
-export type SchemaSnapshotV2 = CompleteSchemaSnapshot
-export type SchemaSnapshotV2Input = CompleteSchemaSnapshotInput
-export type SchemaSnapshotV2DecodeResult = CompleteSnapshotDecodeResult
+/** V1 aliases kept explicit for consumers that prefer numbered APIs. */
+export type SchemaSnapshotV1 = CompleteSchemaSnapshot
+export type SchemaSnapshotV1Input = CompleteSchemaSnapshotInput
+export type SchemaSnapshotV1DecodeResult = CompleteSnapshotDecodeResult

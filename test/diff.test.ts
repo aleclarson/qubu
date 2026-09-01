@@ -33,7 +33,7 @@ type TestColumn = Omit<
 function tableSnapshot(tables: SchemaSnapshot["tables"], namespace = "public"): SchemaSnapshot {
   return {
     format: "qubu-schema",
-    version: 2,
+    version: 1,
     dialect: {
       name: "neutral",
       version: 1,
@@ -83,7 +83,7 @@ function completeSnapshot(
 ): CompleteSchemaSnapshot {
   return {
     format: "qubu-schema",
-    version: 2,
+    version: 1,
     dialect: {
       name: "mysql",
       version: 1,
@@ -303,7 +303,7 @@ test("keeps opaque and deferred records out of automatic rename matching", () =>
   expect(result.operations.some((operation) => operation.type === "add")).toBe(true)
 })
 
-test("compares complete v2 object groups independently of array order", () => {
+test("compares complete v1 object groups independently of array order", () => {
   const before = completeSnapshot(
     [],
     [

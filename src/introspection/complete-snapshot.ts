@@ -59,7 +59,7 @@ import type {
   IntrospectionOptions,
 } from "./types.ts"
 
-/** Result returned by the strict normalized-catalog to Snapshot v2 mapper. */
+/** Result returned by the strict normalized-catalog to Snapshot v1 mapper. */
 export type CompleteSnapshotMappingResult =
   | {
       readonly ok: true
@@ -76,7 +76,7 @@ export type CompleteSnapshotMappingResult =
     }
 
 /**
- * Map a normalized catalog to strict Snapshot v2 data. Complete objects are never fabricated as
+ * Map a normalized catalog to strict Snapshot v1 data. Complete objects are never fabricated as
  * tables, and catalog references remain evidence rather than logical IDs.
  */
 export function mapCatalogToCompleteSnapshot(
@@ -142,7 +142,7 @@ export function mapCatalogToCompleteSnapshot(
 
   const snapshot: CompleteSchemaSnapshot = {
     format: "qubu-schema",
-    version: 2,
+    version: 1,
     dialect: {
       name: catalog.dialect,
       version: 1,
@@ -205,8 +205,8 @@ export function mapCatalogToCompleteSnapshot(
         code: "invalid-catalog-row",
         message:
           error instanceof Error
-            ? `Catalog facts could not form Snapshot v2: ${error.message}`
-            : "Catalog facts could not form Snapshot v2",
+            ? `Catalog facts could not form Snapshot v1: ${error.message}`
+            : "Catalog facts could not form Snapshot v1",
         path: [],
         remediation: "Inspect the catalog diagnostics and complete object mappings.",
       }),
@@ -220,8 +220,8 @@ export function mapCatalogToCompleteSnapshot(
   }
 }
 
-/** Numbered alias for callers that prefer the explicit Snapshot v2 mapper name. */
-export const mapCatalogToSnapshotV2 = mapCatalogToCompleteSnapshot
+/** Numbered alias for callers that prefer the explicit Snapshot v1 mapper name. */
+export const mapCatalogToSnapshotV1 = mapCatalogToCompleteSnapshot
 
 function applyIdentityOptions(
   input: IntrospectionCatalog,

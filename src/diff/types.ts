@@ -167,8 +167,8 @@ export interface SnapshotDiffOptions {
 /** The complete immutable output of `diffSnapshots`. */
 export interface SnapshotDiff {
   readonly equal: boolean
-  readonly beforeVersion?: 2
-  readonly afterVersion?: 2
+  readonly beforeVersion?: 1
+  readonly afterVersion?: 1
   readonly beforeDialect?: SnapshotDialect
   readonly afterDialect?: SnapshotDialect
   readonly beforeFingerprint?: string
@@ -207,7 +207,7 @@ export type SnapshotRenameHintResult =
 export type SnapshotDiffDecodeResult =
   | {
       readonly ok: true
-      readonly version: 2
+      readonly version: 1
       readonly value: SchemaSnapshot
     }
   | {

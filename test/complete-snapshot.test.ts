@@ -37,7 +37,7 @@ const expression = {
 function completeSnapshot(): CompleteSchemaSnapshot {
   return {
     format: "qubu-schema",
-    version: 2,
+    version: 1,
     dialect: {
       name: "postgresql",
       version: 1,
@@ -130,7 +130,7 @@ test("encodes and decodes complete immutable object families", () => {
   const decoded = decodeCompleteSchemaSnapshot(encoded)
 
   expect(decoded.ok).toBe(true)
-  expect(snapshot.version).toBe(2)
+  expect(snapshot.version).toBe(1)
   expect(Object.isFrozen(snapshot)).toBe(true)
   expect(Object.isFrozen(snapshot.tables[0])).toBe(true)
   expect(completeSchemaSnapshotFingerprint(encoded)).toBe(

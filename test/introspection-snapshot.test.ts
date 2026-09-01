@@ -286,7 +286,7 @@ test("carries table and column identities from a previous snapshot", () => {
   expect(result.snapshot.tables[0]?.columns[0]?.id).toBe("account_id")
 })
 
-test("maps constraints and ordered index terms to Snapshot v2", () => {
+test("maps constraints and ordered index terms to Snapshot v1", () => {
   const constraints: CatalogConstraint[] = [
     {
       kind: "primary-key",

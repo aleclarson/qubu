@@ -1,6 +1,6 @@
 # Snapshot diffing
 
-> Compare canonical Snapshot v2 values and review identity changes before a later planning step.
+> Compare canonical Snapshot v1 values and review identity changes before a later planning step.
 
 The optional `qubu/diff` entrypoint compares immutable snapshot data. It does
 not open a connection, render SQL, execute a change, or infer migration history.
@@ -57,7 +57,7 @@ an `ambiguous` diagnostic and leaves both operations visible for review.
 
 Removing an object is marked `destructive`. Narrowing nullability, changing
 storage, removing a value, or changing a constraint can also receive that
-classification. Opaque and deferred Snapshot v2 records remain visible as
+classification. Opaque and deferred Snapshot v1 records remain visible as
 `add` or `remove` data and produce `lossy` or `unsupported` diagnostics. They
 cannot be silently promoted to a rename.
 

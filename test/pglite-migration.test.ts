@@ -14,7 +14,7 @@ afterEach(async () => {
 function snapshot(): SchemaSnapshot {
   return {
     format: "qubu-schema",
-    version: 2,
+    version: 1,
     dialect: {
       name: "postgresql",
       version: 1,

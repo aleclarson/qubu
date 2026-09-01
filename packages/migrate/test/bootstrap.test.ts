@@ -8,7 +8,7 @@ import * as postgresBootstrap from "../src/bootstrap/postgres.ts"
 function postgresSnapshot(): CompleteSchemaSnapshot {
   return {
     format: "qubu-schema",
-    version: 2,
+    version: 1,
     dialect: { name: "postgresql", version: 1 },
     namingPolicy: { name: "introspected-physical", version: 1 },
     namespace: { kind: "postgres-schema", name: "public" },
@@ -81,7 +81,7 @@ test("bootstraps a complete PostgreSQL snapshot with enums before dependent tabl
 
   expect(result.beforeSnapshot).toMatchObject({
     format: "qubu-schema",
-    version: 2,
+    version: 1,
     dialect: target.dialect,
     namespace: target.namespace,
     tables: [],
@@ -101,7 +101,7 @@ test("bootstraps a complete PostgreSQL snapshot with enums before dependent tabl
 test("keeps unsupported bootstrap dialects explicit", () => {
   const target: SchemaSnapshot = {
     format: "qubu-schema",
-    version: 2,
+    version: 1,
     dialect: { name: "mysql", version: 1 },
     namingPolicy: { name: "test", version: 1 },
     namespace: { kind: "mysql-database", name: "app" },

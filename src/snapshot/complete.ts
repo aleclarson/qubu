@@ -44,7 +44,7 @@ import type {
 } from "./types.ts"
 import { schemaSnapshotDialectVersion } from "./types.ts"
 
-/** Error raised by throwing APIs after collecting strict v2 diagnostics. */
+/** Error raised by throwing APIs after collecting strict v1 diagnostics. */
 export class CompleteSnapshotValidationError extends TypeError {
   readonly name: string = "CompleteSnapshotValidationError"
   readonly diagnostics: readonly SnapshotDiagnostic[]
@@ -69,7 +69,7 @@ export class CompleteSnapshotValidationError extends TypeError {
   }
 }
 
-/** Decode and strictly validate a complete Snapshot v2 JSON value. */
+/** Decode and strictly validate a complete Snapshot v1 JSON value. */
 export function decodeCompleteSchemaSnapshot(
   input: string | unknown,
 ): import("./complete-types.ts").CompleteSnapshotDecodeResult {
@@ -146,7 +146,7 @@ export function encodeCompleteSchemaSnapshot(snapshot: CompleteSchemaSnapshot): 
   return canonicalJson(canonical as unknown as SnapshotJsonValue)
 }
 
-/** Compute the deterministic content fingerprint for a complete Snapshot v2. */
+/** Compute the deterministic content fingerprint for a complete Snapshot v1. */
 export function completeSchemaSnapshotFingerprint(
   snapshot: CompleteSchemaSnapshotInput | string,
 ): string {
@@ -171,12 +171,12 @@ export function completeSchemaSnapshotFingerprint(
   return `fnv1a64:${hash.toString(16).padStart(16, "0")}`
 }
 
-/** Numbered aliases for tooling that prefers explicit Snapshot v2 names. */
-export const decodeSchemaSnapshotV2 = decodeCompleteSchemaSnapshot
-export const assertSchemaSnapshotV2 = assertCompleteSchemaSnapshot
-export const encodeSchemaSnapshotV2 = encodeCompleteSchemaSnapshot
-export const canonicalizeSchemaSnapshotV2 = canonicalizeCompleteSchemaSnapshot
-export const schemaSnapshotV2Fingerprint = completeSchemaSnapshotFingerprint
+/** Numbered aliases for tooling that prefers explicit Snapshot v1 names. */
+export const decodeSchemaSnapshotV1 = decodeCompleteSchemaSnapshot
+export const assertSchemaSnapshotV1 = assertCompleteSchemaSnapshot
+export const encodeSchemaSnapshotV1 = encodeCompleteSchemaSnapshot
+export const canonicalizeSchemaSnapshotV1 = canonicalizeCompleteSchemaSnapshot
+export const schemaSnapshotV1Fingerprint = completeSchemaSnapshotFingerprint
 export const decodeCompleteSnapshot = decodeCompleteSchemaSnapshot
 export const assertCompleteSnapshot = assertCompleteSchemaSnapshot
 export const encodeCompleteSnapshot = encodeCompleteSchemaSnapshot

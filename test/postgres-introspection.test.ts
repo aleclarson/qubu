@@ -451,7 +451,7 @@ test("rejects a connection from another dialect before querying", async () => {
   ])
 })
 
-test("normalizes PostgreSQL complete object families and maps Snapshot v2", async () => {
+test("normalizes PostgreSQL complete object families and maps Snapshot v1", async () => {
   const rows: Record<string, readonly Row[]> = {
     [postgresServerQuery]: [
       {

@@ -31,25 +31,25 @@ IDs are evidence selected by the adapter's identity policy. PostgreSQL OIDs,
 SQLite implementation names, and similar catalog keys stay in current-run
 references and are not used as logical IDs.
 
-## Snapshot v2
+## Snapshot v1
 
 `qubu/snapshot` provides the strict complete format as a separate API:
 
 ```ts
 import { decodeCompleteSchemaSnapshot, encodeCompleteSchemaSnapshot } from "qubu/snapshot"
 
-const encoded = encodeCompleteSchemaSnapshot(snapshotV2)
+const encoded = encodeCompleteSchemaSnapshot(snapshotV1)
 const decoded = decodeCompleteSchemaSnapshot(encoded)
 ```
 
-Snapshot v2 uses the same `qubu-schema` envelope with `version: 2`. Its
+Snapshot v1 uses the same `qubu-schema` envelope with `version: 1`. Its
 namespace, capability facts, object-family arrays, cross-object references,
 provenance, typed dialect extensions, and deferred/opaque boundaries are
 strictly validated. Arrays are ordered by logical ID (with ordinal sequences
 and index terms ordered by their semantic position), and the fingerprint is computed
 from the deterministic encoding.
 
-Snapshot v2 is the only strict schema snapshot format. `decodeSchemaSnapshot`
-and `decodeCompleteSchemaSnapshot` both validate the same version-2 envelope,
+Snapshot v1 is the only strict schema snapshot format. `decodeSchemaSnapshot`
+and `decodeCompleteSchemaSnapshot` both validate the same version-1 envelope,
 reject unknown fields and future versions, and never evaluate database-provided
 SQL.

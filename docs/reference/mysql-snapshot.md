@@ -1,7 +1,7 @@
 # MySQL snapshot support
 
 > Use this matrix before selecting `mysqlSnapshotAdapter`; it records the
-> MySQL facts Qubu v2 can encode and the combinations that need a later server
+> MySQL facts Qubu v1 can encode and the combinations that need a later server
 > version or engine policy.
 
 Import the adapter from the MySQL snapshot subpath:
@@ -19,7 +19,7 @@ to this adapter.
 
 ## Support matrix
 
-| Schema fact         | MySQL v2 behavior                                                                                                                                                                                                                                   |
+| Schema fact         | MySQL v1 behavior                                                                                                                                                                                                                                   |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Portable storage    | Maps `integer` to `INT`, `numeric` to `DECIMAL`, `text` to `TEXT`, `boolean` to `BOOLEAN`, `date` to `DATE`, `timestamp` to `DATETIME`, `uuid` to `CHAR(36)`, `json` to `JSON`, `bigint` to `BIGINT`, and `binary` to `VARBINARY`.                  |
 | Native storage      | Preserves a non-empty declaration tagged `mysql` exactly. Native declarations owned by another dialect fail.                                                                                                                                        |

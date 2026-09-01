@@ -20,7 +20,7 @@ function snapshot(
 ): SchemaSnapshot {
   return {
     format: "qubu-schema",
-    version: 2,
+    version: 1,
     dialect,
     namingPolicy: {
       name: "test",
@@ -168,7 +168,7 @@ test("requires a decision for explicit physical renames", () => {
 test("keeps opaque facts blocked without inferring SQL", () => {
   const before = {
     format: "qubu-schema" as const,
-    version: 2 as const,
+    version: 1 as const,
     dialect: {
       name: "mysql",
       version: 1,

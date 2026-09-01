@@ -27,7 +27,7 @@ const dialect = {
 function snapshot(tables: SchemaSnapshot["tables"] = []): SchemaSnapshot {
   return {
     format: "qubu-schema",
-    version: 2,
+    version: 1,
     dialect,
     namingPolicy: {
       name: "test",

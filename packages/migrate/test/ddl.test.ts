@@ -15,7 +15,7 @@ function snapshot(
 ): SchemaSnapshot {
   return {
     format: "qubu-schema",
-    version: 2,
+    version: 1,
     dialect,
     namingPolicy: {
       name: "test",
@@ -218,7 +218,7 @@ test("renders SQLite constraints inline during table creation", () => {
   expect(emission.statements[0]?.sql).toContain('CONSTRAINT "accounts_pk" PRIMARY KEY ("id")')
 })
 
-test("renders v2 foreign-key object references inline during SQLite table creation", () => {
+test("renders v1 foreign-key object references inline during SQLite table creation", () => {
   const dialect = {
     name: "sqlite",
     version: 1,

@@ -73,7 +73,7 @@ const identityHint: CatalogIdentityHint = {
 
 const previousSnapshot = {
   format: "qubu-schema",
-  version: 2,
+  version: 1,
   dialect: {
     name: "mysql",
     version: 1,

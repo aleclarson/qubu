@@ -1,6 +1,6 @@
 # Database introspection
 
-> Read one existing database namespace into explainable catalog data and a canonical Snapshot v2 without giving Qubu ownership of the connection.
+> Read one existing database namespace into explainable catalog data and a canonical Snapshot v1 without giving Qubu ownership of the connection.
 
 Database introspection is an optional capability exported from
 `qubu/introspection`. It discovers database facts; it does not recreate the
@@ -8,7 +8,7 @@ original TypeScript declarations. Planning and DDL emission use the separate
 `@qubu/migrate/plan` and `@qubu/migrate/ddl` entrypoints, while migration
 execution remains application-owned. The separate
 `qubu/codegen` entrypoint can create a new machine-owned schema module from a
-complete Snapshot v2 result.
+complete Snapshot v1 result.
 
 ## The pipeline
 
@@ -27,7 +27,7 @@ flowchart LR
 The reader owns catalog SQL and dialect-specific row normalization. The
 normalized catalog retains physical names, native types, opaque SQL text,
 provenance, current-run catalog references, capabilities, deferred objects,
-and diagnostics. The mapper owns Snapshot v2 shape, stable ordering, identity
+and diagnostics. The mapper owns Snapshot v1 shape, stable ordering, identity
 continuity, and strict versus lossy output.
 
 ## Supply a connection
@@ -72,7 +72,7 @@ if (!result.ok) {
   throw new Error(result.diagnostics.map((issue) => issue.message).join("\n"))
 }
 
-result.snapshot.tables // canonical Snapshot v2 data
+result.snapshot.tables // canonical Snapshot v1 data
 ```
 
 Pass the successful result itself—not a detached or edited snapshot—to
@@ -85,10 +85,10 @@ catalog. Use `createCompleteIntrospectionCatalog()` to materialize and freeze
 all optional collections, then `mapCatalogToCompleteSnapshot()` when an
 adapter-supported family such as views, routines, triggers, partitions,
 collations, comments, or retained opaque and deferred objects must cross the
-strict Snapshot v2 boundary. `mapCatalogToSnapshot()` delegates to the complete
-mapper, so the canonical result is always Snapshot v2.
+strict Snapshot v1 boundary. `mapCatalogToSnapshot()` delegates to the complete
+mapper, so the canonical result is always Snapshot v1.
 
-The result is successful only when Snapshot v2 validation succeeds. A failed
+The result is successful only when Snapshot v1 validation succeeds. A failed
 result may retain the partial catalog and structured diagnostics, but it has no
 snapshot.
 
@@ -108,7 +108,7 @@ rename. Pass the previous snapshot or an identity hint when a later diff must
 preserve identity across a rename. See [snapshot diffing](diff.md) for the
 comparison and hint boundary.
 
-Each Snapshot v2 result selects one namespace: a PostgreSQL schema, MySQL
+Each Snapshot v1 result selects one namespace: a PostgreSQL schema, MySQL
 database, or SQLite database such as `main`. It does not combine attached
 databases or multiple PostgreSQL schemas into one value.
 
@@ -130,7 +130,7 @@ strings are preserved.
 PostgreSQL readers expose views, materialized views, sequences, enums, domains,
 collations, routines, triggers, policies, partitions, extensions, comments,
 and ownership as typed complete catalog records. `mapCatalogToCompleteSnapshot`
-retains those records in Snapshot v2. `mapCatalogToSnapshot()` uses the same
+retains those records in Snapshot v1. `mapCatalogToSnapshot()` uses the same
 complete mapping and does not fabricate these objects into tables. If a
 PostgreSQL catalog row lacks the evidence needed for
 safe normalization, the reader retains a deferred or opaque record and emits a
@@ -155,13 +155,13 @@ collations used by the selected tables or columns, and comments.
 
 View definitions come from `INFORMATION_SCHEMA.VIEWS`. The reader cross-
 references each view with its `INFORMATION_SCHEMA.COLUMNS` rows by physical
-table name, so view columns remain attached to the view and Snapshot v2 can
+table name, so view columns remain attached to the view and Snapshot v1 can
 validate their own column IDs. A missing definition or an unresolved
 cross-object reference becomes a deferred record with a diagnostic.
 
 MySQL scheduled events are kept as `CatalogOpaqueObject` records with their
 metadata and definition tagged as opaque SQL. The reader emits an
-`unmodeled-object` warning, and Snapshot v2 retains the record in
+`unmodeled-object` warning, and Snapshot v1 retains the record in
 `opaqueObjects` without treating it as a typed routine, trigger, or migration
 operation.
 
@@ -202,7 +202,7 @@ The canonical snapshot is the handoff to Qubu's pure schema pipeline:
 - rename resolution consumes previous/current snapshots and explicit hints;
 - migration planning consumes semantic diff operations;
 - DDL emitters consume approved plans and dialect capabilities;
-- source generation creates a new machine-owned Snapshot v2 schema baseline.
+- source generation creates a new machine-owned Snapshot v1 schema baseline.
 
 None of those layers opens a database connection or changes how introspection
 represents catalog facts. DDL emission produces statements; it does not apply
