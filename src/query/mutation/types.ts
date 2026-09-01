@@ -103,11 +103,12 @@ export type MutationSafetyValidation<TClauses extends readonly unknown[]> =
 
 export function validateMutationClauses(
   kind: "UPDATE" | "DELETE",
-  clauses: readonly MutationClause[],
+  clauses: readonly { readonly clauseKind: string }[],
 ) {
   let whereSeen = false
   let returningSeen = false
   let allowAllSeen = false
+  let updateFromSeen = false
 
   for (const clause of clauses) {
     if (clause.clauseKind === "where") {
@@ -146,6 +147,18 @@ export function validateMutationClauses(
       }
 
       allowAllSeen = true
+    } else if (clause.clauseKind === "update-from") {
+      if (updateFromSeen) {
+        throw queryValidationError({
+          code: "duplicate-clause",
+          context: "mutation.update.clauses",
+          path: ["clauses", "updateFrom"],
+          message: "UPDATE accepts only one FROM clause",
+          hint: "Pass every source to one updateFrom() call.",
+        })
+      }
+
+      updateFromSeen = true
     }
   }
 

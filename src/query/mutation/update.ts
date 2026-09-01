@@ -1,4 +1,4 @@
-import type { RenderContext, RequiresOf } from "../../core/fragment.ts"
+import type { RenderContext, RequiresOf, RequiresOuterOf } from "../../core/fragment.ts"
 import { identifier } from "../../core/primitives/identifier.ts"
 import { isExpression, type ExpressionWithOutput } from "../../expressions/types.ts"
 import { encodeColumnParameter } from "../../schema/column.ts"
@@ -13,11 +13,11 @@ import {
   type MutationReturningClause,
   type MutationRow,
   type MutationSafetyValidation,
-  type MutationScopeValidation,
   type MutationSqlTypes,
   type MutationCapabilityMetadata,
   validateMutationClauses,
 } from "./types.ts"
+import type { UpdateFromClause, UpdateFromScope } from "./update-from.ts"
 
 /** A value, target-compatible expression, or explicitly omitted update field. */
 export type UpdateAssignmentValue<T> = T | ExpressionWithOutput<T> | Omit
@@ -46,34 +46,72 @@ type InvalidUpdateAssignments<TTable extends AnyTable, TAssignments> =
         TAssignments
       >
 
-type AssignmentScopeValidation<TTable extends AnyTable, TAssignments> = [
+type AssignmentScopeValidation<
+  TTable extends AnyTable,
+  TAssignments,
+  TClauses extends readonly UpdateClause[],
+> = [
   Exclude<
     RequiresOf<TAssignments extends object ? TAssignments[keyof TAssignments] : never>,
-    SourceIdentity<TTable>
+    SourceIdentity<TTable> | UpdateFromScope<TClauses[number]>
   >,
 ] extends [never]
   ? unknown
   : QueryTypeValidation<
       "missing-source",
       "update.assignments",
-      "Use expressions scoped to the update table.",
+      "Use expressions scoped to the update table or an updateFrom() source.",
       Exclude<
         RequiresOf<TAssignments extends object ? TAssignments[keyof TAssignments] : never>,
-        SourceIdentity<TTable>
+        SourceIdentity<TTable> | UpdateFromScope<TClauses[number]>
+      >
+    >
+
+type UpdateClause = MutationClause | UpdateFromClause
+
+type UpdateScopeValidation<TTable extends AnyTable, TClauses extends readonly UpdateClause[]> = [
+  Exclude<RequiresOf<TClauses[number]>, SourceIdentity<TTable> | UpdateFromScope<TClauses[number]>>,
+] extends [never]
+  ? unknown
+  : QueryTypeValidation<
+      "missing-source",
+      "mutation.scope",
+      "Use clauses that reference the update table or an updateFrom() source.",
+      Exclude<
+        RequiresOf<TClauses[number]>,
+        SourceIdentity<TTable> | UpdateFromScope<TClauses[number]>
+      >
+    >
+
+type UpdateFromSourceValidation<TClauses extends readonly UpdateClause[]> = [
+  Exclude<
+    RequiresOuterOf<Extract<TClauses[number], UpdateFromClause>>,
+    UpdateFromScope<TClauses[number]>
+  >,
+] extends [never]
+  ? unknown
+  : QueryTypeValidation<
+      "missing-source",
+      "update.from",
+      "Use FROM sources whose outer requirements are provided by another updateFrom() source.",
+      Exclude<
+        RequiresOuterOf<Extract<TClauses[number], UpdateFromClause>>,
+        UpdateFromScope<TClauses[number]>
       >
     >
 
 export function update<
   const TTable extends AnyTable,
   const TAssignments extends object,
-  const TClauses extends readonly MutationClause[],
+  const TClauses extends readonly UpdateClause[],
 >(
   table: TTable,
   assignments: TAssignments &
     InvalidUpdateAssignments<TTable, TAssignments> &
-    AssignmentScopeValidation<TTable, TAssignments>,
+    AssignmentScopeValidation<TTable, TAssignments, TClauses>,
   ...clauses: TClauses &
-    MutationScopeValidation<TTable, TClauses> &
+    UpdateScopeValidation<TTable, TClauses> &
+    UpdateFromSourceValidation<TClauses> &
     MutationSafetyValidation<TClauses>
 ): MutationQuery<{
   readonly row: MutationRow<TClauses>
@@ -83,12 +121,13 @@ export function update<
   >
   readonly sqlTypes: MutationSqlTypes<TClauses>
 }> {
-  const normalizedClauses = clauses as readonly MutationClause[]
+  const normalizedClauses = clauses as readonly UpdateClause[]
 
   validateMutationClauses("UPDATE", normalizedClauses)
   const entries = validateUpdate(table, assignments)
 
   const whereClause = normalizedClauses.find((clause) => clause.clauseKind === "where")
+  const fromClause = normalizedClauses.find((clause) => clause.clauseKind === "update-from")
   const returningClause = normalizedClauses.find((clause) => clause.clauseKind === "returning") as
     | MutationReturningClause
     | undefined
@@ -108,6 +147,11 @@ export function update<
       context.append(" = ")
       renderAssignmentValue(context, value, table.definitions[columnName])
     })
+
+    if (fromClause) {
+      context.append(" ")
+      context.render(fromClause)
+    }
 
     if (whereClause) {
       context.append(" ")

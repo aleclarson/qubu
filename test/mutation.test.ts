@@ -6,6 +6,7 @@ import {
   excluded,
   onConflict,
   postgresDialect,
+  updateFrom,
 } from "../src/dialects/postgres.ts"
 import { sqliteDialect, sqliteTimestamp } from "../src/dialects/sqlite.ts"
 import {
@@ -247,6 +248,34 @@ test("tracks target scope through UPDATE assignment expressions", () => {
     text: 'UPDATE "users" SET "name" = UPPER("users"."name") WHERE ("users"."id" = ?)',
     parameters: [10],
   })
+})
+
+test("renders PostgreSQL UPDATE FROM in clause order with source expressions", () => {
+  const changes = table("user_changes", {
+    userId: integer(),
+    name: text(),
+  })
+  const query = update(
+    users,
+    { name: upper(changes.name) },
+    returning({ id: users.id, sourceName: changes.name }),
+    where(eq(users.id, changes.userId)),
+    updateFrom(changes),
+  )
+
+  expect(render(query, postgresDialect())).toEqual({
+    text: 'UPDATE "users" SET "name" = UPPER("user_changes"."name") FROM "user_changes" WHERE ("users"."id" = "user_changes"."user_id") RETURNING "users"."id" AS "id", "user_changes"."name" AS "sourceName"',
+    parameters: [],
+  })
+})
+
+test("rejects UPDATE FROM when the dialect does not advertise it", () => {
+  const changes = table("user_changes", { name: text() })
+  const query = update(users, { name: changes.name }, updateFrom(changes), allowAll())
+
+  expect(() => render(query as never)).toThrowError(
+    'Dialect "standard-sql" does not support the "update-from" capability',
+  )
 })
 
 test("omits conditional UPDATE assignments while preserving SQL values", () => {

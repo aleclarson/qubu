@@ -2,7 +2,7 @@ import type { QueryKind } from "../query/types.ts"
 import type { AnyFragment, RenderContext } from "./fragment.ts"
 
 /** Capabilities whose syntax must be explicitly supported by a dialect. */
-export type DialectCapability = "ilike" | "json" | "on-conflict" | "row-locking"
+export type DialectCapability = "ilike" | "json" | "on-conflict" | "row-locking" | "update-from"
 
 /**
  * Optional dialect hook used by schema expressions when a JavaScript value must become SQL text

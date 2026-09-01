@@ -79,6 +79,38 @@ const query = update(
 The assignment expression is source-aware, so a column from an unrelated table
 cannot silently enter the update.
 
+PostgreSQL updates can introduce one or more typed sources with `updateFrom()`.
+Those sources are available to assignments, the predicate, and `RETURNING`:
+
+```ts
+import { eq, integer, render, returning, table, text, update, where } from "qubu"
+import { postgresDialect, updateFrom } from "qubu/postgres"
+
+const changes = table("user_changes", {
+  userId: integer(),
+  name: text(),
+})
+
+const query = update(
+  users,
+  { name: changes.name },
+  updateFrom(changes),
+  where(eq(users.id, changes.userId)),
+  returning({ id: users.id, sourceName: changes.name }),
+)
+
+render(query, postgresDialect())
+// UPDATE "users" SET "name" = "user_changes"."name"
+// FROM "user_changes"
+// WHERE ("users"."id" = "user_changes"."user_id")
+// RETURNING "users"."id" AS "id", "user_changes"."name" AS "sourceName"
+```
+
+`UPDATE ... FROM` carries a dialect capability requirement, so rendering it
+with the default, SQLite, or MySQL dialect is rejected. Qubu still requires a
+predicate or an explicit `allowAll()` marker; introducing a source does not
+authorize an unrestricted update.
+
 Use `omit` for a runtime-conditional assignment. Qubu removes omitted fields
 before validating and rendering the effective assignment set:
 

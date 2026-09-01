@@ -31,7 +31,9 @@ export type PathPreservesSegments = Assert<
 export type QueryRequiresJson = Assert<Equal<CapabilitiesOf<typeof query>, "json">>
 
 export type PostgresAdvertisesJson = Assert<
-  typeof postgresDialect extends () => Dialect<"ilike" | "json" | "on-conflict" | "row-locking">
+  typeof postgresDialect extends () => Dialect<
+    "ilike" | "json" | "on-conflict" | "row-locking" | "update-from"
+  >
     ? true
     : false
 >

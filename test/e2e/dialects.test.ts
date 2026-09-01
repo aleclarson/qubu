@@ -5,7 +5,13 @@ import { Client } from "pg"
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "vitest"
 
 import { mysqlDialect } from "../../src/dialects/mysql.ts"
-import { doUpdate, excluded, onConflict, postgresDialect } from "../../src/dialects/postgres.ts"
+import {
+  doUpdate,
+  excluded,
+  onConflict,
+  postgresDialect,
+  updateFrom,
+} from "../../src/dialects/postgres.ts"
 import { sqliteDialect } from "../../src/dialects/sqlite.ts"
 import {
   add,
@@ -85,6 +91,11 @@ const records = table(
     indexes: {},
   }),
 )
+
+const recordChanges = table("qubu_e2e_record_changes", {
+  id: integer(),
+  name: text(),
+})
 
 interface E2eDriver {
   execute(request: ExecutionRequest): Promise<{
@@ -476,6 +487,43 @@ describe.skipIf(!selectedDialect)("live dialect E2E", () => {
 
     await expect(executeRows(query, environment.adapter)).resolves.toEqual([{ name: "Grace" }])
   }, 30_000)
+
+  test.skipIf(dialectName !== "postgresql")(
+    "executes PostgreSQL UPDATE FROM with a typed source",
+    async () => {
+      if (!environment) {
+        throw new Error("E2E environment was not initialized")
+      }
+
+      await environment.driver.exec("DROP TABLE IF EXISTS qubu_e2e_record_changes")
+      await environment.driver.exec(
+        "CREATE TABLE qubu_e2e_record_changes (id INTEGER PRIMARY KEY, name TEXT NOT NULL)",
+      )
+
+      try {
+        await seedAda(environment)
+        await environment.driver.exec(
+          "INSERT INTO qubu_e2e_record_changes (id, name) VALUES (1, 'Grace')",
+        )
+
+        const rows = await executeRows(
+          update(
+            records,
+            { name: recordChanges.name },
+            updateFrom(recordChanges),
+            where(eq(records.id, recordChanges.id)),
+            returning({ id: records.id, name: records.name, sourceName: recordChanges.name }),
+          ),
+          environment.adapter,
+        )
+
+        expect(rows).toEqual([{ id: 1, name: "Grace", sourceName: "Grace" }])
+      } finally {
+        await environment.driver.exec("DROP TABLE IF EXISTS qubu_e2e_record_changes")
+      }
+    },
+    30_000,
+  )
 
   test.skipIf(dialectName === "mysql")(
     "executes a conflicting insert as an update",

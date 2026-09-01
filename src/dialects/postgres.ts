@@ -66,7 +66,7 @@ export function postgresDialect() {
     pagination: postgresPagination,
     rowLocking: postgresRowLocking,
     castTypes: { binary: "BYTEA" },
-    capabilities: ["ilike", "on-conflict", "row-locking"],
+    capabilities: ["ilike", "on-conflict", "row-locking", "update-from"],
     json: postgresJson,
     explain: postgresExplain,
   })
@@ -81,6 +81,8 @@ export type {
   ExcludedSource,
   OnConflictClause,
 } from "../query/mutation/on-conflict.ts"
+export { updateFrom } from "../query/mutation/update-from.ts"
+export type { UpdateFromClause, UpdateFromScope } from "../query/mutation/update-from.ts"
 
 /** PostgreSQL's case-insensitive pattern-match operator. */
 export function ilike<TLeft extends ExpressionWithOutput<string>, R extends Operand<string>>(

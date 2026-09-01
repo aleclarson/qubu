@@ -1,13 +1,15 @@
 import { withDialectCapability } from "../src/core/index.ts"
-import { postgresDialect } from "../src/dialects/postgres.ts"
+import { postgresDialect, updateFrom } from "../src/dialects/postgres.ts"
 import { sqliteTimestamp } from "../src/dialects/sqlite.ts"
 import {
   allowAll,
   type CapabilitiesOf,
+  eq,
   integer,
   insertInto,
   omit,
   render,
+  returning,
   table,
   text,
   update,
@@ -116,3 +118,28 @@ export type ConditionalAssignmentRetainsCapabilities = Assert<
 export type InsertValueRetainsCapabilities = Assert<
   Equal<CapabilitiesOf<typeof insertCapabilityQuery>, "ilike">
 >
+
+const updateFromQuery = update(
+  users,
+  { name: posts.name },
+  updateFrom(posts),
+  where(eq(users.name, posts.name)),
+  returning({ updatedName: users.name, sourceName: posts.name }),
+)
+
+render(updateFromQuery, postgresDialect())
+
+// @ts-expect-error The standard dialect does not advertise UPDATE ... FROM.
+render(updateFromQuery)
+
+export type UpdateFromRetainsCapability = Assert<
+  Equal<CapabilitiesOf<typeof updateFromQuery>, "update-from">
+>
+
+update(
+  users,
+  { name: "Ada" },
+  // @ts-expect-error UPDATE clauses cannot reference a source absent from the target and FROM list.
+  updateFrom(posts),
+  where(eq(users.name, sessions.token)),
+)

@@ -56,7 +56,7 @@ const postgresStorageTypes: Readonly<Record<PortableStorageType, string>> = Obje
 
 /** PostgreSQL's query dialect plus its schema metadata behavior. */
 export const postgresSchemaDialect: SchemaDialect<
-  "ilike" | "json" | "on-conflict" | "row-locking"
+  "ilike" | "json" | "on-conflict" | "row-locking" | "update-from"
 > = createSchemaDialect(postgresDialect(), {
   version: schemaSnapshotDialectVersion,
   validate: validatePostgresSchema,
@@ -73,7 +73,7 @@ export const postgresSchemaDialect: SchemaDialect<
 
 /** Snapshot adapter retaining the historical adapter-shaped entry point. */
 export const postgresSnapshotAdapter: SchemaSnapshotAdapter<
-  "ilike" | "json" | "on-conflict" | "row-locking"
+  "ilike" | "json" | "on-conflict" | "row-locking" | "update-from"
 > = Object.freeze({
   dialect: postgresSchemaDialect,
 })

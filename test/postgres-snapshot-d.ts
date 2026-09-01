@@ -18,5 +18,5 @@ expectTypeOf(
 ).toMatchTypeOf<SchemaSnapshot>()
 expectTypeOf(postgresSnapshotAdapter).toMatchTypeOf<SchemaSnapshotAdapter>()
 expectTypeOf(postgresSnapshotAdapter.dialect).toMatchTypeOf<
-  SchemaDialect<"ilike" | "json" | "on-conflict" | "row-locking">
+  SchemaDialect<"ilike" | "json" | "on-conflict" | "row-locking" | "update-from">
 >()

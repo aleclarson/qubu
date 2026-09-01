@@ -11,13 +11,13 @@ const queryDialect = postgresDialect()
 const schemaDialect = createSchemaDialect(queryDialect, { version: 1 })
 
 expectTypeOf(schemaDialect).toMatchTypeOf<
-  Dialect<"ilike" | "json" | "on-conflict" | "row-locking">
+  Dialect<"ilike" | "json" | "on-conflict" | "row-locking" | "update-from">
 >()
 expectTypeOf(schemaDialect).toMatchTypeOf<
-  SchemaDialect<"ilike" | "json" | "on-conflict" | "row-locking">
+  SchemaDialect<"ilike" | "json" | "on-conflict" | "row-locking" | "update-from">
 >()
 expectTypeOf(postgresSchemaDialect).toMatchTypeOf<
-  SchemaDialect<"ilike" | "json" | "on-conflict" | "row-locking">
+  SchemaDialect<"ilike" | "json" | "on-conflict" | "row-locking" | "update-from">
 >()
 
 const custom = createSchemaDialect(
