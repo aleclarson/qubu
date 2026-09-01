@@ -106,8 +106,8 @@ function compileRebuildProgram(
     const rendered = createStatements(after, target)
     if (!rendered.ok) return rendered
     const temporaryName = `__qubu_rebuild_${target.physicalName}`
-    const targetQualified = qualify(after.namespace, target.physicalName)
-    const temporaryQualified = qualify(after.namespace, temporaryName)
+    const targetQualified = qualify(after.namespace.name, target.physicalName)
+    const temporaryQualified = qualify(after.namespace.name, temporaryName)
     const common = target.columns.flatMap((column) => {
       const old = source.columns.find((candidate) => candidate.id === column.id)
       return old ? [{ old: old.physicalName, next: column.physicalName }] : []
@@ -188,7 +188,7 @@ function createStatements(
   const statements = compiled.program.phases.flatMap((phase) =>
     phase.statements.map((item) => item.sql),
   )
-  const qualifiedTable = qualify(snapshot.namespace, table.physicalName)
+  const qualifiedTable = qualify(snapshot.namespace.name, table.physicalName)
   const create = statements.find((statement) =>
     statement.startsWith(`CREATE TABLE ${qualifiedTable}`),
   )

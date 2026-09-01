@@ -1,10 +1,10 @@
 # Introspection support
 
-> Look up which catalog facts each adapter reads, which versions it accepts, and which database features remain outside Snapshot v1.
+> Look up which catalog facts each adapter reads, which versions it accepts, and which database features remain outside Snapshot v2.
 
 The optional `qubu/introspection` entrypoint reads one selected database
 namespace through a user-owned `CatalogConnection`. It returns normalized
-catalog data and can map that data to canonical Snapshot v1 or v2. The
+catalog data and can map that data to canonical Snapshot v2. The
 application owns the driver and connection lifecycle. Snapshot diffing,
 migration planning, and DDL emission are separate Qubu capabilities; see the
 [ownership map](supported-surface.md#ownership-boundary).
@@ -55,9 +55,9 @@ The query and normalization layout follows the catalog-oriented parts of the
 while Qubu keeps the result as typed data instead of generating TypeScript
 declarations.
 
-Use `mapCatalogToCompleteSnapshot()` for this object set. Use
-`mapCatalogToSnapshot()` when a caller explicitly needs the existing table-only
-Snapshot v1.
+Use `mapCatalogToSnapshot()` or its explicit
+`mapCatalogToCompleteSnapshot()` alias for this object set. Both produce the
+canonical Snapshot v2 shape.
 
 ## SQLite complete catalog surface
 
@@ -86,17 +86,16 @@ the selected namespace. SQLite does not provide the PostgreSQL object families
 such as routines, materialized views, policies, or ownership, so the reader
 does not fabricate them.
 
-`mapCatalogToCompleteSnapshot()` retains the typed views, triggers, deferred
-objects, opaque boundaries, and dialect extensions in Snapshot v2. The existing
-`mapCatalogToSnapshot()` still maps only tables and preserves Snapshot v1
-behavior.
+`mapCatalogToSnapshot()` delegates to `mapCatalogToCompleteSnapshot()` and
+retains typed views, triggers, deferred objects, opaque boundaries, and dialect
+extensions in Snapshot v2.
 
 The query and normalization seams follow the catalog-reading portions of the
 [Drizzle SQLite introspector](https://github.com/drizzle-team/drizzle-orm/blob/main/drizzle-kit/src/introspect-sqlite.ts).
 Drizzle's module generates source declarations; Qubu keeps the same SQLite
 metadata sources as normalized data and never evaluates database-provided SQL.
 The optional [source generator](../schema/code-generation.md) consumes the
-strict Snapshot v1 result through a separate controlled printer.
+strict Snapshot v2 result through a separate controlled printer.
 
 ## MySQL 8 complete catalog surface
 
@@ -132,13 +131,12 @@ The query and normalization layout follows the catalog-reading portions of the
 while Qubu keeps the result as typed data instead of generating TypeScript
 declarations.
 
-Use `mapCatalogToCompleteSnapshot()` to retain these typed MySQL families and
-the opaque or deferred boundaries in Snapshot v2. Use `mapCatalogToSnapshot()`
-when a caller explicitly needs the existing table-only Snapshot v1.
+Use `mapCatalogToSnapshot()` or `mapCatalogToCompleteSnapshot()` to retain these
+typed MySQL families and the opaque or deferred boundaries in Snapshot v2.
 
-## Snapshot v1 surface
+## Snapshot v2 surface
 
-The mapper can emit these facts in canonical Snapshot v1:
+The mapper emits these facts in canonical Snapshot v2:
 
 - one namespace and ordinary tables;
 - exact dialect-native column storage;
@@ -157,19 +155,19 @@ canonical content, not an identity or rename marker.
 ## Deferred and limited features
 
 The following remain catalog facts or diagnostics rather than fabricated
-Snapshot v1 objects:
+Snapshot v2 objects:
 
 - views and materialized views;
 - sequences, enums, domains, routines, triggers, policies, extensions,
   collations, comments, and partition metadata;
-- PostgreSQL identity sequence options that have no typed Snapshot v1 field;
+- PostgreSQL identity sequence options that have no typed field;
 - SQLite virtual/shadow tables, attached namespaces, and unrecoverable
   generated or expression definitions;
 - MySQL/MariaDB differences, prefix indexes, invisible indexes, and advanced
   functional, full-text, or spatial index semantics.
 
-Use the complete catalog and Snapshot v2 mapper to retain supported PostgreSQL
-and MySQL families. MySQL scheduled events stay opaque, and MySQL sequences,
+Use the Snapshot v2 mapper to retain supported PostgreSQL and MySQL families.
+MySQL scheduled events stay opaque, and MySQL sequences,
 materialized views, row-level security (RLS) policies, extension objects, and
 ownership stay unsupported or deferred. When a row cannot be normalized safely, the reader
 keeps a typed deferred or opaque record and emits a diagnostic instead of
@@ -185,7 +183,7 @@ keeping Qubu's output data-only:
 - [Drizzle MySQL introspector](https://github.com/drizzle-team/drizzle-orm/blob/main/drizzle-kit/src/introspect-mysql.ts)
 
 Those modules generate TypeScript declarations as part of their workflows.
-Qubu keeps catalog normalization, Snapshot v1 mapping, and optional source
+Qubu keeps catalog normalization, Snapshot v2 mapping, and optional source
 generation as separate pure boundaries, so diffing and planning do not depend
 on source generation.
 

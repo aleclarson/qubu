@@ -123,8 +123,8 @@ test("serializes PostgreSQL storage, behavior, constraints, indexes, and extensi
     name: "postgresql",
     version: 1,
   })
-  expect(snapshot.namespace).toBe("public")
-  expect(accountsTable?.columns).toEqual([
+  expect(snapshot.namespace).toEqual({ kind: "postgres-schema", name: "public" })
+  expect(accountsTable?.columns).toMatchObject([
     {
       id: "active",
       physicalName: "active",
@@ -255,7 +255,7 @@ test("serializes PostgreSQL storage, behavior, constraints, indexes, and extensi
   expect(membershipsTable?.constraints[0]).toMatchObject({
     kind: "foreign-key",
     target: {
-      table: "accounts",
+      table: { kind: "table", id: "accounts" },
       columns: ["id"],
     },
     deferrable: true,

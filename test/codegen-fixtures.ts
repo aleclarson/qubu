@@ -231,7 +231,7 @@ export const codegenCatalog: IntrospectionCatalog = {
     {
       severity: "warning",
       code: "unmodeled-object",
-      message: "A view remains outside Snapshot v1",
+      message: "A view remains outside the ordinary table surface",
       path: ["deferredObjects", 0],
     },
   ],

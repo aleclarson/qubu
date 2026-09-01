@@ -575,7 +575,7 @@ test("normalizes primary keys, user indexes, partial predicates, and grouped for
   ])
 })
 
-test("maps complete SQLite objects without changing Snapshot v1 tables", async () => {
+test("maps complete SQLite objects through the Snapshot v2 table surface", async () => {
   const catalog = await readCatalog(completeConnection().connection, options())
   const complete = mapCatalogToCompleteSnapshot(catalog)
 
@@ -595,11 +595,11 @@ test("maps complete SQLite objects without changing Snapshot v1 tables", async (
     )
   }
 
-  const v1 = mapCatalogToSnapshot(catalog, options())
+  const snapshot = mapCatalogToSnapshot(catalog, options())
 
-  expect(v1.ok).toBe(true)
-  if (v1.ok) {
-    expect(v1.snapshot.tables.map((table) => table.physicalName)).toEqual(["child", "parent"])
+  expect(snapshot.ok).toBe(true)
+  if (snapshot.ok) {
+    expect(snapshot.snapshot.tables.map((table) => table.physicalName)).toEqual(["child", "parent"])
   }
 })
 

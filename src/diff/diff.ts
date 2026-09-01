@@ -1,14 +1,8 @@
-import {
-  canonicalJson,
-  schemaSnapshotFingerprint,
-  toSnapshotJsonValue,
-} from "../snapshot/canonical.ts"
-import type { CompleteSchemaSnapshot } from "../snapshot/complete-types.ts"
+import { canonicalJson, toSnapshotJsonValue } from "../snapshot/canonical.ts"
 import {
   completeSchemaSnapshotFingerprint,
   decodeCompleteSchemaSnapshot,
 } from "../snapshot/complete.ts"
-import { decodeSchemaSnapshot } from "../snapshot/decode.ts"
 import type { SchemaSnapshot, SnapshotDiagnostic, SnapshotJsonValue } from "../snapshot/types.ts"
 import type {
   SnapshotDiff,
@@ -42,8 +36,8 @@ interface InternalObject {
 }
 
 interface DecodedSnapshot {
-  readonly version: 1 | 2
-  readonly value: SchemaSnapshot | CompleteSchemaSnapshot
+  readonly version: 2
+  readonly value: SchemaSnapshot
   readonly records: readonly InternalObject[]
   readonly fingerprint: string
 }
@@ -86,7 +80,7 @@ const operationOrder = new Map([
 ])
 
 /**
- * Compare Snapshot v1 or v2 values and return immutable, reviewable data.
+ * Compare Snapshot v2 values and return immutable, reviewable data.
  *
  * The function never opens a connection, renders SQL, or turns a heuristic match into a rename.
  * Invalid input and malformed hints are represented by diagnostics in the returned value.
@@ -498,7 +492,7 @@ export function diffSnapshots(
 /** Alias that reads naturally in comparison-oriented callers. */
 export const compareSnapshots = diffSnapshots
 
-/** Decode and normalize a Snapshot v1 or v2 value without throwing. */
+/** Decode and normalize a Snapshot v2 value without throwing. */
 export function decodeSnapshotForDiff(input: SnapshotDiffInput): SnapshotDiffDecodeResult {
   const decoded = decodeSnapshot(input)
 
@@ -705,7 +699,7 @@ function decodeSnapshot(input: SnapshotDiffInput): {
   }
 
   const version = value.version
-  const normalized = sortSnapshotArrays(value, version === 2 ? 2 : 1)
+  const normalized = sortSnapshotArrays(value)
 
   if (version === 2) {
     const result = decodeCompleteSchemaSnapshot(normalized)
@@ -722,29 +716,8 @@ function decodeSnapshot(input: SnapshotDiffInput): {
       snapshot: {
         version: 2,
         value: snapshot,
-        records: extractCompleteObjects(snapshot),
+        records: extractSnapshotObjects(snapshot),
         fingerprint: completeSchemaSnapshotFingerprint(snapshot),
-      },
-    }
-  }
-
-  if (version === 1) {
-    const result = decodeSchemaSnapshot(normalized)
-
-    if (!result.ok) {
-      diagnostics.push(...mapSnapshotDiagnostics(result.diagnostics))
-      return { diagnostics }
-    }
-
-    const snapshot = result.value
-
-    return {
-      diagnostics,
-      snapshot: {
-        version: 1,
-        value: snapshot,
-        records: extractV1Objects(snapshot),
-        fingerprint: schemaSnapshotFingerprint(snapshot),
       },
     }
   }
@@ -757,62 +730,7 @@ function decodeSnapshot(input: SnapshotDiffInput): {
   return { diagnostics }
 }
 
-function extractV1Objects(snapshot: SchemaSnapshot): readonly InternalObject[] {
-  const records: InternalObject[] = []
-  const namespace = snapshot.namespace
-
-  for (const [tableIndex, table] of snapshot.tables.entries()) {
-    const tableObject = addInternalObject(
-      records,
-      "table",
-      table,
-      ["tables", tableIndex],
-      namespace,
-      undefined,
-      snapshot,
-    )
-
-    for (const [columnIndex, column] of table.columns.entries()) {
-      addInternalObject(
-        records,
-        "column",
-        column,
-        ["tables", tableIndex, "columns", columnIndex],
-        namespace,
-        tableObject,
-        snapshot,
-      )
-    }
-
-    for (const [constraintIndex, constraint] of table.constraints.entries()) {
-      addInternalObject(
-        records,
-        "constraint",
-        constraint,
-        ["tables", tableIndex, "constraints", constraintIndex],
-        namespace,
-        tableObject,
-        snapshot,
-      )
-    }
-
-    for (const [indexIndex, index] of table.indexes.entries()) {
-      addInternalObject(
-        records,
-        "index",
-        index,
-        ["tables", tableIndex, "indexes", indexIndex],
-        namespace,
-        tableObject,
-        snapshot,
-      )
-    }
-  }
-
-  return freeze(records.sort(compareObject))
-}
-
-function extractCompleteObjects(snapshot: CompleteSchemaSnapshot): readonly InternalObject[] {
+function extractSnapshotObjects(snapshot: SchemaSnapshot): readonly InternalObject[] {
   const records: InternalObject[] = []
   const namespace = snapshot.namespace.name
 
@@ -873,7 +791,7 @@ function extractCompleteObjects(snapshot: CompleteSchemaSnapshot): readonly Inte
     }
   }
 
-  const groups: readonly [keyof CompleteSchemaSnapshot, SnapshotDiffObjectKind][] = [
+  const groups: readonly [keyof SchemaSnapshot, SnapshotDiffObjectKind][] = [
     ["views", "view"],
     ["sequences", "sequence"],
     ["enums", "enum"],
@@ -914,7 +832,7 @@ function extractCompleteObjects(snapshot: CompleteSchemaSnapshot): readonly Inte
       )
 
       if (kind === "view" || kind === "materialized-view") {
-        const columns = (value as CompleteSchemaSnapshot["views"][number]).columns
+        const columns = (value as SchemaSnapshot["views"][number]).columns
 
         for (const [columnIndex, column] of columns.entries()) {
           addInternalObject(
@@ -941,7 +859,7 @@ function addInternalObject(
   path: SnapshotDiffPath,
   namespace: string | undefined,
   parent: InternalObject | undefined,
-  snapshot: SchemaSnapshot | CompleteSchemaSnapshot,
+  snapshot: SchemaSnapshot,
 ): InternalObject {
   const record = value as JsonRecord
   const id =
@@ -1525,12 +1443,12 @@ function objectKey(
   return `${kind}\u0000${namespace ?? ""}\u0000${parent?.object.kind ?? ""}\u0000${parent?.object.id ?? ""}\u0000${id}`
 }
 
-function sortSnapshotArrays(value: JsonRecord, version: 1 | 2): JsonRecord {
+function sortSnapshotArrays(value: JsonRecord): JsonRecord {
   const visit = (current: unknown, key: string | undefined): unknown => {
     if (Array.isArray(current)) {
       const values = current.map((item) => visit(item, key))
 
-      if (key !== undefined && isObjectArrayKey(key, version) && values.every(isRecord)) {
+      if (key !== undefined && isObjectArrayKey(key) && values.every(isRecord)) {
         return values.sort(compareUnknownRecords)
       }
 
@@ -1566,11 +1484,7 @@ function sortSnapshotArrays(value: JsonRecord, version: 1 | 2): JsonRecord {
   return visit(value, undefined) as JsonRecord
 }
 
-function isObjectArrayKey(key: string, version: 1 | 2): boolean {
-  if (version === 1) {
-    return key === "tables" || key === "columns" || key === "constraints" || key === "indexes"
-  }
-
+function isObjectArrayKey(key: string): boolean {
   return (
     key === "tables" ||
     key === "views" ||

@@ -1,9 +1,4 @@
-import type {
-  CompleteSchemaSnapshot,
-  SchemaSnapshot,
-  SnapshotDialect,
-  SnapshotJsonValue,
-} from "qubu/snapshot"
+import type { SchemaSnapshot, SnapshotDialect, SnapshotJsonValue } from "qubu/snapshot"
 
 import type { MigrationPlan } from "../plan/index.ts"
 import type { MigrationSafety } from "../plan/index.ts"
@@ -172,7 +167,7 @@ export interface ArtifactProvenance {
 
 export interface SnapshotDescriptor {
   readonly digest: Sha256Digest
-  readonly value?: SchemaSnapshot | CompleteSchemaSnapshot
+  readonly value?: SchemaSnapshot
   readonly reference?: string
 }
 

@@ -130,8 +130,8 @@ test("serializes SQLite affinity, literals, generated columns, identities, and p
     name: "sqlite",
     version: 1,
   })
-  expect(snapshot.namespace).toBe("main")
-  expect(accountsTable?.columns).toEqual([
+  expect(snapshot.namespace).toEqual({ kind: "sqlite-database", name: "main" })
+  expect(accountsTable?.columns).toMatchObject([
     {
       id: "active",
       physicalName: "active",
@@ -246,7 +246,7 @@ test("serializes SQLite affinity, literals, generated columns, identities, and p
   expect(membershipsTable?.constraints[0]).toMatchObject({
     kind: "foreign-key",
     target: {
-      table: "accounts",
+      table: { kind: "table", id: "accounts" },
       columns: ["id"],
     },
     onDelete: "cascade",

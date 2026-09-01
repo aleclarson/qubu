@@ -285,7 +285,7 @@ function createConstraint(
     ])
   }
 
-  const foreignTable = tables[constraint.target.table]
+  const foreignTable = tables[constraint.target.table.id]
   const foreignColumns = foreignTable
     ? constraint.target.columns.map((column) => drizzle.getTableColumns(foreignTable)[column])
     : []
@@ -325,11 +325,7 @@ function createIndex(
 }
 
 function createIndexTerm(term: snapshot.SnapshotIndexTerm, columns: ColumnRecord): IndexTerm {
-  if (term.kind !== "order") {
-    return createIndexTermExpression(term, columns)
-  }
-
-  const expression = createIndexTermExpression(term.expression, columns)
+  const expression = createIndexTermExpression(term, columns)
   const suffix = [term.direction, term.nulls && `NULLS ${term.nulls}`]
     .filter((value): value is string => value !== undefined)
     .join(" ")

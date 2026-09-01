@@ -9,10 +9,31 @@ import {
 import type { CompleteSchemaSnapshot } from "../src/snapshot/complete-types.ts"
 import type { SchemaSnapshot } from "../src/snapshot/types.ts"
 
+const capabilities = {
+  generatedColumns: true,
+  identityMetadata: true,
+  checkConstraints: true,
+  checkConstraintEnforcement: "enforced" as const,
+  expressionDecompilation: true,
+  indexExpressions: true,
+  indexPredicates: true,
+  indexIncludedColumns: true,
+  namespaces: true,
+  visibility: "complete" as const,
+}
+
+type TestColumn = Omit<
+  SchemaSnapshot["tables"][number]["columns"][number],
+  "kind" | "ordinalPosition"
+> & {
+  readonly kind?: "column"
+  readonly ordinalPosition?: number
+}
+
 function tableSnapshot(tables: SchemaSnapshot["tables"], namespace = "public"): SchemaSnapshot {
   return {
     format: "qubu-schema",
-    version: 1,
+    version: 2,
     dialect: {
       name: "neutral",
       version: 1,
@@ -21,20 +42,36 @@ function tableSnapshot(tables: SchemaSnapshot["tables"], namespace = "public"): 
       name: "test",
       version: 1,
     },
-    namespace,
+    namespace: { kind: "generic", name: namespace },
+    capabilities,
     tables,
+    views: [],
+    sequences: [],
+    enums: [],
+    domains: [],
+    collations: [],
+    triggers: [],
+    routines: [],
+    partitions: [],
+    policies: [],
+    extensions: [],
+    deferredObjects: [],
+    opaqueObjects: [],
+    comments: [],
+    ownership: [],
   }
 }
 
-function table(
-  id: string,
-  physicalName = id,
-  columns: SchemaSnapshot["tables"][number]["columns"] = [],
-) {
+function table(id: string, physicalName = id, columns: readonly TestColumn[] = []) {
   return {
+    kind: "table" as const,
     id,
     physicalName,
-    columns,
+    columns: columns.map((column, index) => ({
+      kind: "column" as const,
+      ordinalPosition: column.ordinalPosition ?? index + 1,
+      ...column,
+    })),
     constraints: [],
     indexes: [],
   }

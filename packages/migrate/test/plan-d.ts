@@ -24,7 +24,7 @@ void decision
 
 const snapshot: SchemaSnapshot = {
   format: "qubu-schema",
-  version: 1,
+  version: 2,
   dialect: {
     name: "neutral",
     version: 1,
@@ -33,8 +33,34 @@ const snapshot: SchemaSnapshot = {
     name: "test",
     version: 1,
   },
-  namespace: "public",
+  namespace: { kind: "generic", name: "public" },
+  capabilities: {
+    generatedColumns: true,
+    identityMetadata: true,
+    checkConstraints: true,
+    checkConstraintEnforcement: "enforced",
+    expressionDecompilation: true,
+    indexExpressions: true,
+    indexPredicates: true,
+    indexIncludedColumns: true,
+    namespaces: true,
+    visibility: "complete",
+  },
   tables: [],
+  views: [],
+  sequences: [],
+  enums: [],
+  domains: [],
+  collations: [],
+  triggers: [],
+  routines: [],
+  partitions: [],
+  policies: [],
+  extensions: [],
+  deferredObjects: [],
+  opaqueObjects: [],
+  comments: [],
+  ownership: [],
 }
 
 const diffFromPublicEntry = diffSnapshots(snapshot, snapshot)

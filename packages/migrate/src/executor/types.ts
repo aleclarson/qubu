@@ -1,4 +1,4 @@
-import type { CompleteSchemaSnapshot, SchemaSnapshot } from "qubu/snapshot"
+import type { SchemaSnapshot } from "qubu/snapshot"
 
 import type {
   ExecutableMigrationArtifact,
@@ -11,7 +11,7 @@ import type {
 import type { MigrationJournal } from "../journal/index.ts"
 import type { ArtifactRepository } from "../repository/index.ts"
 
-export type MigrationSnapshot = SchemaSnapshot | CompleteSchemaSnapshot
+export type MigrationSnapshot = SchemaSnapshot
 
 export interface MigrationSnapshotInspection {
   readonly snapshot: MigrationSnapshot

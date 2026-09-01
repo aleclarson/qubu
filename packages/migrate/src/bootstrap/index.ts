@@ -1,6 +1,6 @@
 import { diffSnapshots } from "qubu/diff"
 import type { SchemaDialect } from "qubu/schema"
-import type { CompleteSchemaSnapshot, SchemaSnapshot } from "qubu/snapshot"
+import type { SchemaSnapshot } from "qubu/snapshot"
 
 import {
   compileMigrationProgram,
@@ -9,7 +9,7 @@ import {
 } from "../artifact/index.ts"
 import { createMigrationPlan, type MigrationPlan } from "../plan/index.ts"
 
-export type BootstrapSnapshot = SchemaSnapshot | CompleteSchemaSnapshot
+export type BootstrapSnapshot = SchemaSnapshot
 
 export type BootstrapPreparationResult =
   | {
@@ -84,20 +84,9 @@ function unsupportedDialect(): Extract<BootstrapPreparationResult, { readonly ok
 }
 
 function emptySnapshot(target: BootstrapSnapshot): BootstrapSnapshot {
-  if (target.version === 1) {
-    return {
-      format: "qubu-schema",
-      version: 1,
-      dialect: target.dialect,
-      namingPolicy: target.namingPolicy,
-      namespace: target.namespace,
-      tables: [],
-    }
-  }
-
   return {
     format: "qubu-schema",
-    version: 2,
+    version: target.version,
     dialect: target.dialect,
     namingPolicy: target.namingPolicy,
     namespace: target.namespace,

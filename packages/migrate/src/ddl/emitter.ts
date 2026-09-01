@@ -1238,13 +1238,17 @@ function renderInlineConstraint(
     body = `CHECK (${expression.sql})`
   } else if (kind === "foreign-key") {
     const target = recordValue(value.target)
-    const targetId = target && stringValue(target.table)
+    const targetTable = target === undefined ? undefined : recordValue(target.table)
+    const targetId =
+      targetTable === undefined
+        ? undefined
+        : (stringValue(targetTable.id) ?? stringValue(targetTable.physicalName))
     const targetOperation = operations.find(
       (item) => item.kind === "table" && item.logicalId === targetId && item.type === "add",
     )
     const targetValue = targetOperation?.origin?.after?.value
     const targetName = targetValue ? requiredValueName(targetValue) : targetId
-    if (!targetName || !target)
+    if (!targetName || target === undefined || targetTable === undefined)
       throw new TypeError("Foreign-key constraint is missing target identity")
     const targetColumns = stringArray(target.columns)
     const targetColumnValues = isRecord(targetValue) ? arrayOfRecords(targetValue.columns) : []

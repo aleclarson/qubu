@@ -49,7 +49,7 @@ strictly validated. Arrays are ordered by logical ID (with ordinal sequences
 and index terms ordered by their semantic position), and the fingerprint is computed
 from the deterministic encoding.
 
-Snapshot v1 remains a separate strict format. `decodeSchemaSnapshot` still
-accepts only v1 and continues to reject unknown fields and future versions;
-v2 callers must select `decodeCompleteSchemaSnapshot` explicitly. Neither
-snapshot format evaluates database-provided SQL.
+Snapshot v2 is the only strict schema snapshot format. `decodeSchemaSnapshot`
+and `decodeCompleteSchemaSnapshot` both validate the same version-2 envelope,
+reject unknown fields and future versions, and never evaluate database-provided
+SQL.

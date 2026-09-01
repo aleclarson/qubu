@@ -31,7 +31,7 @@ import {
   type SnapshotJsonValue,
 } from "./types.ts"
 
-/** PostgreSQL's v1 snapshot extension identity. */
+/** PostgreSQL's snapshot dialect-extension identity. */
 export const postgresSnapshotDialect: SnapshotDialect = Object.freeze({
   name: "postgresql",
   version: schemaSnapshotDialectVersion,
@@ -281,7 +281,7 @@ function validateTable(
       diagnostics.push({
         code: "unsupported-dialect-option",
         message:
-          "PostgreSQL v1 snapshots support stored generated columns only; virtual generated columns are not supported",
+          "PostgreSQL snapshots support stored generated columns only; virtual generated columns are not supported",
         path: [...tablePath, "columns", columnId, "generatedColumn", "mode"],
       })
     }
@@ -339,7 +339,7 @@ function validateTable(
       diagnostics.push({
         code: "unsupported-dialect-option",
         message:
-          "PostgreSQL NULLS NOT DISTINCT requires a server-version policy; the v1 adapter does not assume PostgreSQL 15 or newer",
+          "PostgreSQL NULLS NOT DISTINCT requires a server-version policy; the adapter does not assume PostgreSQL 15 or newer",
         path: [...constraintPath, "nulls"],
       })
     }

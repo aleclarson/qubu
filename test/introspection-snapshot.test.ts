@@ -246,6 +246,7 @@ test("maps default, generated, and identity write flags independently", () => {
       identity: {
         kind: "identity",
         generation: "by-default",
+        options: {},
       },
     }),
   ])
@@ -285,7 +286,7 @@ test("carries table and column identities from a previous snapshot", () => {
   expect(result.snapshot.tables[0]?.columns[0]?.id).toBe("account_id")
 })
 
-test("maps constraints and ordered index terms to Snapshot v1", () => {
+test("maps constraints and ordered index terms to Snapshot v2", () => {
   const constraints: CatalogConstraint[] = [
     {
       kind: "primary-key",
@@ -340,11 +341,9 @@ test("maps constraints and ordered index terms to Snapshot v1", () => {
       includedColumns: ["id"],
       terms: [
         {
-          kind: "order",
-          expression: {
-            kind: "column",
-            column: "email",
-          },
+          kind: "column",
+          column: "email",
+          position: 1,
           direction: "DESC",
         },
       ],

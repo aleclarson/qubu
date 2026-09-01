@@ -133,7 +133,7 @@ const excludedFamilies = [
  * Generate a deterministic TypeScript module from one introspection result.
  *
  * @remarks
- *   Generation accepts only a successful, non-lossy Snapshot v1 result for one PostgreSQL, SQLite,
+ *   Generation accepts only a successful, non-lossy Snapshot v2 result for one PostgreSQL, SQLite,
  *   or MySQL namespace. It is pure: it opens no connection, performs no filesystem writes, and
  *   never evaluates catalog SQL. Existing introspection diagnostics are copied into the result. Any
  *   error returns no source. The generated module exports every ordinary table plus one schema
@@ -288,13 +288,13 @@ function validateInputEnvelope(
     diagnostics.push(
       errorDiagnostic(
         "unsupported-snapshot",
-        `Code generation supports Snapshot v1 dialect extensions, received version ${snapshot.dialect.version}`,
+        `Code generation supports Snapshot v2 dialect extensions, received version ${snapshot.dialect.version}`,
         ["snapshot", "dialect", "version"],
       ),
     )
   }
 
-  if (snapshot.namespace !== catalog.namespace.name) {
+  if (snapshot.namespace.name !== catalog.namespace.name) {
     diagnostics.push(
       errorDiagnostic(
         "unsupported-snapshot",
@@ -321,7 +321,7 @@ function validatePhysicalFacts(
     diagnostics.push(
       errorDiagnostic(
         "omitted-fact",
-        "The normalized catalog cannot be mapped to a complete strict Snapshot v1",
+        "The normalized catalog cannot be mapped to a complete strict Snapshot v2",
         ["catalog", "tables"],
         "Resolve the strict introspection diagnostics before generating source.",
       ),
@@ -336,7 +336,7 @@ function validatePhysicalFacts(
     diagnostics.push(
       errorDiagnostic(
         "omitted-fact",
-        "The introspection snapshot does not contain the catalog's complete Snapshot v1 table facts",
+        "The introspection snapshot does not contain the catalog's complete Snapshot v2 table facts",
         ["snapshot", "tables"],
         "Use the snapshot returned with this exact strict catalog result.",
       ),
@@ -409,7 +409,7 @@ function validateSchemaProofs(snapshot: SchemaSnapshot, diagnostics: CodegenDiag
         continue
       }
 
-      const target = tables.get(constraint.target.table)
+      const target = tables.get(constraint.target.table.id)
 
       if (target === undefined) {
         continue
@@ -465,7 +465,7 @@ function candidateIndexColumns(index: SnapshotIndex): readonly string[] | undefi
   const columns: string[] = []
 
   for (const term of index.terms) {
-    const expression = term.kind === "order" ? term.expression : term
+    const expression = term
 
     if (expression.kind !== "column") {
       return undefined
@@ -886,13 +886,13 @@ function validateResolvedDomains(schema: ResolvedSchema, diagnostics: CodegenDia
   for (const table of schema.tables) {
     for (const index of table.indexes) {
       for (const term of index.snapshot.terms) {
-        const ordered = term.kind === "order" ? term : undefined
+        const ordered = term.direction !== undefined || term.nulls !== undefined ? term : undefined
 
-        if (ordered?.expression.kind !== "column") {
+        if (ordered?.kind !== "column") {
           continue
         }
 
-        const column = table.columnsBySnapshotId.get(ordered.expression.column)
+        const column = table.columnsBySnapshotId.get(ordered.column)
 
         if (column === undefined || orderableDomains.has(column.sqlDomain)) {
           continue
@@ -919,7 +919,7 @@ function validateResolvedDomains(schema: ResolvedSchema, diagnostics: CodegenDia
         continue
       }
 
-      const targetTable = schema.tablesBySnapshotId.get(constraint.snapshot.target.table)
+      const targetTable = schema.tablesBySnapshotId.get(constraint.snapshot.target.table.id)
 
       if (targetTable === undefined) {
         continue
@@ -1185,7 +1185,7 @@ function toPhysicalFacts(snapshot: SchemaSnapshot): unknown {
 
   return {
     dialect: snapshot.dialect,
-    namespace: snapshot.namespace ?? null,
+    namespace: snapshot.namespace.name,
     tables: [...snapshot.tables].sort(comparePhysicalName).map((table) => ({
       physicalName: table.physicalName,
       columns: [...table.columns].sort(comparePhysicalName).map((column) => ({
@@ -1227,16 +1227,16 @@ function physicalConstraint(
     }
   }
 
-  const targetTable = tables.get(constraint.target.table)
+  const targetTable = tables.get(constraint.target.table.id)
 
   return {
     ...constraint,
     id: constraint.physicalName,
     columns: localColumns,
     target: {
-      table: targetTable?.physicalName ?? `missing:${constraint.target.table}`,
+      table: targetTable?.physicalName ?? `missing:${constraint.target.table.id}`,
       columns: constraint.target.columns.map(
-        (id) => columns.get(constraint.target.table)?.get(id) ?? `missing:${id}`,
+        (id) => columns.get(constraint.target.table.id)?.get(id) ?? `missing:${id}`,
       ),
     },
   }
@@ -1276,16 +1276,7 @@ function physicalIndexTerm(
     return term
   }
 
-  return {
-    ...term,
-    expression:
-      term.expression.kind === "column"
-        ? {
-            ...term.expression,
-            column: columns?.get(term.expression.column) ?? `missing:${term.expression.column}`,
-          }
-        : term.expression,
-  }
+  return term
 }
 
 function appendExcludedFamilyDiagnostics(
@@ -1306,7 +1297,7 @@ function appendExcludedFamilyDiagnostics(
     diagnostics.push({
       severity: "warning",
       code: "excluded-object-family",
-      message: `Snapshot v1 source generation excludes ${values.length} ${label}`,
+      message: `Snapshot v2 source generation excludes ${values.length} ${label}`,
       path: Object.freeze(["catalog", property]),
       remediation: "Use the complete normalized catalog or Snapshot v2 for this object family.",
     })

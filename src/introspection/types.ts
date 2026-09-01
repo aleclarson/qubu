@@ -396,7 +396,7 @@ export interface CatalogColumn extends CatalogObjectMetadata {
   readonly unknownFields?: readonly CatalogUnknownField[]
 }
 
-/** Object categories intentionally retained outside Snapshot v1 tables. */
+/** Object categories intentionally retained outside the ordinary table surface. */
 export type CatalogDeferredObjectKind =
   | "view"
   | "materialized-view"

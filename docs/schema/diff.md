@@ -1,6 +1,6 @@
 # Snapshot diffing
 
-> Compare canonical Snapshot v1 or v2 values and review identity changes before a later planning step.
+> Compare canonical Snapshot v2 values and review identity changes before a later planning step.
 
 The optional `qubu/diff` entrypoint compares immutable snapshot data. It does
 not open a connection, render SQL, execute a change, or infer migration history.

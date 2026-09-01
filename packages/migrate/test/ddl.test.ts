@@ -15,19 +15,54 @@ function snapshot(
 ): SchemaSnapshot {
   return {
     format: "qubu-schema",
-    version: 1,
+    version: 2,
     dialect,
     namingPolicy: {
       name: "test",
       version: 1,
     },
-    namespace: dialect.name === "sqlite" ? "main" : "public",
+    namespace:
+      dialect.name === "sqlite"
+        ? { kind: "sqlite-database", name: "main" }
+        : dialect.name === "mysql"
+          ? { kind: "mysql-database", name: "public" }
+          : { kind: "postgres-schema", name: "public" },
+    capabilities: {
+      generatedColumns: true,
+      identityMetadata: true,
+      checkConstraints: true,
+      checkConstraintEnforcement: "enforced",
+      expressionDecompilation: true,
+      indexExpressions: true,
+      indexPredicates: true,
+      indexIncludedColumns: true,
+      namespaces: true,
+      visibility: "complete",
+    },
     tables,
+    views: [],
+    sequences: [],
+    enums: [],
+    domains: [],
+    collations: [],
+    triggers: [],
+    routines: [],
+    partitions: [],
+    policies: [],
+    extensions: [],
+    deferredObjects: [],
+    opaqueObjects: [],
+    comments: [],
+    ownership: [],
   }
 }
 
-function table(id: string, columns: SchemaSnapshot["tables"][number]["columns"] = []) {
+function table(
+  id: string,
+  columns: SchemaSnapshot["tables"][number]["columns"] = [],
+): SchemaSnapshot["tables"][number] {
   return {
+    kind: "table",
     id,
     physicalName: id,
     columns,
@@ -36,10 +71,12 @@ function table(id: string, columns: SchemaSnapshot["tables"][number]["columns"] 
   }
 }
 
-function column(id: string) {
+function column(id: string): SchemaSnapshot["tables"][number]["columns"][number] {
   return {
+    kind: "column" as const,
     id,
     physicalName: id,
+    ordinalPosition: 1,
     nullable: false,
     hasDefault: false,
     generated: false,
@@ -117,6 +154,7 @@ test("emits child constraints and indexes when a table is created", () => {
           {
             kind: "column" as const,
             column: "name",
+            position: 0,
           },
         ],
         unique: false,
@@ -178,6 +216,47 @@ test("renders SQLite constraints inline during table creation", () => {
   expect(emission.ok).toBe(true)
   expect(emission.statements).toHaveLength(1)
   expect(emission.statements[0]?.sql).toContain('CONSTRAINT "accounts_pk" PRIMARY KEY ("id")')
+})
+
+test("renders v2 foreign-key object references inline during SQLite table creation", () => {
+  const dialect = {
+    name: "sqlite",
+    version: 1,
+  } as const
+  const parent = table("parent", [column("id")])
+  const child = {
+    ...table("child", [column("parentId")]),
+    constraints: [
+      {
+        id: "child_parent_fk",
+        kind: "foreign-key" as const,
+        physicalName: "child_parent_fk",
+        columns: ["parentId"],
+        target: {
+          table: {
+            kind: "table" as const,
+            id: "parent",
+          },
+          columns: ["id"],
+        },
+      },
+    ],
+  }
+  const planned = createMigrationPlan(
+    diffSnapshots(snapshot(dialect, []), snapshot(dialect, [parent, child])),
+  )
+
+  expect(planned.ok).toBe(true)
+  if (!planned.ok) {
+    return
+  }
+
+  const emission = sqliteDdl.emitMigrationPlan(planned.plan)
+
+  expect(emission.ok).toBe(true)
+  expect(emission.sql).toContain(
+    'CONSTRAINT "child_parent_fk" FOREIGN KEY ("parentId") REFERENCES "parent" ("id")',
+  )
 })
 
 test("rejects blocked rename plans before rendering", () => {
@@ -304,6 +383,7 @@ test("reports malformed plans and unsupported dialect capabilities before SQL", 
             {
               kind: "column" as const,
               column: "name",
+              position: 0,
             },
           ],
           unique: false,

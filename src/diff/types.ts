@@ -1,7 +1,4 @@
-import type {
-  CompleteSchemaSnapshot,
-  CompleteSnapshotObjectKind,
-} from "../snapshot/complete-types.ts"
+import type { CompleteSnapshotObjectKind } from "../snapshot/complete-types.ts"
 import type { SchemaSnapshot, SnapshotDialect, SnapshotJsonValue } from "../snapshot/types.ts"
 
 /** Object families understood by the snapshot diff engine. */
@@ -34,11 +31,7 @@ export interface SnapshotRenameHint {
 }
 
 /** Input accepted by the diff and hint helpers. */
-export type SnapshotDiffInput =
-  | SchemaSnapshot
-  | CompleteSchemaSnapshot
-  | string
-  | Readonly<Record<string, unknown>>
+export type SnapshotDiffInput = SchemaSnapshot | string | Readonly<Record<string, unknown>>
 
 /** Evidence attached to an object, match, operation, or diagnostic. */
 export interface SnapshotDiffEvidence {
@@ -174,8 +167,8 @@ export interface SnapshotDiffOptions {
 /** The complete immutable output of `diffSnapshots`. */
 export interface SnapshotDiff {
   readonly equal: boolean
-  readonly beforeVersion?: 1 | 2
-  readonly afterVersion?: 1 | 2
+  readonly beforeVersion?: 2
+  readonly afterVersion?: 2
   readonly beforeDialect?: SnapshotDialect
   readonly afterDialect?: SnapshotDialect
   readonly beforeFingerprint?: string
@@ -214,8 +207,8 @@ export type SnapshotRenameHintResult =
 export type SnapshotDiffDecodeResult =
   | {
       readonly ok: true
-      readonly version: 1 | 2
-      readonly value: SchemaSnapshot | CompleteSchemaSnapshot
+      readonly version: 2
+      readonly value: SchemaSnapshot
     }
   | {
       readonly ok: false

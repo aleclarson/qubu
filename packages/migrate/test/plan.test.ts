@@ -20,19 +20,49 @@ function snapshot(
 ): SchemaSnapshot {
   return {
     format: "qubu-schema",
-    version: 1,
+    version: 2,
     dialect,
     namingPolicy: {
       name: "test",
       version: 1,
     },
-    namespace: "public",
+    namespace: { kind: "generic", name: "public" },
+    capabilities: {
+      generatedColumns: true,
+      identityMetadata: true,
+      checkConstraints: true,
+      checkConstraintEnforcement: "enforced",
+      expressionDecompilation: true,
+      indexExpressions: true,
+      indexPredicates: true,
+      indexIncludedColumns: true,
+      namespaces: true,
+      visibility: "complete",
+    },
     tables,
+    views: [],
+    sequences: [],
+    enums: [],
+    domains: [],
+    collations: [],
+    triggers: [],
+    routines: [],
+    partitions: [],
+    policies: [],
+    extensions: [],
+    deferredObjects: [],
+    opaqueObjects: [],
+    comments: [],
+    ownership: [],
   }
 }
 
-function table(id: string, columns: SchemaSnapshot["tables"][number]["columns"] = []) {
+function table(
+  id: string,
+  columns: SchemaSnapshot["tables"][number]["columns"] = [],
+): SchemaSnapshot["tables"][number] {
   return {
+    kind: "table",
     id,
     physicalName: id,
     columns,
@@ -41,10 +71,12 @@ function table(id: string, columns: SchemaSnapshot["tables"][number]["columns"] 
   }
 }
 
-function column(id: string) {
+function column(id: string): SchemaSnapshot["tables"][number]["columns"][number] {
   return {
+    kind: "column",
     id,
     physicalName: id,
+    ordinalPosition: 1,
     nullable: false,
     hasDefault: false,
     generated: false,

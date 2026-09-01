@@ -1,8 +1,4 @@
-import {
-  decodeCompleteSchemaSnapshot,
-  decodeSchemaSnapshot,
-  type SnapshotJsonValue,
-} from "qubu/snapshot"
+import { decodeSchemaSnapshot, type SnapshotJsonValue } from "qubu/snapshot"
 
 import { assertMigrationPlan } from "../plan/index.ts"
 import {
@@ -1092,10 +1088,7 @@ function snapshot(
   }
 
   if (value.value !== undefined) {
-    const decoded =
-      record(value.value) && value.value.version === 2
-        ? decodeCompleteSchemaSnapshot(value.value)
-        : decodeSchemaSnapshot(value.value)
+    const decoded = decodeSchemaSnapshot(value.value)
     if (!decoded.ok) {
       out.push(diag("invalid-value", [...path, "value"], "Embedded Qubu snapshot is invalid"))
     }

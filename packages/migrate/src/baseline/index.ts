@@ -164,16 +164,19 @@ export interface ManagedSnapshotComparison {
   readonly diagnostics: readonly SnapshotDiffDiagnostic[]
 }
 
-/** Logical IDs are retained for reporting, but equality is decided from resolved physical facts. */
+/** Compare snapshots by managed physical facts while retaining logical diff details for callers. */
 export function compareManagedSnapshots(
   expected: MigrationSnapshot,
   actual: MigrationSnapshot,
 ): ManagedSnapshotComparison {
   const result = diffSnapshots(expected, actual)
+  const expectedPhysical = physicalProjection(expected)
+  const actualPhysical = physicalProjection(actual)
   const matches =
-    expected.version === 1 && actual.version === 1
-      ? JSON.stringify(physicalProjection(expected)) === JSON.stringify(physicalProjection(actual))
-      : result.equal
+    !result.diagnostics.some(
+      (diagnostic) =>
+        diagnostic.code === "invalid-snapshot" || diagnostic.code === "dialect-mismatch",
+    ) && JSON.stringify(expectedPhysical) === JSON.stringify(actualPhysical)
   return Object.freeze({
     matches,
     operations: result.operations,
@@ -182,71 +185,353 @@ export function compareManagedSnapshots(
 }
 
 function physicalProjection(snapshot: SchemaSnapshot): unknown {
-  const tables = new Map(snapshot.tables.map((table) => [table.id, table.physicalName]))
-  return snapshot.tables
-    .map((table) => {
-      const columns = new Map(table.columns.map((column) => [column.id, column.physicalName]))
-      return {
-        physicalName: table.physicalName,
-        columns: table.columns
-          .map((column) => ({
-            physicalName: column.physicalName,
-            nullable: column.nullable,
-            storage: physicalStorageType(snapshot.dialect.name, column.storage),
-            default: column.default,
-            generatedColumn: column.generatedColumn,
-            identity:
-              column.identity === undefined
-                ? undefined
-                : {
-                    generation: column.identity.generation,
-                    autoIncrement:
-                      column.identity.dialect?.dialect === "sqlite" &&
-                      isRecord(column.identity.dialect.data) &&
-                      column.identity.dialect.data.autoIncrement === true,
-                  },
-            onUpdate: column.onUpdate,
-          }))
-          .sort(byPhysicalName),
-        constraints: table.constraints
-          .map((constraint) => ({
-            kind: constraint.kind,
-            physicalName: constraint.physicalName,
-            ...("columns" in constraint
-              ? { columns: constraint.columns.map((id) => columns.get(id) ?? id) }
-              : {}),
-            ...(constraint.kind === "foreign-key"
-              ? {
-                  target: {
-                    table: tables.get(constraint.target.table) ?? constraint.target.table,
-                    columns: constraint.target.columns,
-                  },
-                  onUpdate: constraint.onUpdate ?? "no-action",
-                  onDelete: constraint.onDelete ?? "no-action",
-                  match: constraint.match ?? "simple",
-                }
-              : {}),
-            ...(constraint.kind === "check" ? { expression: constraint.expression.sql } : {}),
-          }))
-          .sort(byPhysicalName),
-        indexes: table.indexes
-          .map((index) => ({
-            physicalName: index.physicalName,
-            terms: index.terms,
-            unique: index.unique,
-            predicate: index.predicate?.sql,
-          }))
-          .sort(byPhysicalName),
-      }
-    })
+  const names = physicalNames(snapshot)
+  return {
+    dialect: snapshot.dialect,
+    namespace: projectObject(record(snapshot.namespace), names, {}),
+    tables: sortProjected(snapshot.tables.map((table) => projectTable(table, names))),
+    views: sortProjected(
+      snapshot.views.map((view) => {
+        const projected = projectObject(record(view), names, {})
+        projected.columns = view.columns
+          .map((column) => projectObject(record(column), names, { tableId: view.id }))
+          .sort(byColumnPosition)
+        return projected
+      }),
+    ),
+    sequences: sortProjected(
+      snapshot.sequences.map((sequence) => projectObject(record(sequence), names, {})),
+    ),
+    enums: sortProjected(
+      snapshot.enums.map((item) => {
+        const projected = projectObject(record(item), names, {})
+        projected.values = item.values.map((value) => ({
+          ordinalPosition: value.ordinalPosition,
+          value: value.value,
+        }))
+        return projected
+      }),
+    ),
+    domains: sortProjected(
+      snapshot.domains.map((domain) => {
+        const projected = projectObject(record(domain), names, {})
+        projected.constraints = (domain.constraints ?? [])
+          .map((constraint) => projectObject(record(constraint), names, {}))
+          .sort(byPhysicalName)
+        return projected
+      }),
+    ),
+    collations: sortProjected(
+      snapshot.collations.map((collation) => projectObject(record(collation), names, {})),
+    ),
+    triggers: sortProjected(
+      snapshot.triggers.map((trigger) => projectObject(record(trigger), names, {})),
+    ),
+    routines: sortProjected(
+      snapshot.routines.map((routine) => projectObject(record(routine), names, {})),
+    ),
+    partitions: sortProjected(
+      snapshot.partitions.map((partition) => projectObject(record(partition), names, {})),
+    ),
+    policies: sortProjected(
+      snapshot.policies.map((policy) => projectObject(record(policy), names, {})),
+    ),
+    extensions: sortProjected(
+      snapshot.extensions.map((extension) => projectObject(record(extension), names, {})),
+    ),
+    deferredObjects: sortProjected(
+      snapshot.deferredObjects.map((object) => projectObject(record(object), names, {})),
+    ),
+    opaqueObjects: sortProjected(
+      snapshot.opaqueObjects
+        .filter((object) => object.objectKind !== "unknown-field")
+        .map((object) => projectObject(record(object), names, {})),
+    ),
+    comments: sortProjected(
+      snapshot.comments.map((comment) => projectObject(record(comment), names, {})),
+    ),
+    ownership: sortProjected(
+      snapshot.ownership.map((ownership) => projectObject(record(ownership), names, {})),
+    ),
+  }
+}
+
+interface PhysicalNames {
+  readonly dialect: string
+  readonly objects: Map<string, string>
+  readonly columns: Map<string, Map<string, string>>
+  readonly nested: Map<string, Map<string, string>>
+}
+
+interface ProjectionContext {
+  readonly tableId?: string
+}
+
+function physicalNames(snapshot: SchemaSnapshot): PhysicalNames {
+  const objects = new Map<string, string>()
+  const columns = new Map<string, Map<string, string>>()
+  const nested = new Map<string, Map<string, string>>()
+
+  const addObject = (kind: string, id: string, physicalName: string): void => {
+    objects.set(objectKey(kind, id), physicalName)
+  }
+  const addNested = (tableId: string, kind: string, id: string, physicalName: string): void => {
+    const values = nested.get(tableId) ?? new Map<string, string>()
+    values.set(objectKey(kind, id), physicalName)
+    nested.set(tableId, values)
+  }
+
+  for (const table of snapshot.tables) {
+    addObject(table.kind, table.id, table.physicalName)
+    const tableColumns = new Map<string, string>()
+    columns.set(table.id, tableColumns)
+    for (const column of table.columns) {
+      tableColumns.set(column.id, column.physicalName)
+      addNested(table.id, column.kind, column.id, column.physicalName)
+    }
+    for (const constraint of table.constraints) {
+      addNested(table.id, constraint.kind, constraint.id, constraint.physicalName)
+    }
+    for (const index of table.indexes) {
+      addNested(table.id, index.kind, index.id, index.physicalName)
+    }
+  }
+
+  for (const view of snapshot.views) {
+    addObject(view.kind, view.id, view.physicalName)
+    const viewColumns = new Map<string, string>()
+    columns.set(view.id, viewColumns)
+    for (const column of view.columns) {
+      viewColumns.set(column.id, column.physicalName)
+    }
+  }
+
+  const groups = [
+    snapshot.sequences,
+    snapshot.enums,
+    snapshot.domains,
+    snapshot.collations,
+    snapshot.triggers,
+    snapshot.routines,
+    snapshot.partitions,
+    snapshot.policies,
+    snapshot.extensions,
+    snapshot.deferredObjects,
+    snapshot.opaqueObjects,
+    snapshot.comments,
+    snapshot.ownership,
+  ]
+  for (const group of groups) {
+    for (const object of group) {
+      addObject(object.kind, object.id, object.physicalName)
+    }
+  }
+
+  return { dialect: snapshot.dialect.name, objects, columns, nested }
+}
+
+function projectTable(
+  table: SchemaSnapshot["tables"][number],
+  names: PhysicalNames,
+): Record<string, unknown> {
+  const projected = projectObject(record(table), names, { tableId: table.id })
+  projected.columns = table.columns
+    .map((column) => projectObject(record(column), names, { tableId: table.id }))
+    .sort(byColumnPosition)
+  projected.constraints = table.constraints
+    .map((constraint) => projectObject(record(constraint), names, { tableId: table.id }))
     .sort(byPhysicalName)
+  projected.indexes = table.indexes
+    .map((index) => projectObject(record(index), names, { tableId: table.id }))
+    .sort(byPhysicalName)
+  return projected
+}
+
+function projectObject(
+  value: Record<string, unknown>,
+  names: PhysicalNames,
+  context: ProjectionContext,
+): Record<string, unknown> {
+  const tableId = context.tableId ?? referenceId(value.table) ?? referenceId(value.parent)
+  const localContext = tableId === undefined ? context : { tableId }
+  const projected: Record<string, unknown> = {}
+
+  for (const key of Object.keys(value).sort()) {
+    if (key === "id" || key === "provenance" || key === "physicalReference" || key === "dialect") {
+      continue
+    }
+    projected[key] = projectProperty(key, value[key], names, localContext)
+  }
+
+  if (value.kind === "foreign-key") {
+    projected.onUpdate ??= "no-action"
+    projected.onDelete ??= "no-action"
+    projected.match ??= "simple"
+  }
+
+  return projected
+}
+
+function projectProperty(
+  key: string,
+  value: unknown,
+  names: PhysicalNames,
+  context: ProjectionContext,
+): unknown {
+  if (key === "storage") {
+    return physicalStorageType(
+      names.dialect,
+      value as SchemaSnapshot["tables"][number]["columns"][number]["storage"],
+    )
+  }
+
+  if (key === "identity" && isRecord(value)) {
+    const dialect = isRecord(value.dialect) ? value.dialect : undefined
+    const data = dialect !== undefined && isRecord(dialect.data) ? dialect.data : undefined
+    return {
+      autoIncrement: dialect?.dialect === "sqlite" && data?.autoIncrement === true,
+      generation: value.generation,
+    }
+  }
+
+  if (key === "columns" || key === "includedColumns" || key === "keyColumns") {
+    return Array.isArray(value)
+      ? value.map((item) =>
+          typeof item === "string"
+            ? resolveColumn(item, context.tableId, names)
+            : projectNested(item),
+        )
+      : projectNested(value)
+  }
+
+  if (key === "terms" && Array.isArray(value)) {
+    return value
+      .map((term) => {
+        const projected = projectNested(term)
+        if (!isRecord(projected) || !isRecord(term)) return projected
+        if (term.kind === "column" && typeof term.column === "string") {
+          projected.column = resolveColumn(term.column, context.tableId, names)
+        }
+        return projected
+      })
+      .sort(byTermPosition)
+  }
+
+  if (key === "target" && isRecord(value)) {
+    const targetTableId = referenceId(value.table)
+    return {
+      table: projectReference(value.table, names, context),
+      columns: Array.isArray(value.columns)
+        ? value.columns.map((column) =>
+            typeof column === "string"
+              ? resolveColumn(column, targetTableId, names)
+              : projectNested(column),
+          )
+        : projectNested(value.columns),
+    }
+  }
+
+  if (
+    key === "backingIndex" ||
+    key === "backingConstraint" ||
+    key === "ownedBy" ||
+    key === "table" ||
+    key === "parent" ||
+    key === "object"
+  ) {
+    return projectReference(value, names, context)
+  }
+
+  if (key === "dependencies" && Array.isArray(value)) {
+    return value.map((item) => projectReference(item, names, context)).sort(compareJson)
+  }
+
+  return projectNested(value)
+}
+
+function projectReference(
+  value: unknown,
+  names: PhysicalNames,
+  context: ProjectionContext,
+): unknown {
+  if (!isRecord(value) || typeof value.kind !== "string" || typeof value.id !== "string") {
+    return projectNested(value)
+  }
+
+  const physicalName = resolveObjectName(value.kind, value.id, context, names)
+  return {
+    kind: value.kind,
+    ...(physicalName === undefined ? { id: value.id } : { physicalName }),
+  }
+}
+
+function resolveObjectName(
+  kind: string,
+  id: string,
+  context: ProjectionContext,
+  names: PhysicalNames,
+): string | undefined {
+  if (context.tableId !== undefined) {
+    const nestedName = names.nested.get(context.tableId)?.get(objectKey(kind, id))
+    if (nestedName !== undefined) return nestedName
+    const columnName = names.columns.get(context.tableId)?.get(id)
+    if (kind === "column" && columnName !== undefined) return columnName
+  }
+  return names.objects.get(objectKey(kind, id))
+}
+
+function resolveColumn(id: string, tableId: string | undefined, names: PhysicalNames): string {
+  return (tableId === undefined ? undefined : names.columns.get(tableId)?.get(id)) ?? id
+}
+
+function referenceId(value: unknown): string | undefined {
+  return isRecord(value) && typeof value.id === "string" ? value.id : undefined
+}
+
+function projectNested(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(projectNested)
+  if (!isRecord(value)) return value
+
+  const result: Record<string, unknown> = {}
+  for (const key of Object.keys(value).sort()) {
+    result[key] = projectNested(value[key])
+  }
+  return result
+}
+
+function record(value: object): Record<string, unknown> {
+  return value as Record<string, unknown>
+}
+
+function objectKey(kind: string, id: string): string {
+  return `${kind}\u0000${id}`
+}
+
+function sortProjected(values: Record<string, unknown>[]): Record<string, unknown>[] {
+  return values.sort(byPhysicalName)
+}
+
+function byColumnPosition(left: Record<string, unknown>, right: Record<string, unknown>): number {
+  const leftPosition = typeof left.ordinalPosition === "number" ? left.ordinalPosition : 0
+  const rightPosition = typeof right.ordinalPosition === "number" ? right.ordinalPosition : 0
+  return leftPosition - rightPosition || byPhysicalName(left, right)
+}
+
+function byTermPosition(left: unknown, right: unknown): number {
+  const leftPosition = isRecord(left) && typeof left.position === "number" ? left.position : 0
+  const rightPosition = isRecord(right) && typeof right.position === "number" ? right.position : 0
+  return leftPosition - rightPosition || compareJson(left, right)
+}
+
+function compareJson(left: unknown, right: unknown): number {
+  return String(JSON.stringify(left)).localeCompare(String(JSON.stringify(right)))
 }
 
 function physicalStorageType(
   dialect: string,
   storage: SchemaSnapshot["tables"][number]["columns"][number]["storage"],
 ): string | undefined {
-  if (!storage) return undefined
+  if (storage === undefined) return undefined
   if (storage.kind === "native") return storage.type.trim().toUpperCase()
   if (dialect === "sqlite") {
     return (
@@ -269,13 +554,12 @@ function physicalStorageType(
   return storage.type.toUpperCase()
 }
 
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
 }
 
-function byPhysicalName(
-  left: { readonly physicalName: string },
-  right: { readonly physicalName: string },
-): number {
-  return left.physicalName.localeCompare(right.physicalName)
+function byPhysicalName(left: Record<string, unknown>, right: Record<string, unknown>): number {
+  const leftName = typeof left.physicalName === "string" ? left.physicalName : ""
+  const rightName = typeof right.physicalName === "string" ? right.physicalName : ""
+  return leftName.localeCompare(rightName) || compareJson(left, right)
 }

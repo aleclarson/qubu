@@ -46,7 +46,7 @@ import { schemaSnapshotDialectVersion } from "./types.ts"
 
 /** Error raised by throwing APIs after collecting strict v2 diagnostics. */
 export class CompleteSnapshotValidationError extends TypeError {
-  readonly name = "CompleteSnapshotValidationError"
+  readonly name: string = "CompleteSnapshotValidationError"
   readonly diagnostics: readonly SnapshotDiagnostic[]
   readonly issues: readonly SnapshotDiagnostic[]
 
@@ -171,7 +171,7 @@ export function completeSchemaSnapshotFingerprint(
   return `fnv1a64:${hash.toString(16).padStart(16, "0")}`
 }
 
-/** Numbered aliases for tooling that keeps v1 and v2 side by side. */
+/** Numbered aliases for tooling that prefers explicit Snapshot v2 names. */
 export const decodeSchemaSnapshotV2 = decodeCompleteSchemaSnapshot
 export const assertSchemaSnapshotV2 = assertCompleteSchemaSnapshot
 export const encodeSchemaSnapshotV2 = encodeCompleteSchemaSnapshot
@@ -422,7 +422,12 @@ function validateNamespace(
   )
   const kind = value.kind
 
-  if (kind !== "postgres-schema" && kind !== "sqlite-database" && kind !== "mysql-database") {
+  if (
+    kind !== "generic" &&
+    kind !== "postgres-schema" &&
+    kind !== "sqlite-database" &&
+    kind !== "mysql-database"
+  ) {
     diagnostics.push(
       issue("invalid-snapshot", "Snapshot namespace kind is invalid", [...path, "kind"]),
     )
