@@ -2,10 +2,13 @@ import { DatabaseSync, type SQLInputValue } from "node:sqlite"
 
 import { expect, test } from "vitest"
 
+import { mapCatalogToCompleteSnapshot, mapCatalogToSnapshot } from "../src/introspection/index.ts"
+import type {
+  CatalogConnection,
+  CatalogQuery,
+  IntrospectionOptions,
+} from "../src/introspection/index.ts"
 import {
-  mapCatalogToCompleteSnapshot,
-  mapCatalogToSnapshot,
-  readSqliteCatalog,
   sqliteDatabaseListQuery,
   sqliteForeignKeyQuery,
   sqliteIndexInfoQuery,
@@ -14,12 +17,8 @@ import {
   sqliteServerQuery,
   sqliteTableInfoQuery,
   sqliteTableListQuery,
-} from "../src/introspection/index.ts"
-import type {
-  CatalogConnection,
-  CatalogQuery,
-  IntrospectionOptions,
-} from "../src/introspection/index.ts"
+  readCatalog,
+} from "../src/introspection/sqlite.ts"
 
 type Row = Readonly<Record<string, unknown>>
 
@@ -392,7 +391,7 @@ function completeConnection() {
 
 test("normalizes SQLite versions, complete families, generated columns, and boundaries", async () => {
   const fake = completeConnection()
-  const catalog = await readSqliteCatalog(fake.connection, options())
+  const catalog = await readCatalog(fake.connection, options())
   const child = catalog.tables.find((table) => table.physicalName === "child")!
   const parent = catalog.tables.find((table) => table.physicalName === "parent")!
 
@@ -521,7 +520,7 @@ test("normalizes SQLite versions, complete families, generated columns, and boun
 })
 
 test("normalizes primary keys, user indexes, partial predicates, and grouped foreign keys", async () => {
-  const catalog = await readSqliteCatalog(completeConnection().connection, options())
+  const catalog = await readCatalog(completeConnection().connection, options())
   const child = catalog.tables.find((table) => table.physicalName === "child")!
 
   expect(child.constraints).toEqual(
@@ -577,7 +576,7 @@ test("normalizes primary keys, user indexes, partial predicates, and grouped for
 })
 
 test("maps complete SQLite objects without changing Snapshot v1 tables", async () => {
-  const catalog = await readSqliteCatalog(completeConnection().connection, options())
+  const catalog = await readCatalog(completeConnection().connection, options())
   const complete = mapCatalogToCompleteSnapshot(catalog)
 
   expect(complete.ok).toBe(true)
@@ -636,7 +635,7 @@ test("verifies SQLite catalog SQL against an in-memory database", async () => {
       CREATE TABLE archive.events(id INTEGER PRIMARY KEY);
     `)
 
-    const catalog = await readSqliteCatalog(databaseConnection(database), {
+    const catalog = await readCatalog(databaseConnection(database), {
       namespace: "main",
     })
     const parent = catalog.tables.find((table) => table.physicalName === "parent")!
@@ -735,7 +734,7 @@ test("defers unrecoverable SQLite definitions with diagnostics", async () => {
 
     return []
   })
-  const catalog = await readSqliteCatalog(fake.connection, options())
+  const catalog = await readCatalog(fake.connection, options())
 
   expect(catalog.views).toEqual([])
   expect(catalog.deferredObjects).toEqual([
@@ -758,7 +757,7 @@ test("reports unsupported versions, dialect mismatches, and query diagnostics", 
   const old = connection((statement) =>
     statement.text === sqliteServerQuery ? [{ version: "3.36.0" }] : [],
   )
-  const oldCatalog = await readSqliteCatalog(old.connection, options())
+  const oldCatalog = await readCatalog(old.connection, options())
 
   expect(oldCatalog.diagnostics).toEqual(
     expect.arrayContaining([
@@ -770,7 +769,7 @@ test("reports unsupported versions, dialect mismatches, and query diagnostics", 
   )
 
   const mismatch = connection(() => [], "postgresql")
-  const mismatchCatalog = await readSqliteCatalog(mismatch.connection, options())
+  const mismatchCatalog = await readCatalog(mismatch.connection, options())
 
   expect(mismatch.calls).toHaveLength(0)
   expect(mismatchCatalog.diagnostics).toEqual([
@@ -791,7 +790,7 @@ test("reports unsupported versions, dialect mismatches, and query diagnostics", 
 
     return []
   })
-  const failingCatalog = await readSqliteCatalog(failing.connection, options("private"))
+  const failingCatalog = await readCatalog(failing.connection, options("private"))
 
   expect(failingCatalog.diagnostics).toEqual(
     expect.arrayContaining([

@@ -10,7 +10,7 @@ import {
 import {
   createSchemaSnapshot as createSqliteSchemaSnapshot,
   sqliteSnapshotAdapter,
-  sqliteStorageAffinity,
+  storageAffinity,
 } from "../src/snapshot/sqlite.ts"
 
 const records = table("records", {
@@ -30,7 +30,7 @@ expectTypeOf(
   createSchemaSnapshot(registry, { adapter: sqliteSnapshotAdapter }),
 ).toMatchTypeOf<SchemaSnapshot>()
 expectTypeOf(sqliteSnapshotAdapter).toMatchTypeOf<SchemaSnapshotAdapter>()
-expectTypeOf(sqliteStorageAffinity("INTEGER")).toEqualTypeOf<
+expectTypeOf(storageAffinity("INTEGER")).toEqualTypeOf<
   "integer" | "text" | "numeric" | "blob" | "real"
 >()
 expectTypeOf<SnapshotStorage>().toMatchTypeOf<{

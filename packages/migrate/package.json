@@ -21,6 +21,9 @@
     "./bootstrap/postgres": "./src/bootstrap/postgres.ts",
     "./bootstrap/sqlite": "./src/bootstrap/sqlite.ts",
     "./ddl": "./src/ddl/index.ts",
+    "./ddl/mysql": "./src/ddl/mysql.ts",
+    "./ddl/postgres": "./src/ddl/postgres.ts",
+    "./ddl/sqlite": "./src/ddl/sqlite.ts",
     "./executor": "./src/executor/index.ts",
     "./journal": "./src/journal/index.ts",
     "./plan": "./src/plan/index.ts",
@@ -70,6 +73,18 @@
       "./ddl": {
         "types": "./dist/ddl.d.mts",
         "import": "./dist/ddl.mjs"
+      },
+      "./ddl/mysql": {
+        "types": "./dist/ddl/mysql.d.mts",
+        "import": "./dist/ddl/mysql.mjs"
+      },
+      "./ddl/postgres": {
+        "types": "./dist/ddl/postgres.d.mts",
+        "import": "./dist/ddl/postgres.mjs"
+      },
+      "./ddl/sqlite": {
+        "types": "./dist/ddl/sqlite.d.mts",
+        "import": "./dist/ddl/sqlite.mjs"
       },
       "./executor": {
         "types": "./dist/executor.d.mts",

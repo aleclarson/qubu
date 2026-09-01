@@ -14,9 +14,10 @@ generator:
 ```ts
 import { writeFile } from "node:fs/promises"
 import { generateSchemaSource } from "qubu/codegen"
-import { mapCatalogToSnapshot, readSqliteCatalog } from "qubu/introspection"
+import { mapCatalogToSnapshot } from "qubu/introspection"
+import { readCatalog } from "qubu/introspection/sqlite"
 
-const catalog = await readSqliteCatalog(connection, { namespace: "main" })
+const catalog = await readCatalog(connection, { namespace: "main" })
 const introspection = mapCatalogToSnapshot(catalog, { namespace: "main" })
 const generated = generateSchemaSource(introspection)
 

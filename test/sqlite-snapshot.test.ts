@@ -29,7 +29,7 @@ import {
 import {
   createSchemaSnapshot as createSqliteSchemaSnapshot,
   sqliteSnapshotAdapter,
-  sqliteStorageAffinity,
+  storageAffinity,
   tryCreateSchemaSnapshot as tryCreateSqliteSchemaSnapshot,
 } from "../src/snapshot/sqlite.ts"
 
@@ -272,11 +272,11 @@ test("keeps SQLite canonical bytes independent of registry and metadata order", 
 })
 
 test("records SQLite declared-type affinity while preserving exact native text", () => {
-  expect(sqliteStorageAffinity("INTEGER")).toBe("integer")
-  expect(sqliteStorageAffinity("VARCHAR(32)")).toBe("text")
-  expect(sqliteStorageAffinity("DOUBLE PRECISION")).toBe("real")
-  expect(sqliteStorageAffinity("BLOB")).toBe("blob")
-  expect(sqliteStorageAffinity("DECIMAL(10, 2)")).toBe("numeric")
+  expect(storageAffinity("INTEGER")).toBe("integer")
+  expect(storageAffinity("VARCHAR(32)")).toBe("text")
+  expect(storageAffinity("DOUBLE PRECISION")).toBe("real")
+  expect(storageAffinity("BLOB")).toBe("blob")
+  expect(storageAffinity("DECIMAL(10, 2)")).toBe("numeric")
 
   const custom = table("custom_types", {
     value: nativeColumn("sqlite", "DOUBLE PRECISION"),

@@ -61,15 +61,15 @@ export const mysqlSchemaDialect: SchemaDialect<"json" | "row-locking"> = createS
   mysqlDialect(),
   {
     version: schemaSnapshotDialectVersion,
-    validate: validateMysqlSchema,
+    validate: validateSchema,
     encodeStorage(storage: ColumnStorage, context: SnapshotStorageContext) {
-      return encodeMysqlStorage(storage, context.dialect)
+      return encodeStorage(storage, context.dialect)
     },
     encodeExpression(expression: AnyExpression, context: SnapshotExpressionContext) {
-      return encodeMysqlExpression(expression, context.mode, context.dialect)
+      return encodeExpression(expression, context.mode, context.dialect)
     },
     encodeDialectExtension(extension: SchemaDialectExtension, context: SnapshotExtensionContext) {
-      return encodeMysqlExtension(extension, context.dialect)
+      return encodeExtension(extension, context.dialect)
     },
   },
 )
@@ -104,7 +104,7 @@ export function tryCreateSchemaSnapshot<TSchema extends Schema<any>>(
 /** Options accepted by the MySQL snapshot convenience functions. */
 export type MysqlSnapshotOptions = Omit<SchemaSnapshotOptions, "adapter" | "dialect">
 
-function encodeMysqlStorage(storage: ColumnStorage, dialect: SchemaDialect): SnapshotStorage {
+function encodeStorage(storage: ColumnStorage, dialect: SchemaDialect): SnapshotStorage {
   if (storage.kind === "native") {
     if (storage.dialect !== dialect.name) {
       throw new MysqlSnapshotDialectError(
@@ -136,7 +136,7 @@ function encodeMysqlStorage(storage: ColumnStorage, dialect: SchemaDialect): Sna
   }
 }
 
-function encodeMysqlExpression(
+function encodeExpression(
   expression: AnyExpression,
   mode: "default" | "generated" | "check" | "index",
   dialect: SchemaDialect,
@@ -164,7 +164,7 @@ function encodeMysqlExpression(
   }
 }
 
-function encodeMysqlExtension(
+function encodeExtension(
   extension: { readonly dialect: string },
   dialect: SchemaDialect,
 ): {
@@ -205,7 +205,7 @@ function sortSnapshotJson(value: SnapshotJsonValue): SnapshotJsonValue {
   )
 }
 
-function validateMysqlSchema(
+function validateSchema(
   schema: Schema<any>,
   context: SnapshotValidationContext,
 ): readonly SnapshotDiagnostic[] {
@@ -216,18 +216,13 @@ function validateMysqlSchema(
   const relationNames = new Map<string, readonly (string | number)[]>()
 
   if (schema.namespace !== undefined) {
-    validateMysqlName(schema.namespace, ["namespace"], "MySQL database/schema", diagnostics)
+    validateName(schema.namespace, ["namespace"], "MySQL database/schema", diagnostics)
   }
 
   for (const [id, entry] of tableEntries) {
     const tablePath = ["tables", id] as const
 
-    validateMysqlName(
-      entry.physicalName,
-      [...tablePath, "physicalName"],
-      "MySQL table",
-      diagnostics,
-    )
+    validateName(entry.physicalName, [...tablePath, "physicalName"], "MySQL table", diagnostics)
     addScopedName(
       relationNames,
       entry.physicalName,
@@ -238,13 +233,13 @@ function validateMysqlSchema(
   }
 
   for (const [id, entry] of tableEntries) {
-    validateMysqlTable(id, entry, context, diagnostics)
+    validateTable(id, entry, context, diagnostics)
   }
 
   return Object.freeze(diagnostics)
 }
 
-function validateMysqlTable(
+function validateTable(
   tableId: string,
   entry: SchemaTableEntry,
   context: SnapshotValidationContext,
@@ -263,7 +258,7 @@ function validateMysqlTable(
   )) {
     const columnPath = [...tablePath, "columns", columnId] as const
 
-    validateMysqlName(
+    validateName(
       table.sqlNames[columnId] ?? columnId,
       [...columnPath, "physicalName"],
       "MySQL column",
@@ -298,7 +293,7 @@ function validateMysqlTable(
     }
 
     if (autoIncrement === true) {
-      validateMysqlAutoIncrement(columnId, definition, metadata, columnPath, diagnostics)
+      validateAutoIncrement(columnId, definition, metadata, columnPath, diagnostics)
     }
   }
 
@@ -311,12 +306,7 @@ function validateMysqlTable(
     const constraintPath = [...tablePath, "constraints", constraintId] as const
     const physicalName = constraint.physicalName ?? constraintId
 
-    validateMysqlName(
-      physicalName,
-      [...constraintPath, "physicalName"],
-      "MySQL constraint",
-      diagnostics,
-    )
+    validateName(physicalName, [...constraintPath, "physicalName"], "MySQL constraint", diagnostics)
     addScopedName(
       constraintNames,
       physicalName,
@@ -383,7 +373,7 @@ function validateMysqlTable(
     const indexPath = [...tablePath, "indexes", indexId] as const
     const physicalName = index.physicalName ?? indexId
 
-    validateMysqlName(physicalName, [...indexPath, "physicalName"], "MySQL index", diagnostics)
+    validateName(physicalName, [...indexPath, "physicalName"], "MySQL index", diagnostics)
     addScopedName(
       tableIndexNames,
       physicalName,
@@ -470,7 +460,7 @@ function validateMysqlTable(
   }
 }
 
-function validateMysqlAutoIncrement(
+function validateAutoIncrement(
   columnId: string,
   definition: TableDefinitions[string],
   metadata: AnyTable & {
@@ -496,9 +486,9 @@ function validateMysqlAutoIncrement(
     })
   }
 
-  const declaration = mysqlDeclaration(definition.storage)
+  const declaration = declarationFor(definition.storage)
 
-  if (declaration === undefined || !isMysqlIntegerDeclaration(declaration)) {
+  if (declaration === undefined || !isIntegerDeclaration(declaration)) {
     diagnostics.push({
       code: "unsupported-dialect-option",
       message: "MySQL AUTO_INCREMENT requires an integer-family physical storage declaration",
@@ -506,7 +496,7 @@ function validateMysqlAutoIncrement(
     })
   }
 
-  if (!hasMysqlAutoIncrementKey(columnId, metadata)) {
+  if (!hasAutoIncrementKey(columnId, metadata)) {
     diagnostics.push({
       code: "unsupported-dialect-option",
       message:
@@ -516,7 +506,7 @@ function validateMysqlAutoIncrement(
   }
 }
 
-function mysqlDeclaration(storage: ColumnStorage | undefined): string | undefined {
+function declarationFor(storage: ColumnStorage | undefined): string | undefined {
   if (storage === undefined) {
     return undefined
   }
@@ -524,13 +514,13 @@ function mysqlDeclaration(storage: ColumnStorage | undefined): string | undefine
   return storage.kind === "native" ? storage.type : mysqlStorageTypes[storage.type]
 }
 
-function isMysqlIntegerDeclaration(declaration: string): boolean {
+function isIntegerDeclaration(declaration: string): boolean {
   const base = declaration.trim().toUpperCase().split(/\s+/u)[0] ?? ""
 
   return /^(?:TINYINT|SMALLINT|MEDIUMINT|INT|INTEGER|BIGINT)(?:\(\d+\))?$/u.test(base)
 }
 
-function hasMysqlAutoIncrementKey(
+function hasAutoIncrementKey(
   columnId: string,
   metadata: {
     readonly constraints: Readonly<Record<string, SourceConstraint>>
@@ -561,7 +551,7 @@ function hasMysqlAutoIncrementKey(
   return false
 }
 
-function validateMysqlName(
+function validateName(
   name: string,
   path: readonly (string | number)[],
   kind: string,

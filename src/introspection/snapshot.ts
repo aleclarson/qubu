@@ -1,5 +1,5 @@
 import { assertSchemaSnapshot } from "../snapshot/decode.ts"
-import { sqliteStorageAffinity } from "../snapshot/sqlite.ts"
+import { storageAffinity } from "../snapshot/sqlite.ts"
 import type {
   SchemaSnapshot,
   SnapshotCheckConstraint,
@@ -160,7 +160,7 @@ function mapColumn(
     kind: "native",
     dialect,
     type: column.storage.nativeType,
-    ...(dialect === "sqlite" ? { affinity: sqliteStorageAffinity(column.storage.nativeType) } : {}),
+    ...(dialect === "sqlite" ? { affinity: storageAffinity(column.storage.nativeType) } : {}),
   }
 
   return {

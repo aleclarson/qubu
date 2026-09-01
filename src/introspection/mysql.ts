@@ -194,7 +194,7 @@ export const mysqlEventsQuery = `
 `
 
 /** Read one MySQL database into the normalized catalog contract. */
-export async function readMysqlCatalog(
+export async function readCatalog(
   connection: CatalogConnection,
   options: IntrospectionOptions,
 ): Promise<IntrospectionCatalog> {
@@ -708,7 +708,7 @@ export async function readMysqlCatalog(
       "INFORMATION_SCHEMA.SCHEMATA",
       "SCHEMA_NAME",
     ),
-    dialect: mysqlExtension({
+    dialect: extension({
       selectedNamespace: options.namespace,
       views: true,
       materializedViews: false,
@@ -1005,7 +1005,7 @@ function table(row: MySqlTableRow, namespace: string): CatalogTable {
     columns: [],
     constraints: [],
     indexes: [],
-    dialect: mysqlExtension({
+    dialect: extension({
       ...(text(row.engine) === undefined ? {} : { engine: text(row.engine)! }),
       ...(text(row.table_collation) === undefined ? {} : { collation: text(row.table_collation)! }),
       ...(text(row.create_options) === undefined
@@ -1035,7 +1035,7 @@ function deferred(row: MySqlTableRow, namespace: string): CatalogDeferredObject 
       "INFORMATION_SCHEMA.TABLES",
       "TABLE_NAME",
     ),
-    dialect: mysqlExtension({
+    dialect: extension({
       ...(text(row.table_type) === undefined ? {} : { tableType: text(row.table_type)! }),
       ...(text(row.engine) === undefined ? {} : { engine: text(row.engine)! }),
     }),
@@ -1103,7 +1103,7 @@ function column(
     onUpdate: onUpdateMatch?.[1]
       ? sql(onUpdateMatch[1], namespace, table, physicalName)
       : undefined,
-    dialect: mysqlExtension({
+    dialect: extension({
       ...(text(row.data_type) === undefined ? {} : { dataType: text(row.data_type)! }),
       ...(text(row.character_set_name) === undefined
         ? {}
@@ -1295,7 +1295,7 @@ function mapIndex(
     unique: number(first.non_unique) === 0,
     terms,
     method: text(first.index_type),
-    dialect: mysqlExtension({
+    dialect: extension({
       ...(text(first.index_type) === undefined ? {} : { indexType: text(first.index_type)! }),
       ...(text(first.is_visible) === undefined
         ? {}
@@ -1350,7 +1350,7 @@ function viewObject(
       objectKind: "view",
       physicalName,
       reference: physicalReference,
-      dialect: mysqlExtension({
+      dialect: extension({
         reason: "definition-unavailable",
         ...(text(viewRow?.definer) === undefined ? {} : { definer: text(viewRow?.definer)! }),
       }),
@@ -1383,7 +1383,7 @@ function viewObject(
       dialect: "mysql",
       reference: physicalReference,
     },
-    dialect: mysqlExtension({
+    dialect: extension({
       ...(text(viewRow?.is_updatable) === undefined
         ? {}
         : { isUpdatable: text(viewRow?.is_updatable)! }),
@@ -1460,7 +1460,7 @@ function routineObject(
       dialect: "mysql",
       reference: physicalReference,
     },
-    dialect: mysqlExtension({
+    dialect: extension({
       ...(text(row.is_deterministic) === undefined
         ? {}
         : {
@@ -1556,7 +1556,7 @@ function triggerObject(
       objectKind: "trigger",
       physicalName,
       reference: physicalReference,
-      dialect: mysqlExtension({
+      dialect: extension({
         ...(tableName === undefined ? {} : { tableName }),
         ...(body === undefined ? {} : { actionStatement: body }),
       }),
@@ -1611,7 +1611,7 @@ function triggerObject(
       dialect: "mysql",
       reference: physicalReference,
     },
-    dialect: mysqlExtension({
+    dialect: extension({
       ...(text(first.definer) === undefined ? {} : { definer: text(first.definer)! }),
       ...(text(first.sql_mode) === undefined ? {} : { sqlMode: text(first.sql_mode)! }),
       ...(number(first.action_order) === undefined
@@ -1662,7 +1662,7 @@ function partitionObject(
       objectKind: "partition",
       physicalName,
       reference: physicalReference,
-      dialect: mysqlExtension({ tableName }),
+      dialect: extension({ tableName }),
     }
   }
 
@@ -1703,7 +1703,7 @@ function partitionObject(
           bound: sql(boundText, namespace, parent, physicalName),
         }),
     reference: physicalReference,
-    dialect: mysqlExtension({
+    dialect: extension({
       ...(text(row.partition_method) === undefined
         ? {}
         : { partitionMethod: text(row.partition_method)! }),
@@ -1756,7 +1756,7 @@ function collationObject(
       "INFORMATION_SCHEMA.COLLATIONS",
       "COLLATION_NAME",
     ),
-    dialect: mysqlExtension({
+    dialect: extension({
       ...(text(row.character_set_name) === undefined
         ? {}
         : { characterSet: text(row.character_set_name)! }),
@@ -1820,7 +1820,7 @@ function opaqueEvent(row: MySqlEventRow, namespace: string): CatalogOpaqueObject
       dialect: "mysql",
       reference: physicalReference,
     },
-    dialect: mysqlExtension({ objectKind: "event" }),
+    dialect: extension({ objectKind: "event" }),
   }
 }
 
@@ -1861,7 +1861,7 @@ function groupRows<Row>(rows: readonly Row[], keyOf: (row: Row) => string): Row[
     .map(([, group]) => group)
 }
 
-function mysqlExtension(data: Record<string, CatalogData>): CatalogDialectExtension {
+function extension(data: Record<string, CatalogData>): CatalogDialectExtension {
   return {
     dialect: "mysql",
     version: 1,

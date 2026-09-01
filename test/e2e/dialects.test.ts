@@ -56,11 +56,9 @@ import type {
   CatalogQuery,
   CatalogQueryRow,
 } from "../../src/introspection/index.ts"
-import {
-  readMysqlCatalog,
-  readPostgresCatalog,
-  readSqliteCatalog,
-} from "../../src/introspection/index.ts"
+import * as mysqlIntrospection from "../../src/introspection/mysql.ts"
+import * as postgresIntrospection from "../../src/introspection/postgres.ts"
+import * as sqliteIntrospection from "../../src/introspection/sqlite.ts"
 
 const liveDialects = ["postgresql", "sqlite", "mysql"] as const
 
@@ -322,18 +320,18 @@ function isMutation(request: ExecutionRequest) {
 
 async function readCatalog(environment: E2eEnvironment) {
   if (environment.catalogDialect === "postgresql") {
-    return readPostgresCatalog(environment.catalog, {
+    return postgresIntrospection.readCatalog(environment.catalog, {
       namespace: environment.namespace,
     })
   }
 
   if (environment.catalogDialect === "mysql") {
-    return readMysqlCatalog(environment.catalog, {
+    return mysqlIntrospection.readCatalog(environment.catalog, {
       namespace: environment.namespace,
     })
   }
 
-  return readSqliteCatalog(environment.catalog, {
+  return sqliteIntrospection.readCatalog(environment.catalog, {
     namespace: environment.namespace,
   })
 }

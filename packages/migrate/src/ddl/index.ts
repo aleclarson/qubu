@@ -11,9 +11,7 @@ import type { DdlEmission, DdlEmissionOptions, DdlEmitter } from "./types.ts"
 
 export * from "./types.ts"
 export * from "./emitter.ts"
-export * from "./postgres.ts"
-export * from "./sqlite.ts"
-export * from "./mysql.ts"
+export { mysqlDdlEmitter, postgresDdlEmitter, sqliteDdlEmitter }
 
 /** Select a first-party emitter by the selected schema dialect name. */
 export function ddlEmitterForDialect(dialect: SchemaDialect): DdlEmitter {

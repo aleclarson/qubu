@@ -1,10 +1,8 @@
-import { toMysqlDrizzleSchema, type MysqlDrizzleSchema } from "@qubu/drizzle/mysql"
-import {
-  toPostgresDrizzleSchema,
-  type PostgresDrizzleSchema,
-  type PostgresDrizzleTable,
-} from "@qubu/drizzle/postgres"
-import { toSqliteDrizzleSchema } from "@qubu/drizzle/sqlite"
+import * as mysqlDrizzle from "@qubu/drizzle/mysql"
+import type { MysqlDrizzleSchema } from "@qubu/drizzle/mysql"
+import { type PostgresDrizzleSchema, type PostgresDrizzleTable } from "@qubu/drizzle/postgres"
+import * as postgresDrizzle from "@qubu/drizzle/postgres"
+import * as sqliteDrizzle from "@qubu/drizzle/sqlite"
 import type { MySqlTable } from "drizzle-orm/mysql-core"
 import { drizzle as pgDrizzle } from "drizzle-orm/node-postgres"
 import type { PgTable } from "drizzle-orm/pg-core"
@@ -22,9 +20,9 @@ const users = table("user_records", {
   role: text({ default: "member" }),
 })
 const appSchema = schema({ users })
-const postgres = toPostgresDrizzleSchema(appSchema)
-const mysql = toMysqlDrizzleSchema(appSchema)
-const sqlite = toSqliteDrizzleSchema(appSchema)
+const postgres = postgresDrizzle.toDrizzleSchema(appSchema)
+const mysql = mysqlDrizzle.toDrizzleSchema(appSchema)
+const sqlite = sqliteDrizzle.toDrizzleSchema(appSchema)
 
 type UserRow = {
   id: number
@@ -55,7 +53,7 @@ const timestampRecords = table("timestamp_records", {
   createdAt: sqliteTimestamp({ defaultFn: () => new Date() }),
   updatedAt: sqliteTimestamp({ mode: "timestamp_ms" }),
 })
-const sqliteTimestamps = toSqliteDrizzleSchema(schema({ timestampRecords }))
+const sqliteTimestamps = sqliteDrizzle.toDrizzleSchema(schema({ timestampRecords }))
 
 expectTypeOf<typeof sqliteTimestamps.timestampRecords.$inferSelect>().toEqualTypeOf<{
   createdAt: Date
@@ -108,14 +106,14 @@ const divergent = schema({
 
 // Drizzle has one application value type per column.
 // @ts-expect-error divergent select, insert, and update types are not lossless.
-toPostgresDrizzleSchema(divergent)
+postgresDrizzle.toDrizzleSchema(divergent)
 
 const missingStorage = schema({
   values: table("missing_storage", { value: column<number>() }),
 })
 
 // @ts-expect-error every converted column needs physical storage.
-toPostgresDrizzleSchema(missingStorage)
+postgresDrizzle.toDrizzleSchema(missingStorage)
 
 const mysqlNative = schema({
   values: table("mysql_native", {
@@ -124,5 +122,5 @@ const mysqlNative = schema({
 })
 
 // @ts-expect-error native storage must belong to the selected dialect.
-toPostgresDrizzleSchema(mysqlNative)
-toMysqlDrizzleSchema(mysqlNative)
+postgresDrizzle.toDrizzleSchema(mysqlNative)
+mysqlDrizzle.toDrizzleSchema(mysqlNative)

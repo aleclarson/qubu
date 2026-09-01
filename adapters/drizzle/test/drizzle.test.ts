@@ -1,7 +1,7 @@
 import { DrizzleSchemaConversionError } from "@qubu/drizzle"
-import { toMysqlDrizzleSchema } from "@qubu/drizzle/mysql"
-import { toPostgresDrizzleSchema } from "@qubu/drizzle/postgres"
-import { toSqliteDrizzleSchema } from "@qubu/drizzle/sqlite"
+import * as mysqlDrizzle from "@qubu/drizzle/mysql"
+import * as postgresDrizzle from "@qubu/drizzle/postgres"
+import * as sqliteDrizzle from "@qubu/drizzle/sqlite"
 import { eq as drizzleEq } from "drizzle-orm"
 import { getTableConfig as getMysqlTableConfig } from "drizzle-orm/mysql-core"
 import { drizzle as pgDrizzle } from "drizzle-orm/node-postgres"
@@ -50,9 +50,9 @@ const portable = table("portable_values", {
 
 test("builds dialect columns with Qubu physical storage and value modes", () => {
   const appSchema = schema({ portable })
-  const postgres = toPostgresDrizzleSchema(appSchema)
-  const mysql = toMysqlDrizzleSchema(appSchema)
-  const sqlite = toSqliteDrizzleSchema(appSchema)
+  const postgres = postgresDrizzle.toDrizzleSchema(appSchema)
+  const mysql = mysqlDrizzle.toDrizzleSchema(appSchema)
+  const sqlite = sqliteDrizzle.toDrizzleSchema(appSchema)
 
   expect(
     getPgTableConfig(postgres.portable).columns.map((column) => column.getSQLType().toUpperCase()),
@@ -114,7 +114,7 @@ test("preserves SQLite integer timestamp codecs and runtime defaults", () => {
     createdAt: sqliteTimestamp({ defaultFn: () => instant }),
     updatedAt: sqliteTimestamp({ mode: "timestamp_ms" }),
   })
-  const converted = toSqliteDrizzleSchema(schema({ records }))
+  const converted = sqliteDrizzle.toDrizzleSchema(schema({ records }))
   const db = sqliteProxyDrizzle(async () => ({ rows: [] }))
 
   expect(converted.records.createdAt.getSQLType().toUpperCase()).toBe("INTEGER")
@@ -133,7 +133,7 @@ test("preserves logical keys, SQL names, namespaces, and Drizzle query behavior"
     displayName: text(),
     nickname: text({ nullable: true }),
   })
-  const converted = toPostgresDrizzleSchema(schema({ users }, { namespace: "app" }))
+  const converted = postgresDrizzle.toDrizzleSchema(schema({ users }, { namespace: "app" }))
   const config = getPgTableConfig(converted.users)
 
   expect(config.name).toBe("user_records")
@@ -208,7 +208,7 @@ test("materializes defaults, generated columns, constraints, and indexes", () =>
     }),
   )
 
-  const converted = toPostgresDrizzleSchema(
+  const converted = postgresDrizzle.toDrizzleSchema(
     schema({
       memberships,
       accounts,
@@ -250,7 +250,7 @@ test("uses SQLite inline primary-key metadata for autoincrement identities", () 
       indexes: {},
     }),
   )
-  const converted = toSqliteDrizzleSchema(schema({ records }))
+  const converted = sqliteDrizzle.toDrizzleSchema(schema({ records }))
   const config = getSqliteTableConfig(converted.records)
 
   expect(converted.records.id.primary).toBe(true)
@@ -263,7 +263,7 @@ test("reports storage and Drizzle metadata that cannot be converted", () => {
     values: table("missing_storage", { value: column<number>() }),
   })
 
-  expect(() => toPostgresDrizzleSchema(missingStorage as never)).toThrow(
+  expect(() => postgresDrizzle.toDrizzleSchema(missingStorage as never)).toThrow(
     DrizzleSchemaConversionError,
   )
 
@@ -274,7 +274,7 @@ test("reports storage and Drizzle metadata that cannot be converted", () => {
     indexes: {},
   }))
 
-  expect(() => toPostgresDrizzleSchema(schema({ deferred }))).toThrow(
+  expect(() => postgresDrizzle.toDrizzleSchema(schema({ deferred }))).toThrow(
     /cannot represent deferred constraint/,
   )
 })

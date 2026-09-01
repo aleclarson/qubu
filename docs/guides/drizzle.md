@@ -22,7 +22,7 @@ your database:
 
 ```ts
 import { integer, schema, table, text } from "qubu"
-import { toPostgresDrizzleSchema } from "@qubu/drizzle/postgres"
+import { toDrizzleSchema } from "@qubu/drizzle/postgres"
 
 const users = table("user_records", {
   id: integer({ generated: true }),
@@ -31,17 +31,17 @@ const users = table("user_records", {
 })
 
 const appSchema = schema({ users }, { namespace: "app" })
-const drizzleTables = toPostgresDrizzleSchema(appSchema)
+const drizzleTables = toDrizzleSchema(appSchema)
 ```
 
 The import path selects the dialect. Each module imports only its matching
 Drizzle core package:
 
-| Database   | Import                   | Converter                   |
-| ---------- | ------------------------ | --------------------------- |
-| PostgreSQL | `@qubu/drizzle/postgres` | `toPostgresDrizzleSchema()` |
-| MySQL      | `@qubu/drizzle/mysql`    | `toMysqlDrizzleSchema()`    |
-| SQLite     | `@qubu/drizzle/sqlite`   | `toSqliteDrizzleSchema()`   |
+| Database   | Import                   | Converter           |
+| ---------- | ------------------------ | ------------------- |
+| PostgreSQL | `@qubu/drizzle/postgres` | `toDrizzleSchema()` |
+| MySQL      | `@qubu/drizzle/mysql`    | `toDrizzleSchema()` |
+| SQLite     | `@qubu/drizzle/sqlite`   | `toDrizzleSchema()` |
 
 `@qubu/drizzle` exports the shared conversion error and dialect types. It does
 not import a dialect core or provide a universal runtime converter.
@@ -75,7 +75,7 @@ Unix timestamps and Drizzle must continue reading and writing `Date` values:
 
 ```ts
 import { schema, table } from "qubu"
-import { toSqliteDrizzleSchema } from "@qubu/drizzle/sqlite"
+import { toDrizzleSchema } from "@qubu/drizzle/sqlite"
 import { sqliteTimestamp } from "qubu/sqlite"
 
 const events = table("events", {
@@ -85,7 +85,7 @@ const events = table("events", {
   }),
 })
 
-const drizzleTables = toSqliteDrizzleSchema(schema({ events }))
+const drizzleTables = toDrizzleSchema(schema({ events }))
 ```
 
 `timestamp` stores Unix seconds and `timestamp_ms` stores Unix milliseconds.
@@ -129,13 +129,13 @@ belong to the selected dialect:
 
 ```ts
 import { nativeColumn, schema, table } from "qubu"
-import { toPostgresDrizzleSchema } from "@qubu/drizzle/postgres"
+import { toDrizzleSchema } from "@qubu/drizzle/postgres"
 
 const records = table("records", {
   handle: nativeColumn("postgresql", "CITEXT"),
 })
 
-const tables = toPostgresDrizzleSchema(schema({ records }))
+const tables = toDrizzleSchema(schema({ records }))
 ```
 
 Conversion first runs Qubu's snapshot validation for the selected dialect.

@@ -33,7 +33,7 @@ const mysqlRowLocking: DialectRowLocking = {
   },
 }
 
-function renderMySqlPagination(context: RenderContext, parts: readonly PaginationPart[]) {
+function renderPagination(context: RenderContext, parts: readonly PaginationPart[]) {
   const fetch = parts.find((part) => part.kind === "fetch")
   const offset = parts.find((part) => part.kind === "offset")
 
@@ -57,7 +57,7 @@ export function mysqlDialect() {
     name: "mysql",
     quoteIdentifier: (identifier) => `\`${identifier.replaceAll("`", "``")}\``,
     placeholder: () => "?",
-    pagination: { render: renderMySqlPagination },
+    pagination: { render: renderPagination },
     rowLocking: mysqlRowLocking,
     json: mysqlJson,
     capabilities: ["row-locking"],

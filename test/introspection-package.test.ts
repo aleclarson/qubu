@@ -3,6 +3,9 @@ import { readFileSync } from "node:fs"
 import * as root from "qubu"
 import * as core from "qubu/core"
 import * as introspection from "qubu/introspection"
+import * as mysqlIntrospection from "qubu/introspection/mysql"
+import * as postgresIntrospection from "qubu/introspection/postgres"
+import * as sqliteIntrospection from "qubu/introspection/sqlite"
 import * as schema from "qubu/schema"
 import * as snapshot from "qubu/snapshot"
 import * as mysqlSnapshot from "qubu/snapshot/mysql"
@@ -31,12 +34,15 @@ const manifest = JSON.parse(
 ) as PackageManifest
 
 test("resolves optional entrypoints without widening existing entrypoints", () => {
-  expect(introspection.readPostgresCatalog).toBeTypeOf("function")
-  expect(introspection.readSqliteCatalog).toBeTypeOf("function")
-  expect(introspection.readMysqlCatalog).toBeTypeOf("function")
   expect(introspection.mapCatalogToSnapshot).toBeTypeOf("function")
+  expect(postgresIntrospection.readCatalog).toBeTypeOf("function")
+  expect(sqliteIntrospection.readCatalog).toBeTypeOf("function")
+  expect(mysqlIntrospection.readCatalog).toBeTypeOf("function")
 
   expect(root).not.toHaveProperty("readPostgresCatalog")
+  expect(introspection).not.toHaveProperty("readPostgresCatalog")
+  expect(introspection).not.toHaveProperty("readSqliteCatalog")
+  expect(introspection).not.toHaveProperty("readMysqlCatalog")
   expect(root).not.toHaveProperty("mapCatalogToSnapshot")
   expect(root).not.toHaveProperty("createDialect")
   expect(root).not.toHaveProperty("customSource")
@@ -66,6 +72,9 @@ test("keeps source and publish exports aligned with the build entry", () => {
     "./snapshot/postgres": "./src/snapshot/postgres.ts",
     "./snapshot/sqlite": "./src/snapshot/sqlite.ts",
     "./introspection": "./src/introspection/index.ts",
+    "./introspection/mysql": "./src/introspection/mysql.ts",
+    "./introspection/postgres": "./src/introspection/postgres.ts",
+    "./introspection/sqlite": "./src/introspection/sqlite.ts",
   })
   expect(manifest.publishConfig.exports).toMatchObject({
     ".": {
@@ -100,11 +109,26 @@ test("keeps source and publish exports aligned with the build entry", () => {
       types: "./dist/introspection.d.mts",
       import: "./dist/introspection.mjs",
     },
+    "./introspection/mysql": {
+      types: "./dist/introspection/mysql.d.mts",
+      import: "./dist/introspection/mysql.mjs",
+    },
+    "./introspection/postgres": {
+      types: "./dist/introspection/postgres.d.mts",
+      import: "./dist/introspection/postgres.mjs",
+    },
+    "./introspection/sqlite": {
+      types: "./dist/introspection/sqlite.d.mts",
+      import: "./dist/introspection/sqlite.mjs",
+    },
   })
   expect(buildConfig.entry).toMatchObject({
     core: "src/core/index.ts",
     schema: "src/schema/index.ts",
     introspection: "src/introspection/index.ts",
+    "introspection/mysql": "src/introspection/mysql.ts",
+    "introspection/postgres": "src/introspection/postgres.ts",
+    "introspection/sqlite": "src/introspection/sqlite.ts",
     snapshot: "src/snapshot/index.ts",
     "snapshot/mysql": "src/snapshot/mysql.ts",
     "snapshot/postgres": "src/snapshot/postgres.ts",

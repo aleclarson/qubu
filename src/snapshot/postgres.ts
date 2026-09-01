@@ -59,15 +59,15 @@ export const postgresSchemaDialect: SchemaDialect<
   "ilike" | "json" | "on-conflict" | "row-locking" | "update-from"
 > = createSchemaDialect(postgresDialect(), {
   version: schemaSnapshotDialectVersion,
-  validate: validatePostgresSchema,
+  validate: validateSchema,
   encodeStorage(storage: ColumnStorage, context: SnapshotStorageContext) {
-    return encodePostgresStorage(storage, context.dialect)
+    return encodeStorage(storage, context.dialect)
   },
   encodeExpression(expression: AnyExpression, context: SnapshotExpressionContext) {
-    return encodePostgresExpression(expression, context.mode, context.dialect)
+    return encodeExpression(expression, context.mode, context.dialect)
   },
   encodeDialectExtension(extension: SchemaDialectExtension, context: SnapshotExtensionContext) {
-    return encodePostgresExtension(extension, context.dialect)
+    return encodeExtension(extension, context.dialect)
   },
 })
 
@@ -103,7 +103,7 @@ export function tryCreateSchemaSnapshot<TSchema extends Schema<any>>(
 /** Options accepted by the PostgreSQL snapshot convenience functions. */
 export type PostgresSnapshotOptions = Omit<SchemaSnapshotOptions, "adapter" | "dialect">
 
-function encodePostgresStorage(storage: ColumnStorage, dialect: SchemaDialect): SnapshotStorage {
+function encodeStorage(storage: ColumnStorage, dialect: SchemaDialect): SnapshotStorage {
   if (storage.kind === "native") {
     if (storage.dialect !== dialect.name) {
       throw new TypeError(
@@ -135,7 +135,7 @@ function encodePostgresStorage(storage: ColumnStorage, dialect: SchemaDialect): 
   }
 }
 
-function encodePostgresExpression(
+function encodeExpression(
   expression: AnyExpression,
   mode: "default" | "generated" | "check" | "index",
   dialect: SchemaDialect,
@@ -163,7 +163,7 @@ function encodePostgresExpression(
   }
 }
 
-function encodePostgresExtension(
+function encodeExtension(
   extension: { readonly dialect: string },
   dialect: SchemaDialect,
 ): {
@@ -204,7 +204,7 @@ function sortSnapshotJson(value: SnapshotJsonValue): SnapshotJsonValue {
   )
 }
 
-function validatePostgresSchema(
+function validateSchema(
   schema: Schema<any>,
   context: SnapshotValidationContext,
 ): readonly SnapshotDiagnostic[] {
@@ -215,13 +215,13 @@ function validatePostgresSchema(
   const relationNames = new Map<string, readonly (string | number)[]>()
 
   if (schema.namespace !== undefined) {
-    validatePostgresName(schema.namespace, ["namespace"], "PostgreSQL namespace", diagnostics)
+    validateName(schema.namespace, ["namespace"], "PostgreSQL namespace", diagnostics)
   }
 
   for (const [id, entry] of tableEntries) {
     const tablePath = ["tables", id] as const
 
-    validatePostgresName(
+    validateName(
       entry.physicalName,
       [...tablePath, "physicalName"],
       "PostgreSQL table",
@@ -237,13 +237,13 @@ function validatePostgresSchema(
   }
 
   for (const [id, entry] of tableEntries) {
-    validatePostgresTable(id, entry, context, relationNames, diagnostics)
+    validateTable(id, entry, context, relationNames, diagnostics)
   }
 
   return Object.freeze(diagnostics)
 }
 
-function validatePostgresTable(
+function validateTable(
   tableId: string,
   entry: SchemaTableEntry,
   context: SnapshotValidationContext,
@@ -257,7 +257,7 @@ function validatePostgresTable(
   for (const [columnId, definition] of Object.entries(definitions).sort(([left], [right]) =>
     compareIds(left, right),
   )) {
-    validatePostgresName(
+    validateName(
       table.sqlNames[columnId] ?? columnId,
       [...tablePath, "columns", columnId, "physicalName"],
       "PostgreSQL column",
@@ -301,7 +301,7 @@ function validatePostgresTable(
     const constraintPath = [...tablePath, "constraints", constraintId] as const
     const physicalName = constraint.physicalName ?? constraintId
 
-    validatePostgresName(
+    validateName(
       physicalName,
       [...constraintPath, "physicalName"],
       "PostgreSQL constraint",
@@ -353,12 +353,7 @@ function validatePostgresTable(
     const indexPath = [...tablePath, "indexes", indexId] as const
     const physicalName = index.physicalName ?? indexId
 
-    validatePostgresName(
-      physicalName,
-      [...indexPath, "physicalName"],
-      "PostgreSQL index",
-      diagnostics,
-    )
+    validateName(physicalName, [...indexPath, "physicalName"], "PostgreSQL index", diagnostics)
     addRelationName(
       relationNames,
       physicalName,
@@ -373,7 +368,7 @@ function validatePostgresTable(
   }
 }
 
-function validatePostgresName(
+function validateName(
   name: string,
   path: readonly (string | number)[],
   kind: string,

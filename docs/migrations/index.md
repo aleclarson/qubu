@@ -29,6 +29,9 @@ entrypoint:
 | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | `@qubu/migrate/plan`               | Create, encode, decode, fingerprint, and validate migration plans                                                             |
 | `@qubu/migrate/ddl`                | Preview deterministic dialect SQL without opening a database                                                                  |
+| `@qubu/migrate/ddl/postgres`       | Preview PostgreSQL SQL from an approved migration plan                                                                        |
+| `@qubu/migrate/ddl/sqlite`         | Preview SQLite SQL from an approved migration plan                                                                            |
+| `@qubu/migrate/ddl/mysql`          | Preview MySQL SQL from an approved migration plan                                                                             |
 | `@qubu/migrate/artifact`           | Compile programs with a caller-supplied `SchemaDialect`; canonicalize, digest, seal, encode, and decode artifacts             |
 | `@qubu/migrate/artifact/postgres`  | Compile reviewed plans with PostgreSQL's schema dialect                                                                       |
 | `@qubu/migrate/artifact/sqlite`    | Compile reviewed plans with SQLite's schema dialect, including table rebuilds                                                 |
@@ -68,4 +71,14 @@ Use the same entrypoint pattern for convenience artifact compilers:
 import { compileMigrationProgram } from "@qubu/migrate/artifact/postgres"
 
 const compiled = compileMigrationProgram(plan)
+```
+
+The DDL entrypoints follow the same pattern. Use the neutral entrypoint when
+the application supplies a `SchemaDialect`; use a dialect subpath when the
+built-in dialect should be selected by the module:
+
+```ts
+import { emitMigrationPlan } from "@qubu/migrate/ddl/postgres"
+
+const preview = emitMigrationPlan(plan)
 ```

@@ -71,7 +71,7 @@ const postgresAdapter: DialectAdapter = {
       ? pgTable
       : pgSchema(namespace).table) as unknown as TableFactory
   },
-  createStorageBuilder: createPostgresStorageBuilder,
+  createStorageBuilder,
   applyIdentity(builder, _definition, column) {
     const method =
       column.identity?.generation === "always"
@@ -133,7 +133,7 @@ const postgresAdapter: DialectAdapter = {
  * @throws A snapshot validation error for invalid PostgreSQL metadata, or a
  *   DrizzleSchemaConversionError when Drizzle cannot represent required metadata.
  */
-export function toPostgresDrizzleSchema<const TTables extends qubu.SchemaTableRecord>(
+export function toDrizzleSchema<const TTables extends qubu.SchemaTableRecord>(
   schema: qubu.Schema<TTables> & DrizzleSchemaValidation<TTables, "postgresql">,
 ): PostgresDrizzleSchema<qubu.Schema<TTables>> {
   return convertDrizzleSchema(schema, postgresAdapter) as PostgresDrizzleSchema<
@@ -141,7 +141,7 @@ export function toPostgresDrizzleSchema<const TTables extends qubu.SchemaTableRe
   >
 }
 
-function createPostgresStorageBuilder(
+function createStorageBuilder(
   type: qubu.PortableColumnStorage["type"] | undefined,
   name: string,
   declaration: string,

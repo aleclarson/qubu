@@ -1,7 +1,12 @@
 import { expect, test } from "vitest"
 
+import { mapCatalogToCompleteSnapshot } from "../src/introspection/index.ts"
+import type {
+  CatalogConnection,
+  CatalogQuery,
+  IntrospectionOptions,
+} from "../src/introspection/index.ts"
 import {
-  mapCatalogToCompleteSnapshot,
   postgresColumnsQuery,
   postgresCollationsQuery,
   postgresConstraintsQuery,
@@ -21,13 +26,8 @@ import {
   postgresServerQuery,
   postgresTriggersQuery,
   postgresViewsQuery,
-  readPostgresCatalog,
-} from "../src/introspection/index.ts"
-import type {
-  CatalogConnection,
-  CatalogQuery,
-  IntrospectionOptions,
-} from "../src/introspection/index.ts"
+  readCatalog,
+} from "../src/introspection/postgres.ts"
 
 type Row = Readonly<Record<string, unknown>>
 
@@ -237,7 +237,7 @@ const completeRows = {
 
 test("normalizes PostgreSQL relations, columns, defaults, generated columns, and identities", async () => {
   const fake = connection(completeRows)
-  const catalog = await readPostgresCatalog(fake.connection, options())
+  const catalog = await readCatalog(fake.connection, options())
   const accounts = catalog.tables[0]!
   const columns = accounts.columns
 
@@ -317,7 +317,7 @@ test("normalizes PostgreSQL relations, columns, defaults, generated columns, and
 
 test("normalizes constraints, foreign keys, checks, predicates, terms, and included columns", async () => {
   const { connection: fake } = connection(completeRows)
-  const catalog = await readPostgresCatalog(fake, options())
+  const catalog = await readCatalog(fake, options())
   const accounts = catalog.tables[0]!
 
   expect(accounts.constraints).toEqual(
@@ -379,7 +379,7 @@ test("gates unsupported PostgreSQL versions", async () => {
       },
     ],
   })
-  const catalog = await readPostgresCatalog(fake.connection, options())
+  const catalog = await readCatalog(fake.connection, options())
 
   expect(catalog.server.capabilities.generatedColumns).toBe(false)
   expect(catalog.diagnostics).toEqual(
@@ -422,7 +422,7 @@ test("reports query failures without exposing driver errors", async () => {
       return []
     },
   }
-  const catalog = await readPostgresCatalog(fake, options("private"))
+  const catalog = await readCatalog(fake, options("private"))
 
   expect(catalog.diagnostics).toEqual(
     expect.arrayContaining([
@@ -440,7 +440,7 @@ test("reports query failures without exposing driver errors", async () => {
 
 test("rejects a connection from another dialect before querying", async () => {
   const fake = connection({}, "sqlite")
-  const catalog = await readPostgresCatalog(fake.connection, options())
+  const catalog = await readCatalog(fake.connection, options())
 
   expect(fake.calls).toHaveLength(0)
   expect(catalog.diagnostics).toEqual([
@@ -794,7 +794,7 @@ test("normalizes PostgreSQL complete object families and maps Snapshot v2", asyn
     ],
   }
   const fake = exactConnection(rows)
-  const catalog = await readPostgresCatalog(fake.connection, options())
+  const catalog = await readCatalog(fake.connection, options())
 
   expect((catalog.views ?? []).map((view) => view.kind)).toEqual(["view", "materialized-view"])
   expect(catalog.sequences?.[0]).toMatchObject({

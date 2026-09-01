@@ -3,12 +3,10 @@ import type { SchemaSnapshot } from "qubu/snapshot"
 import { postgresSchemaDialect } from "qubu/snapshot/postgres"
 import { expect, test } from "vitest"
 
-import {
-  emitMigrationPlan,
-  emitMysqlMigrationPlan,
-  emitPostgresMigrationPlan,
-  emitSqliteMigrationPlan,
-} from "../src/ddl/index.ts"
+import { emitMigrationPlan } from "../src/ddl/index.ts"
+import * as mysqlDdl from "../src/ddl/mysql.ts"
+import * as postgresDdl from "../src/ddl/postgres.ts"
+import * as sqliteDdl from "../src/ddl/sqlite.ts"
 import { createMigrationPlan, type MigrationPlan } from "../src/plan/index.ts"
 
 function snapshot(
@@ -65,19 +63,19 @@ function planFor(dialect: SchemaSnapshot["dialect"]): MigrationPlan {
 }
 
 test("emits deterministic table and column SQL for all first-party dialects", () => {
-  const postgres = emitPostgresMigrationPlan(
+  const postgres = postgresDdl.emitMigrationPlan(
     planFor({
       name: "postgresql",
       version: 1,
     }),
   )
-  const sqlite = emitSqliteMigrationPlan(
+  const sqlite = sqliteDdl.emitMigrationPlan(
     planFor({
       name: "sqlite",
       version: 1,
     }),
   )
-  const mysql = emitMysqlMigrationPlan(
+  const mysql = mysqlDdl.emitMigrationPlan(
     planFor({
       name: "mysql",
       version: 1,
@@ -135,7 +133,7 @@ test("emits child constraints and indexes when a table is created", () => {
     return
   }
 
-  const emission = emitPostgresMigrationPlan(planned.plan)
+  const emission = postgresDdl.emitMigrationPlan(planned.plan)
 
   expect(emission.ok).toBe(true)
   expect(emission.statements[0]?.kind).toBe("table")
@@ -175,7 +173,7 @@ test("renders SQLite constraints inline during table creation", () => {
     return
   }
 
-  const emission = emitSqliteMigrationPlan(planned.plan)
+  const emission = sqliteDdl.emitMigrationPlan(planned.plan)
 
   expect(emission.ok).toBe(true)
   expect(emission.statements).toHaveLength(1)
@@ -251,7 +249,7 @@ test("keeps explicit custom SQL and rejects opaque operations", () => {
   })
 
   expect(result.ok).toBe(true)
-  const emission = emitPostgresMigrationPlan(result.plan)
+  const emission = postgresDdl.emitMigrationPlan(result.plan)
 
   expect(emission.ok).toBe(true)
   expect(emission.statements[0]?.sql).toBe("CREATE EXTENSION citext")
@@ -273,7 +271,7 @@ test("reports version and transaction conflicts before SQL", () => {
     throw new Error("Expected destructive plan to be allowed")
   }
 
-  const result = emitSqliteMigrationPlan(planned.plan, {
+  const result = sqliteDdl.emitMigrationPlan(planned.plan, {
     transaction: "none",
   })
 
@@ -283,7 +281,7 @@ test("reports version and transaction conflicts before SQL", () => {
 })
 
 test("reports malformed plans and unsupported dialect capabilities before SQL", () => {
-  const malformed = emitPostgresMigrationPlan(null as unknown as MigrationPlan)
+  const malformed = postgresDdl.emitMigrationPlan(null as unknown as MigrationPlan)
 
   expect(malformed.ok).toBe(false)
   expect(malformed.statements).toEqual([])
@@ -326,7 +324,7 @@ test("reports malformed plans and unsupported dialect capabilities before SQL", 
     return
   }
 
-  const emission = emitMysqlMigrationPlan(planned.plan)
+  const emission = mysqlDdl.emitMigrationPlan(planned.plan)
 
   expect(emission.ok).toBe(false)
   expect(emission.statements).toEqual([])

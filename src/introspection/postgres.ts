@@ -46,7 +46,7 @@ export const postgresServerQuery = `
 `
 
 /** Read one PostgreSQL schema into the normalized catalog contract. */
-export async function readPostgresCatalog(
+export async function readCatalog(
   connection: CatalogConnection,
   options: IntrospectionOptions,
 ): Promise<IntrospectionCatalog> {

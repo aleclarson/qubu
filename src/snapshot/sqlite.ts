@@ -63,7 +63,7 @@ const sqliteStorageTypes: Readonly<Record<PortableStorageType, string>> = Object
  * ordered substring rules at table creation time; the returned affinity is useful metadata, not a
  * replacement for the exact type.
  */
-export function sqliteStorageAffinity(declaration: string): SqliteStorageAffinity {
+export function storageAffinity(declaration: string): SqliteStorageAffinity {
   const upper = declaration.toUpperCase()
 
   if (upper.includes("INT")) {
@@ -90,15 +90,15 @@ export const sqliteSchemaDialect: SchemaDialect<"json" | "on-conflict"> = create
   sqliteDialect(),
   {
     version: schemaSnapshotDialectVersion,
-    validate: validateSqliteSchema,
+    validate: validateSchema,
     encodeStorage(storage: ColumnStorage, context: SnapshotStorageContext) {
-      return encodeSqliteStorage(storage, context.dialect)
+      return encodeStorage(storage, context.dialect)
     },
     encodeExpression(expression: AnyExpression, context: SnapshotExpressionContext) {
-      return encodeSqliteExpression(expression, context.mode, context.dialect)
+      return encodeExpression(expression, context.mode, context.dialect)
     },
     encodeDialectExtension(extension: SchemaDialectExtension, context: SnapshotExtensionContext) {
-      return encodeSqliteExtension(extension, context.dialect)
+      return encodeExtension(extension, context.dialect)
     },
   },
 )
@@ -133,7 +133,7 @@ export function tryCreateSchemaSnapshot<TSchema extends Schema<any>>(
 /** Options accepted by the SQLite snapshot convenience functions. */
 export type SqliteSnapshotOptions = Omit<SchemaSnapshotOptions, "adapter" | "dialect">
 
-function encodeSqliteStorage(storage: ColumnStorage, dialect: SchemaDialect): SnapshotStorage {
+function encodeStorage(storage: ColumnStorage, dialect: SchemaDialect): SnapshotStorage {
   if (storage.kind === "native") {
     if (storage.dialect !== dialect.name) {
       throw new SqliteSnapshotDialectError(
@@ -149,7 +149,7 @@ function encodeSqliteStorage(storage: ColumnStorage, dialect: SchemaDialect): Sn
       kind: "native",
       dialect: dialect.name,
       type: storage.type,
-      affinity: sqliteStorageAffinity(storage.type),
+      affinity: storageAffinity(storage.type),
     }
   }
 
@@ -163,11 +163,11 @@ function encodeSqliteStorage(storage: ColumnStorage, dialect: SchemaDialect): Sn
     kind: "native",
     dialect: dialect.name,
     type,
-    affinity: sqliteStorageAffinity(type),
+    affinity: storageAffinity(type),
   }
 }
 
-function encodeSqliteExpression(
+function encodeExpression(
   expression: AnyExpression,
   mode: "default" | "generated" | "check" | "index",
   dialect: SchemaDialect,
@@ -195,7 +195,7 @@ function encodeSqliteExpression(
   }
 }
 
-function encodeSqliteExtension(
+function encodeExtension(
   extension: { readonly dialect: string },
   dialect: SchemaDialect,
 ): {
@@ -236,7 +236,7 @@ function sortSnapshotJson(value: SnapshotJsonValue): SnapshotJsonValue {
   )
 }
 
-function validateSqliteSchema(
+function validateSchema(
   schema: Schema<any>,
   context: SnapshotValidationContext,
 ): readonly SnapshotDiagnostic[] {
@@ -247,18 +247,13 @@ function validateSqliteSchema(
   const relationNames = new Map<string, readonly (string | number)[]>()
 
   if (schema.namespace !== undefined) {
-    validateSqliteName(schema.namespace, ["namespace"], "SQLite namespace", diagnostics)
+    validateName(schema.namespace, ["namespace"], "SQLite namespace", diagnostics)
   }
 
   for (const [id, entry] of tableEntries) {
     const tablePath = ["tables", id] as const
 
-    validateSqliteName(
-      entry.physicalName,
-      [...tablePath, "physicalName"],
-      "SQLite table",
-      diagnostics,
-    )
+    validateName(entry.physicalName, [...tablePath, "physicalName"], "SQLite table", diagnostics)
     addRelationName(
       relationNames,
       entry.physicalName,
@@ -269,13 +264,13 @@ function validateSqliteSchema(
   }
 
   for (const [id, entry] of tableEntries) {
-    validateSqliteTable(id, entry, context, relationNames, diagnostics)
+    validateTable(id, entry, context, relationNames, diagnostics)
   }
 
   return Object.freeze(diagnostics)
 }
 
-function validateSqliteTable(
+function validateTable(
   tableId: string,
   entry: SchemaTableEntry,
   context: SnapshotValidationContext,
@@ -293,7 +288,7 @@ function validateSqliteTable(
   for (const [columnId, definition] of Object.entries(definitions).sort(([left], [right]) =>
     compareIds(left, right),
   )) {
-    validateSqliteName(
+    validateName(
       table.sqlNames[columnId] ?? columnId,
       [...tablePath, "columns", columnId, "physicalName"],
       "SQLite column",
@@ -329,8 +324,8 @@ function validateSqliteTable(
       }
 
       const primary = primaryKeyForColumn(metadata.constraints, columnId)
-      const declaration = sqliteDeclaration(storage)
-      const affinity = declaration === undefined ? undefined : sqliteStorageAffinity(declaration)
+      const declaration = declarationFor(storage)
+      const affinity = declaration === undefined ? undefined : storageAffinity(declaration)
 
       if (affinity !== "integer") {
         diagnostics.push({
@@ -384,7 +379,7 @@ function validateSqliteTable(
     const constraintPath = [...tablePath, "constraints", constraintId] as const
     const physicalName = constraint.physicalName ?? constraintId
 
-    validateSqliteName(
+    validateName(
       physicalName,
       [...constraintPath, "physicalName"],
       "SQLite constraint",
@@ -460,7 +455,7 @@ function validateSqliteTable(
     const indexPath = [...tablePath, "indexes", indexId] as const
     const physicalName = index.physicalName ?? indexId
 
-    validateSqliteName(physicalName, [...indexPath, "physicalName"], "SQLite index", diagnostics)
+    validateName(physicalName, [...indexPath, "physicalName"], "SQLite index", diagnostics)
     addRelationName(
       relationNames,
       physicalName,
@@ -487,7 +482,7 @@ function validateSqliteTable(
   }
 }
 
-function sqliteDeclaration(storage: ColumnStorage | undefined): string | undefined {
+function declarationFor(storage: ColumnStorage | undefined): string | undefined {
   if (storage === undefined) {
     return undefined
   }
@@ -520,7 +515,7 @@ function primaryKeyForColumn(
   return undefined
 }
 
-function validateSqliteName(
+function validateName(
   name: string,
   path: readonly (string | number)[],
   kind: string,

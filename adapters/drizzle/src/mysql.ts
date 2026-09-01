@@ -69,7 +69,7 @@ const mysqlAdapter: DialectAdapter = {
       ? mysqlTable
       : mysqlSchema(namespace).table) as unknown as TableFactory
   },
-  createStorageBuilder: createMysqlStorageBuilder,
+  createStorageBuilder,
   applyIdentity(builder, definition) {
     const extension = definition.identity?.dialect
     const autoIncrement =
@@ -130,13 +130,13 @@ const mysqlAdapter: DialectAdapter = {
  * @throws A snapshot validation error for invalid MySQL metadata, or a DrizzleSchemaConversionError
  *   when Drizzle cannot represent required metadata.
  */
-export function toMysqlDrizzleSchema<const TTables extends qubu.SchemaTableRecord>(
+export function toDrizzleSchema<const TTables extends qubu.SchemaTableRecord>(
   schema: qubu.Schema<TTables> & DrizzleSchemaValidation<TTables, "mysql">,
 ): MysqlDrizzleSchema<qubu.Schema<TTables>> {
   return convertDrizzleSchema(schema, mysqlAdapter) as MysqlDrizzleSchema<qubu.Schema<TTables>>
 }
 
-function createMysqlStorageBuilder(
+function createStorageBuilder(
   type: qubu.PortableColumnStorage["type"] | undefined,
   name: string,
   declaration: string,

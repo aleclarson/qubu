@@ -33,14 +33,6 @@ export const postgresDdlEmitter: DdlEmitter = createDdlEmitter({
 })
 
 /** Emit a reviewed plan with PostgreSQL's schema dialect. */
-export function emitPostgresMigrationPlan(
-  plan: MigrationPlan,
-  options?: DdlEmissionOptions,
-): DdlEmission {
+export function emitMigrationPlan(plan: MigrationPlan, options?: DdlEmissionOptions): DdlEmission {
   return postgresDdlEmitter.emit(plan, postgresSchemaDialect, options)
 }
-
-/** Alias using the full PostgreSQL spelling. */
-export const emitPostgresqlMigrationPlan = emitPostgresMigrationPlan
-export const emitPostgresDdl = emitPostgresMigrationPlan
-export const emitPostgresqlDdl = emitPostgresMigrationPlan

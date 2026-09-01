@@ -22,7 +22,8 @@ import {
   type PhaseCheckpoint,
   type ReconciliationRecord,
 } from "@qubu/migrate/journal"
-import { mapCatalogToSnapshot, readSqliteCatalog } from "qubu/introspection"
+import { mapCatalogToSnapshot } from "qubu/introspection"
+import { readCatalog } from "qubu/introspection/sqlite"
 import type { CompleteSchemaSnapshot, SchemaSnapshot, SnapshotJsonValue } from "qubu/snapshot"
 
 const metadataTable = "__qubu_migration_metadata"
@@ -90,7 +91,7 @@ export async function readLibsqlMigrationSnapshot(
   executor: Executor,
   expected?: SchemaSnapshot,
 ): Promise<MigrationSnapshotInspection> {
-  const catalog = await readSqliteCatalog(
+  const catalog = await readCatalog(
     {
       dialect: "sqlite",
       async query<TRow extends Readonly<Record<string, unknown>>>(statement: {

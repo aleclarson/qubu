@@ -14,6 +14,3 @@ export function planSchemaBootstrap(
 ): BootstrapPlanResult {
   return planSchemaBootstrapWithDialect(targetSnapshot, postgresSchemaDialect, options)
 }
-
-/** Alias with an explicit PostgreSQL name for codebases that import several planners. */
-export const planPostgresSchemaBootstrap = planSchemaBootstrap

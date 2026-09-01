@@ -22,11 +22,6 @@ export const mysqlDdlEmitter: DdlEmitter = createDdlEmitter({
 })
 
 /** Emit a reviewed plan with MySQL's schema dialect. */
-export function emitMysqlMigrationPlan(
-  plan: MigrationPlan,
-  options?: DdlEmissionOptions,
-): DdlEmission {
+export function emitMigrationPlan(plan: MigrationPlan, options?: DdlEmissionOptions): DdlEmission {
   return mysqlDdlEmitter.emit(plan, mysqlSchemaDialect, options)
 }
-
-export const emitMysqlDdl = emitMysqlMigrationPlan

@@ -89,7 +89,7 @@ export function sqliteTimestamp<const TOptions extends SqliteTimestampOptions = 
   return definition as unknown as SqliteTimestampColumn<TOptions>
 }
 
-function renderSqliteSchemaLiteral(value: unknown): string {
+function renderSchemaLiteral(value: unknown): string {
   if (value === null) {
     return "NULL"
   }
@@ -119,7 +119,7 @@ function renderSqliteSchemaLiteral(value: unknown): string {
   )
 }
 
-function renderSqlitePagination(context: RenderContext, parts: readonly PaginationPart[]) {
+function renderPagination(context: RenderContext, parts: readonly PaginationPart[]) {
   const fetch = parts.find((part) => part.kind === "fetch")
   const offset = parts.find((part) => part.kind === "offset")
 
@@ -140,7 +140,7 @@ export function sqliteDialect() {
   return createDialect({
     name: "sqlite",
     placeholder: () => "?",
-    pagination: { render: renderSqlitePagination },
+    pagination: { render: renderPagination },
     capabilities: ["on-conflict"],
     json: sqliteJson,
     castTypes: {
@@ -152,7 +152,7 @@ export function sqliteDialect() {
       json: "TEXT",
       binary: "BLOB",
     },
-    renderSchemaLiteral: renderSqliteSchemaLiteral,
+    renderSchemaLiteral,
     explain: sqliteExplain,
   })
 }

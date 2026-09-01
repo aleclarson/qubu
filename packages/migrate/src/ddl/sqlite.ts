@@ -20,11 +20,6 @@ export const sqliteDdlEmitter: DdlEmitter = createDdlEmitter({
 })
 
 /** Emit a reviewed plan with SQLite's schema dialect. */
-export function emitSqliteMigrationPlan(
-  plan: MigrationPlan,
-  options?: DdlEmissionOptions,
-): DdlEmission {
+export function emitMigrationPlan(plan: MigrationPlan, options?: DdlEmissionOptions): DdlEmission {
   return sqliteDdlEmitter.emit(plan, sqliteSchemaDialect, options)
 }
-
-export const emitSqliteDdl = emitSqliteMigrationPlan

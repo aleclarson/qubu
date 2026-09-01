@@ -58,7 +58,7 @@ const sqliteAdapter: DialectAdapter = {
   createTableFactory() {
     return sqliteTable as unknown as TableFactory
   },
-  createStorageBuilder: createSqliteStorageBuilder,
+  createStorageBuilder,
   applyIdentity(builder, definition, column, table) {
     const extension = definition.identity?.dialect
     const autoIncrement =
@@ -115,13 +115,13 @@ const sqliteAdapter: DialectAdapter = {
  * @throws A snapshot validation error for invalid SQLite metadata, or a
  *   DrizzleSchemaConversionError when Drizzle cannot represent required metadata.
  */
-export function toSqliteDrizzleSchema<const TTables extends qubu.SchemaTableRecord>(
+export function toDrizzleSchema<const TTables extends qubu.SchemaTableRecord>(
   schema: qubu.Schema<TTables> & DrizzleSchemaValidation<TTables, "sqlite">,
 ): SqliteDrizzleSchema<qubu.Schema<TTables>> {
   return convertDrizzleSchema(schema, sqliteAdapter) as SqliteDrizzleSchema<qubu.Schema<TTables>>
 }
 
-function createSqliteStorageBuilder(
+function createStorageBuilder(
   type: qubu.PortableColumnStorage["type"] | undefined,
   name: string,
   declaration: string,

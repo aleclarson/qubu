@@ -14,6 +14,3 @@ export function planSchemaBootstrap(
 ): BootstrapPlanResult {
   return planSchemaBootstrapWithDialect(targetSnapshot, sqliteSchemaDialect, options)
 }
-
-/** Alias with an explicit SQLite name for codebases that import several planners. */
-export const planSqliteSchemaBootstrap = planSchemaBootstrap

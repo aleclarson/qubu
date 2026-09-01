@@ -72,7 +72,7 @@ export const sqliteForeignKeyQuery = `
 `
 
 /** Read the selected SQLite database namespace into the normalized catalog. */
-export async function readSqliteCatalog(
+export async function readCatalog(
   connection: CatalogConnection,
   options: IntrospectionOptions,
 ): Promise<IntrospectionCatalog> {
@@ -232,7 +232,7 @@ export async function readSqliteCatalog(
 
   for (const row of tableRows.filter((row) => normalizeType(row.type) === "view")) {
     const physicalName = text(row.name) ?? "unnamed_view"
-    const view = sqliteView(row, tableSql.get(physicalName), options.namespace, diagnostics)
+    const view = mapView(row, tableSql.get(physicalName), options.namespace, diagnostics)
 
     if (view.kind === "deferred-object") {
       deferredObjects.push(view)
@@ -316,7 +316,7 @@ export async function readSqliteCatalog(
         diagnostics,
         `index-info:${indexName}`,
       )
-      const index = sqliteIndex(
+      const index = mapIndex(
         currentTable,
         indexRow,
         infoRows,
@@ -367,7 +367,7 @@ export async function readSqliteCatalog(
   }
 
   for (const row of schemaRows.filter((row) => normalizeType(row.type) === "trigger")) {
-    const trigger = sqliteTrigger(row, options.namespace, relationReferences, diagnostics)
+    const trigger = mapTrigger(row, options.namespace, relationReferences, diagnostics)
 
     if (trigger.kind === "deferred-object") {
       deferredObjects.push(trigger)
@@ -451,7 +451,7 @@ export async function readSqliteCatalog(
         "sqlite_schema",
         "name",
       ),
-      dialect: sqliteExtension({
+      dialect: extension({
         selectedNamespace: options.namespace,
         sourceIdAvailable: serverSourceIdAvailable(serverRows[0]),
         views: true,
@@ -621,7 +621,7 @@ function normalizeType(value: unknown): string {
   return text(value)?.trim().toLowerCase() ?? ""
 }
 
-function sqliteView(
+function mapView(
   row: SqliteTableListRow,
   sqlText: string | undefined,
   namespace: string,
@@ -667,7 +667,7 @@ function sqliteView(
       dialect: "sqlite",
       reference: physicalReference,
     },
-    dialect: sqliteExtension({ objectKind: "view" }),
+    dialect: extension({ objectKind: "view" }),
   }
 }
 
@@ -712,7 +712,7 @@ function attachedDatabaseObject(
       dialect: "sqlite",
       reference: physicalReference,
     },
-    dialect: sqliteExtension({ selectedNamespace }),
+    dialect: extension({ selectedNamespace }),
   }
 }
 
@@ -762,11 +762,11 @@ function opaqueSchemaObject(
       dialect: "sqlite",
       reference: physicalReference,
     },
-    dialect: sqliteExtension({ objectKind: type }),
+    dialect: extension({ objectKind: type }),
   }
 }
 
-function sqliteTrigger(
+function mapTrigger(
   row: SqliteSchemaRow,
   namespace: string,
   relations: ReadonlyMap<string, CatalogObjectReference>,
@@ -856,7 +856,7 @@ function sqliteTrigger(
       dialect: "sqlite",
       reference: physicalReference,
     },
-    dialect: sqliteExtension({
+    dialect: extension({
       objectKind: "trigger",
       ...(sqlText === undefined ? {} : { rawSql: sqlText }),
     }),
@@ -918,7 +918,7 @@ function unquoteIdentifier(value: string | undefined): string | undefined {
   return trimmed
 }
 
-function sqliteAffinity(type: string): "INTEGER" | "TEXT" | "BLOB" | "REAL" | "NUMERIC" {
+function affinity(type: string): "INTEGER" | "TEXT" | "BLOB" | "REAL" | "NUMERIC" {
   const normalized = type.trim().toUpperCase()
 
   if (/INT/.test(normalized)) {
@@ -940,7 +940,7 @@ function sqliteAffinity(type: string): "INTEGER" | "TEXT" | "BLOB" | "REAL" | "N
   return "NUMERIC"
 }
 
-function sqliteExtension(
+function extension(
   data: Record<string, string | number | boolean | readonly string[]>,
 ): CatalogDialectExtension {
   return {
@@ -1012,7 +1012,7 @@ function opaqueIndexExpression(
       dialect: "sqlite",
       reference: physicalReference,
     },
-    dialect: sqliteExtension({ objectKind: "index-expression-term" }),
+    dialect: extension({ objectKind: "index-expression-term" }),
   }
 }
 
@@ -1168,7 +1168,7 @@ function table(
     columns: [],
     constraints: [],
     indexes: [],
-    dialect: sqliteExtension({
+    dialect: extension({
       tableType: "table",
       withoutRowid,
       strict,
@@ -1216,7 +1216,7 @@ function deferred(
     objectKind,
     physicalName,
     reference: reference("deferred-object", physicalName, namespace, "sqlite_schema", "name"),
-    dialect: sqliteExtension({ objectKind }),
+    dialect: extension({ objectKind }),
     unknownFields: sqlText
       ? [
           {
@@ -1308,9 +1308,9 @@ function column(
       : undefined,
     identity,
     reference: reference("column", physicalName, namespace, "pragma_table_xinfo", "name"),
-    dialect: sqliteExtension({
+    dialect: extension({
       declaredType: type,
-      affinity: sqliteAffinity(type),
+      affinity: affinity(type),
       hidden,
     }),
   }
@@ -1348,7 +1348,7 @@ function tableConstraints(
       identitySource: declaredName ? "physical-name" : "deterministic-fallback",
       physicalName: primaryName,
       columns: primaryColumns.map((column) => column.physicalName),
-      dialect: sqliteExtension({ source: "pragma_table_xinfo" }),
+      dialect: extension({ source: "pragma_table_xinfo" }),
       reference: reference("constraint", primaryName, namespace, "sqlite_schema", "tbl_name"),
     }
 
@@ -1370,7 +1370,7 @@ function tableConstraints(
       identitySource: "deterministic-fallback",
       physicalName: name,
       expression: sql(match[2] ?? "true", namespace, table, name),
-      dialect: sqliteExtension({ source: "create-sql" }),
+      dialect: extension({ source: "create-sql" }),
     }
 
     constraints.push(check)
@@ -1378,7 +1378,7 @@ function tableConstraints(
   return constraints
 }
 
-function sqliteIndex(
+function mapIndex(
   table: CatalogTable,
   row: SqliteIndexListRow,
   infoRows: readonly SqliteIndexInfoRow[],
@@ -1478,7 +1478,7 @@ function sqliteIndex(
       physicalName: constraintName,
       columns: terms.flatMap((term) => (term.kind === "column" ? [term.column] : [])),
       nulls: "distinct",
-      dialect: sqliteExtension({
+      dialect: extension({
         origin: text(row.origin) ?? "unknown",
         collations,
         ...(internalName ? { internalName } : {}),
@@ -1503,7 +1503,7 @@ function sqliteIndex(
     physicalName,
     unique,
     terms,
-    dialect: sqliteExtension({
+    dialect: extension({
       origin: text(row.origin) ?? "unknown",
       partial: boolean(row.partial),
       collations,
@@ -1568,7 +1568,7 @@ function foreignKeys(
       onUpdate: action(first.on_update),
       onDelete: action(first.on_delete),
       match: match(first.match),
-      dialect: sqliteExtension({ foreignKeyId: key }),
+      dialect: extension({ foreignKeyId: key }),
       reference: reference(
         "constraint",
         physicalName,

@@ -1,7 +1,12 @@
 import { expect, test } from "vitest"
 
+import { mapCatalogToCompleteSnapshot } from "../src/introspection/index.ts"
+import type {
+  CatalogConnection,
+  CatalogQuery,
+  IntrospectionOptions,
+} from "../src/introspection/index.ts"
 import {
-  mapCatalogToCompleteSnapshot,
   mysqlChecksQuery,
   mysqlColumnsQuery,
   mysqlCollationsQuery,
@@ -15,13 +20,8 @@ import {
   mysqlTablesQuery,
   mysqlTriggersQuery,
   mysqlViewsQuery,
-  readMysqlCatalog,
-} from "../src/introspection/index.ts"
-import type {
-  CatalogConnection,
-  CatalogQuery,
-  IntrospectionOptions,
-} from "../src/introspection/index.ts"
+  readCatalog,
+} from "../src/introspection/mysql.ts"
 
 type Row = Readonly<Record<string, unknown>>
 
@@ -467,7 +467,7 @@ function completeConnection() {
 
 test("reads MySQL version gates, native columns, defaults, generated columns, and table metadata", async () => {
   const fake = completeConnection()
-  const catalog = await readMysqlCatalog(fake.connection, options())
+  const catalog = await readCatalog(fake.connection, options())
   const orders = catalog.tables[0]!
   const columns = orders.columns
 
@@ -560,7 +560,7 @@ test("reads MySQL version gates, native columns, defaults, generated columns, an
 })
 
 test("reads constraints, referential actions, STATISTICS terms, and prefix diagnostics", async () => {
-  const catalog = await readMysqlCatalog(completeConnection().connection, options())
+  const catalog = await readCatalog(completeConnection().connection, options())
   const orders = catalog.tables[0]!
 
   expect(orders.constraints).toEqual(
@@ -625,7 +625,7 @@ test("reads constraints, referential actions, STATISTICS terms, and prefix diagn
 
 test("normalizes complete MySQL object families, retains boundaries, and maps Snapshot v2", async () => {
   const fake = completeConnection()
-  const catalog = await readMysqlCatalog(fake.connection, options())
+  const catalog = await readCatalog(fake.connection, options())
 
   expect(catalog.views).toEqual([expect.objectContaining({ physicalName: "order_view" })])
   expect(catalog.routines).toEqual(
@@ -828,7 +828,7 @@ test("rejects MariaDB and unsupported MySQL versions", async () => {
         ]
       : [],
   )
-  const mariaCatalog = await readMysqlCatalog(maria.connection, options())
+  const mariaCatalog = await readCatalog(maria.connection, options())
 
   expect(mariaCatalog.server.product).toBe("mariadb")
   expect(mariaCatalog.diagnostics).toEqual([
@@ -845,7 +845,7 @@ test("rejects MariaDB and unsupported MySQL versions", async () => {
         ]
       : [],
   )
-  const oldCatalog = await readMysqlCatalog(old.connection, options())
+  const oldCatalog = await readCatalog(old.connection, options())
 
   expect(oldCatalog.diagnostics).toEqual(
     expect.arrayContaining([expect.objectContaining({ code: "unsupported-server" })]),
@@ -875,7 +875,7 @@ test("reports query diagnostics without leaking driver errors and preserves para
       return [] as readonly TRow[]
     },
   }
-  const catalog = await readMysqlCatalog(fake, options("private"))
+  const catalog = await readCatalog(fake, options("private"))
 
   expect(catalog.diagnostics).toEqual(
     expect.arrayContaining([
@@ -891,7 +891,7 @@ test("reports query diagnostics without leaking driver errors and preserves para
 
 test("rejects a connection from another dialect before querying", async () => {
   const fake = connection(() => [], "sqlite")
-  const catalog = await readMysqlCatalog(fake.connection, options())
+  const catalog = await readCatalog(fake.connection, options())
 
   expect(fake.calls).toHaveLength(0)
   expect(catalog.diagnostics).toEqual([

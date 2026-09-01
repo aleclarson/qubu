@@ -10,7 +10,10 @@
 | `qubu/core`                               | Runtime          | Fragment and rendering primitives, dialect construction, SQL types, and extension constructors                   |
 | `qubu/codegen`                            | Runtime          | Deterministic machine-owned TypeScript schemas from complete, non-lossy introspection                            |
 | `qubu/diff`                               | Runtime          | Canonical Snapshot v1 or v2 comparison, rename hints, suggestions, and safety diagnostics                        |
-| `qubu/introspection`                      | Runtime          | Catalog readers, normalized catalogs, and mapping to Snapshot v1 or v2                                           |
+| `qubu/introspection`                      | Runtime          | Shared catalog contracts, normalized catalog models, diagnostics, and mapping to Snapshot v1 or v2               |
+| `qubu/introspection/postgres`             | Runtime          | PostgreSQL catalog reader and catalog queries for one selected namespace                                         |
+| `qubu/introspection/sqlite`               | Runtime          | SQLite catalog reader and catalog queries for one selected namespace                                             |
+| `qubu/introspection/mysql`                | Runtime          | MySQL catalog reader and catalog queries for one selected namespace                                              |
 | `qubu/mysql`                              | Runtime          | The MySQL query dialect policy                                                                                   |
 | `qubu/postgres`                           | Runtime          | PostgreSQL query dialect helpers such as `postgresDialect()` and `ilike()`                                       |
 | `qubu/schema`                             | Runtime          | Advanced schema metadata, storage and constraint models, source models, and schema-expression extensions         |
@@ -23,7 +26,10 @@
 | `qubu/package.json`                       | JSON             | The published package manifest                                                                                   |
 | `@qubu/migrate`                           | Runtime          | Migration compiler format identity and shared plan types                                                         |
 | `@qubu/migrate/plan`                      | Runtime          | Pure migration planning with dependencies, decisions, preconditions, and explicit custom SQL                     |
-| `@qubu/migrate/ddl`                       | Runtime          | DDL preflight and deterministic PostgreSQL, SQLite, or MySQL emission from a migration plan                      |
+| `@qubu/migrate/ddl`                       | Runtime          | DDL preflight and generic emission from a migration plan and supplied schema dialect                             |
+| `@qubu/migrate/ddl/postgres`              | Runtime          | PostgreSQL DDL emission from an approved migration plan                                                          |
+| `@qubu/migrate/ddl/sqlite`                | Runtime          | SQLite DDL emission from an approved migration plan                                                              |
+| `@qubu/migrate/ddl/mysql`                 | Runtime          | MySQL DDL emission from an approved migration plan                                                               |
 | `@qubu/migrate/artifact`                  | Runtime          | Generic versioned program compilation with a caller-supplied schema dialect, plus strict artifacts and baselines |
 | `@qubu/migrate/artifact/postgres`         | Runtime          | PostgreSQL versioned program compilation                                                                         |
 | `@qubu/migrate/artifact/sqlite`           | Runtime          | SQLite versioned program compilation, including table rebuilds                                                   |

@@ -27,7 +27,7 @@ export function compileMigrationProgram(
   plan: MigrationPlan,
   options: CompileSqliteMigrationProgramOptions = {},
 ): MigrationProgramCompilationResult {
-  const rebuildTables = sqliteRebuildTableIds(plan)
+  const rebuildTables = rebuildTableIds(plan)
   if (rebuildTables.length > 0) {
     if (!options.beforeSnapshot || !options.afterSnapshot)
       return failure(
@@ -35,12 +35,12 @@ export function compileMigrationProgram(
         "SQLite table rebuild compilation requires exact beforeSnapshot and afterSnapshot values",
         ["afterSnapshot"],
       )
-    return compileSqliteRebuildProgram(plan, rebuildTables, options)
+    return compileRebuildProgram(plan, rebuildTables, options)
   }
   return compileGenericMigrationProgram(plan, sqliteSchemaDialect, options)
 }
 
-function sqliteRebuildTableIds(plan: MigrationPlan): readonly string[] {
+function rebuildTableIds(plan: MigrationPlan): readonly string[] {
   const addedTables = new Set(
     plan.operations
       .filter((operation) => operation.type === "add" && operation.kind === "table")
@@ -63,7 +63,7 @@ function sqliteRebuildTableIds(plan: MigrationPlan): readonly string[] {
   ].sort()
 }
 
-function compileSqliteRebuildProgram(
+function compileRebuildProgram(
   plan: MigrationPlan,
   tableIds: readonly string[],
   options: CompileSqliteMigrationProgramOptions,
@@ -103,11 +103,11 @@ function compileSqliteRebuildProgram(
         "afterSnapshot",
         "tables",
       ])
-    const rendered = sqliteCreateStatements(after, target)
+    const rendered = createStatements(after, target)
     if (!rendered.ok) return rendered
     const temporaryName = `__qubu_rebuild_${target.physicalName}`
-    const targetQualified = qualifySqlite(after.namespace, target.physicalName)
-    const temporaryQualified = qualifySqlite(after.namespace, temporaryName)
+    const targetQualified = qualify(after.namespace, target.physicalName)
+    const temporaryQualified = qualify(after.namespace, temporaryName)
     const common = target.columns.flatMap((column) => {
       const old = source.columns.find((candidate) => candidate.id === column.id)
       return old ? [{ old: old.physicalName, next: column.physicalName }] : []
@@ -122,10 +122,10 @@ function compileSqliteRebuildProgram(
       ...(common.length === 0
         ? []
         : [
-            `INSERT INTO ${temporaryQualified} (${common.map((item) => quoteSqlite(item.next)).join(", ")}) SELECT ${common.map((item) => quoteSqlite(item.old)).join(", ")} FROM ${targetQualified}`,
+            `INSERT INTO ${temporaryQualified} (${common.map((item) => quote(item.next)).join(", ")}) SELECT ${common.map((item) => quote(item.old)).join(", ")} FROM ${targetQualified}`,
           ]),
       `DROP TABLE ${targetQualified}`,
-      `ALTER TABLE ${temporaryQualified} RENAME TO ${quoteSqlite(target.physicalName)}`,
+      `ALTER TABLE ${temporaryQualified} RENAME TO ${quote(target.physicalName)}`,
       ...rendered.indexes,
     ]
     const phasePosition = phases.length
@@ -170,7 +170,7 @@ function compileSqliteRebuildProgram(
   }
 }
 
-function sqliteCreateStatements(
+function createStatements(
   snapshot: SchemaSnapshot,
   table: SnapshotTable,
 ):
@@ -188,7 +188,7 @@ function sqliteCreateStatements(
   const statements = compiled.program.phases.flatMap((phase) =>
     phase.statements.map((item) => item.sql),
   )
-  const qualifiedTable = qualifySqlite(snapshot.namespace, table.physicalName)
+  const qualifiedTable = qualify(snapshot.namespace, table.physicalName)
   const create = statements.find((statement) =>
     statement.startsWith(`CREATE TABLE ${qualifiedTable}`),
   )
@@ -208,10 +208,10 @@ function sqliteCreateStatements(
   }
 }
 
-function quoteSqlite(value: string): string {
+function quote(value: string): string {
   return `"${value.replaceAll('"', '""')}"`
 }
 
-function qualifySqlite(namespace: string | undefined, value: string): string {
-  return namespace ? `${quoteSqlite(namespace)}.${quoteSqlite(value)}` : quoteSqlite(value)
+function qualify(namespace: string | undefined, value: string): string {
+  return namespace ? `${quote(namespace)}.${quote(value)}` : quote(value)
 }

@@ -59,9 +59,10 @@ catalog can later support inspection, source generation, or another snapshot
 format:
 
 ```ts
-import { mapCatalogToSnapshot, readSqliteCatalog } from "qubu/introspection"
+import { mapCatalogToSnapshot } from "qubu/introspection"
+import { readCatalog } from "qubu/introspection/sqlite"
 
-const catalog = await readSqliteCatalog(connection, { namespace: "main" })
+const catalog = await readCatalog(connection, { namespace: "main" })
 const result = mapCatalogToSnapshot(catalog, {
   namespace: "main",
   mode: "strict",
