@@ -12,6 +12,8 @@ import {
   integer,
   json,
   jsonTextResultDecoder,
+  nativeColumn,
+  nativeStorage,
   primaryKey,
   portableStorage,
   schema,
@@ -39,6 +41,20 @@ const currentTimestampDefault = defineSchemaExpression("function", (context) => 
 const mysqlCurrentTimestampDefault = defineSchemaExpression("function", (context) => {
   context.append("CURRENT_TIMESTAMP(3)")
 })
+
+/*
+ * Qubu emits full-column indexes and foreign keys, so MySQL TEXT is not viable
+ * for key columns. IDs/FKs use the same bounded declaration; other indexed
+ * strings use VARCHAR(255), and DATETIME(3) matches CURRENT_TIMESTAMP(3).
+ */
+const mysqlIdStorage = "VARCHAR(36)"
+const mysqlKeyStorage = "VARCHAR(255)"
+const mysqlTimestampStorage = "DATETIME(3)"
+
+type BetterAuthTableMetadata = BetterAuthDBSchema[string]
+type BetterAuthTableEntry = readonly [string, BetterAuthTableMetadata]
+type BetterAuthTableMap = Record<string, AnyTable>
+type BetterAuthReference = NonNullable<DBFieldAttribute["references"]>
 
 /** SQL dialects whose Better Auth behavior is implemented by this package. */
 export type BetterAuthDialect = "postgresql" | "mysql" | "sqlite"
@@ -98,36 +114,13 @@ export function betterAuthSchemaFromTables(
   options: BetterAuthSchemaOptions = {},
 ): BetterAuthQubuSchema {
   const diagnostics: BetterAuthSchemaDiagnostic[] = []
-  const tables: Record<string, AnyTable> = {}
-  const numberIds = options.generateId === "serial"
+  const entries = Object.entries(authTables) as BetterAuthTableEntry[]
+  const keyFields = collectKeyFields(authTables)
+  const definitions = new Map<string, Record<string, ColumnDefinition<any>>>()
 
-  for (const [model, metadata] of Object.entries(authTables)) {
-    if (metadata.disableMigrations) {
-      continue
-    }
-
-    const definitions: Record<string, ColumnDefinition<any>> = {
-      id: numberIds
-        ? integer({
-            sqlName: "id",
-            identity: identityColumn(
-              "by-default",
-              dialect === "postgresql"
-                ? undefined
-                : {
-                    dialect: {
-                      dialect,
-                      autoIncrement: true,
-                    } as any,
-                  },
-            ),
-          })
-        : dialect === "postgresql" && options.generateId === "uuid"
-          ? uuid({
-              sqlName: "id",
-              default: postgresUuidDefault,
-            })
-          : text({ sqlName: "id" }),
+  for (const [model, metadata] of entries) {
+    const modelDefinitions: Record<string, ColumnDefinition<any>> = {
+      id: idDefinition(dialect, options),
     }
     const sqlNames = new Map<string, string>([["id", "id"]])
 
@@ -148,90 +141,109 @@ export function betterAuthSchemaFromTables(
       }
 
       sqlNames.set(effectiveSqlName, field)
-      const definition = fieldDefinition(attribute, sqlName, model, field, dialect, diagnostics)
+      const definition = fieldDefinition(
+        attribute,
+        sqlName,
+        model,
+        field,
+        dialect,
+        diagnostics,
+        options,
+        keyFields.get(model)?.has(field) === true,
+      )
 
       if (definition) {
-        definitions[field] = definition
+        modelDefinitions[field] = definition
       }
     }
 
-    tables[model] = table(metadata.modelName, definitions, (runtimeTable) => {
-      const constraints: Record<string, any> = {
-        primary: (primaryKey as any)(runtimeTable.columns.id),
-      }
-      const indexes: Record<string, any> = {}
-
-      for (const [field, attribute] of Object.entries(metadata.fields)) {
-        const column = runtimeTable.columns[field]
-
-        if (!column) {
-          continue
-        }
-
-        if (attribute.references) {
-          const reference = attribute.references
-
-          constraints[`${field}Reference`] = (foreignKey as any)(
-            [column] as [any],
-            () => {
-              const referencedTable = tables[reference.model]
-              const referencedColumn = referencedTable?.columns[reference.field]
-
-              if (!referencedTable || !referencedColumn) {
-                throw new BetterAuthSchemaError([
-                  {
-                    code: "invalid-reference",
-                    message: `Better Auth field ${model}.${field} references unknown target ${reference.model}.${reference.field}.`,
-                    path: [model, "fields", field, "references"],
-                  },
-                ])
-              }
-
-              return references(referencedTable, referencedColumn)
-            },
-            {
-              onDelete: reference.onDelete?.replace(" ", "-") as any,
-            },
-          )
-        }
-
-        if (attribute.unique) {
-          constraints[`${field}Unique`] =
-            attribute.required === false
-              ? (uniqueConstraint as any)(column)
-              : (unique as any)(column)
-        } else if (attribute.index) {
-          indexes[`${field}Index`] = (index as any)([column])
-        }
-      }
-
-      for (const [position, compound] of (metadata.indexes ?? []).entries()) {
-        const columns = compound.fields.map((field) => runtimeTable.columns[field])
-
-        if (columns.some((column) => !column)) {
-          diagnostics.push({
-            code: "unknown-index-field",
-            message: `Better Auth index ${model}.${compound.name ?? position} names an unknown field.`,
-            path: [model, "indexes", String(position), "fields"],
-          })
-          continue
-        }
-
-        const key = compound.name ?? `compound${position + 1}`
-
-        indexes[key] = (index as any)(columns, {
-          unique: compound.unique,
-          physicalName: compound.name,
-        })
-      }
-
-      return {
-        constraints,
-        indexes,
-      } as any
-    })
+    definitions.set(model, modelDefinitions)
   }
 
+  validateReferences(authTables, diagnostics)
+
+  if (diagnostics.length) {
+    throw new BetterAuthSchemaError(diagnostics)
+  }
+
+  // Keep externally owned tables available to the adapter, but give schema() only tables it owns.
+  const runtimeTables = buildTableMap(entries, definitions, authTables, diagnostics)
+
+  // Table materialization adds diagnostics for malformed compound indexes; surface them before
+  // creating the migration map.
+  if (diagnostics.length) {
+    throw new BetterAuthSchemaError(diagnostics)
+  }
+
+  const migrationTables = buildTableMap(
+    entries.filter(([, metadata]) => !metadata.disableMigrations),
+    definitions,
+    authTables,
+    undefined,
+  )
+  const result = schema(migrationTables) as BetterAuthQubuSchema
+  const byPhysicalName = new Map<string, AnyTable>()
+
+  for (const [model, metadata] of entries) {
+    const resolved = migrationTables[model] ?? runtimeTables[model]
+
+    if (resolved) {
+      byPhysicalName.set(metadata.modelName, resolved)
+    }
+  }
+
+  return Object.freeze({
+    ...result,
+    betterAuth: authTables,
+    tableFor(model: string) {
+      const resolved = migrationTables[model] ?? runtimeTables[model] ?? byPhysicalName.get(model)
+
+      if (!resolved) {
+        throw new TypeError(`Unknown Better Auth model: ${model}`)
+      }
+
+      return resolved
+    },
+  }) as BetterAuthQubuSchema
+}
+
+function collectKeyFields(authTables: BetterAuthDBSchema): Map<string, Set<string>> {
+  const keyFields = new Map<string, Set<string>>()
+  const mark = (model: string, field: string) => {
+    const fields = keyFields.get(model) ?? new Set<string>()
+
+    fields.add(field)
+    keyFields.set(model, fields)
+  }
+
+  for (const [model, metadata] of Object.entries(authTables)) {
+    for (const [field, attribute] of Object.entries(metadata.fields)) {
+      if (attribute.index || attribute.unique || attribute.sortable || attribute.references) {
+        mark(model, field)
+      }
+
+      const reference = attribute.references
+
+      // Both sides of a non-ID MySQL foreign key need bounded, compatible key storage.
+      if (reference && reference.field !== "id") {
+        mark(reference.model, reference.field)
+      }
+    }
+
+    for (const compound of metadata.indexes ?? []) {
+      for (const field of compound.fields) {
+        mark(model, field)
+      }
+    }
+  }
+
+  return keyFields
+}
+
+function validateReferences(
+  authTables: BetterAuthDBSchema,
+  diagnostics: BetterAuthSchemaDiagnostic[],
+): void {
   for (const [model, metadata] of Object.entries(authTables)) {
     for (const [field, attribute] of Object.entries(metadata.fields)) {
       const reference = attribute.references
@@ -242,7 +254,7 @@ export function betterAuthSchemaFromTables(
 
       const referenced = authTables[reference.model]
 
-      if (!referenced || !tables[reference.model]) {
+      if (!referenced) {
         diagnostics.push({
           code: "invalid-reference",
           message: `Better Auth field ${model}.${field} references unknown model ${reference.model}.`,
@@ -257,31 +269,273 @@ export function betterAuthSchemaFromTables(
       }
     }
   }
+}
 
-  if (diagnostics.length) {
-    throw new BetterAuthSchemaError(diagnostics)
-  }
+function buildTableMap(
+  entries: readonly BetterAuthTableEntry[],
+  definitions: ReadonlyMap<string, Record<string, ColumnDefinition<any>>>,
+  authTables: BetterAuthDBSchema,
+  diagnostics: BetterAuthSchemaDiagnostic[] | undefined,
+): BetterAuthTableMap {
+  const tables: BetterAuthTableMap = {}
+  const availableModels = new Set(entries.map(([model]) => model))
+  const allocateIndexName = createIndexNameAllocator(entries)
 
-  const result = schema(tables) as BetterAuthQubuSchema
-  const byPhysicalName = new Map(
-    Object.entries(authTables)
-      .filter(([model]) => tables[model])
-      .map(([model, metadata]) => [metadata.modelName, tables[model]!]),
-  )
+  for (const [model, metadata] of entries) {
+    const modelDefinitions = definitions.get(model)
 
-  return Object.freeze({
-    ...result,
-    betterAuth: authTables,
-    tableFor(model: string) {
-      const resolved = tables[model] ?? byPhysicalName.get(model)
+    if (!modelDefinitions) {
+      continue
+    }
 
-      if (!resolved) {
-        throw new TypeError(`Unknown Better Auth model: ${model}`)
+    tables[model] = table(metadata.modelName, modelDefinitions, (runtimeTable) => {
+      const constraints: Record<string, any> = {
+        primary: (primaryKey as any)(runtimeTable.columns.id),
+      }
+      const indexes: Record<string, any> = {}
+
+      for (const [field, attribute] of Object.entries(metadata.fields)) {
+        const column = runtimeTable.columns[field]
+
+        if (!column) {
+          continue
+        }
+
+        // A foreign key can only be materialized when its target is in this map; the migration
+        // map intentionally omits externally owned targets.
+        if (attribute.references && availableModels.has(attribute.references.model)) {
+          const reference = attribute.references
+
+          if (hasReferenceTarget(authTables, reference)) {
+            constraints[`${field}Reference`] = (foreignKey as any)(
+              [column] as [any],
+              () => {
+                const referencedTable = tables[reference.model]
+                const referencedColumn = referencedTable?.columns[reference.field]
+
+                if (!referencedTable || !referencedColumn) {
+                  throw new BetterAuthSchemaError([
+                    {
+                      code: "invalid-reference",
+                      message: `Better Auth field ${model}.${field} references unknown target ${reference.model}.${reference.field}.`,
+                      path: [model, "fields", field, "references"],
+                    },
+                  ])
+                }
+
+                return references(referencedTable, referencedColumn)
+              },
+              {
+                onDelete: reference.onDelete?.replace(" ", "-") as any,
+              },
+            )
+          }
+        }
+
+        if (attribute.unique) {
+          constraints[`${field}Unique`] =
+            attribute.required === false
+              ? (uniqueConstraint as any)(column)
+              : (unique as any)(column)
+        } else if (attribute.index) {
+          indexes[`${field}Index`] = (index as any)([column], {
+            physicalName: allocateIndexName(runtimeTable.tableName, [column.columnName]),
+          })
+        }
       }
 
-      return resolved
-    },
-  }) as BetterAuthQubuSchema
+      for (const [position, compound] of (metadata.indexes ?? []).entries()) {
+        const columns = compound.fields.map((field) => runtimeTable.columns[field])
+
+        if (columns.some((column) => !column)) {
+          diagnostics?.push({
+            code: "unknown-index-field",
+            message: `Better Auth index ${model}.${compound.name ?? position} names an unknown field.`,
+            path: [model, "indexes", String(position), "fields"],
+          })
+          continue
+        }
+
+        const key = compound.name ?? `compound${position + 1}`
+        const physicalName =
+          compound.name ??
+          allocateIndexName(
+            runtimeTable.tableName,
+            columns.map((column) => column.columnName),
+          )
+
+        indexes[key] = (index as any)(columns, {
+          unique: compound.unique,
+          physicalName,
+        })
+      }
+
+      return {
+        constraints,
+        indexes,
+      } as any
+    })
+  }
+
+  return tables
+}
+
+function hasReferenceTarget(
+  authTables: BetterAuthDBSchema,
+  reference: BetterAuthReference,
+): boolean {
+  const referenced = authTables[reference.model]
+
+  return (
+    referenced !== undefined &&
+    (reference.field === "id" || referenced.fields[reference.field] !== undefined)
+  )
+}
+
+function idDefinition(
+  dialect: BetterAuthDialect,
+  options: BetterAuthSchemaOptions,
+): ColumnDefinition<any> {
+  if (options.generateId === "serial") {
+    return integer({
+      sqlName: "id",
+      identity: identityColumn(
+        "by-default",
+        dialect === "postgresql"
+          ? undefined
+          : {
+              dialect: {
+                dialect,
+                autoIncrement: true,
+              } as any,
+            },
+      ),
+    })
+  }
+
+  if (dialect === "postgresql" && options.generateId === "uuid") {
+    return uuid({
+      sqlName: "id",
+      default: postgresUuidDefault,
+    })
+  }
+
+  if (dialect === "mysql") {
+    return mysqlNativeColumn<string>(mysqlIdStorage, { sqlName: "id" })
+  }
+
+  return text({ sqlName: "id" })
+}
+
+function referenceIdDefinition(
+  dialect: BetterAuthDialect,
+  options: BetterAuthSchemaOptions,
+  columnOptions: Record<string, unknown>,
+): ColumnDefinition<any> {
+  if (options.generateId === "serial") {
+    return integer(columnOptions as any)
+  }
+
+  if (dialect === "postgresql" && options.generateId === "uuid") {
+    return uuid(columnOptions as any)
+  }
+
+  if (dialect === "mysql") {
+    return mysqlNativeColumn<string>(mysqlIdStorage, columnOptions)
+  }
+
+  return text(columnOptions as any)
+}
+
+function mysqlNativeColumn<TOutput>(
+  storageType: string,
+  options: Record<string, unknown>,
+): ColumnDefinition<any> {
+  return nativeColumn<TOutput, TOutput, TOutput>(
+    nativeStorage("mysql", storageType),
+    options as any,
+  ) as ColumnDefinition<any>
+}
+
+type IndexNameAllocator = (tableName: string, fields: readonly string[]) => string
+
+function createIndexNameAllocator(entries: readonly BetterAuthTableEntry[]): IndexNameAllocator {
+  // PostgreSQL shares a namespace between tables and indexes, so reserve both kinds of names.
+  const reservedNames = new Set<string>()
+
+  for (const [, metadata] of entries) {
+    reservedNames.add(metadata.modelName)
+
+    for (const compound of metadata.indexes ?? []) {
+      if (compound.name !== undefined) {
+        reservedNames.add(compound.name)
+      }
+    }
+  }
+
+  const allocatedNames = new Set<string>()
+
+  return (tableName, fields) => {
+    const base = generatedSchemaObjectName([tableName, ...fields, "index"].join("_"))
+    let physicalName = boundedSchemaObjectName(base)
+    let attempt = 0
+
+    while (reservedNames.has(physicalName) || allocatedNames.has(physicalName)) {
+      attempt += 1
+      physicalName = boundedSchemaObjectName(
+        `${base}_${stableSchemaNameHash(`${base}:${attempt}`)}`,
+      )
+    }
+
+    allocatedNames.add(physicalName)
+    return physicalName
+  }
+}
+
+/** PostgreSQL's identifier limit, measured in UTF-8 bytes rather than characters. */
+const maxSchemaObjectNameBytes = 63
+
+function boundedSchemaObjectName(value: string): string {
+  if (utf8ByteLength(value) <= maxSchemaObjectNameBytes) {
+    return value
+  }
+
+  const suffix = `_${stableSchemaNameHash(value)}`
+
+  return `${truncateUtf8(value, maxSchemaObjectNameBytes - utf8ByteLength(suffix))}${suffix}`
+}
+
+function utf8ByteLength(value: string): number {
+  return new TextEncoder().encode(value).length
+}
+
+function truncateUtf8(value: string, maxBytes: number): string {
+  let result = ""
+  let bytes = 0
+
+  for (const character of value) {
+    const characterBytes = utf8ByteLength(character)
+
+    if (bytes + characterBytes > maxBytes) {
+      break
+    }
+
+    result += character
+    bytes += characterBytes
+  }
+
+  return result
+}
+
+function stableSchemaNameHash(value: string): string {
+  let hash = 2166136261
+
+  for (let index = 0; index < value.length; index++) {
+    hash ^= value.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+
+  return (hash >>> 0).toString(16).padStart(8, "0")
 }
 
 export function resolveSchemaOptions(options: BetterAuthOptions): BetterAuthSchemaOptions {
@@ -289,6 +543,7 @@ export function resolveSchemaOptions(options: BetterAuthOptions): BetterAuthSche
   const assign = (model: string, field: string, sqlName: unknown) => {
     if (sqlName === field) {
       const modelFieldNames = (fieldNames[model] ??= {})
+
       modelFieldNames[field] = sqlName
     }
   }
@@ -346,9 +601,11 @@ function fieldDefinition(
   field: string,
   dialect: BetterAuthDialect,
   diagnostics: BetterAuthSchemaDiagnostic[],
+  schemaOptions: BetterAuthSchemaOptions,
+  keyBearing: boolean,
 ): ColumnDefinition<any> | undefined {
   const defaultValue = attribute.defaultValue
-  const options: any = {
+  const columnOptions: Record<string, unknown> = {
     ...(sqlName === undefined ? {} : { sqlName }),
     nullable: attribute.required === false,
     ...(defaultValue === undefined
@@ -367,15 +624,21 @@ function fieldDefinition(
         }),
   }
 
+  if (attribute.references?.field === "id") {
+    return referenceIdDefinition(dialect, schemaOptions, columnOptions)
+  }
+
   switch (attribute.type) {
     case "string": {
-      return text(options)
+      return dialect === "mysql" && keyBearing
+        ? mysqlNativeColumn<string>(mysqlKeyStorage, columnOptions)
+        : text(columnOptions)
     }
 
     case "number": {
       return attribute.bigint
         ? defineColumn<number>({
-            ...options,
+            ...columnOptions,
             storage: portableStorage("bigint"),
             decode(value) {
               const decoded = Number(value)
@@ -389,28 +652,32 @@ function fieldDefinition(
               return decoded
             },
           })
-        : integer(options)
+        : integer(columnOptions)
     }
 
     case "boolean": {
       return boolean({
-        ...options,
+        ...columnOptions,
         decode: booleanResultDecoder,
       })
     }
 
     case "date": {
-      return timestamp({
-        ...options,
+      const dateOptions = {
+        ...columnOptions,
         decode: timestampResultDecoder,
-      })
+      }
+
+      return dialect === "mysql"
+        ? mysqlNativeColumn<Date>(mysqlTimestampStorage, dateOptions)
+        : timestamp(dateOptions)
     }
 
     case "json":
     case "string[]":
     case "number[]": {
       return json({
-        ...options,
+        ...columnOptions,
         decode: jsonTextResultDecoder,
       })
     }
