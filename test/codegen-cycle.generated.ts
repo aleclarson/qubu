@@ -35,20 +35,20 @@ const _catalogColumn =
     >(_qubu.nativeStorage(dialect, declaration), options)
 
 const _AlphaRecordsDefinitions = {
-  betaId: _catalogColumn<unknown, unknown, unknown, _qubu.SqlInteger>()(
-    'postgresql',
-    'integer',
-    {
-      nullable: false,
-      sqlName: 'beta_id',
-    }
-  ),
   id: _catalogColumn<unknown, unknown, unknown, _qubu.SqlInteger>()(
     'postgresql',
     'integer',
     {
       nullable: false,
       sqlName: 'id',
+    }
+  ),
+  betaId: _catalogColumn<unknown, unknown, unknown, _qubu.SqlInteger>()(
+    'postgresql',
+    'integer',
+    {
+      nullable: false,
+      sqlName: 'beta_id',
     }
   ),
 }
@@ -98,20 +98,20 @@ export const alphaRecords: _AlphaRecordsTable = _qubu.table(
 )
 
 const _BetaRecordsDefinitions = {
-  alphaId: _catalogColumn<unknown, unknown, unknown, _qubu.SqlInteger>()(
-    'postgresql',
-    'integer',
-    {
-      nullable: false,
-      sqlName: 'alpha_id',
-    }
-  ),
   id: _catalogColumn<unknown, unknown, unknown, _qubu.SqlInteger>()(
     'postgresql',
     'integer',
     {
       nullable: false,
       sqlName: 'id',
+    }
+  ),
+  alphaId: _catalogColumn<unknown, unknown, unknown, _qubu.SqlInteger>()(
+    'postgresql',
+    'integer',
+    {
+      nullable: false,
+      sqlName: 'alpha_id',
     }
   ),
 }

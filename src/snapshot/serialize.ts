@@ -1,18 +1,23 @@
 import { standardDialect } from "../dialects/standard.ts"
 import { isColumnReference } from "../expressions/column.ts"
 import type { AnyExpression, AnySchemaExpression } from "../expressions/types.ts"
+import { isSchemaExpression } from "../expressions/types.ts"
 import type { OrderTerm } from "../query/clauses/order-by.ts"
 import type {
   ColumnDefault,
   GeneratedColumnDescriptor,
   IdentityDescriptor,
+  IdentityOptionValue,
 } from "../schema/column-behavior.ts"
+import { canonicalLiteral } from "../schema/column-behavior.ts"
 import type { ColumnStorage } from "../schema/column.ts"
 import type {
   ForeignKeyConstraint,
+  KeyConstraint,
   SourceConstraint,
   ForeignKeyTarget,
 } from "../schema/constraints.ts"
+import type { IndexTermOptions } from "../schema/indexes.ts"
 import type { SchemaDialect } from "../schema/dialect.ts"
 import { createSchemaDialect } from "../schema/dialect.ts"
 import { isUnsafeSchemaSql, renderSchemaExpression } from "../schema/expressions.ts"
@@ -25,7 +30,11 @@ import {
   schemaSnapshotFingerprint,
   toSnapshotJsonValue,
 } from "./canonical.ts"
-import type { CompleteSnapshotCapabilities, CompleteSnapshotNamespace } from "./complete-types.ts"
+import type {
+  CompleteSnapshotCapabilities,
+  CompleteSnapshotNamespace,
+  CompleteSnapshotValueFact,
+} from "./complete-types.ts"
 import { assertSchemaSnapshot, SnapshotValidationError } from "./decode.ts"
 import {
   neutralSnapshotDialect,
@@ -304,13 +313,26 @@ function serializeTable(
           readonly includedColumns?: readonly AnyExpression[]
           readonly physicalName?: string
           readonly dialect?: SchemaDialectExtension
+          readonly method?: string
+          readonly backingConstraint?: string
+          readonly termOptions?: readonly (IndexTermOptions | undefined)[]
         }
       >
     >
   }
+  const tableDialect = tableMetadata.dialect
+    ? encodeExtension(
+        tableMetadata.dialect,
+        dialect,
+        ["tables", id, "dialect"],
+        options,
+        diagnostics,
+      )
+    : undefined
   const columns = Object.entries(definitions)
     .map(([fieldName, definition], ordinalPosition) =>
       serializeColumn(
+        id,
         fieldName,
         definition,
         table.sqlNames[fieldName] ?? fieldName,
@@ -352,10 +374,12 @@ function serializeTable(
     columns,
     constraints,
     indexes,
+    ...(tableDialect === undefined ? {} : { dialect: tableDialect }),
   }
 }
 
 function serializeColumn(
+  tableId: string,
   id: string,
   definition: TableDefinitions[string],
   physicalName: string,
@@ -404,6 +428,15 @@ function serializeColumn(
         diagnostics,
       )
     : undefined
+  const columnDialect = definition.dialect
+    ? encodeExtension(
+        definition.dialect,
+        dialect,
+        ["tables", tableId, "columns", id, "dialect"],
+        options,
+        diagnostics,
+      )
+    : undefined
 
   return {
     kind: "column",
@@ -418,6 +451,7 @@ function serializeColumn(
     ...(generatedColumn === undefined ? {} : { generatedColumn }),
     ...(identity === undefined ? {} : { identity }),
     ...(onUpdate === undefined ? {} : { onUpdate }),
+    ...(columnDialect === undefined ? {} : { dialect: columnDialect }),
   }
 }
 
@@ -551,11 +585,61 @@ function encodeIdentity(
     diagnostics,
   )
 
+  const identityOptions: Record<string, CompleteSnapshotValueFact> = {}
+
+  for (const [key, option] of Object.entries(value.options ?? {}).sort(([left], [right]) =>
+    left < right ? -1 : left > right ? 1 : 0,
+  )) {
+    const encoded = encodeValueFact(
+      option,
+      dialect,
+      [...path, "options", key],
+      options,
+      diagnostics,
+    )
+
+    if (encoded !== undefined) {
+      identityOptions[key] = encoded
+    }
+  }
+
   return {
     kind: "identity",
     generation: value.generation,
-    options: {},
+    options: identityOptions,
     ...(extension === undefined ? {} : { dialect: extension }),
+  }
+}
+
+function encodeValueFact(
+  value: IdentityOptionValue,
+  dialect: SchemaDialect,
+  path: readonly (string | number)[],
+  options: SchemaSnapshotOptions,
+  diagnostics: SnapshotDiagnostic[],
+): CompleteSnapshotValueFact | undefined {
+  if (isSchemaExpression(value)) {
+    const expression = encodeExpression(
+      value as AnyExpression,
+      "default",
+      dialect,
+      path,
+      options,
+      diagnostics,
+    )
+
+    return expression === undefined ? undefined : { kind: "expression", expression }
+  }
+
+  try {
+    return { kind: "literal", value: canonicalLiteral(value) as SnapshotLiteral }
+  } catch (error) {
+    diagnostics.push({
+      code: "invalid-schema",
+      message: error instanceof Error ? error.message : String(error),
+      path,
+    })
+    return undefined
   }
 }
 
@@ -599,6 +683,7 @@ function serializeConstraint(
     }
 
     const timing = serializeTiming(constraint)
+    const backingIndex = serializeBackingIndex(constraint)
 
     if (constraint.kind === "unique-constraint") {
       return {
@@ -607,6 +692,8 @@ function serializeConstraint(
         columns,
         nulls: constraint.nulls,
         ...timing,
+        ...(constraint.validated === undefined ? {} : { validated: constraint.validated }),
+        ...(backingIndex === undefined ? {} : { backingIndex }),
         ...(extension === undefined ? {} : { dialect: extension }),
       } satisfies SnapshotUniqueConstraint
     }
@@ -616,6 +703,8 @@ function serializeConstraint(
       kind: constraint.kind,
       columns,
       ...timing,
+      ...(constraint.validated === undefined ? {} : { validated: constraint.validated }),
+      ...(backingIndex === undefined ? {} : { backingIndex }),
       ...(extension === undefined ? {} : { dialect: extension }),
     } satisfies SnapshotKeyConstraint
   }
@@ -655,6 +744,7 @@ function serializeConstraint(
       ...(constraint.onDelete === undefined ? {} : { onDelete: constraint.onDelete }),
       ...(constraint.match === undefined ? {} : { match: constraint.match }),
       ...serializeTiming(constraint),
+      ...(constraint.validated === undefined ? {} : { validated: constraint.validated }),
       ...(extension === undefined ? {} : { dialect: extension }),
     } satisfies SnapshotForeignKey
   }
@@ -685,6 +775,7 @@ function serializeConstraint(
       kind: "check",
       expression,
       ...serializeTiming(constraint),
+      ...(constraint.validated === undefined ? {} : { validated: constraint.validated }),
       ...(extension === undefined ? {} : { dialect: extension }),
     } satisfies SnapshotCheckConstraint
   }
@@ -695,6 +786,17 @@ function serializeConstraint(
     path: ["constraints", id],
   })
   return undefined
+}
+
+function serializeBackingIndex(
+  constraint: KeyConstraint | import("../schema/constraints.ts").UniqueConstraint,
+): SnapshotKeyConstraint["backingIndex"] | undefined {
+  return constraint.backingIndex === undefined
+    ? undefined
+    : {
+        kind: "index",
+        id: constraint.backingIndex,
+      }
 }
 
 function serializeTiming(value: {
@@ -805,6 +907,9 @@ function serializeIndex(
     readonly includedColumns?: readonly AnyExpression[]
     readonly physicalName?: string
     readonly dialect?: SchemaDialectExtension
+    readonly method?: string
+    readonly backingConstraint?: string
+    readonly termOptions?: readonly (IndexTermOptions | undefined)[]
   },
   table: AnyTable,
   dialect: SchemaDialect,
@@ -816,9 +921,10 @@ function serializeIndex(
   for (const [termIndex, term] of indexMetadata.terms.entries()) {
     const serialized = serializeIndexTerm(
       term,
+      indexMetadata.termOptions?.[termIndex],
       table,
       dialect,
-      termIndex,
+      termIndex + 1,
       ["indexes", id, "terms", termIndex],
       options,
       diagnostics,
@@ -858,6 +964,17 @@ function serializeIndex(
   )
 
   if (
+    indexMetadata.termOptions !== undefined &&
+    indexMetadata.termOptions.length > indexMetadata.terms.length
+  ) {
+    diagnostics.push({
+      code: "invalid-schema",
+      message: "Index termOptions cannot contain entries without matching terms",
+      path: ["indexes", id, "termOptions"],
+    })
+  }
+
+  if (
     terms.length !== indexMetadata.terms.length ||
     (indexMetadata.includedColumns !== undefined && includedColumns === undefined)
   ) {
@@ -873,12 +990,22 @@ function serializeIndex(
     candidateKey: indexMetadata.candidateKey,
     ...(predicate === undefined ? {} : { predicate }),
     ...(includedColumns === undefined ? {} : { includedColumns }),
+    ...(indexMetadata.backingConstraint === undefined
+      ? {}
+      : {
+          backingConstraint: {
+            kind: "constraint" as const,
+            id: indexMetadata.backingConstraint,
+          },
+        }),
+    ...(indexMetadata.method === undefined ? {} : { method: indexMetadata.method }),
     ...(extension === undefined ? {} : { dialect: extension }),
   }
 }
 
 function serializeIndexTerm(
   term: AnyExpression | OrderTerm<any>,
+  termOptions: IndexTermOptions | undefined,
   table: AnyTable,
   dialect: SchemaDialect,
   position: number,
@@ -896,19 +1023,55 @@ function serializeIndexTerm(
       diagnostics,
     )
 
-    return expression === undefined
+    const termMetadata =
+      expression === undefined
+        ? undefined
+        : serializeIndexTermOptions(termOptions, dialect, path, options, diagnostics)
+
+    return expression === undefined || termMetadata === undefined
       ? undefined
       : {
           ...expression,
           position,
           ...(term.direction === undefined ? {} : { direction: term.direction }),
           ...(term.nulls === undefined ? {} : { nulls: term.nulls }),
+          ...termMetadata,
         }
   }
 
   const expression = serializeIndexTermExpression(term, table, dialect, path, options, diagnostics)
+  const termMetadata =
+    expression === undefined
+      ? undefined
+      : serializeIndexTermOptions(termOptions, dialect, path, options, diagnostics)
 
-  return expression === undefined ? undefined : { ...expression, position }
+  return expression === undefined || termMetadata === undefined
+    ? undefined
+    : { ...expression, position, ...termMetadata }
+}
+
+function serializeIndexTermOptions(
+  value: IndexTermOptions | undefined,
+  dialect: SchemaDialect,
+  path: readonly (string | number)[],
+  options: SchemaSnapshotOptions,
+  diagnostics: SnapshotDiagnostic[],
+): Record<string, unknown> | undefined {
+  if (value === undefined) {
+    return {}
+  }
+
+  const prefixLength =
+    value.prefixLength === undefined
+      ? undefined
+      : encodeValueFact(value.prefixLength, dialect, [...path, "prefixLength"], options, diagnostics)
+
+  return value.prefixLength !== undefined && prefixLength === undefined
+    ? undefined
+    : {
+        ...(prefixLength === undefined ? {} : { prefixLength }),
+        ...(value.operatorClass === undefined ? {} : { operatorClass: value.operatorClass }),
+      }
 }
 
 function serializeIndexTermExpression(

@@ -132,6 +132,8 @@ export interface ConstraintOptions<
     | ConstraintDialectExtension
     | undefined,
 > extends SchemaObjectNameOptions {
+  /** Whether the database constraint has been validated. */
+  readonly validated?: boolean
   /** Engine-specific metadata owned by a future schema adapter. */
   readonly dialect?: TExtension
 }
@@ -142,6 +144,8 @@ export interface KeyConstraintOptions<
     | ConstraintDialectExtension
     | undefined,
 > extends ConstraintOptions<TExtension> {
+  /** Physical backing index name, when exposed by the database. */
+  readonly backingIndex?: string
   /** Whether the key can be deferred by a supporting dialect. */
   readonly deferrable?: boolean
   /** Initial enforcement timing for a deferrable key. */
@@ -154,6 +158,8 @@ export interface UniqueConstraintOptions<
     | ConstraintDialectExtension
     | undefined,
 > extends ConstraintOptions<TExtension> {
+  /** Physical backing index name, when exposed by the database. */
+  readonly backingIndex?: string
   /**
    * SQL NULL comparison semantics. `distinct` is the common default in which multiple NULL values
    * do not conflict; `not-distinct` permits at most one.
@@ -213,6 +219,8 @@ export interface KeyConstraint<
   readonly columns: TColumns
   readonly physicalName?: string
   readonly dialect?: ConstraintDialectExtension
+  readonly validated?: boolean
+  readonly backingIndex?: string
   readonly deferrable?: boolean
   readonly initially?: ConstraintTiming
 }
@@ -240,6 +248,7 @@ export interface ForeignKeyConstraint<
   readonly target: TTarget
   readonly physicalName?: string
   readonly dialect?: ConstraintDialectExtension
+  readonly validated?: boolean
   readonly onUpdate?: ReferentialAction
   readonly onDelete?: ReferentialAction
   readonly match?: ForeignKeyMatch
@@ -257,6 +266,8 @@ export interface UniqueConstraint<
   readonly nulls: TNulls
   readonly physicalName?: string
   readonly dialect?: ConstraintDialectExtension
+  readonly validated?: boolean
+  readonly backingIndex?: string
   readonly deferrable?: boolean
   readonly initially?: ConstraintTiming
 }
@@ -269,6 +280,7 @@ export interface CheckConstraint<
   readonly expression: TExpression
   readonly physicalName?: string
   readonly dialect?: ConstraintDialectExtension
+  readonly validated?: boolean
   readonly deferrable?: boolean
   readonly initially?: ConstraintTiming
 }
@@ -772,6 +784,8 @@ function freezeConstraint(
         readonly onUpdate?: ReferentialAction
         readonly onDelete?: ReferentialAction
         readonly match?: ForeignKeyMatch
+        readonly validated?: boolean
+        readonly backingIndex?: string
       })
     | undefined
 
@@ -793,6 +807,17 @@ function freezeConstraint(
 
   if (optionValues?.dialect !== undefined) {
     value.dialect = freezeSchemaMetadata(optionValues.dialect)
+  }
+
+  if (optionValues?.validated !== undefined) {
+    value.validated = optionValues.validated
+  }
+
+  if (
+    (kind === "primary-key" || kind === "unique" || kind === "unique-constraint") &&
+    optionValues?.backingIndex !== undefined
+  ) {
+    value.backingIndex = optionValues.backingIndex
   }
 
   if (optionValues?.deferrable !== undefined) {

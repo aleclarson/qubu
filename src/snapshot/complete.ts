@@ -657,6 +657,8 @@ function validateTable(
     return undefined
   }
 
+  validateUniqueOrdinalPositions(columns, [...path, "columns"], diagnostics)
+
   return {
     kind: "table",
     id: base.id,
@@ -887,6 +889,12 @@ function validateIndex(
   const terms = validateArray(value.terms, [...path, "terms"], diagnostics, validateIndexTerm)
 
   if (terms !== undefined) {
+    if (terms.length === 0) {
+      diagnostics.push(
+        issue("invalid-snapshot", "Indexes must contain at least one term", [...path, "terms"]),
+      )
+    }
+
     validateSortedPositions(terms, [...path, "terms"], diagnostics)
   }
 
@@ -3201,6 +3209,30 @@ function validateSortedPositions(
 
     if (position !== undefined) {
       previous = position
+    }
+  }
+}
+
+function validateUniqueOrdinalPositions(
+  value: readonly { readonly ordinalPosition: number }[],
+  path: readonly (string | number)[],
+  diagnostics: SnapshotDiagnostic[],
+): void {
+  const positions = new Map<number, number>()
+
+  for (const [index, item] of value.entries()) {
+    const previousIndex = positions.get(item.ordinalPosition)
+
+    if (previousIndex !== undefined) {
+      diagnostics.push(
+        issue(
+          "invalid-snapshot",
+          `Column ordinal position ${item.ordinalPosition} is duplicated`,
+          [...path, index, "ordinalPosition"],
+        ),
+      )
+    } else {
+      positions.set(item.ordinalPosition, index)
     }
   }
 }

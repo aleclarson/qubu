@@ -7,6 +7,7 @@ import type {
   SnapshotJsonValue,
   SnapshotLiteral,
 } from "../snapshot/types.ts"
+import type { CompleteSnapshotValueFact } from "../snapshot/complete-types.ts"
 import type {
   ResolvedColumn,
   ResolvedConstraint,
@@ -115,13 +116,33 @@ function printTable(
   const indexTypes = table.indexes.map((index) =>
     printIndexType(table, index, columnsName, diagnostics),
   )
+  const tableDialect =
+    table.snapshot.dialect === undefined
+      ? undefined
+      : printExtension(
+          table.snapshot.dialect,
+          schema,
+          ["snapshot", "tables", table.snapshot.id, "dialect"],
+          diagnostics,
+        )
 
   if (
     constraintTypes.some((value) => value === undefined) ||
     indexTypes.some((value) => value === undefined)
+    || (table.snapshot.dialect !== undefined && tableDialect === undefined)
   ) {
     return undefined
   }
+
+  const tableMetadata = [
+    `constraints: {
+${constraints.map((value) => indent(value ?? "", 6)).join("\n")}
+    }`,
+    `indexes: {
+${indexes.map((value) => indent(value ?? "", 6)).join("\n")}
+    }`,
+    ...(tableDialect === undefined ? [] : [`dialect: ${tableDialect}`]),
+  ]
 
   return `const ${definitionsName} = {
 ${columns.map((value) => indent(value ?? "", 2)).join("\n")}
@@ -153,12 +174,7 @@ export const ${table.name}: ${tableTypeName} = _qubu.table(
   ${literal(table.snapshot.physicalName)},
   ${definitionsName},
   _current => ({
-    constraints: {
-${constraints.map((value) => indent(value ?? "", 6)).join("\n")}
-    },
-    indexes: {
-${indexes.map((value) => indent(value ?? "", 6)).join("\n")}
-    },
+${tableMetadata.map((value) => indent(value, 4)).join(",\n")}
   })
 )`
 }
@@ -332,6 +348,16 @@ function printColumn(
     `sqlName: ${literal(snapshot.physicalName)}`,
   ]
 
+  if (snapshot.dialect !== undefined) {
+    const extension = printExtension(snapshot.dialect, schema, [...path, "dialect"], diagnostics)
+
+    if (extension === undefined) {
+      return undefined
+    }
+
+    options.push(`dialect: ${extension}`)
+  }
+
   if (snapshot.default !== undefined) {
     if (snapshot.default.kind === "external") {
       options.push("default: _qubu.externalDefault()")
@@ -394,10 +420,30 @@ function printColumn(
       return undefined
     }
 
+    const identityProperties: string[] = []
+    const identityOptions = printValueFactRecord(
+      snapshot.identity.options,
+      schema,
+      [...path, "identity", "options"],
+      diagnostics,
+    )
+
+    if (identityOptions === undefined) {
+      return undefined
+    }
+
+    if (identityOptions !== "{}") {
+      identityProperties.push(`options: ${identityOptions}`)
+    }
+
+    if (extension !== undefined) {
+      identityProperties.push(`dialect: ${extension}`)
+    }
+
     options.push(
-      extension === undefined
+      identityProperties.length === 0
         ? `identity: _qubu.identityColumn(${literal(snapshot.identity.generation)})`
-        : `identity: _qubu.identityColumn(${literal(snapshot.identity.generation)}, { dialect: ${extension} })`,
+        : `identity: _qubu.identityColumn(${literal(snapshot.identity.generation)}, { ${identityProperties.join(", ")} })`,
     )
   }
 
@@ -441,7 +487,7 @@ function printConstraint(
 ): string | undefined {
   const snapshot = constraint.snapshot
   const path = ["snapshot", "tables", table.snapshot.id, "constraints", snapshot.id] as const
-  const options = printConstraintOptions(snapshot, schema, path, diagnostics)
+  const options = printConstraintOptions(snapshot, schema, table, path, diagnostics)
 
   if (options === undefined) {
     return undefined
@@ -517,6 +563,7 @@ function printConstraint(
 function printConstraintOptions(
   constraint: SnapshotConstraint,
   schema: ResolvedSchema,
+  table: ResolvedTable,
   path: readonly (string | number)[],
   diagnostics: CodegenDiagnostic[],
 ): string | undefined {
@@ -546,6 +593,33 @@ function printConstraintOptions(
 
   if (constraint.initially !== undefined) {
     properties.push(`initially: ${literal(constraint.initially)}`)
+  }
+
+  if (constraint.validated !== undefined) {
+    properties.push(`validated: ${constraint.validated ? "true" : "false"}`)
+  }
+
+  if (
+    (constraint.kind === "primary-key" ||
+      constraint.kind === "unique" ||
+      constraint.kind === "unique-constraint") &&
+    constraint.backingIndex !== undefined
+  ) {
+    const backingIndex = table.indexes.find(
+      (index) => index.snapshot.id === constraint.backingIndex?.id,
+    )
+
+    if (backingIndex === undefined) {
+      diagnostics.push(
+        sourceError(
+          `Backing index "${constraint.backingIndex.id}" was not resolved`,
+          [...path, "backingIndex"],
+        ),
+      )
+      return undefined
+    }
+
+    properties.push(`backingIndex: ${literal(backingIndex.name)}`)
   }
 
   if (constraint.dialect !== undefined) {
@@ -580,6 +654,79 @@ function printIndex(
     `physicalName: ${literal(index.snapshot.physicalName)}`,
     `unique: ${index.snapshot.unique ? "true" : "false"}`,
   ]
+
+  if (index.snapshot.method !== undefined) {
+    options.push(`method: ${literal(index.snapshot.method)}`)
+  }
+
+  if (index.snapshot.backingConstraint !== undefined) {
+    const backingConstraint = table.constraints.find(
+      (constraint) => constraint.snapshot.id === index.snapshot.backingConstraint?.id,
+    )
+
+    if (backingConstraint === undefined) {
+      diagnostics.push(
+        sourceError(
+          `Backing constraint "${index.snapshot.backingConstraint.id}" was not resolved`,
+          [...path, "backingConstraint"],
+        ),
+      )
+      return undefined
+    }
+
+    options.push(`backingConstraint: ${literal(backingConstraint.name)}`)
+  }
+
+  const termOptions = index.snapshot.terms.map((term, termIndex) => {
+    const termPrefixLength = term.kind === "column" ? term.prefixLength : undefined
+
+    if (termPrefixLength === undefined && term.operatorClass === undefined) {
+      return "undefined"
+    }
+
+    const properties: string[] = []
+
+    if (termPrefixLength !== undefined) {
+      if (term.kind !== "column") {
+        diagnostics.push(
+          sourceError("Index prefix lengths require column terms", [
+            ...path,
+            "terms",
+            termIndex,
+            "prefixLength",
+          ]),
+        )
+        return undefined
+      }
+
+      const prefixLength = printValueFact(
+        termPrefixLength,
+        schema,
+        [...path, "terms", termIndex, "prefixLength"],
+        diagnostics,
+      )
+
+      if (prefixLength === undefined) {
+        return undefined
+      }
+
+      properties.push(`prefixLength: ${prefixLength}`)
+    }
+
+    if (term.operatorClass !== undefined) {
+      properties.push(`operatorClass: ${literal(term.operatorClass)}`)
+    }
+
+    return `{ ${properties.join(", ")} }`
+  })
+
+  if (termOptions.some((value) => value === undefined)) {
+    return undefined
+  }
+
+  if (termOptions.some((value) => value !== "undefined")) {
+    options.push(`termOptions: [${termOptions.join(", ")}]`)
+  }
 
   if (index.snapshot.predicate !== undefined) {
     const predicate = catalogExpressionData(
@@ -763,6 +910,42 @@ function printExtension(
   } }`
 }
 
+function printValueFactRecord(
+  record: Readonly<Record<string, CompleteSnapshotValueFact>>,
+  schema: ResolvedSchema,
+  path: readonly (string | number)[],
+  diagnostics: CodegenDiagnostic[],
+): string | undefined {
+  const entries: string[] = []
+
+  for (const key of Object.keys(record).sort()) {
+    const value = record[key]
+    const printed =
+      value.kind === "literal"
+        ? printSnapshotLiteral(value.value, [...path, key], diagnostics)
+        : printExpression(value.expression, schema, [...path, key, "expression"], diagnostics)
+
+    if (printed === undefined) {
+      return undefined
+    }
+
+    entries.push(`[${literal(key)}]: ${printed}`)
+  }
+
+  return entries.length === 0 ? "{}" : `{ ${entries.join(", ")} }`
+}
+
+function printValueFact(
+  value: CompleteSnapshotValueFact,
+  schema: ResolvedSchema,
+  path: readonly (string | number)[],
+  diagnostics: CodegenDiagnostic[],
+): string | undefined {
+  return value.kind === "literal"
+    ? printSnapshotLiteral(value.value, path, diagnostics)
+    : printExpression(value.expression, schema, [...path, "expression"], diagnostics)
+}
+
 function printSnapshotLiteral(
   value: SnapshotLiteral,
   path: readonly (string | number)[],
@@ -790,7 +973,7 @@ function printSnapshotLiteral(
 
       if (!Number.isFinite(number)) {
         diagnostics.push(
-          sourceError("Default number literals must be finite", [...path, "default"]),
+          sourceError("Number literals must be finite", path),
         )
         return undefined
       }

@@ -56,6 +56,16 @@ const _AccountEntriesDefinitions = {
       default: 0,
     }
   ),
+  status: _catalogColumn<unknown, unknown, unknown, _qubu.SqlText>()(
+    'postgresql',
+    'text',
+    {
+      nullable: false,
+      sqlName: 'status',
+      dialect: { dialect: 'postgresql', ['collation']: 'C' },
+      default: 'pending',
+    }
+  ),
   slug: _catalogColumn<unknown, unknown, unknown, _qubu.SqlText>()(
     'postgresql',
     'text',
@@ -66,15 +76,6 @@ const _AccountEntriesDefinitions = {
         _qubu.unsafeSchemaSql({ dialect: 'postgresql', sql: 'lower(status)' }),
         'stored'
       ),
-    }
-  ),
-  status: _catalogColumn<unknown, unknown, unknown, _qubu.SqlText>()(
-    'postgresql',
-    'text',
-    {
-      nullable: false,
-      sqlName: 'status',
-      default: 'pending',
     }
   ),
   updatedAt: _catalogColumn<unknown, unknown, unknown, _qubu.SqlTimestamp>()(
@@ -116,6 +117,14 @@ type _AccountEntriesConstraints = {
 }
 
 type _AccountEntriesIndexes = {
+  readonly accountEntriesPkey: {
+    readonly kind: 'index'
+    readonly terms: readonly [_AccountEntriesColumns['id']]
+    readonly unique: true
+    readonly candidateKey: true
+    readonly predicate: undefined
+    readonly includedColumns?: undefined
+  }
   readonly accountEntriesSearchIdx: {
     readonly kind: 'index'
     readonly terms: readonly [
@@ -153,18 +162,26 @@ export const accountEntries: _AccountEntriesTable = _qubu.table(
           match: 'full',
           deferrable: true,
           initially: 'deferred',
+          validated: false,
           dialect: { dialect: 'postgresql', ['notValid']: true },
         }
       ),
       accountEntriesParentKey: _qubu.uniqueConstraint(
         _current.columns['parentId'],
-        { physicalName: 'account_entries_parent_key', nulls: 'distinct' }
+        {
+          physicalName: 'account_entries_parent_key',
+          nulls: 'distinct',
+          validated: true,
+        }
       ),
       accountEntriesPkey: _qubu.primaryKey(_current.columns['id'], {
         physicalName: 'account_entries_pkey',
+        validated: true,
+        backingIndex: 'accountEntriesPkey',
       }),
       accountEntriesSlugKey: _qubu.unique(_current.columns['slug'], {
         physicalName: 'account_entries_slug_key',
+        validated: false,
       }),
       accountEntriesStatusCheck: _qubu.catalogCheck(
         {
@@ -175,6 +192,12 @@ export const accountEntries: _AccountEntriesTable = _qubu.table(
       ),
     },
     indexes: {
+      accountEntriesPkey: _qubu.index([_current.columns['id']], {
+        physicalName: 'account_entries_pkey',
+        unique: true,
+        method: 'btree',
+        backingConstraint: 'accountEntriesPkey',
+      }),
       accountEntriesSearchIdx: _qubu.index(
         [
           _qubu.order(_current.columns['parentId'], 'DESC', 'FIRST'),
@@ -186,6 +209,10 @@ export const accountEntries: _AccountEntriesTable = _qubu.table(
         {
           physicalName: 'account_entries_search_idx',
           unique: false,
+          termOptions: [
+            { prefixLength: 4, operatorClass: 'int4_ops' },
+            undefined,
+          ],
           where: _catalogPredicate({
             dialect: 'postgresql',
             sql: 'parent_id IS NOT NULL',
@@ -195,6 +222,7 @@ export const accountEntries: _AccountEntriesTable = _qubu.table(
         }
       ),
     },
+    dialect: { dialect: 'postgresql', ['rowSecurity']: true },
   })
 )
 
@@ -206,6 +234,7 @@ const _ParentRecordsDefinitions = {
       nullable: false,
       sqlName: 'id',
       identity: _qubu.identityColumn('always', {
+        options: { ['start']: 7 },
         dialect: { dialect: 'postgresql', ['sequenceOwned']: true },
       }),
     }

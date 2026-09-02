@@ -351,6 +351,62 @@ test("maps constraints and ordered index terms to Snapshot v1", () => {
   ])
 })
 
+test("uses mapped column IDs for index candidate keys and physical names for constraints", () => {
+  const result = mapCatalogToSnapshot(
+    catalog(
+      [
+        column("account-id", "id", 1),
+        column("nullable-code", "code", 2, { nullable: true }),
+      ],
+      [
+        {
+          kind: "unique",
+          id: "accounts_code_key",
+          identitySource: "physical-name",
+          physicalName: "accounts_code_key",
+          columns: ["code"],
+          nulls: "distinct",
+        },
+      ],
+      [
+        {
+          kind: "index",
+          id: "accounts_id_idx",
+          identitySource: "physical-name",
+          physicalName: "accounts_id_idx",
+          unique: true,
+          terms: [
+            {
+              kind: "column",
+              column: "id",
+              position: 1,
+            },
+          ],
+        },
+      ],
+    ),
+    { namespace: "public" },
+  )
+
+  expect(result.ok).toBe(true)
+  if (!result.ok) {
+    return
+  }
+
+  expect(result.snapshot.tables[0]?.indexes).toEqual([
+    expect.objectContaining({
+      candidateKey: true,
+      terms: [expect.objectContaining({ column: "account-id" })],
+    }),
+  ])
+  expect(result.snapshot.tables[0]?.constraints).toEqual([
+    expect.objectContaining({
+      kind: "unique-constraint",
+      columns: ["nullable-code"],
+    }),
+  ])
+})
+
 test("rejects unresolved foreign-key references in strict mode", () => {
   const constraint: CatalogConstraint = {
     kind: "foreign-key",

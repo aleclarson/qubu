@@ -1,6 +1,6 @@
 import type { HasAggregate, HasSubquery, HasWindow, OutputOf } from "../core/fragment.ts"
 import type { ColumnReference } from "../expressions/column.ts"
-import type { AnyExpression } from "../expressions/types.ts"
+import type { AnyExpression, AnySchemaExpression } from "../expressions/types.ts"
 import type { OrderTerm } from "../query/clauses/order-by.ts"
 import type { DeclaredColumnNullabilityOf } from "./column-nullability.ts"
 import type {
@@ -8,9 +8,16 @@ import type {
   SchemaObjectIdentity,
   SchemaObjectNameOptions,
 } from "./metadata.ts"
+import type { SchemaLiteralValue } from "./column-behavior.ts"
 import { dialectMismatchDiagnostic, freezeSchemaMetadata } from "./metadata.ts"
 
 export type IndexTerm = AnyExpression | OrderTerm<any>
+
+/** Additional physical facts attached to one index term. */
+export interface IndexTermOptions {
+  readonly prefixLength?: SchemaLiteralValue | AnySchemaExpression
+  readonly operatorClass?: string
+}
 
 /** PostgreSQL-specific index method and storage metadata. */
 export interface PostgresIndexExtension extends SchemaDialectExtension<"postgresql"> {
@@ -51,6 +58,12 @@ export interface IndexOptions<
   readonly include?: readonly ColumnReference<string, any>[]
   /** Typed engine-specific index options. */
   readonly dialect?: TExtension
+  /** Exact engine index method, when it is not dialect-extension data. */
+  readonly method?: string
+  /** Physical backing constraint name, when the engine exposes one. */
+  readonly backingConstraint?: string
+  /** Prefix lengths and operator classes aligned with the terms array. */
+  readonly termOptions?: readonly (IndexTermOptions | undefined)[]
 }
 
 type IndexTermExpression<TTerm> = TTerm extends OrderTerm<any> ? TTerm["expression"] : TTerm
@@ -108,26 +121,24 @@ type PredicatePresence<TOptions> = [Exclude<PredicateOption<TOptions>, undefined
     ? boolean
     : true
 
+type HasTermOptions<TOptions> = "termOptions" extends keyof TOptions ? true : false
+
 type IsCandidateKey<TTerms extends readonly IndexTerm[], TOptions extends IndexOptions<any>> =
-  UniqueOption<TOptions> extends infer TUnique
-    ? PredicatePresence<TOptions> extends infer THasPredicate
-      ? AllEligibleColumns<TTerms> extends infer TEligible
-        ? TUnique extends false
+  HasTermOptions<TOptions> extends true
+    ? false
+    : UniqueOption<TOptions> extends false
+      ? false
+      : PredicatePresence<TOptions> extends true
+        ? false
+        : AllEligibleColumns<TTerms> extends false
           ? false
-          : THasPredicate extends true
-            ? false
-            : TEligible extends false
-              ? false
-              : TUnique extends true
-                ? THasPredicate extends false
-                  ? TEligible extends true
-                    ? true
-                    : boolean
-                  : boolean
+          : UniqueOption<TOptions> extends true
+            ? PredicatePresence<TOptions> extends false
+              ? AllEligibleColumns<TTerms> extends true
+                ? true
                 : boolean
-        : false
-      : false
-    : false
+              : boolean
+            : boolean
 
 /** Portable index metadata retained by a table and its aliases. */
 export interface TableIndex<
@@ -144,6 +155,11 @@ export interface TableIndex<
     ? TIncluded
     : undefined
   readonly dialect?: DialectOption<TOptions>
+  readonly method?: "method" extends keyof TOptions ? TOptions["method"] : undefined
+  readonly backingConstraint?: "backingConstraint" extends keyof TOptions
+    ? TOptions["backingConstraint"]
+    : undefined
+  readonly termOptions?: "termOptions" extends keyof TOptions ? TOptions["termOptions"] : undefined
   readonly candidateKey: IsCandidateKey<TTerms, TOptions>
 }
 
@@ -155,6 +171,9 @@ export interface SourceIndex {
   readonly predicate: AnyExpression | undefined
   readonly includedColumns?: readonly ColumnReference<string, any>[]
   readonly dialect?: IndexDialectExtension
+  readonly method?: string
+  readonly backingConstraint?: string
+  readonly termOptions?: readonly (IndexTermOptions | undefined)[]
   readonly candidateKey: boolean
 }
 
@@ -252,6 +271,7 @@ export function index<
   const candidateKey =
     resolvedOptions.unique === true &&
     resolvedOptions.where === undefined &&
+    resolvedOptions.termOptions === undefined &&
     terms.every((term) => {
       const expression = "orderKind" in term ? term.expression : term
 
@@ -274,6 +294,19 @@ export function index<
     ...(resolvedOptions.dialect !== undefined
       ? { dialect: freezeSchemaMetadata(resolvedOptions.dialect) }
       : {}),
+    ...(resolvedOptions.method === undefined ? {} : { method: resolvedOptions.method }),
+    ...(resolvedOptions.backingConstraint === undefined
+      ? {}
+      : { backingConstraint: resolvedOptions.backingConstraint }),
+    ...(resolvedOptions.termOptions === undefined
+      ? {}
+      : {
+          termOptions: Object.freeze(
+            resolvedOptions.termOptions.map((term) =>
+              term === undefined ? undefined : Object.freeze({ ...term }),
+            ),
+          ),
+        }),
     candidateKey,
   }) as unknown as TableIndex<TTerms, TOptions>
 }

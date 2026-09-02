@@ -37,7 +37,7 @@ import type {
   SourceConstraintsRecord,
 } from "./constraints.ts"
 import type { IndexTerm, SourceIndexesRecord } from "./indexes.ts"
-import { materializeSchemaObjectRecord } from "./metadata.ts"
+import { materializeSchemaObjectRecord, type SchemaDialectExtension } from "./metadata.ts"
 import {
   createSource,
   exposeColumns,
@@ -53,6 +53,7 @@ export type AnyTable = Source<any> & {
   readonly definitions: TableDefinitions
   /** Application field keys mapped to physical SQL column names. */
   readonly sqlNames: Readonly<Record<string, string>>
+  readonly dialect?: SchemaDialectExtension
 }
 
 export type TableRow<TDefinitions extends TableDefinitions> = {
@@ -123,6 +124,7 @@ export type Table<
   readonly columns: TableColumns<TDefinitions, TableIdentity<TName>>
   readonly constraints: TConstraints
   readonly indexes: TIndexes
+  readonly dialect?: SchemaDialectExtension
 } & TableColumns<TDefinitions, TableIdentity<TName>>
 
 /** Schema metadata that applies to a table as a relation. */
@@ -132,6 +134,7 @@ export interface TableOptions<
 > {
   readonly constraints: TConstraints
   readonly indexes: TIndexes
+  readonly dialect?: SchemaDialectExtension
 }
 
 type ConstraintColumns<TConstraint> = TConstraint extends
@@ -428,6 +431,7 @@ export function table<
       const candidateKey =
         tableIndex.unique &&
         tableIndex.predicate === undefined &&
+        tableIndex.termOptions === undefined &&
         tableIndex.terms.every((term: IndexTerm) => {
           const expression = "orderKind" in term ? term.expression : term
 

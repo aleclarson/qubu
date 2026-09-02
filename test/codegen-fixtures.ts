@@ -42,6 +42,7 @@ const table = (
   columns: readonly CatalogColumn[],
   constraints: readonly CatalogConstraint[],
   indexes: readonly CatalogIndex[] = [],
+  facts: Partial<CatalogTable> = {},
 ): CatalogTable => ({
   kind: "table",
   id: physicalName,
@@ -50,6 +51,7 @@ const table = (
   columns,
   constraints,
   indexes,
+  ...facts,
 })
 
 const parentRecords = table(
@@ -59,7 +61,9 @@ const parentRecords = table(
       identity: {
         kind: "identity",
         generation: "always",
-        options: {},
+        options: {
+          start: { kind: "literal", value: 7 },
+        },
         dialect: {
           dialect,
           version: 1,
@@ -91,6 +95,11 @@ const accountEntries = table(
       },
     }),
     column("status", 3, "text", {
+      dialect: {
+        dialect,
+        version: 1,
+        data: { collation: "C" },
+      },
       default: {
         kind: "literal",
         value: "pending",
@@ -117,6 +126,11 @@ const accountEntries = table(
       identitySource: "physical-name",
       physicalName: "account_entries_pkey",
       columns: ["id"],
+      backingIndex: {
+        kind: "index",
+        id: "account_entries_pkey",
+      },
+      validated: true,
     },
     {
       kind: "unique",
@@ -125,6 +139,7 @@ const accountEntries = table(
       physicalName: "account_entries_slug_key",
       columns: ["slug"],
       nulls: "distinct",
+      validated: false,
     },
     {
       kind: "unique",
@@ -133,6 +148,7 @@ const accountEntries = table(
       physicalName: "account_entries_parent_key",
       columns: ["parent_id"],
       nulls: "distinct",
+      validated: true,
     },
     {
       kind: "foreign-key",
@@ -154,6 +170,7 @@ const accountEntries = table(
         version: 1,
         data: { notValid: true },
       },
+      validated: false,
     },
     {
       kind: "check",
@@ -177,6 +194,8 @@ const accountEntries = table(
           position: 1,
           direction: "DESC",
           nulls: "FIRST",
+          prefixLength: { kind: "literal", value: 4 },
+          operatorClass: "int4_ops",
         },
         {
           kind: "expression",
@@ -192,7 +211,33 @@ const accountEntries = table(
         data: { method: "btree" },
       },
     },
+    {
+      kind: "index",
+      id: "account_entries_pkey",
+      identitySource: "physical-name",
+      physicalName: "account_entries_pkey",
+      unique: true,
+      terms: [
+        {
+          kind: "column",
+          column: "id",
+          position: 1,
+        },
+      ],
+      method: "btree",
+      backingConstraint: {
+        kind: "constraint",
+        id: "account_entries_pkey",
+      },
+    },
   ],
+  {
+    dialect: {
+      dialect,
+      version: 1,
+      data: { rowSecurity: true },
+    },
+  },
 )
 
 export const codegenCatalog: IntrospectionCatalog = {
@@ -218,23 +263,8 @@ export const codegenCatalog: IntrospectionCatalog = {
     name: "app_data",
   },
   tables: [parentRecords, accountEntries],
-  deferredObjects: [
-    {
-      kind: "deferred-object",
-      objectKind: "view",
-      id: "account_summary",
-      identitySource: "physical-name",
-      physicalName: "account_summary",
-    },
-  ],
-  diagnostics: [
-    {
-      severity: "warning",
-      code: "unmodeled-object",
-      message: "A view remains outside the ordinary table surface",
-      path: ["deferredObjects", 0],
-    },
-  ],
+  deferredObjects: [],
+  diagnostics: [],
 }
 
 const result = mapCatalogToSnapshot(codegenCatalog, {
