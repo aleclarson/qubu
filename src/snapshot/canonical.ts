@@ -94,10 +94,10 @@ export function toSnapshotJsonValue(
     const result: Record<string, SnapshotJsonValue> = {}
 
     for (const key of Object.keys(value).sort()) {
-      result[key] = toSnapshotJsonValue(
-        (value as Record<string, unknown>)[key],
-        [...path, key],
-        seen,
+      setOwn(
+        result,
+        key,
+        toSnapshotJsonValue((value as Record<string, unknown>)[key], [...path, key], seen),
       )
     }
 
@@ -195,4 +195,13 @@ function isBigInt(value: object): value is SnapshotBigInt {
     "$bigint" in value &&
     typeof (value as { readonly $bigint?: unknown }).$bigint === "string"
   )
+}
+
+function setOwn<T>(target: Record<string, T>, key: string, value: T): void {
+  Object.defineProperty(target, key, {
+    configurable: true,
+    enumerable: true,
+    value,
+    writable: true,
+  })
 }

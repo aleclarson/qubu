@@ -141,6 +141,355 @@ test("encodes and decodes complete immutable object families", () => {
   }
 })
 
+test("checks dialect provenance and native metadata throughout typed nested fields", () => {
+  const malformed = JSON.parse(encodeCompleteSchemaSnapshot(completeSnapshot())) as {
+    tables: Array<{
+      columns: Array<Record<string, unknown>>
+      constraints: Array<Record<string, unknown>>
+      indexes: Array<Record<string, unknown>>
+    }>
+    domains: Array<Record<string, unknown>>
+    enums: Array<Record<string, unknown>>
+  }
+  const column = malformed.tables[0]!.columns[0]!
+
+  column.provenance = { kind: "catalog", dialect: "mysql" }
+  column.dialect = { dialect: "mysql", version: 1, data: {} }
+  column.storage = { kind: "native", dialect: "mysql", type: "integer" }
+  column.identity = {
+    kind: "identity",
+    generation: "always",
+    options: {},
+    provenance: { kind: "catalog", dialect: "mysql" },
+  }
+  column.onUpdate = {
+    kind: "expression",
+    expressionKind: "unsafe",
+    sql: "CURRENT_TIMESTAMP",
+    dialect: "mysql",
+  }
+  malformed.tables[0]!.constraints[0]!.provenance = {
+    kind: "catalog",
+    dialect: "mysql",
+  }
+  malformed.tables[0]!.indexes.push({
+    kind: "index",
+    id: "accounts_index",
+    physicalName: "accounts_index",
+    terms: [
+      {
+        kind: "expression",
+        expression: {
+          kind: "expression",
+          expressionKind: "unsafe",
+          sql: "lower(id)",
+          dialect: "mysql",
+        },
+        position: 1,
+      },
+    ],
+    unique: false,
+    candidateKey: false,
+  })
+  malformed.domains.push({
+    kind: "domain",
+    id: "account_id",
+    physicalName: "account_id",
+    storage: { kind: "native", dialect: "mysql", type: "integer" },
+    constraints: [
+      {
+        kind: "check",
+        id: "account_id_positive",
+        physicalName: "account_id_positive",
+        expression: {
+          kind: "expression",
+          expressionKind: "unsafe",
+          sql: "VALUE > 0",
+          dialect: "mysql",
+        },
+        provenance: { kind: "catalog", dialect: "mysql" },
+      },
+    ],
+  })
+  malformed.enums.push({
+    kind: "enum",
+    id: "account_status",
+    physicalName: "account_status",
+    values: [
+      {
+        value: "active",
+        ordinalPosition: 1,
+        provenance: { kind: "catalog", dialect: "mysql" },
+      },
+    ],
+  })
+
+  const result = decodeCompleteSchemaSnapshot(malformed)
+
+  expect(result.ok).toBe(false)
+  if (!result.ok) {
+    const mismatchPaths = result.diagnostics
+      .filter((diagnostic) => diagnostic.code === "dialect-mismatch")
+      .map((diagnostic) => JSON.stringify(diagnostic.path))
+
+    expect(mismatchPaths).toEqual(
+      expect.arrayContaining([
+        '["tables",0,"columns",0,"provenance","dialect"]',
+        '["tables",0,"columns",0,"dialect","dialect"]',
+        '["tables",0,"columns",0,"storage","dialect"]',
+        '["tables",0,"columns",0,"identity","provenance","dialect"]',
+        '["tables",0,"columns",0,"onUpdate","dialect"]',
+        '["tables",0,"constraints",0,"provenance","dialect"]',
+        '["tables",0,"indexes",0,"terms",0,"expression","dialect"]',
+        '["domains",0,"storage","dialect"]',
+        '["domains",0,"constraints",0,"expression","dialect"]',
+        '["domains",0,"constraints",0,"provenance","dialect"]',
+        '["enums",0,"values",0,"provenance","dialect"]',
+      ]),
+    )
+  }
+})
+
+test("resolves nested references by owner scope and rejects incorrect local scope", () => {
+  const candidate = JSON.parse(encodeCompleteSchemaSnapshot(completeSnapshot())) as {
+    tables: Array<{
+      id: string
+      physicalName: string
+      columns: Array<Record<string, unknown>>
+      constraints: Array<Record<string, unknown>>
+      indexes: Array<Record<string, unknown>>
+      [key: string]: unknown
+    }>
+    comments: Array<Record<string, unknown>>
+  }
+  const accounts = candidate.tables[0]!
+  const sharedIndex = {
+    kind: "index",
+    id: "shared_index",
+    physicalName: "shared_index",
+    terms: [{ kind: "column", column: "id", position: 1 }],
+    unique: false,
+    candidateKey: false,
+  }
+
+  accounts.indexes = [sharedIndex]
+  accounts.constraints[0]!.backingIndex = {
+    kind: "index",
+    id: "shared_index",
+    owner: { kind: "table", id: "accounts" },
+  }
+  candidate.tables.push({
+    ...accounts,
+    id: "users",
+    physicalName: "users",
+    constraints: [],
+    indexes: [{ ...sharedIndex }],
+  })
+  candidate.comments.push({
+    kind: "comment",
+    id: "column_comment",
+    physicalName: "column_comment",
+    object: {
+      kind: "column",
+      id: "id",
+      owner: { kind: "table", id: "accounts" },
+    },
+    text: "Account identifier",
+  })
+
+  const valid = decodeCompleteSchemaSnapshot(candidate)
+
+  expect(valid.ok).toBe(true)
+  if (!valid.ok) {
+    return
+  }
+
+  const wrongScope = JSON.parse(encodeCompleteSchemaSnapshot(valid.value)) as {
+    tables: Array<{ constraints: Array<Record<string, unknown>> }>
+  }
+  const backingIndex = wrongScope.tables[0]!.constraints[0]!.backingIndex as Record<string, unknown>
+  ;(backingIndex.owner as Record<string, unknown>).id = "users"
+
+  const wrongScopeResult = decodeCompleteSchemaSnapshot(wrongScope)
+
+  expect(wrongScopeResult.ok).toBe(false)
+  if (!wrongScopeResult.ok) {
+    expect(
+      wrongScopeResult.diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "invalid-cross-reference" && diagnostic.path.includes("owner"),
+      ),
+    ).toBe(true)
+  }
+
+  const missingScope = JSON.parse(encodeCompleteSchemaSnapshot(valid.value)) as {
+    tables: Array<{ constraints: Array<Record<string, unknown>> }>
+  }
+  const missingOwnerReference = missingScope.tables[0]!.constraints[0]!.backingIndex as Record<
+    string,
+    unknown
+  >
+  delete missingOwnerReference.owner
+
+  const missingScopeResult = decodeCompleteSchemaSnapshot(missingScope)
+
+  expect(missingScopeResult.ok).toBe(false)
+  if (!missingScopeResult.ok) {
+    expect(
+      missingScopeResult.diagnostics.some(
+        (diagnostic) =>
+          diagnostic.code === "invalid-cross-reference" &&
+          diagnostic.message.includes("owner scope"),
+      ),
+    ).toBe(true)
+  }
+
+  const duplicate = JSON.parse(encodeCompleteSchemaSnapshot(valid.value)) as {
+    tables: Array<{ indexes: Array<Record<string, unknown>> }>
+  }
+  duplicate.tables[0]!.indexes.push({ ...duplicate.tables[0]!.indexes[0]! })
+
+  const duplicateResult = decodeCompleteSchemaSnapshot(duplicate)
+
+  expect(duplicateResult.ok).toBe(false)
+  if (!duplicateResult.ok) {
+    expect(
+      duplicateResult.diagnostics.some(
+        (diagnostic) => diagnostic.code === "invalid-cross-reference",
+      ),
+    ).toBe(true)
+  }
+})
+
+test("sorts and scopes domain constraints while retaining their metadata", () => {
+  const candidate = JSON.parse(encodeCompleteSchemaSnapshot(completeSnapshot())) as {
+    domains: Array<Record<string, unknown>>
+    comments: Array<Record<string, unknown>>
+  }
+  const constraints = [
+    {
+      kind: "check",
+      id: "domain_check_a",
+      physicalName: "domain_check_a",
+      expression: { kind: "expression", expressionKind: "portable", sql: "VALUE IS NOT NULL" },
+      provenance: { kind: "catalog", dialect: "postgresql" },
+    },
+    {
+      kind: "check",
+      id: "domain_check_b",
+      physicalName: "domain_check_b",
+      expression: { kind: "expression", expressionKind: "portable", sql: "VALUE > 0" },
+    },
+  ]
+
+  candidate.domains.push({
+    kind: "domain",
+    id: "account_id",
+    physicalName: "account_id",
+    storage: { kind: "native", dialect: "postgresql", type: "integer" },
+    constraints,
+  })
+  candidate.comments.push({
+    kind: "comment",
+    id: "domain_constraint_comment",
+    physicalName: "domain_constraint_comment",
+    object: {
+      kind: "constraint",
+      id: "domain_check_a",
+      owner: { kind: "domain", id: "account_id" },
+    },
+    text: "Domain check",
+  })
+
+  const valid = decodeCompleteSchemaSnapshot(candidate)
+
+  expect(valid.ok).toBe(true)
+  if (!valid.ok) {
+    return
+  }
+
+  expect(valid.value.domains[0]?.constraints?.[0]?.provenance).toEqual({
+    kind: "catalog",
+    dialect: "postgresql",
+  })
+
+  const reversed = JSON.parse(encodeCompleteSchemaSnapshot(valid.value)) as {
+    domains: Array<{ constraints?: Array<Record<string, unknown>> }>
+  }
+  reversed.domains[0]!.constraints!.reverse()
+
+  const reversedResult = decodeCompleteSchemaSnapshot(reversed)
+
+  expect(reversedResult.ok).toBe(false)
+  if (!reversedResult.ok) {
+    expect(
+      reversedResult.diagnostics.some((diagnostic) => diagnostic.code === "non-canonical"),
+    ).toBe(true)
+  }
+})
+
+test("accepts negative fractional literals but rejects negative zero and leading-zero forms", () => {
+  const withDefault = (): {
+    tables: Array<{ columns: Array<Record<string, unknown>> }>
+  } => JSON.parse(encodeCompleteSchemaSnapshot(completeSnapshot()))
+
+  const accepted = withDefault()
+  accepted.tables[0]!.columns[0]!.hasDefault = true
+  accepted.tables[0]!.columns[0]!.default = {
+    kind: "literal",
+    value: { kind: "number", value: "-0.5" },
+  }
+
+  expect(decodeCompleteSchemaSnapshot(accepted).ok).toBe(true)
+
+  for (const value of ["-0", "01", "1e01"]) {
+    const malformed = withDefault()
+    malformed.tables[0]!.columns[0]!.hasDefault = true
+    malformed.tables[0]!.columns[0]!.default = {
+      kind: "literal",
+      value: { kind: "number", value },
+    }
+
+    expect(decodeCompleteSchemaSnapshot(malformed).ok).toBe(false)
+  }
+})
+
+test("preserves own __proto__ payload keys and ignores opaque dialect-shaped JSON", () => {
+  const data = JSON.parse('{"__proto__":{"kind":"expression","dialect":"mysql"}}') as Record<
+    string,
+    unknown
+  >
+  const candidate = JSON.parse(encodeCompleteSchemaSnapshot(completeSnapshot())) as {
+    extensions: Array<Record<string, unknown>>
+  }
+
+  candidate.extensions.push({
+    kind: "extension",
+    id: "payload_extension",
+    physicalName: "payload_extension",
+    extensionName: "payload_extension",
+    data,
+    configuration: { kind: "expression", dialect: "mysql" },
+  })
+
+  const result = decodeCompleteSchemaSnapshot(candidate)
+
+  expect(result.ok).toBe(true)
+  if (!result.ok) {
+    return
+  }
+
+  const normalizedData = result.value.extensions[0]!.data as Record<string, unknown>
+  expect(Object.prototype.hasOwnProperty.call(normalizedData, "__proto__")).toBe(true)
+  expect(normalizedData["__proto__"]).toEqual({ kind: "expression", dialect: "mysql" })
+
+  const encoded = encodeCompleteSchemaSnapshot(result.value)
+  const decoded = decodeCompleteSchemaSnapshot(encoded)
+
+  expect(decoded.ok).toBe(true)
+  expect(encoded).toContain('"__proto__":{"dialect":"mysql","kind":"expression"}')
+})
+
 test("rejects unknown fields, future versions, and broken references", () => {
   const unknown = JSON.parse(encodeCompleteSchemaSnapshot(completeSnapshot())) as Record<
     string,

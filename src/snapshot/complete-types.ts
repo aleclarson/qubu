@@ -47,10 +47,21 @@ export type CompleteSnapshotObjectKind =
   | "deferred-object"
   | "opaque-object"
 
+/** Object families that can own nested complete snapshot objects. */
+export type CompleteSnapshotObjectOwnerKind = "table" | "view" | "materialized-view" | "domain"
+
+/** A non-recursive owner scope for a nested complete snapshot object. */
+export interface CompleteSnapshotObjectOwner {
+  readonly kind: CompleteSnapshotObjectOwnerKind
+  readonly id: string
+}
+
 /** A stable logical object reference used by complete snapshot relations. */
 export interface CompleteSnapshotObjectReference {
   readonly kind: Exclude<CompleteSnapshotObjectKind, "namespace">
   readonly id: string
+  /** Required when the target is a nested column, constraint, or index. */
+  readonly owner?: CompleteSnapshotObjectOwner
 }
 
 /** Source evidence retained without persisting a database catalog key. */
@@ -306,6 +317,7 @@ export interface CompleteSnapshotRoutineParameter {
   readonly storage: SnapshotStorage
   readonly default?: CompleteSnapshotValueFact
   readonly ordinalPosition: number
+  readonly provenance?: CompleteSnapshotProvenance
 }
 
 /** Function, procedure, aggregate, or window routine declaration. */

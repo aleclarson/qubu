@@ -17,6 +17,7 @@ import type {
   CatalogIndexTerm,
   CatalogLiteralFact,
   CatalogObjectReference,
+  CatalogObjectOwner,
   CatalogOpaqueObject,
   CatalogPartition,
   CatalogPolicy,
@@ -197,11 +198,16 @@ export async function readCatalog(
     const indexOid = text(row.index_oid)
     const physicalName = text(row.physical_name)
 
+    const ownerTable = tableByOid.get(text(row.table_oid))
+
     if (indexOid && physicalName) {
       indexReferences.set(`pg_class:${indexOid}`, {
         kind: "index",
         id: stableId(physicalName),
         physicalName,
+        ...(ownerTable === undefined
+          ? {}
+          : { owner: { kind: "table" as const, id: ownerTable.id } }),
         reference: reference(
           "index",
           physicalName,
@@ -1121,6 +1127,7 @@ interface CatalogEntityRecord {
   readonly kind: CatalogObjectReference["kind"]
   readonly id: string
   readonly physicalName: string
+  readonly owner?: CatalogObjectOwner
   readonly reference?: CatalogReference
 }
 
@@ -2658,6 +2665,10 @@ function constraint(
     ? ({
         kind: "index",
         id: backing.id,
+        owner: {
+          kind: "table",
+          id: table.id,
+        },
       } satisfies CatalogObjectReference)
     : undefined
 
@@ -3089,6 +3100,7 @@ function mapMetadataRows(
         {
           kind: "index",
           id: index.id,
+          ...(index.owner === undefined ? {} : { owner: index.owner }),
         },
         index.physicalName,
         index.reference,
@@ -3216,6 +3228,10 @@ function mapMetadataRows(
           object: {
             kind: "constraint",
             id: constraint.id,
+            owner: {
+              kind: "table",
+              id: table.id,
+            },
           },
           reference: constraint.reference,
           physicalName: constraint.physicalName ?? constraint.id,
@@ -3231,6 +3247,10 @@ function mapMetadataRows(
           object: {
             kind: "constraint",
             id: constraint.id,
+            owner: {
+              kind: "domain",
+              id: domain.id,
+            },
           },
           reference: constraint.reference,
           physicalName: constraint.physicalName ?? constraint.id,
@@ -3297,7 +3317,7 @@ function mapMetadataRows(
     if (description !== undefined) {
       comments.push({
         kind: "comment",
-        id: stableId(`${target.object.kind}_${target.object.id}_comment`),
+        id: metadataId(target.object, "comment"),
         object: target.object,
         text: description,
         reference: target.reference,
@@ -3314,7 +3334,7 @@ function mapMetadataRows(
     if (owner !== undefined) {
       ownership.push({
         kind: "ownership",
-        id: stableId(`${target.object.kind}_${target.object.id}_ownership`),
+        id: metadataId(target.object, "ownership"),
         object: target.object,
         owner,
         reference: target.reference,
@@ -3351,6 +3371,10 @@ function addNestedColumns(
       object: {
         kind: "column",
         id: column.id,
+        owner: {
+          kind: owner.kind,
+          id: owner.id,
+        },
       },
       reference:
         column.reference ??
@@ -3362,6 +3386,13 @@ function addNestedColumns(
 
 function metadataKey(relation: string, oid: unknown, subid: unknown): string {
   return `${relation}:${text(oid) ?? "unknown"}:${number(subid) ?? 0}`
+}
+
+function metadataId(object: CatalogObjectReference, suffix: "comment" | "ownership"): string {
+  const owner = object.owner
+  const ownerPrefix = owner === undefined ? "" : `${owner.kind}_${owner.id}_`
+
+  return stableId(`${ownerPrefix}${object.kind}_${object.id}_${suffix}`)
 }
 
 function indexTermOptions(

@@ -614,6 +614,10 @@ export async function readCatalog(
             {
               kind: "column",
               id: currentColumn.id,
+              owner: {
+                kind: "table",
+                id: currentTable.id,
+              },
             },
             columnComment,
             currentColumn.reference,
@@ -656,6 +660,10 @@ export async function readCatalog(
             {
               kind: "column",
               id: currentColumn.id,
+              owner: {
+                kind: view.kind,
+                id: view.id,
+              },
             },
             columnComment,
             currentColumn.reference,
@@ -1849,7 +1857,7 @@ function objectComment(
 ): CatalogComment {
   return {
     kind: "comment",
-    id: stableId(`${object.kind}_${object.id}_comment`),
+    id: metadataId(object, "comment"),
     object,
     text: comment,
     reference: physicalReference,
@@ -1860,6 +1868,13 @@ function objectComment(
       path: ["namespace", namespace],
     },
   }
+}
+
+function metadataId(object: CatalogObjectReference, suffix: "comment"): string {
+  const owner = object.owner
+  const ownerPrefix = owner === undefined ? "" : `${owner.kind}_${owner.id}_`
+
+  return stableId(`${ownerPrefix}${object.kind}_${object.id}_${suffix}`)
 }
 
 function groupRows<Row>(rows: readonly Row[], keyOf: (row: Row) => string): Row[][] {

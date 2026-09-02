@@ -108,10 +108,20 @@ export interface CatalogUnknownField {
   readonly provenance?: CatalogProvenance
 }
 
+/** Object families that can own nested normalized catalog objects. */
+export type CatalogObjectOwnerKind = "table" | "view" | "materialized-view" | "domain"
+
+/** A non-recursive owner scope for a nested normalized catalog object. */
+export interface CatalogObjectOwner {
+  readonly kind: CatalogObjectOwnerKind
+  readonly id: string
+}
+
 /** A reference to an object in the normalized catalog. */
 export interface CatalogObjectReference {
   readonly kind: Exclude<CatalogEntityKind, "namespace">
   readonly id: string
+  readonly owner?: CatalogObjectOwner
 }
 
 /** A comment observed for a physical catalog object. */
@@ -243,6 +253,8 @@ export interface CatalogNamespace {
 export interface CatalogEntityReference {
   readonly kind: Exclude<CatalogEntityKind, "namespace" | "deferred-object">
   readonly id: string
+  readonly owner?: CatalogObjectOwner
+  /** Existing table-local scope input, translated to `owner` by the mapper. */
   readonly tableId?: string
 }
 

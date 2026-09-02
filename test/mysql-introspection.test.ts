@@ -188,7 +188,7 @@ function completeConnection() {
           generation_expression: null,
           character_set_name: null,
           collation_name: null,
-          column_comment: "",
+          column_comment: "Customer identifier",
         },
         {
           table_name: "order_view",
@@ -827,6 +827,17 @@ test("normalizes complete MySQL object families, retains boundaries, and maps Sn
     expect.arrayContaining([
       expect.objectContaining({ text: "Order records" }),
       expect.objectContaining({ text: "Primary order identifier" }),
+      expect.objectContaining({
+        object: {
+          kind: "column",
+          id: "id",
+          owner: {
+            kind: "table",
+            id: "customers",
+          },
+        },
+        text: "Customer identifier",
+      }),
       expect.objectContaining({ text: "Order summary" }),
       expect.objectContaining({ text: "Calculates an order total" }),
       expect.objectContaining({ text: "Current orders" }),
@@ -835,6 +846,10 @@ test("normalizes complete MySQL object families, retains boundaries, and maps Sn
         object: {
           kind: "column",
           id: "view_id",
+          owner: {
+            kind: "view",
+            id: "order_view",
+          },
         },
         text: "Projected order identifier",
       }),
@@ -918,6 +933,9 @@ test("normalizes complete MySQL object families, retains boundaries, and maps Sn
     }),
   ])
   expect(mapped.snapshot.comments.length).toBeGreaterThanOrEqual(6)
+  expect(new Set(mapped.snapshot.comments.map((comment) => comment.id)).size).toBe(
+    mapped.snapshot.comments.length,
+  )
 })
 
 test("rejects MariaDB and unsupported MySQL versions", async () => {

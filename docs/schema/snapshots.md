@@ -46,6 +46,15 @@ dialect metadata, and broken foreign-key or column references as structured
 diagnostics. It does not call `process.exit()` and has no runtime validation
 library dependency.
 
+References to nested columns, constraints, and indexes carry an explicit
+`owner: { kind, id }` scope. Table columns, constraints, and indexes are owned
+by their table; view columns are owned by their view; and domain constraints
+are owned by their domain. References to top-level objects remain ownerless,
+and the decoder validates each nested scope independently. Dialect metadata is
+checked only in typed snapshot fields. Extension `data`, `configuration`, and
+other opaque JSON payloads are retained as data and are not interpreted as
+typed metadata.
+
 `schemaSnapshotFingerprint()` computes a deterministic content fingerprint from canonical
 JSON. The fingerprint is useful for cache keys and fixture assertions only. It is not
 an entity identity, a rename marker, or migration lineage.

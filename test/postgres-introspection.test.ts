@@ -998,6 +998,26 @@ test("normalizes PostgreSQL complete object families and maps Snapshot v1", asyn
         owner: "app_owner",
       },
       {
+        catalog_relation: "pg_class",
+        object_oid: "30",
+        object_subid: 1,
+        object_kind: "column",
+        object_name: "id",
+        namespace: "tenant",
+        description: "View identifier",
+        owner: "app_owner",
+      },
+      {
+        catalog_relation: "pg_class",
+        object_oid: "201",
+        object_subid: 0,
+        object_kind: "index",
+        object_name: "accounts_pkey",
+        namespace: "tenant",
+        description: "Primary key index",
+        owner: "app_owner",
+      },
+      {
         catalog_relation: "pg_constraint",
         object_oid: "101",
         object_subid: 0,
@@ -1091,8 +1111,34 @@ test("normalizes PostgreSQL complete object families and maps Snapshot v1", asyn
     extensionName: "pgcrypto",
     extensionVersion: "1.3",
   })
-  expect(catalog.comments).toHaveLength(6)
-  expect(catalog.ownership).toHaveLength(6)
+  expect(catalog.comments).toHaveLength(8)
+  expect(catalog.ownership).toHaveLength(8)
+  expect(catalog.comments).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        object: {
+          kind: "column",
+          id: "id",
+          owner: { kind: "view", id: "account_view" },
+        },
+        text: "View identifier",
+      }),
+      expect.objectContaining({
+        object: {
+          kind: "index",
+          id: "accounts_pkey",
+          owner: { kind: "table", id: "accounts" },
+        },
+        text: "Primary key index",
+      }),
+    ]),
+  )
+  expect(new Set((catalog.comments ?? []).map((comment) => comment.id)).size).toBe(
+    catalog.comments?.length,
+  )
+  expect(new Set((catalog.ownership ?? []).map((item) => item.id)).size).toBe(
+    catalog.ownership?.length,
+  )
   expect(catalog.deferredObjects).toEqual(
     expect.arrayContaining([
       expect.objectContaining({
@@ -1122,6 +1168,6 @@ test("normalizes PostgreSQL complete object families and maps Snapshot v1", asyn
   expect(mapped.snapshot.partitions).toHaveLength(1)
   expect(mapped.snapshot.policies).toHaveLength(1)
   expect(mapped.snapshot.extensions).toHaveLength(1)
-  expect(mapped.snapshot.comments).toHaveLength(6)
-  expect(mapped.snapshot.ownership).toHaveLength(6)
+  expect(mapped.snapshot.comments).toHaveLength(8)
+  expect(mapped.snapshot.ownership).toHaveLength(8)
 })

@@ -14,6 +14,7 @@ import {
   type CompleteSnapshotIdentity,
   type CompleteSnapshotIndex,
   type CompleteSnapshotIndexTerm,
+  type CompleteSnapshotObjectOwner,
   type CompleteSnapshotObjectReference,
   type CompleteSnapshotObjectMetadata,
   type CompleteSnapshotOpaqueObject,
@@ -50,6 +51,7 @@ import type {
   CatalogIndex,
   CatalogLiteralFact,
   CatalogObjectBase,
+  CatalogObjectOwner,
   CatalogObjectReference,
   CatalogOpaqueObject,
   CatalogPartition,
@@ -178,7 +180,13 @@ export function mapCatalogToCompleteSnapshot(
   // them to an object instead of populating the catalog-level collections.
   for (const object of catalogObjectList(catalog)) {
     if (object.comment && !comments.some((item) => item.id === object.comment?.id)) {
-      const comment = mapComment(object.comment, catalog.dialect, context, ["comments"])
+      const comment = mapComment(
+        object.comment,
+        catalog.dialect,
+        context,
+        ["comments"],
+        object.ownerScope,
+      )
 
       if (comment !== undefined) {
         comments.push(comment)
@@ -188,7 +196,7 @@ export function mapCatalogToCompleteSnapshot(
     if (object.ownership && !ownership.some((item) => item.id === object.ownership?.id)) {
       const ownershipRecord = mapOwnership(object.ownership, catalog.dialect, context, [
         "ownership",
-      ])
+      ], object.ownerScope)
 
       if (ownershipRecord !== undefined) {
         ownership.push(ownershipRecord)
@@ -343,6 +351,7 @@ interface MappingContext {
 
 interface CatalogReferenceLookup {
   has(reference: CatalogObjectReference | CatalogEntityReference): boolean
+  owner(reference: CatalogObjectReference | CatalogEntityReference): CatalogObjectOwner | undefined
 }
 
 interface IdentityEntry {
@@ -459,33 +468,52 @@ function createCatalogReferenceLookup(
 ): CatalogReferenceLookup {
   const keys = new Set<string>()
   const scopedKeys = new Set<string>()
+  const inferredOwners = new Map<string, CatalogObjectOwner | null>()
   const add = (kind: string, id: string) => keys.add(referenceKey(kind, id))
-  const addScoped = (kind: string, id: string, scopeId: string) => {
+  const addScoped = (
+    kind: string,
+    id: string,
+    ownerKind: CatalogObjectOwner["kind"],
+    ownerId: string,
+  ) => {
     add(kind, id)
-    scopedKeys.add(referenceKey(`${kind}:${scopeId}`, id))
+    scopedKeys.add(referenceKey(`${kind}:${ownerKind}:${ownerId}`, id))
+
+    const key = referenceKey(normalizeReferenceKind(kind), id)
+    const owner = { kind: ownerKind, id: ownerId }
+    const existing = inferredOwners.get(key)
+
+    inferredOwners.set(
+      key,
+      existing === undefined
+        ? owner
+        : existing === null || existing.kind !== owner.kind || existing.id !== owner.id
+          ? null
+          : existing,
+    )
   }
 
   add("namespace", catalog.namespace.name)
   for (const table of catalog.tables) {
     add("table", table.id)
     for (const column of table.columns) {
-      addScoped("column", column.id, table.id)
+      addScoped("column", column.id, "table", table.id)
     }
 
     for (const constraint of table.constraints) {
-      addScoped("constraint", constraint.id, table.id)
-      addScoped(constraint.kind, constraint.id, table.id)
+      addScoped("constraint", constraint.id, "table", table.id)
+      addScoped(constraint.kind, constraint.id, "table", table.id)
     }
 
     for (const index of table.indexes) {
-      addScoped("index", index.id, table.id)
+      addScoped("index", index.id, "table", table.id)
     }
   }
 
   for (const view of catalog.views) {
     add(view.kind, view.id)
     for (const column of view.columns) {
-      addScoped("column", column.id, view.id)
+      addScoped("column", column.id, view.kind, view.id)
     }
   }
 
@@ -500,8 +528,8 @@ function createCatalogReferenceLookup(
   for (const domain of catalog.domains) {
     add("domain", domain.id)
     for (const constraint of domain.constraints ?? []) {
-      add("constraint", constraint.id)
-      add("check", constraint.id)
+      addScoped("constraint", constraint.id, "domain", domain.id)
+      addScoped("check", constraint.id, "domain", domain.id)
     }
   }
 
@@ -553,16 +581,29 @@ function createCatalogReferenceLookup(
         return false
       }
 
-      if (!isEntityReference(reference) || reference.tableId === undefined) {
+      const owner =
+        reference.owner ??
+        (isEntityReference(reference) && reference.tableId !== undefined
+          ? { kind: "table" as const, id: reference.tableId }
+          : undefined)
+
+      if (owner === undefined) {
         return true
       }
 
       return scopedKeys.has(
         referenceKey(
-          `${normalizeReferenceKind(reference.kind)}:${reference.tableId}`,
+          `${normalizeReferenceKind(reference.kind)}:${owner.kind}:${owner.id}`,
           reference.id,
         ),
       )
+    },
+    owner(reference) {
+      const owner = inferredOwners.get(
+        referenceKey(normalizeReferenceKind(reference.kind), reference.id),
+      )
+
+      return owner === null ? undefined : owner
     },
   }
 }
@@ -1175,33 +1216,35 @@ function rewriteNamespace(
 }
 
 function rewriteTable(table: CatalogTable, resolver: IdentityResolver): CatalogTable {
+  const owner: CatalogObjectOwner = { kind: "table", id: table.id }
+
   return {
     ...rewriteMetadata(table, resolver),
     ...rewriteIdentityFields(table, resolver),
     columns: table.columns.map((column) => ({
-      ...rewriteMetadata(column, resolver),
+      ...rewriteMetadata(column, resolver, owner),
       ...rewriteIdentityFields(column, resolver),
     })),
     constraints: table.constraints.map((constraint) =>
-      rewriteConstraint(constraint, resolver, table.id),
+      rewriteConstraint(constraint, resolver, owner),
     ),
-    indexes: table.indexes.map((index) => rewriteIndex(index, resolver, table.id)),
+    indexes: table.indexes.map((index) => rewriteIndex(index, resolver, owner)),
   }
 }
 
 function rewriteConstraint(
   constraint: CatalogConstraint,
   resolver: IdentityResolver,
-  tableId: string,
+  owner: CatalogObjectOwner,
 ): CatalogConstraint {
   const backingIndex =
     (constraint.kind === "primary-key" || constraint.kind === "unique") &&
     constraint.backingIndex !== undefined
-      ? rewriteCatalogReference(constraint.backingIndex, resolver, tableId)
+      ? rewriteCatalogReference(constraint.backingIndex, resolver, owner)
       : undefined
 
   return {
-    ...rewriteMetadata(constraint, resolver),
+    ...rewriteMetadata(constraint, resolver, owner),
     ...rewriteIdentityFields(constraint, resolver),
     ...(backingIndex === undefined ? {} : { backingIndex }),
   }
@@ -1210,23 +1253,25 @@ function rewriteConstraint(
 function rewriteIndex(
   index: CatalogIndex,
   resolver: IdentityResolver,
-  tableId: string,
+  owner: CatalogObjectOwner,
 ): CatalogIndex {
   return {
-    ...rewriteMetadata(index, resolver),
+    ...rewriteMetadata(index, resolver, owner),
     ...rewriteIdentityFields(index, resolver),
     ...(index.backingConstraint === undefined
       ? {}
-      : { backingConstraint: rewriteCatalogReference(index.backingConstraint, resolver, tableId) }),
+      : { backingConstraint: rewriteCatalogReference(index.backingConstraint, resolver, owner) }),
   }
 }
 
 function rewriteView(view: CatalogView, resolver: IdentityResolver): CatalogView {
+  const owner: CatalogObjectOwner = { kind: view.kind, id: view.id }
+
   return {
     ...rewriteMetadata(view, resolver),
     ...rewriteIdentityFields(view, resolver),
     columns: view.columns.map((column) => ({
-      ...rewriteMetadata(column, resolver),
+      ...rewriteMetadata(column, resolver, owner),
       ...rewriteIdentityFields(column, resolver),
     })),
     ...(view.dependencies === undefined
@@ -1260,6 +1305,8 @@ function rewriteEnum(item: CatalogEnum, resolver: IdentityResolver): CatalogEnum
 }
 
 function rewriteDomain(domain: CatalogDomain, resolver: IdentityResolver): CatalogDomain {
+  const owner: CatalogObjectOwner = { kind: "domain", id: domain.id }
+
   return {
     ...rewriteMetadata(domain, resolver),
     ...rewriteIdentityFields(domain, resolver),
@@ -1267,7 +1314,7 @@ function rewriteDomain(domain: CatalogDomain, resolver: IdentityResolver): Catal
       ? {}
       : {
           constraints: domain.constraints.map((constraint) => ({
-            ...rewriteMetadata(constraint, resolver),
+            ...rewriteMetadata(constraint, resolver, owner),
             ...rewriteIdentityFields(constraint, resolver),
           })),
         }),
@@ -1366,13 +1413,15 @@ function rewriteMetadata<
     readonly comment?: import("./types.ts").CatalogComment
     readonly ownership?: import("./types.ts").CatalogOwnership
   },
->(object: T, resolver: IdentityResolver): T {
+>(object: T, resolver: IdentityResolver, fallbackOwner?: CatalogObjectOwner): T {
   return {
     ...object,
-    ...(object.comment === undefined ? {} : { comment: rewriteComment(object.comment, resolver) }),
+    ...(object.comment === undefined
+      ? {}
+      : { comment: rewriteComment(object.comment, resolver, fallbackOwner) }),
     ...(object.ownership === undefined
       ? {}
-      : { ownership: rewriteOwnership(object.ownership, resolver) }),
+      : { ownership: rewriteOwnership(object.ownership, resolver, fallbackOwner) }),
   }
 }
 
@@ -1402,47 +1451,67 @@ function rewriteIdentityFields(
 function rewriteCatalogReference<T extends CatalogObjectReference | CatalogEntityReference>(
   reference: T,
   resolver: IdentityResolver,
-  scopeId?: string,
+  fallbackOwner?: CatalogObjectOwner,
 ): T {
-  const referenceScope = isEntityReference(reference) ? (reference.tableId ?? scopeId) : scopeId
-  const identity = resolver.resolveReference(reference.kind, reference.id, referenceScope)
+  const tableId = isEntityReference(reference) ? reference.tableId : undefined
+  const referenceOwner =
+    reference.owner ??
+    (tableId === undefined ? fallbackOwner : { kind: "table" as const, id: tableId })
+  const identity = resolver.resolveReference(reference.kind, reference.id, referenceOwner?.id)
   const tableIdentity =
-    isEntityReference(reference) && reference.tableId !== undefined
-      ? resolver.resolveReference("table", reference.tableId)
+    referenceOwner?.kind === "table"
+      ? resolver.resolveReference("table", referenceOwner.id)
       : undefined
+  const rewrittenOwner =
+    referenceOwner === undefined ? undefined : rewriteCatalogOwner(referenceOwner, resolver)
 
   return {
     ...reference,
     id: identity?.logicalId ?? reference.id,
-    ...(isEntityReference(reference) && reference.tableId !== undefined
-      ? { tableId: tableIdentity?.logicalId ?? reference.tableId }
+    ...(reference.owner !== undefined || (fallbackOwner !== undefined && tableId === undefined)
+      ? { owner: rewrittenOwner }
       : {}),
+    ...(tableId === undefined ? {} : { tableId: tableIdentity?.logicalId ?? tableId }),
   } as T
+}
+
+function rewriteCatalogOwner(
+  owner: CatalogObjectOwner,
+  resolver: IdentityResolver,
+): CatalogObjectOwner {
+  const identity = resolver.resolveReference(owner.kind, owner.id)
+
+  return {
+    ...owner,
+    id: identity?.logicalId ?? owner.id,
+  }
 }
 
 function rewriteComment(
   comment: import("./types.ts").CatalogComment,
   resolver: IdentityResolver,
+  fallbackOwner?: CatalogObjectOwner,
 ): import("./types.ts").CatalogComment {
   const identity = resolver.forObject(comment)
 
   return {
     ...comment,
     ...(identity === undefined ? {} : { id: identity.logicalId }),
-    object: rewriteCatalogReference(comment.object, resolver),
+    object: rewriteCatalogReference(comment.object, resolver, fallbackOwner),
   }
 }
 
 function rewriteOwnership(
   ownership: import("./types.ts").CatalogOwnership,
   resolver: IdentityResolver,
+  fallbackOwner?: CatalogObjectOwner,
 ): import("./types.ts").CatalogOwnership {
   const identity = resolver.forObject(ownership)
 
   return {
     ...ownership,
     ...(identity === undefined ? {} : { id: identity.logicalId }),
-    object: rewriteCatalogReference(ownership.object, resolver),
+    object: rewriteCatalogReference(ownership.object, resolver, fallbackOwner),
   }
 }
 
@@ -1452,6 +1521,7 @@ function mapTable(
   tables: ReadonlyMap<string, CatalogTable>,
   context: MappingContext,
 ): CompleteSnapshotTable {
+  const owner: CompleteSnapshotObjectOwner = { kind: "table", id: table.id }
   const columns = table.columns.map((column) => mapColumn(column, dialect)).sort(compareId)
   // Constraint catalog references use physical names; index candidate-key checks use snapshot IDs.
   const columnIds = new Map(table.columns.map((column) => [column.physicalName, column.id]))
@@ -1468,7 +1538,7 @@ function mapTable(
         table.id,
         "constraints",
         constraint.id,
-      ]),
+      ], owner),
     )
     .filter((value): value is CompleteSnapshotConstraint => value !== undefined)
     .sort(compareId)
@@ -1479,7 +1549,7 @@ function mapTable(
         table.id,
         "indexes",
         index.id,
-      ]),
+      ], owner),
     )
     .filter((index): index is CompleteSnapshotIndex => index !== undefined)
     .sort(compareId)
@@ -1533,6 +1603,7 @@ function mapConstraint(
   tables: ReadonlyMap<string, CatalogTable>,
   context: MappingContext,
   path: readonly (string | number)[],
+  owner: CompleteSnapshotObjectOwner,
 ): CompleteSnapshotConstraint | undefined {
   const physicalName = constraint.physicalName ?? constraint.id
   const common = {
@@ -1553,7 +1624,13 @@ function mapConstraint(
     constraint.kind === "primary-key" || constraint.kind === "unique"
       ? constraint.backingIndex === undefined
         ? undefined
-        : mapReference(constraint.backingIndex, context, [...path, "backingIndex"], "index")
+        : mapReference(
+            constraint.backingIndex,
+            context,
+            [...path, "backingIndex"],
+            "index",
+            owner,
+          )
       : undefined
 
   if (constraint.kind === "check") {
@@ -1700,6 +1777,7 @@ function mapIndex(
   snapshotColumnNullability: ReadonlyMap<string, boolean>,
   context: MappingContext,
   path: readonly (string | number)[],
+  owner: CompleteSnapshotObjectOwner,
 ): CompleteSnapshotIndex | undefined {
   const terms = index.terms.map((term, position) =>
     mapIndexTerm(term, columns, context, [...path, "terms", position]),
@@ -1716,7 +1794,13 @@ function mapIndex(
   const backingConstraint =
     index.backingConstraint === undefined
       ? undefined
-      : mapReference(index.backingConstraint, context, [...path, "backingConstraint"], "constraint")
+      : mapReference(
+          index.backingConstraint,
+          context,
+          [...path, "backingConstraint"],
+          "constraint",
+          owner,
+        )
 
   const mapped: CompleteSnapshotIndex = {
     kind: "index",
@@ -1962,6 +2046,9 @@ function mapRoutineParameter(
     storage: mapStorage(parameter.storage, dialect),
     ...(parameter.default === undefined ? {} : { default: mapValueFact(parameter.default) }),
     ordinalPosition: parameter.ordinalPosition,
+    ...(parameter.provenance === undefined
+      ? {}
+      : { provenance: mapProvenance(parameter.provenance) }),
   }
 }
 
@@ -2086,8 +2173,9 @@ function mapComment(
   dialect: string,
   context: MappingContext,
   path: readonly (string | number)[],
+  fallbackOwner?: CompleteSnapshotObjectOwner,
 ): CompleteSnapshotComment | undefined {
-  const object = mapReference(comment.object, context, [...path, "object"])
+  const object = mapReference(comment.object, context, [...path, "object"], undefined, fallbackOwner)
 
   if (object === undefined && context.mode === "lossy") {
     return undefined
@@ -2108,8 +2196,15 @@ function mapOwnership(
   dialect: string,
   context: MappingContext,
   path: readonly (string | number)[],
+  fallbackOwner?: CompleteSnapshotObjectOwner,
 ): CompleteSnapshotOwnership | undefined {
-  const object = mapReference(ownership.object, context, [...path, "object"])
+  const object = mapReference(
+    ownership.object,
+    context,
+    [...path, "object"],
+    undefined,
+    fallbackOwner,
+  )
 
   if (object === undefined && context.mode === "lossy") {
     return undefined
@@ -2252,21 +2347,36 @@ function mapReference(
   context: MappingContext,
   path: readonly (string | number)[],
   expectedKind?: CompleteSnapshotObjectReference["kind"],
+  fallbackOwner?: CompleteSnapshotObjectOwner,
 ): CompleteSnapshotObjectReference | undefined {
   const kind = normalizeReferenceKind(reference.kind)
+  const tableId = isEntityReference(reference) ? reference.tableId : undefined
+  const explicitOwner =
+    reference.owner ??
+    (tableId === undefined ? fallbackOwner : { kind: "table" as const, id: tableId })
   const lookupReference = {
     ...reference,
     kind: kind as CatalogObjectReference["kind"],
-  }
+    ...(explicitOwner === undefined ? {} : { owner: explicitOwner }),
+  } as CatalogObjectReference | CatalogEntityReference
+  const owner = explicitOwner ?? context.references.owner(lookupReference)
+  const scopedLookupReference = {
+    ...lookupReference,
+    ...(owner === undefined ? {} : { owner }),
+  } as CatalogObjectReference | CatalogEntityReference
   const validKind = expectedKind === undefined || kind === expectedKind
+  const ownerRequired = kind === "column" || kind === "constraint" || kind === "index"
+  const validReference = context.references.has(scopedLookupReference)
 
-  if (!validKind || !context.references.has(lookupReference)) {
+  if (!validKind || !validReference || (ownerRequired && owner === undefined)) {
     if (
       reportMappingIssue(context, {
         code: "unresolved-reference",
         message: !validKind
           ? `Reference kind ${reference.kind} is not valid here`
-          : `Reference ${reference.kind}:${reference.id} was not found`,
+          : ownerRequired && owner === undefined
+            ? `Reference ${reference.kind}:${reference.id} has no unique owner scope`
+            : `Reference ${reference.kind}:${reference.id} was not found`,
         path,
       })
     ) {
@@ -2277,6 +2387,7 @@ function mapReference(
   return {
     kind: kind as CompleteSnapshotObjectReference["kind"],
     id: reference.id,
+    ...(owner === undefined ? {} : { owner }),
   }
 }
 
@@ -2293,6 +2404,7 @@ function catalogObjectList(catalog: CompleteIntrospectionCatalog): readonly {
   readonly comment?: import("./types.ts").CatalogComment
   readonly ownership?: import("./types.ts").CatalogOwnership
   readonly unknownFields?: readonly CatalogUnknownField[]
+  readonly ownerScope?: CatalogObjectOwner
 }[] {
   const topLevel = [
     catalog.namespace,
@@ -2313,13 +2425,25 @@ function catalogObjectList(catalog: CompleteIntrospectionCatalog): readonly {
     ...catalog.ownership,
   ]
   const nested = [
-    ...catalog.tables.flatMap((table) => [
-      ...table.columns,
-      ...table.constraints,
-      ...table.indexes,
-    ]),
-    ...catalog.views.flatMap((view) => view.columns),
-    ...catalog.domains.flatMap((domain) => domain.constraints ?? []),
+    ...catalog.tables.flatMap((table) => {
+      const owner: CatalogObjectOwner = { kind: "table", id: table.id }
+
+      return [
+        ...table.columns.map((object) => ({ ...object, ownerScope: owner })),
+        ...table.constraints.map((object) => ({ ...object, ownerScope: owner })),
+        ...table.indexes.map((object) => ({ ...object, ownerScope: owner })),
+      ]
+    }),
+    ...catalog.views.flatMap((view) => {
+      const owner: CatalogObjectOwner = { kind: view.kind, id: view.id }
+
+      return view.columns.map((object) => ({ ...object, ownerScope: owner }))
+    }),
+    ...catalog.domains.flatMap((domain) => {
+      const owner: CatalogObjectOwner = { kind: "domain", id: domain.id }
+
+      return (domain.constraints ?? []).map((object) => ({ ...object, ownerScope: owner }))
+    }),
   ]
 
   return [...topLevel, ...nested]
@@ -2330,6 +2454,7 @@ function catalogObjectsWithUnknownFields(catalog: CompleteIntrospectionCatalog):
   readonly id?: string
   readonly physicalName?: string
   readonly unknownFields?: readonly CatalogUnknownField[]
+  readonly ownerScope?: CatalogObjectOwner
 }[] {
   return catalogObjectList(catalog)
 }

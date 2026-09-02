@@ -302,3 +302,16 @@ test("requires the selected dialect for unsafe schema SQL", () => {
     },
   })
 })
+
+test("retains an explicitly empty index include list", () => {
+  const included = table("included", { id: integer() }, (table) => ({
+    constraints: {},
+    indexes: {
+      emptyInclude: index([table.id], { include: [] }),
+    },
+  }))
+  const snapshot = createSchemaSnapshot(schema({ included }))
+
+  expect(snapshot.tables[0]?.indexes[0]?.includedColumns).toEqual([])
+  expect(decodeSchemaSnapshot(encodeSchemaSnapshot(snapshot)).ok).toBe(true)
+})
