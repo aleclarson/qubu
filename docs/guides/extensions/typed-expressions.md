@@ -60,7 +60,7 @@ Declare result domains at other extension boundaries too:
 import { typedCall, typedCast, typedValue, unsafeExpression } from "qubu/core"
 import type { SqlText, SqlUuid } from "qubu"
 
-const id = typedValue<SqlUuid, string>("108cb836-20d2-41b2-8c23-f0c94700aa7e")
+const id = typedValue<SqlUuid, string>("108cb836-20d2-41b2-8c23-f0c94700aa7e", "uuid")
 const normalized = typedCall<SqlText, string>()("custom_text", users.name)
 const rawNameAsText = typedCast<string, SqlText>()(users.name, "TEXT")
 const generated = unsafeExpression<string, SqlText>("custom_text()")
@@ -69,8 +69,9 @@ const generated = unsafeExpression<string, SqlText>("custom_text()")
 `typedCall()` preserves source requirements from its arguments. `typedCast()`
 is the fallback when no reusable definition describes the target. It preserves
 operand nullability and source metadata while emitting its supplied type name
-verbatim. `typedValue()` binds a parameter. `unsafeExpression()` emits its
-string unchanged and should remain a last resort.
+verbatim. `typedValue()` binds a parameter and declares its runtime SQL domain
+for the adapter. `unsafeExpression()` emits its string unchanged and should
+remain a last resort.
 
 The lower-level forms also expose the SQL domain in their generic lists:
 `call<Output, Name, Arguments, NullableFrom, SqlType>()` and

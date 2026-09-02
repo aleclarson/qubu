@@ -54,7 +54,7 @@ test("renders PostgreSQL EXPLAIN options and forwards request controls", async (
       parameters: [7],
     },
     queryKind: "select",
-    resultShape: { fields: [{ name: "id" }] },
+    resultShape: { fields: [{ name: "id", sqlType: "integer" }] },
     signal: controller.signal,
   })
   expect(result).toEqual({ rows: [{ plan: "Index Scan" }] })

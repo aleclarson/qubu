@@ -58,7 +58,9 @@ function executionAdapter(client: ClientBase, encoder: DriverValueEncoder): PgTr
       throwIfAborted(request.signal)
       const result = await client.query(
         request.statement.text,
-        request.statement.parameters.map((value) => encoder.encode(value)),
+        request.statement.parameters.map((value, index) =>
+          encoder.encode(value, request.statement.parameterSqlTypes?.[index]),
+        ),
       )
       const isMutation = request.queryKind !== "select" && request.queryKind !== "set"
 
@@ -71,7 +73,9 @@ function executionAdapter(client: ClientBase, encoder: DriverValueEncoder): PgTr
       throwIfAborted(request.signal)
       const result = await client.query(
         request.statement.text,
-        request.statement.parameters.map((value) => encoder.encode(value)),
+        request.statement.parameters.map((value, index) =>
+          encoder.encode(value, request.statement.parameterSqlTypes?.[index]),
+        ),
       )
 
       return { rows: result.rows } satisfies ExplainResult<QueryResultRow>

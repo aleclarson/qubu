@@ -36,6 +36,7 @@ export function mapResult<TOutput, TExpression extends AnyExpression>(
 ): TExpression extends AnySchemaExpression
   ? SchemaExpression<MappedResultMetadata<TOutput, TExpression>, TExpression["expressionKind"]>
   : Expression<MappedResultMetadata<TOutput, TExpression>, TExpression["expressionKind"]> {
+  const metadata = resultValueOf(expression)
   const mapped = makeExpression<
     MappedResultMetadata<TOutput, TExpression>,
     TExpression["expressionKind"]
@@ -43,7 +44,7 @@ export function mapResult<TOutput, TExpression extends AnyExpression>(
     expression.expressionKind,
     (context) => context.render(expression),
     expression.expressionCategory,
-    resultValue(resultValueOf(expression)?.type, decoder),
+    resultValue(metadata?.type, decoder, metadata?.sqlType),
   )
 
   return (

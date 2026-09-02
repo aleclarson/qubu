@@ -2,12 +2,15 @@ import { standardDialect } from "../dialects/standard.ts"
 import type { QueryTypeValidation } from "../query/errors.ts"
 import type { Dialect, DialectCapability } from "./dialect.ts"
 import type { AnyFragment, CapabilitiesOf, RenderContext } from "./fragment.ts"
+import type { SqlTypeName } from "./sql-types.ts"
 
 type DefaultDialectCapability = "json"
 
 export interface RenderedQuery {
   readonly text: string
   readonly parameters: readonly unknown[]
+  /** Runtime SQL domains aligned with `parameters`; omitted when all domains are unknown. */
+  readonly parameterSqlTypes?: readonly (SqlTypeName | undefined)[]
 }
 
 export interface RenderOptions<TCapabilities extends DialectCapability = DialectCapability> {
@@ -42,6 +45,8 @@ export function render<TQuery extends AnyFragment, TCapabilities extends Dialect
 export function render(query: AnyFragment, options: RenderOptions | Dialect = {}): RenderedQuery {
   const dialect = isDialect(options) ? options : (options.dialect ?? standardDialect())
   const parameters: unknown[] = []
+  const parameterSqlTypes: (SqlTypeName | undefined)[] = []
+  let hasParameterSqlTypes = false
   let text = ""
   let projectionMode: RenderContext["projectionMode"] = "result"
 
@@ -53,8 +58,10 @@ export function render(query: AnyFragment, options: RenderOptions | Dialect = {}
     append(value) {
       text += value
     },
-    parameter(value) {
+    parameter(value, sqlType) {
       parameters.push(value)
+      parameterSqlTypes.push(sqlType)
+      hasParameterSqlTypes ||= sqlType !== undefined
       text += dialect.placeholder(parameters.length)
     },
     render(part) {
@@ -77,6 +84,9 @@ export function render(query: AnyFragment, options: RenderOptions | Dialect = {}
   return Object.freeze({
     text,
     parameters: Object.freeze(parameters.slice()),
+    ...(hasParameterSqlTypes
+      ? { parameterSqlTypes: Object.freeze(parameterSqlTypes.slice()) }
+      : {}),
   })
 }
 

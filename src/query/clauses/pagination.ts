@@ -38,11 +38,11 @@ export function renderPagination(context: RenderContext, clauses: readonly AnyPa
 
     if (part.kind === "offset") {
       context.append("OFFSET ")
-      context.parameter(part.rows)
+      context.parameter(part.rows, "integer")
       context.append(" ROWS")
     } else {
       context.append(`FETCH ${part.direction} `)
-      context.parameter(part.rows)
+      context.parameter(part.rows, "integer")
       context.append(" ROWS ONLY")
     }
   })

@@ -1,5 +1,5 @@
 import type { Dialect, DialectCapability } from "./dialect.ts"
-import type { AnySqlType, SqlUnknown } from "./sql-types.ts"
+import type { AnySqlType, SqlTypeName, SqlUnknown } from "./sql-types.ts"
 
 declare const fragmentMetadata: unique symbol
 
@@ -98,7 +98,8 @@ export interface RenderContext {
   /** Whether selected fields name an application result or a SQL relation. */
   readonly projectionMode: "result" | "relation"
   append(text: string): void
-  parameter(value: unknown): void
+  /** Add one ordered parameter, optionally declaring its runtime SQL domain. */
+  parameter(value: unknown, sqlType?: SqlTypeName): void
   render(part: Fragment<any>): void
   /** Render an embedded query with SQL-facing projection names. */
   renderRelation(part: Fragment<any>): void

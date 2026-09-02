@@ -1,7 +1,8 @@
 import type { Dialect } from "./core/dialect.ts"
+import type { SqlTypeName } from "./core/sql-types.ts"
 
 /** Portable result domains that can require driver-specific normalization. */
-export type DecodableResultType = "boolean" | "date" | "timestamp" | "json"
+export type DecodableResultType = "boolean" | "date" | "timestamp" | "json" | "bigint"
 
 /** Context supplied while decoding one projected field. */
 export interface ResultDecodeContext {
@@ -21,6 +22,8 @@ export interface ResultField {
   readonly name: string
   readonly type?: DecodableResultType
   readonly decoder?: ResultDecoder
+  /** SQL semantic domain supplied to the adapter before it executes the request. */
+  readonly sqlType?: SqlTypeName
 }
 
 /** Runtime description of a query's named result row. */
@@ -31,6 +34,8 @@ export interface ResultShape {
 export interface ResultValueMetadata {
   readonly type?: DecodableResultType
   readonly decoder?: ResultDecoder
+  /** SQL semantic domain retained for adapter-specific result handling. */
+  readonly sqlType?: SqlTypeName
 }
 
 export const resultValueMetadata: unique symbol = Symbol("qubu.result-value-metadata")
@@ -42,12 +47,14 @@ export type ResultValueCarrier = {
 export function resultValue(
   type?: DecodableResultType,
   decoder?: ResultDecoder,
+  sqlType?: SqlTypeName,
 ): ResultValueMetadata | undefined {
-  return type === undefined && decoder === undefined
+  return type === undefined && decoder === undefined && sqlType === undefined
     ? undefined
     : Object.freeze({
         ...(type === undefined ? {} : { type }),
         ...(decoder === undefined ? {} : { decoder }),
+        ...(sqlType === undefined ? {} : { sqlType }),
       })
 }
 
@@ -85,7 +92,7 @@ export function resultShapeValue(
 ): ResultValueMetadata | undefined {
   const field = shape.fields.find((candidate) => candidate.name === name)
 
-  return field === undefined ? undefined : resultValue(field.type, field.decoder)
+  return field === undefined ? undefined : resultValue(field.type, field.decoder, field.sqlType)
 }
 
 /** Decode SQLite/MySQL-style boolean values while accepting native booleans. */
@@ -155,6 +162,27 @@ export const jsonTextResultDecoder: ResultDecoder = (value) => {
   return JSON.parse(value) as unknown
 }
 
+/** Decode an exact integer result without ever accepting an unsafe JavaScript number. */
+export const bigintResultDecoder: ResultDecoder<bigint> = (value) => {
+  if (typeof value === "bigint") {
+    return value
+  }
+
+  if (typeof value === "number") {
+    if (Number.isSafeInteger(value)) {
+      return BigInt(value)
+    }
+
+    throw new TypeError("Expected a bigint, canonical integer string, or safe integer result")
+  }
+
+  if (typeof value !== "string" || !/^[+-]?\d+$/u.test(value)) {
+    throw new TypeError("Expected a bigint, canonical integer string, or safe integer result")
+  }
+
+  return BigInt(value)
+}
+
 /** Error raised when a projected driver value cannot be decoded. */
 export class ResultDecodingError extends TypeError {
   readonly name = "ResultDecodingError"
@@ -184,7 +212,13 @@ export function decodeResultRow<TRow extends object>(
   let decoded: Record<string, unknown> | undefined
 
   for (const field of shape.fields) {
-    const decoder = field.decoder ?? (field.type ? decoders?.[field.type] : undefined)
+    const decoder =
+      field.decoder ??
+      (field.type === "bigint"
+        ? (decoders?.bigint ?? bigintResultDecoder)
+        : field.type
+          ? decoders?.[field.type]
+          : undefined)
 
     if (decoder === undefined || row[field.name] === null) {
       continue

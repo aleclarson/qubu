@@ -12,6 +12,7 @@ test("renders scalar subqueries with cardinality clauses in parameter order", ()
   expect(render(query)).toEqual({
     text: 'SELECT (SELECT "users"."id" AS "id" FROM "users" WHERE ("users"."id" = ?) FETCH FIRST ? ROWS ONLY) AS "result", ? AS "marker"',
     parameters: [7, 1, 9],
+    parameterSqlTypes: [undefined, "integer", undefined],
   })
 })
 

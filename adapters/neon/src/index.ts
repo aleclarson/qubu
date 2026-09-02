@@ -63,7 +63,9 @@ async function executeRequest<TRow extends object>(
 
   const result = (await client.query<false, true>(
     request.statement.text,
-    request.statement.parameters.map((value) => encoder.encode(value)),
+    request.statement.parameters.map((value, index) =>
+      encoder.encode(value, request.statement.parameterSqlTypes?.[index]),
+    ),
     queryOptions(options, request.signal),
   )) as NeonQueryResult
   let rows: readonly NeonRow[]

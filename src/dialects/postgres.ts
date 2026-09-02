@@ -50,7 +50,7 @@ const postgresPagination = {
       }
 
       context.append(part.kind === "fetch" ? "LIMIT " : "OFFSET ")
-      context.parameter(part.rows)
+      context.parameter(part.rows, "integer")
     })
   },
 }

@@ -125,14 +125,14 @@ function renderPagination(context: RenderContext, parts: readonly PaginationPart
 
   context.append("LIMIT ")
   if (fetch) {
-    context.parameter(fetch.rows)
+    context.parameter(fetch.rows, "integer")
   } else {
     context.append("-1")
   }
 
   if (offset) {
     context.append(" OFFSET ")
-    context.parameter(offset.rows)
+    context.parameter(offset.rows, "integer")
   }
 }
 

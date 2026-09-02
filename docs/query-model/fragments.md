@@ -51,7 +51,8 @@ producer, consumer, and regression test all exist.
 ## Parameters are runtime data
 
 Parameter values are not fragment metadata. A renderer calls
-`context.parameter(value)`, and `render()` collects values in placeholder order:
+`context.parameter(value)`, and `render()` collects values in placeholder order.
+Pass a second argument when the adapter needs the runtime SQL domain too:
 
 ```ts
 import { and, eq, from, integer, like, render, select, table, text, where } from "qubu"
@@ -71,6 +72,21 @@ render(query)
 // text:       ... WHERE (("users"."id" = ?) AND ("users"."name" LIKE ?))
 // parameters: [7, '%Ada%']
 ```
+
+The optional domain metadata stays in a sidecar aligned with `parameters`:
+
+```ts
+import { typedValue } from "qubu/core"
+import type { SqlUuid } from "qubu"
+
+const id = typedValue<SqlUuid, string>("108cb836-20d2-41b2-8c23-f0c94700aa7e", "uuid")
+render(id)
+// parameterSqlTypes: ["uuid"]
+```
+
+Plain JavaScript values remain untyped at runtime. Use an explicit domain when
+`Date` could mean either `DATE` or `TIMESTAMP`, or when a string is a UUID
+rather than text.
 
 The parameter array follows the placeholders in the rendered text. `select()`
 normalizes independent clause values, but keep the final call in SQL order in

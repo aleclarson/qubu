@@ -63,6 +63,7 @@ test("preserves parameter order through window expressions and clauses", () => {
   expect(render(query)).toEqual({
     text: 'SELECT COUNT("users"."id") OVER (ORDER BY ? DESC) AS "count" FROM "users" WHERE ("users"."id" = ?) FETCH FIRST ? ROWS ONLY',
     parameters: [3, 7, 10],
+    parameterSqlTypes: [undefined, undefined, "integer"],
   })
 })
 

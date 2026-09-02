@@ -82,7 +82,9 @@ function executionAdapter(
     async execute<TRow extends object>(request: ExecutionRequest) {
       throwIfAborted(request.signal)
       const statement = database.prepare(request.statement.text)
-      const parameters = request.statement.parameters.map((value) => encoder.encode(value))
+      const parameters = request.statement.parameters.map((value, index) =>
+        encoder.encode(value, request.statement.parameterSqlTypes?.[index]),
+      )
 
       if (statement.columns().length > 0) {
         return {
@@ -103,7 +105,9 @@ function executionAdapter(
     async explain(request: ExplainRequest) {
       throwIfAborted(request.signal)
       const statement = database.prepare(request.statement.text)
-      const parameters = request.statement.parameters.map((value) => encoder.encode(value))
+      const parameters = request.statement.parameters.map((value, index) =>
+        encoder.encode(value, request.statement.parameterSqlTypes?.[index]),
+      )
 
       return {
         rows: statement.all(...parameters).map((row) => ({ ...row })),

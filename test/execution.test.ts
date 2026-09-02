@@ -4,6 +4,7 @@ import { postgresDialect } from "../src/dialects/postgres.ts"
 import { standardDialect } from "../src/dialects/standard.ts"
 import {
   alias,
+  bigint,
   boolean,
   booleanResultDecoder,
   column,
@@ -19,6 +20,7 @@ import {
   json,
   jsonTextResultDecoder,
   mapResult,
+  numeric,
   qubu,
   returning,
   select,
@@ -29,6 +31,7 @@ import {
   value,
   where,
   withCte,
+  uuid,
   type ExecutionRequest,
   type QueryAdapter,
   ResultDecodingError,
@@ -63,11 +66,57 @@ test("passes the rendered query kind and abort signal to the adapter", async () 
       parameters: [7],
     },
     queryKind: "select",
-    resultShape: { fields: [{ name: "id" }] },
+    resultShape: { fields: [{ name: "id", sqlType: "integer" }] },
     signal: controller.signal,
   })
   expect(result).toEqual({ rows: [{ id: 7 }] })
   expectTypeOf(result.rows).toEqualTypeOf<readonly { id: number }[]>()
+})
+
+test("preserves bigint results without converting through Number", async () => {
+  const records = table("records", { sequence: bigint() })
+  const query = select({ sequence: records.sequence }, from(records))
+  const adapter: QueryAdapter = {
+    dialect: standardDialect(),
+    async execute(request) {
+      expect(request.resultShape).toEqual({
+        fields: [{ name: "sequence", type: "bigint", sqlType: "bigint" }],
+      })
+      return { rows: [{ sequence: "9007199254740993" }] }
+    },
+  }
+
+  await expect(executeRows(query, adapter)).resolves.toEqual([{ sequence: 9007199254740993n }])
+})
+
+test("exposes portable SQL domains in result shapes", () => {
+  const records = table("records", {
+    eventDate: date(),
+    createdAt: timestamp(),
+    identifier: uuid(),
+    amount: numeric(),
+    sequence: bigint(),
+  })
+  const query = select(
+    {
+      eventDate: records.eventDate,
+      createdAt: records.createdAt,
+      identifier: records.identifier,
+      amount: records.amount,
+      sequence: records.sequence,
+    },
+    from(records),
+  )
+
+  expect(query.resultShape).toEqual({
+    fields: [
+      { name: "eventDate", type: "date", sqlType: "date" },
+      { name: "createdAt", type: "timestamp", sqlType: "timestamp" },
+      { name: "identifier", sqlType: "uuid" },
+      { name: "amount", sqlType: "decimal" },
+      { name: "sequence", type: "bigint", sqlType: "bigint" },
+    ],
+  })
 })
 
 test("decodes portable schema values through aliases with adapter policies", async () => {

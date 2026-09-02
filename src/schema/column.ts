@@ -15,6 +15,7 @@ import type {
   SqlJson,
   SqlText,
   SqlTimestamp,
+  SqlTypeName,
   SqlUnknown,
   SqlUuid,
 } from "../core/sql-types.ts"
@@ -883,17 +884,30 @@ export function columnResultValue(definition: {
   readonly storage?: ColumnStorage
   readonly resultDecoder?: ResultDecoder
 }): ResultValueMetadata | undefined {
-  const storage = definition.storage
+  const sqlType = columnSqlType(definition)
   const type =
-    storage?.kind === "portable" &&
-    (storage.type === "boolean" ||
-      storage.type === "date" ||
-      storage.type === "timestamp" ||
-      storage.type === "json")
-      ? storage.type
+    sqlType === "boolean" ||
+    sqlType === "date" ||
+    sqlType === "timestamp" ||
+    sqlType === "json" ||
+    sqlType === "bigint"
+      ? sqlType
       : undefined
 
-  return resultValue(type, definition.resultDecoder)
+  return resultValue(type, definition.resultDecoder, sqlType)
+}
+
+/** Resolve a portable column's semantic SQL domain for driver-facing metadata. */
+export function columnSqlType(definition: {
+  readonly storage?: ColumnStorage
+}): SqlTypeName | undefined {
+  const storage = definition.storage
+
+  if (storage?.kind !== "portable") {
+    return undefined
+  }
+
+  return storage.type === "numeric" ? "decimal" : storage.type
 }
 
 /** Apply a live column codec while preserving SQL NULL unchanged. */

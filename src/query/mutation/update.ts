@@ -1,7 +1,7 @@
 import type { RenderContext, RequiresOf, RequiresOuterOf } from "../../core/fragment.ts"
 import { identifier } from "../../core/primitives/identifier.ts"
 import { isExpression, type ExpressionWithOutput } from "../../expressions/types.ts"
-import { encodeColumnParameter } from "../../schema/column.ts"
+import { columnSqlType, encodeColumnParameter, type ColumnStorage } from "../../schema/column.ts"
 import type { SourceIdentity } from "../../schema/source.ts"
 import type { AnyTable, TableUpdateInput } from "../../schema/table.ts"
 import { queryValidationError, type QueryTypeValidation } from "../errors.ts"
@@ -185,12 +185,15 @@ export function update<
 function renderAssignmentValue(
   context: RenderContext,
   value: unknown,
-  definition: { readonly parameterEncoder?: (value: unknown) => unknown },
+  definition: {
+    readonly parameterEncoder?: (value: unknown) => unknown
+    readonly storage?: ColumnStorage
+  },
 ) {
   if (isExpression(value)) {
     context.render(value)
   } else {
-    context.parameter(encodeColumnParameter(definition, value))
+    context.parameter(encodeColumnParameter(definition, value), columnSqlType(definition))
   }
 }
 

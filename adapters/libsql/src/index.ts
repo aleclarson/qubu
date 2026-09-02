@@ -132,7 +132,9 @@ async function explainRequest(
 function statement(request: ExecutionRequest, encoder: DriverValueEncoder<InValue>): InStatement {
   return {
     sql: request.statement.text,
-    args: request.statement.parameters.map((value) => encoder.encode(value)),
+    args: request.statement.parameters.map((value, index) =>
+      encoder.encode(value, request.statement.parameterSqlTypes?.[index]),
+    ),
   }
 }
 

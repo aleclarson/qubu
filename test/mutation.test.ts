@@ -114,6 +114,7 @@ test("renders typed multi-row INSERT values and RETURNING projections", () => {
   expect(render(query)).toEqual({
     text: 'INSERT INTO "users" ("name", "email") VALUES (?, ?), (?, ?) RETURNING "users"."id" AS "id", "users"."name" AS "name"',
     parameters: ["Ada", null, "Grace", "grace@example.com"],
+    parameterSqlTypes: ["text", "text", "text", "text"],
   })
   expectTypeOf(query.row).toEqualTypeOf<{
     id: number
@@ -135,6 +136,7 @@ test("renders INSERT expressions directly while encoding raw application values"
   expect(render(query)).toEqual({
     text: 'INSERT INTO "labels" ("name") VALUES (?), (UPPER(?))',
     parameters: ["ENCODED", "expression"],
+    parameterSqlTypes: ["text", undefined],
   })
 })
 
@@ -161,6 +163,7 @@ test("renders PostgreSQL ON CONFLICT DO UPDATE with excluded values and a condit
   expect(render(query, postgresDialect())).toEqual({
     text: 'INSERT INTO "accounts" ("email", "name", "version") VALUES ($1, $2, $3) ON CONFLICT ("email") DO UPDATE SET "name" = excluded."name" WHERE (excluded."version" > "accounts"."version") RETURNING "accounts"."id" AS "id", "accounts"."name" AS "name"',
     parameters: ["ada@example.com", "Ada", 2],
+    parameterSqlTypes: ["text", "text", "integer"],
   })
 })
 
@@ -184,6 +187,7 @@ test("renders ordinary and partial PostgreSQL unique indexes as conflict targets
   ).toEqual({
     text: 'INSERT INTO "indexed_accounts" ("email", "active", "name") VALUES ($1, $2, $3) ON CONFLICT ("email") DO NOTHING',
     parameters: ["ada@example.com", true, "Ada"],
+    parameterSqlTypes: ["text", "boolean", "text"],
   })
 
   expect(
@@ -202,6 +206,7 @@ test("renders ordinary and partial PostgreSQL unique indexes as conflict targets
   ).toEqual({
     text: 'INSERT INTO "indexed_accounts" ("email", "active", "name") VALUES ($1, $2, $3) ON CONFLICT ("email") WHERE ("active" = TRUE) DO UPDATE SET "name" = excluded."name"',
     parameters: ["ada@example.com", true, "Ada"],
+    parameterSqlTypes: ["text", "boolean", "text"],
   })
 })
 
@@ -248,6 +253,7 @@ test("renders SQLite ON CONFLICT DO NOTHING without a target", () => {
   expect(render(query, sqliteDialect())).toEqual({
     text: 'INSERT INTO "accounts" ("email", "name", "version") VALUES (?, ?, ?) ON CONFLICT DO NOTHING',
     parameters: ["ada@example.com", "Ada", 1],
+    parameterSqlTypes: ["text", "text", "integer"],
   })
 })
 
@@ -279,10 +285,12 @@ test("materializes and encodes runtime defaults for each inserted row", () => {
   expect(render(insertInto(sessions, values({}, {})))).toEqual({
     text: 'INSERT INTO "sessions" ("token") VALUES (?), (?)',
     parameters: ["TOKEN-1", "TOKEN-2"],
+    parameterSqlTypes: ["text", "text"],
   })
   expect(render(insertInto(sessions, defaultValues()))).toEqual({
     text: 'INSERT INTO "sessions" ("token") VALUES (?)',
     parameters: ["TOKEN-3"],
+    parameterSqlTypes: ["text"],
   })
 })
 
@@ -341,6 +349,7 @@ test("prefixes insert, update, and delete mutations with ordinary and recursive 
   expect(render(change)).toEqual({
     text: 'WITH RECURSIVE "numbers" ("id") AS (SELECT CAST(? AS INTEGER) AS "id" UNION ALL SELECT ("numbers"."id" + ?) AS "id" FROM "numbers" WHERE ("numbers"."id" < ?)) UPDATE "users" SET "name" = ? WHERE ("users"."id" IN (SELECT "numbers"."id" AS "id" FROM "numbers"))',
     parameters: [1, 1, 3, "Archived"],
+    parameterSqlTypes: [undefined, undefined, undefined, "text"],
   })
 
   const removal = deleteFrom(
@@ -388,6 +397,7 @@ test("renders safe UPDATE and DELETE statements with typed RETURNING rows", () =
   expect(render(changed)).toEqual({
     text: 'UPDATE "users" SET "name" = ? WHERE ("users"."id" = ?) RETURNING "users"."id" AS "id", "users"."name" AS "name"',
     parameters: ["Ada", 7],
+    parameterSqlTypes: ["text", undefined],
   })
   expect(render(removed)).toEqual({
     text: 'DELETE FROM "users" WHERE ("users"."id" = ?) RETURNING "users"."id" AS "id", "users"."name" AS "name", "users"."email" AS "email"',
@@ -461,10 +471,12 @@ test("omits conditional UPDATE assignments while preserving SQL values", () => {
   expect(render(enabled)).toEqual({
     text: 'UPDATE "users" SET "name" = UPPER("users"."name"), "email" = ? WHERE ("users"."id" = ?)',
     parameters: [null, 11],
+    parameterSqlTypes: ["text", undefined],
   })
   expect(render(disabled)).toEqual({
     text: 'UPDATE "users" SET "email" = ? WHERE ("users"."id" = ?)',
     parameters: [undefined, 12],
+    parameterSqlTypes: ["text", undefined],
   })
 })
 

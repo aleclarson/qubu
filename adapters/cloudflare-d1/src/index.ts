@@ -49,7 +49,11 @@ export function d1Adapter(database: D1Database, options: D1AdapterOptions = {}):
       throwIfAborted(request.signal)
       const statement = database
         .prepare(request.statement.text)
-        .bind(...request.statement.parameters.map((value) => encoder.encode(value)))
+        .bind(
+          ...request.statement.parameters.map((value, index) =>
+            encoder.encode(value, request.statement.parameterSqlTypes?.[index]),
+          ),
+        )
 
       if (request.queryKind === "select" || request.queryKind === "set") {
         const result = await statement.all<TRow>()
@@ -71,7 +75,11 @@ export function d1Adapter(database: D1Database, options: D1AdapterOptions = {}):
       throwIfAborted(request.signal)
       const result = await database
         .prepare(request.statement.text)
-        .bind(...request.statement.parameters.map((value) => encoder.encode(value)))
+        .bind(
+          ...request.statement.parameters.map((value, index) =>
+            encoder.encode(value, request.statement.parameterSqlTypes?.[index]),
+          ),
+        )
         .all<Record<string, unknown>>()
 
       return {

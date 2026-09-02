@@ -270,7 +270,7 @@ const builtInDefinitionCasts = [
   cast(records.id, binary()),
 ] as const
 const customCall = typedCall<SqlText, string>()("custom_text", records.label)
-const customValue = typedValue<SqlUuid, string>("uuid-value")
+const customValue = typedValue<SqlUuid, string>("uuid-value", "uuid")
 const customUnsafe = unsafeExpression<string, SqlText>("custom_text()")
 
 export type CastPropagation = Assert<
