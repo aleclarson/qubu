@@ -276,6 +276,8 @@ export function diffSnapshots(
     })
   }
 
+  // Parent matches can unlock child matches by remapping the child's scoped key. Repeat
+  // until a pass adds no mappings so nested descendants are settled before suggestions.
   let matchedDescendant = true
 
   while (matchedDescendant) {
@@ -897,6 +899,8 @@ function extractSnapshotObjects(snapshot: SchemaSnapshot): readonly InternalObje
         }
       }
 
+      // Parent collection fields are intentionally skipped by generic comparison, so
+      // domain constraints must be indexed as child objects to remain diffable.
       if (kind === "domain") {
         const constraints = (value as SchemaSnapshot["domains"][number]).constraints ?? []
 
@@ -1258,6 +1262,8 @@ function structuralSignature(value: JsonRecord): string {
   return canonicalJson(stripIdentity(value as SnapshotJsonValue))
 }
 
+// Only the matched record's own identity is structural noise; nested IDs and physical
+// references can describe real relationship changes.
 function stripIdentity(value: SnapshotJsonValue, root = true): SnapshotJsonValue {
   if (Array.isArray(value)) {
     return value.map((item) => stripIdentity(item, false)) as readonly SnapshotJsonValue[]
@@ -1600,6 +1606,8 @@ function scopeKeyForRecord(
   return `${record.object.kind}\u0000${record.object.namespace ?? ""}\u0000${parentId}`
 }
 
+// Normalize only known schema paths; extension and deferred payload arrays may be
+// order-sensitive and must pass through unchanged.
 function sortSnapshotArrays(value: JsonRecord): JsonRecord {
   const visit = (current: unknown, path: SnapshotDiffPath): unknown => {
     if (Array.isArray(current)) {

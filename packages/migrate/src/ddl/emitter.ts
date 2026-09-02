@@ -1214,6 +1214,8 @@ function renderRename(
     }
   }
 
+  // A diff can attach independent property changes to one rename operation. Render
+  // both parts here so returning after the rename cannot silently discard the changes.
   if (!hasConcurrentPropertyChanges(operation)) {
     return rename
   }
@@ -1221,6 +1223,8 @@ function renderRename(
   const afterValue = after.value
 
   if (operation.kind === "index") {
+    // Index definition changes are rendered as drop/create with the target name; a
+    // separate rename would be redundant.
     const replacement = renderPropertyChange(operation, afterValue, operations, dialect, features)
 
     if (replacement === undefined || replacement.length === 0) {
@@ -2714,6 +2718,8 @@ function hasConcurrentPropertyChanges(operation: MigrationOperation): boolean {
     return false
   }
 
+  // Migration origins retain before/after values rather than changedProperties, so use
+  // the diff comparator's top-level exclusions to distinguish rename-only operations.
   return !sameComparableValue(before, after, [])
 }
 
