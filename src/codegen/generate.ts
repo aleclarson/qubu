@@ -581,6 +581,8 @@ function resolveTable(
   const columns: ResolvedColumn[] = []
   const columnNames = new Map<string, readonly (string | number)[]>()
 
+  // Generated source is serialized back in declaration order, which becomes Snapshot ordinal
+  // positions; keep physical order here so a generated schema can round-trip without false diffs.
   for (const column of [...snapshot.columns].sort(comparePhysicalPosition)) {
     const path = ["snapshot", "tables", snapshot.id, "columns", column.id] as const
     const catalogColumn = columnCatalog.get(column.physicalName)
@@ -1160,6 +1162,8 @@ function hasCompleteColumnBehavior(
 }
 
 function toPhysicalFacts(snapshot: SchemaSnapshot): unknown {
+  // IDs and introspection evidence are run-specific; compare physical facts and resolve references
+  // by physical name so equivalent snapshots from separate introspection runs still match.
   const tableById = new Map(snapshot.tables.map((table) => [table.id, table]))
   const columnNames = new Map(
     snapshot.tables.map((table) => [
