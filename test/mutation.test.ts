@@ -16,6 +16,7 @@ import {
   asc,
   boolean,
   cast,
+  column,
   cte,
   defaultValues,
   deleteFrom,
@@ -29,6 +30,7 @@ import {
   integer,
   lt,
   omit,
+  nativeStorage,
   QueryValidationError,
   render,
   returning,
@@ -120,6 +122,21 @@ test("renders typed multi-row INSERT values and RETURNING projections", () => {
     id: number
     name: string
   }>()
+})
+
+test("passes explicit custom column domains to mutation parameters", () => {
+  const records = table("custom_records", {
+    handle: column({
+      sqlType: "postgres.citext",
+      storage: nativeStorage("postgresql", "CITEXT"),
+    }),
+  })
+  const query = insertInto(records, values({ handle: "Ada" }))
+
+  expect(render(query)).toMatchObject({
+    parameters: ["Ada"],
+    parameterSqlTypes: ["postgres.citext"],
+  })
 })
 
 test("renders INSERT expressions directly while encoding raw application values", () => {

@@ -1,5 +1,6 @@
 import { expect, expectTypeOf, test } from "vitest"
 
+import { typedValue } from "../src/core/index.ts"
 import { postgresDialect } from "../src/dialects/postgres.ts"
 import { standardDialect } from "../src/dialects/standard.ts"
 import {
@@ -20,6 +21,7 @@ import {
   json,
   jsonTextResultDecoder,
   mapResult,
+  nativeStorage,
   numeric,
   qubu,
   returning,
@@ -34,6 +36,7 @@ import {
   uuid,
   type ExecutionRequest,
   type QueryAdapter,
+  type SqlBoolean,
   ResultDecodingError,
   type TransactionOptions,
   type TransactionalQueryAdapter,
@@ -89,6 +92,21 @@ test("preserves bigint results without converting through Number", async () => {
   await expect(executeRows(query, adapter)).resolves.toEqual([{ sequence: 9007199254740993n }])
 })
 
+test("does not infer result decoders from typed-value domains", async () => {
+  const query = select({ flag: typedValue<SqlBoolean, string>("1", "boolean") }, from(users))
+  const adapter: QueryAdapter = {
+    dialect: standardDialect(),
+    async execute(request) {
+      expect(request.resultShape).toEqual({
+        fields: [{ name: "flag", sqlType: "boolean" }],
+      })
+      return { rows: [{ flag: "1" }] }
+    },
+  }
+
+  await expect(executeRows(query, adapter)).resolves.toEqual([{ flag: "1" }])
+})
+
 test("exposes portable SQL domains in result shapes", () => {
   const records = table("records", {
     eventDate: date(),
@@ -96,6 +114,10 @@ test("exposes portable SQL domains in result shapes", () => {
     identifier: uuid(),
     amount: numeric(),
     sequence: bigint(),
+    custom: column({
+      sqlType: "postgres.citext",
+      storage: nativeStorage("postgresql", "CITEXT"),
+    }),
   })
   const query = select(
     {
@@ -104,6 +126,7 @@ test("exposes portable SQL domains in result shapes", () => {
       identifier: records.identifier,
       amount: records.amount,
       sequence: records.sequence,
+      custom: records.custom,
     },
     from(records),
   )
@@ -115,6 +138,7 @@ test("exposes portable SQL domains in result shapes", () => {
       { name: "identifier", sqlType: "uuid" },
       { name: "amount", sqlType: "decimal" },
       { name: "sequence", type: "bigint", sqlType: "bigint" },
+      { name: "custom", sqlType: "postgres.citext" },
     ],
   })
 })

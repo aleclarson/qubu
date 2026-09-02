@@ -181,7 +181,7 @@ export type KnownCompatibility = Assert<
   >
 >
 
-const citext = column<string, string, string, SqlCitext>()
+const citext = column<string, string, string, SqlCitext>({ sqlType: "postgres.citext" })
 const nullableCitext = nullable(citext)
 
 export type CustomColumnDomain = Assert<Equal<ColumnSqlType<typeof nullableCitext>, SqlCitext>>
