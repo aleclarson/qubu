@@ -197,6 +197,8 @@ function isBigInt(value: object): value is SnapshotBigInt {
   )
 }
 
+// `__proto__` is a legacy setter on ordinary objects; define an own property
+// so arbitrary JSON keys survive conversion.
 function setOwn<T>(target: Record<string, T>, key: string, value: T): void {
   Object.defineProperty(target, key, {
     configurable: true,

@@ -949,6 +949,8 @@ function serializeIndex(
           options,
           diagnostics,
         )
+  // An explicit empty INCLUDE list is meaningful; do not apply the non-empty
+  // collection check used for ordinary column lists.
   const includedColumns =
     indexMetadata.includedColumns === undefined
       ? undefined
@@ -1281,6 +1283,8 @@ function compareId(left: { readonly id: string }, right: { readonly id: string }
   return left.id < right.id ? -1 : left.id > right.id ? 1 : 0
 }
 
+// `__proto__` is a legacy setter on ordinary objects; define an own property
+// so arbitrary JSON keys survive conversion.
 function setOwn<T>(target: Record<string, T>, key: string, value: T): void {
   Object.defineProperty(target, key, {
     configurable: true,

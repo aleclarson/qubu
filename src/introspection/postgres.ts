@@ -3388,6 +3388,8 @@ function metadataKey(relation: string, oid: unknown, subid: unknown): string {
   return `${relation}:${text(oid) ?? "unknown"}:${number(subid) ?? 0}`
 }
 
+// Nested IDs can repeat across owners, so qualify them before placing metadata
+// in the top-level metadata collection.
 function metadataId(object: CatalogObjectReference, suffix: "comment" | "ownership"): string {
   const owner = object.owner
   const ownerPrefix = owner === undefined ? "" : `${owner.kind}_${owner.id}_`
