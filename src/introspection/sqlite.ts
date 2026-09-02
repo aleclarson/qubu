@@ -1429,6 +1429,8 @@ interface SqliteCheckExpressions {
 }
 
 function checkExpressions(sqlText: string | undefined): SqliteCheckExpressions {
+  // SQLite exposes CHECK definitions only through CREATE TABLE SQL; respect quotes and nesting so
+  // a keyword or parenthesis inside an expression is not mistaken for another constraint.
   if (!sqlText) {
     return {
       values: [],
@@ -1792,6 +1794,8 @@ function foreignKeys(
     let normalizedTargetColumns: readonly string[] | undefined
     let problem: string | undefined
 
+    // SQLite reports NULL target columns for REFERENCES table shorthand; resolve it only from a
+    // matching-width primary key, otherwise preserve the relationship as opaque evidence.
     if (targetTableName === undefined) {
       problem = "has no referenced table"
     } else if (targetTable === undefined) {

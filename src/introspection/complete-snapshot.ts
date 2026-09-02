@@ -1,5 +1,5 @@
-import { toSnapshotJsonValue } from "../snapshot/canonical.ts"
 import { hasCandidateKeyShape } from "../snapshot/candidate-key.ts"
+import { toSnapshotJsonValue } from "../snapshot/canonical.ts"
 import {
   assertCompleteSchemaSnapshot,
   type CompleteSchemaSnapshot,
@@ -70,7 +70,7 @@ import type {
   IntrospectionOptions,
 } from "./types.ts"
 
-/** Result returned by the strict normalized-catalog to Snapshot v1 mapper. */
+/** Result returned by the normalized-catalog-to-Snapshot v1 mapper, including lossiness status. */
 export type CompleteSnapshotMappingResult =
   | {
       readonly ok: true
@@ -94,13 +94,18 @@ export type CompleteSnapshotMappingResult =
     }
 
 /**
- * Map a normalized catalog to strict Snapshot v1 data. Complete objects are never fabricated as
+ * Map a normalized catalog to validated Snapshot v1 data.
+ *
+ * Strict mode reports mapping errors as failure. Explicit lossy mode may omit only recoverable
+ * unsafe facts and marks a successful result as lossy. Complete objects are never fabricated as
  * tables, and catalog references remain evidence rather than logical IDs.
  */
 export function mapCatalogToCompleteSnapshot(
   input: IntrospectionCatalog,
   options?: IntrospectionOptions,
 ): CompleteSnapshotMappingResult {
+  // Rewrite identities before normalization so every object and relationship is mapped from one
+  // consistent logical-ID graph.
   const catalog = createCompleteIntrospectionCatalog(applyIdentityOptions(input, options))
   const normalizedDiagnostics = normalizeCatalogDiagnostics(
     catalog.diagnostics,
@@ -425,6 +430,8 @@ function reportMappingIssue(
   input: Omit<IntrospectionDiagnostic, "severity">,
   recoverable = true,
 ): boolean {
+  // A true result means lossy mode omitted the unsafe fact; strict mode keeps it while the
+  // accumulated diagnostic rejects the mapping.
   if (context.mode === "lossy" && recoverable) {
     context.lossy = true
     context.diagnostics.push(
@@ -539,6 +546,8 @@ function createCatalogReferenceLookup(
   }
 
   return {
+    // Column, constraint, and index IDs may repeat across tables; scoped references must not
+    // resolve to a same-named entity owned by another table.
     has(reference) {
       if (!keys.has(referenceKey(reference.kind, reference.id))) {
         return false
@@ -934,6 +943,8 @@ function registerIdentity(
 ): void {
   const existing = map.get(key)
 
+  // A duplicate selector is intentionally stored as null so ambiguous identities never silently
+  // choose whichever object was registered last.
   map.set(key, existing === undefined ? value : null)
 }
 

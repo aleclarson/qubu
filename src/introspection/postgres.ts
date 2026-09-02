@@ -214,6 +214,8 @@ export async function readCatalog(
     }
   }
 
+  // PostgreSQL versions before 15 do not expose indnullsnotdistinct; mentioning it in their query
+  // would fail the whole catalog read.
   const constraintsQuery =
     (server.parsedVersion?.major ?? 0) >= 15
       ? postgresConstraintsQuery
@@ -1526,6 +1528,8 @@ function mapDomains(
         const definition = text(constraintRow.definition)
 
         if (definition === undefined || definition.trim() === "") {
+          // An absent decompiler result is not equivalent to CHECK (true); keep unknown semantics
+          // opaque so migration code cannot mistake them for a no-op.
           diagnostics.push(
             createIntrospectionDiagnostic({
               severity: "warning",
@@ -1660,6 +1664,8 @@ function domainDefault(
   if (/^[+-]?\d+\.\d+$/.test(trimmed)) {
     const fact = literalFact(trimmed)
 
+    // Keep decimal defaults as expressions when Number would round them; schema defaults are facts,
+    // not approximate values.
     if (
       fact?.value !== undefined &&
       typeof fact.value === "number" &&
@@ -2139,6 +2145,8 @@ interface PartitionKeyInfo {
 }
 
 function partitionKeyInfo(value: unknown, columns: readonly CatalogColumn[]): PartitionKeyInfo {
+  // PostgreSQL encodes expression partition keys as zero in partattrs; positive entries are
+  // attribute numbers, and missing numbers must remain evidence rather than guessed columns.
   const attributes = integerArray(value)
   const byOrdinal = new Map(columns.map((column) => [column.ordinalPosition, column.physicalName]))
   const positions = attributes.filter((position) => position > 0)
@@ -2831,6 +2839,8 @@ function mapIndexes(
         const attnum = number(row.attnum) ?? 0
         const columnName = attnum > 0 ? columnsByNumber.get(attnum) : undefined
 
+        // indnkeyatts excludes INCLUDE columns; only rows after the key portion belong in
+        // includedColumns.
         if (position > keyCount) {
           if (columnName) {
             includedColumns.push(columnName)
