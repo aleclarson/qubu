@@ -365,6 +365,7 @@ function mapTable(
   diagnostics: IntrospectionDiagnostic[],
 ): CompleteSnapshotTable {
   const columns = table.columns.map((column) => mapColumn(column, dialect)).sort(compareId)
+  // Constraint catalog references use physical names; index candidate-key checks use snapshot IDs.
   const columnIds = new Map(table.columns.map((column) => [column.physicalName, column.id]))
   const columnNullability = new Map(
     table.columns.map((column) => [column.physicalName, column.nullable]),

@@ -329,6 +329,8 @@ function serializeTable(
         diagnostics,
       )
     : undefined
+  // Snapshot arrays are sorted by ID for deterministic encoding, so retain declaration order as a
+  // one-based ordinal for codegen's physical-column round trip.
   const columns = Object.entries(definitions)
     .map(([fieldName, definition], ordinalPosition) =>
       serializeColumn(

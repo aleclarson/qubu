@@ -8,6 +8,8 @@ export function candidateKeyIndexColumns(
     return undefined
   }
 
+  // Keep the proof conservative: predicates, expressions, prefixes, and operator classes carry
+  // index semantics that the portable candidate-key type cannot represent.
   const columns: string[] = []
 
   for (const term of index.terms) {
