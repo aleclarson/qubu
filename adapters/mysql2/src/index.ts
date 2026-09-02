@@ -76,7 +76,9 @@ function executionAdapter(
       throwIfAborted(request.signal)
       const [result] = await connection.execute(
         request.statement.text,
-        request.statement.parameters.map((value) => encoder.encode(value)),
+        request.statement.parameters.map((value, index) =>
+          encoder.encode(value, request.statement.parameterSqlTypes?.[index]),
+        ),
       )
 
       if (Array.isArray(result)) {
@@ -96,7 +98,9 @@ function executionAdapter(
       throwIfAborted(request.signal)
       const [result] = await connection.execute(
         request.statement.text,
-        request.statement.parameters.map((value) => encoder.encode(value)),
+        request.statement.parameters.map((value, index) =>
+          encoder.encode(value, request.statement.parameterSqlTypes?.[index]),
+        ),
       )
 
       return {

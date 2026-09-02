@@ -1,6 +1,7 @@
 import { expect, test } from "vitest"
 
-import { customClause } from "../src/core/index.ts"
+import { customClause, typedValue } from "../src/core/index.ts"
+import type { SqlUuid } from "../src/core/sql-types.ts"
 import { eq, from, integer, select, table, text, render, where } from "../src/index.ts"
 
 const users = table("users", {
@@ -19,7 +20,7 @@ test("keeps runtime parameter order after metadata removal", () => {
       order: 80,
       render(context) {
         context.append("AS OF ")
-        context.parameter(date)
+        context.parameter(date, "date")
       },
     }),
   )
@@ -27,5 +28,15 @@ test("keeps runtime parameter order after metadata removal", () => {
   expect(render(query)).toEqual({
     text: 'SELECT "users"."id" AS "id" FROM "users" WHERE ("users"."id" = ?) AS OF ?',
     parameters: [42, date],
+    parameterSqlTypes: [undefined, "date"],
+  })
+})
+
+test("carries explicit typed-value domains beside raw parameters", () => {
+  const uuidValue = typedValue<SqlUuid, string>("uuid", "uuid")
+
+  expect(render(uuidValue)).toMatchObject({
+    parameters: ["uuid"],
+    parameterSqlTypes: ["uuid"],
   })
 })

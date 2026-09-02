@@ -49,6 +49,7 @@ export type {
   TransactionalQueryAdapter,
 } from "./execution.ts"
 export {
+  bigintResultDecoder,
   booleanResultDecoder,
   dateResultDecoder,
   jsonTextResultDecoder,
@@ -125,6 +126,7 @@ export type {
   SqlSemanticType,
   SqlText,
   SqlTextLike,
+  SqlTypeName,
   SqlTimestamp,
   SqlTypeSatisfies,
   SqlUnknown,

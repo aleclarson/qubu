@@ -24,7 +24,7 @@ import type {
   TransactionOptions,
   TransactionalQueryAdapter,
 } from "qubu"
-import type { Dialect } from "qubu/core"
+import type { Dialect, SqlTypeName } from "qubu/core"
 import { mysqlDialect } from "qubu/mysql"
 import { postgresDialect } from "qubu/postgres"
 
@@ -219,7 +219,11 @@ function statementInput(
     secretArn: options.secretArn,
     sql: request.statement.text,
     parameters: request.statement.parameters.map((value, index) => ({
-      ...encodeRdsDataApiParameter(`p${index + 1}`, encoder.encode(value)),
+      ...encodeRdsDataApiParameter(
+        `p${index + 1}`,
+        encoder.encode(value, request.statement.parameterSqlTypes?.[index]),
+        request.statement.parameterSqlTypes?.[index],
+      ),
     })),
     includeResultMetadata: true,
     formatRecordsAs: "NONE",
@@ -255,7 +259,7 @@ function transactionEndInput(options: RdsDataApiAdapterOptions, transactionId: s
 }
 
 /** Encode one JavaScript value as an AWS RDS Data API `Field`. */
-export function encodeRdsDataApiValue(value: unknown): Field {
+export function encodeRdsDataApiValue(value: unknown, sqlType?: SqlTypeName): Field {
   if (value === null || value === undefined) {
     return { isNull: true }
   }
@@ -277,14 +281,20 @@ export function encodeRdsDataApiValue(value: unknown): Field {
       throw new TypeError("RDS Data API parameters must contain finite numbers")
     }
 
-    if (Number.isInteger(value) && Number.isSafeInteger(value)) {
-      return { longValue: value }
+    if (Number.isInteger(value)) {
+      if (!Number.isSafeInteger(value)) {
+        throw new TypeError(
+          "RDS Data API parameters cannot contain unsafe integer numbers; use a bigint or string",
+        )
+      }
+
+      if (sqlType !== "decimal") {
+        return { longValue: value }
+      }
     }
 
-    if (Number.isInteger(value)) {
-      throw new TypeError(
-        "RDS Data API parameters cannot contain unsafe integer numbers; use a bigint or string",
-      )
+    if (sqlType === "decimal") {
+      return { stringValue: String(value) }
     }
 
     return { doubleValue: value }
@@ -296,7 +306,10 @@ export function encodeRdsDataApiValue(value: unknown): Field {
     }
 
     return {
-      stringValue: value.toISOString().slice(0, -1).replace("T", " "),
+      stringValue:
+        sqlType === "date"
+          ? value.toISOString().slice(0, 10)
+          : value.toISOString().slice(0, -1).replace("T", " "),
     }
   }
 
@@ -322,17 +335,36 @@ export function encodeRdsDataApiValue(value: unknown): Field {
 }
 
 /** Encode one named parameter, including the Data API hint for typed values. */
-export function encodeRdsDataApiParameter(name: string, value: unknown) {
-  const typeHint = rdsDataApiTypeHint(value)
+export function encodeRdsDataApiParameter(name: string, value: unknown, sqlType?: SqlTypeName) {
+  const typeHint = rdsDataApiTypeHint(value, sqlType)
 
   return {
     name,
-    value: encodeRdsDataApiValue(value),
+    value: encodeRdsDataApiValue(value, sqlType),
     ...(typeHint === undefined ? {} : { typeHint }),
   }
 }
 
-function rdsDataApiTypeHint(value: unknown): "DECIMAL" | "JSON" | "TIMESTAMP" | undefined {
+function rdsDataApiTypeHint(
+  value: unknown,
+  sqlType?: SqlTypeName,
+): "DATE" | "DECIMAL" | "JSON" | "TIMESTAMP" | "UUID" | undefined {
+  if (sqlType === "date") {
+    return "DATE"
+  }
+
+  if (sqlType === "timestamp") {
+    return "TIMESTAMP"
+  }
+
+  if (sqlType === "uuid") {
+    return "UUID"
+  }
+
+  if (sqlType === "decimal" || sqlType === "bigint") {
+    return "DECIMAL"
+  }
+
   if (typeof value === "bigint") {
     return "DECIMAL"
   }

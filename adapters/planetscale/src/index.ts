@@ -73,7 +73,9 @@ function executionAdapter(
       throwIfAborted(request.signal)
       const result = await executor.execute<TRow>(
         request.statement.text,
-        request.statement.parameters.map((value) => encoder.encode(value)),
+        request.statement.parameters.map((value, index) =>
+          encoder.encode(value, request.statement.parameterSqlTypes?.[index]),
+        ),
       )
       const isMutation = request.queryKind !== "select" && request.queryKind !== "set"
 
@@ -87,7 +89,9 @@ function executionAdapter(
       throwIfAborted(request.signal)
       const result = await executor.execute<Record<string, unknown>>(
         request.statement.text,
-        request.statement.parameters.map((value) => encoder.encode(value)),
+        request.statement.parameters.map((value, index) =>
+          encoder.encode(value, request.statement.parameterSqlTypes?.[index]),
+        ),
       )
 
       return { rows: Array.from(result.rows) } satisfies ExplainResult<Record<string, unknown>>

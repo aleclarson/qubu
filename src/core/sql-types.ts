@@ -80,6 +80,9 @@ export type SqlBinary = SqlSemanticType<"binary"> & SqlEqualityComparable<"binar
 /** Any declared SQL semantic type, including user and dialect extensions. */
 export type AnySqlType = SqlSemanticType<string>
 
+/** Runtime name for a SQL semantic domain, including user and dialect extensions. */
+export type SqlTypeName = AnySqlType["sqlType"]
+
 type IsUnresolvedSqlType<T> = T extends SqlUnknown
   ? true
   : T extends AnySqlType

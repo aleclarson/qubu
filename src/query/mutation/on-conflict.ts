@@ -10,7 +10,7 @@ import {
 import { identifier } from "../../core/primitives/identifier.ts"
 import { createColumnReference, type ColumnReference } from "../../expressions/column.ts"
 import { isExpression } from "../../expressions/types.ts"
-import { columnResultValue, encodeColumnParameter } from "../../schema/column.ts"
+import { columnResultValue, columnSqlType, encodeColumnParameter } from "../../schema/column.ts"
 import type { KeyConstraint, SourceConstraintsRecord } from "../../schema/constraints.ts"
 import { renderSchemaExpression, SchemaExpressionError } from "../../schema/expressions.ts"
 import type { IndexTerm, SourceIndex, SourceIndexesRecord } from "../../schema/indexes.ts"
@@ -310,6 +310,7 @@ export function onConflict(
 
             context.parameter(
               definition === undefined ? value : encodeColumnParameter(definition, value),
+              definition === undefined ? undefined : columnSqlType(definition),
             )
           }
         })

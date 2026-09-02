@@ -1,6 +1,7 @@
 import type { ExpressionMeta, ResultMeta } from "../core/fragment.ts"
 import { parameter } from "../core/primitives/parameter.ts"
-import type { AnySqlType, SqlUnknown } from "../core/sql-types.ts"
+import type { AnySqlType, SqlTypeName, SqlUnknown } from "../core/sql-types.ts"
+import { resultValue } from "../result.ts"
 import { makeSchemaExpression, type AnyExpression, type SchemaExpression } from "./types.ts"
 
 export interface ValueExpression<
@@ -10,10 +11,19 @@ export interface ValueExpression<
   readonly value: T
 }
 
-export function value<T>(input: T): ValueExpression<T> {
+export function value<T>(input: T, sqlType?: SqlTypeName): ValueExpression<T> {
+  const resultType =
+    sqlType === "boolean" ||
+    sqlType === "date" ||
+    sqlType === "timestamp" ||
+    sqlType === "json" ||
+    sqlType === "bigint"
+      ? sqlType
+      : undefined
   const expression = makeSchemaExpression<ResultMeta<T> | ExpressionMeta<never>, "value">(
     "value",
-    (context) => context.render(parameter(input)),
+    (context) => context.render(parameter(input, sqlType)),
+    resultValue(resultType, undefined, sqlType),
   )
 
   return Object.freeze({
@@ -22,9 +32,12 @@ export function value<T>(input: T): ValueExpression<T> {
   })
 }
 
-/** Bind a value while declaring its SQL semantic domain. */
-export function typedValue<TSqlType extends AnySqlType, T>(input: T): ValueExpression<T, TSqlType> {
-  return value(input) as unknown as ValueExpression<T, TSqlType>
+/** Bind a value while declaring its compile-time and runtime SQL semantic domain. */
+export function typedValue<TSqlType extends AnySqlType, T>(
+  input: T,
+  sqlType: TSqlType["sqlType"],
+): ValueExpression<T, TSqlType> {
+  return value(input, sqlType) as unknown as ValueExpression<T, TSqlType>
 }
 
 export function isExpressionValue(valueToCheck: unknown): valueToCheck is AnyExpression {
@@ -47,7 +60,8 @@ export function isValueExpression(valueToCheck: unknown): valueToCheck is ValueE
 
 export function asValue<TInput>(
   input: TInput,
+  sqlType?: SqlTypeName,
 ): TInput extends AnyExpression ? TInput : ValueExpression<TInput>
-export function asValue(input: unknown): AnyExpression {
-  return isExpressionValue(input) ? input : value(input)
+export function asValue(input: unknown, sqlType?: SqlTypeName): AnyExpression {
+  return isExpressionValue(input) ? input : value(input, sqlType)
 }

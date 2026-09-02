@@ -97,10 +97,12 @@ test("maps application field names in mutations", () => {
   expect(render(inserted)).toEqual({
     text: 'INSERT INTO "accounts" ("user_id", "api_key", "creation_timestamp") VALUES (?, ?, ?) RETURNING "accounts"."creation_timestamp" AS "createdAt"',
     parameters: [7, "secret", "now"],
+    parameterSqlTypes: ["integer", "text", "text"],
   })
   expect(render(changed)).toEqual({
     text: 'UPDATE "accounts" SET "creation_timestamp" = ? WHERE ("accounts"."user_id" = ?)',
     parameters: ["later", 7],
+    parameterSqlTypes: ["text", undefined],
   })
 })
 

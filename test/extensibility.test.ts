@@ -68,10 +68,12 @@ test("renders dialect-specific pagination and expressions at the boundary", () =
   expect(render(paginationQuery, postgresDialect())).toEqual({
     text: 'SELECT "users"."name" AS "name" FROM "users" LIMIT $1 OFFSET $2',
     parameters: [10, 5],
+    parameterSqlTypes: ["integer", "integer"],
   })
   expect(render(paginationQuery, sqliteDialect())).toEqual({
     text: 'SELECT "users"."name" AS "name" FROM "users" LIMIT ? OFFSET ?',
     parameters: [10, 5],
+    parameterSqlTypes: ["integer", "integer"],
   })
   expect(render(paginationQuery, mysqlDialect())).toEqual({
     text: "SELECT `users`.`name` AS `name` FROM `users` LIMIT 10 OFFSET 5",

@@ -20,11 +20,13 @@ import { eq, executeRows, from, integer, render, select, table, text, where } fr
 function request(
   queryKind: ExecutionRequest["queryKind"],
   parameters: readonly unknown[] = [42],
+  parameterSqlTypes?: ExecutionRequest["statement"]["parameterSqlTypes"],
 ): ExecutionRequest {
   return {
     statement: {
       text: "SELECT ?",
       parameters,
+      ...(parameterSqlTypes === undefined ? {} : { parameterSqlTypes }),
     },
     queryKind,
     resultShape: { fields: [] },
@@ -530,5 +532,47 @@ describe("workspace adapters", () => {
     await expect(adapter.execute(request("update", [Number.MAX_SAFE_INTEGER + 2]))).rejects.toThrow(
       "use a bigint or string",
     )
+  })
+
+  test("RDS Data API honors declared parameter SQL domains", async () => {
+    const calls: Record<string, unknown>[] = []
+    const client = {
+      async send(command: { input: Record<string, unknown> }) {
+        calls.push(command.input)
+        return { numberOfRecordsUpdated: 1 }
+      },
+    }
+    const adapter = rdsDataApiMysqlAdapter(client as never, {
+      resourceArn: "resource",
+      secretArn: "secret",
+    })
+
+    await expect(
+      adapter.execute(
+        request(
+          "update",
+          [new Date("2026-08-29T12:30:00.000Z"), "108cb836-20d2-41b2-8c23-f0c94700aa7e", 42.5],
+          ["date", "uuid", "decimal"],
+        ),
+      ),
+    ).resolves.toMatchObject({ affectedRows: 1 })
+
+    expect(calls[0]?.parameters).toEqual([
+      {
+        name: "p1",
+        value: { stringValue: "2026-08-29" },
+        typeHint: "DATE",
+      },
+      {
+        name: "p2",
+        value: { stringValue: "108cb836-20d2-41b2-8c23-f0c94700aa7e" },
+        typeHint: "UUID",
+      },
+      {
+        name: "p3",
+        value: { stringValue: "42.5" },
+        typeHint: "DECIMAL",
+      },
+    ])
   })
 })

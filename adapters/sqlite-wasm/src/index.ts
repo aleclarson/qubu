@@ -98,7 +98,9 @@ async function executeRequest<TRow extends object>(
   let rows: readonly Record<string, unknown>[] = []
 
   try {
-    const parameters = request.statement.parameters.map((value) => encoder.encode(value))
+    const parameters = request.statement.parameters.map((value, index) =>
+      encoder.encode(value, request.statement.parameterSqlTypes?.[index]),
+    )
     if (parameters.length > 0) {
       statement.bind(parameters)
     }

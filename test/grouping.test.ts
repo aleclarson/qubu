@@ -53,5 +53,6 @@ test("preserves parameter order through grouped clauses", () => {
   expect(render(query)).toEqual({
     text: 'SELECT "users"."name" AS "name", COUNT("posts"."id") AS "postCount" FROM "users" LEFT JOIN "posts" ON ("users"."id" = "posts"."author_id") GROUP BY "users"."name" HAVING (COUNT("posts"."id") > ?) ORDER BY ? DESC FETCH FIRST ? ROWS ONLY',
     parameters: [1, "name", 5],
+    parameterSqlTypes: [undefined, undefined, "integer"],
   })
 })

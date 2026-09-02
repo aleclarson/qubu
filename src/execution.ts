@@ -1,5 +1,6 @@
 import type { Dialect, ExplainRenderOptions } from "./core/dialect.ts"
 import { render, type RenderedQuery, type RenderOptions } from "./core/render.ts"
+import type { SqlTypeName } from "./core/sql-types.ts"
 import { queryValidationError } from "./query/errors.ts"
 import type { AnyQuery, QueryKind, QueryWithRow } from "./query/types.ts"
 import { decodeResultRow, type ResultDecoders, type ResultShape } from "./result.ts"
@@ -123,9 +124,9 @@ export interface QubuOptions {
   readonly hooks?: QubuHooks
 }
 
-/** One rendered statement and the controls passed to an application adapter. */
+/** One rendered statement, runtime parameter domains, and controls passed to an application adapter. */
 export interface ExecutionRequest {
-  /** SQL text and raw application parameters produced by Qubu's renderer. */
+  /** SQL text, raw application parameters, and optional domain sidecar produced by Qubu's renderer. */
   readonly statement: RenderedQuery
   /** The source query kind, available without parsing rendered SQL. */
   readonly queryKind: QueryKind
@@ -172,9 +173,10 @@ export interface ExplainResult<TPlanRow extends object = Record<string, unknown>
 
 /**
  * The driver-facing boundary. `request.statement.parameters` contains raw application values in
- * placeholder order; the adapter binds and encodes them for its driver. Connection pooling,
- * transactions, retries, and proprietary driver-row normalization remain adapter concerns. Qubu
- * applies the adapter's registered logical result decoders afterward.
+ * placeholder order, and `request.statement.parameterSqlTypes` optionally contains their aligned
+ * SQL domains. The adapter binds and encodes them for its driver. Connection pooling, transactions,
+ * retries, and proprietary driver-row normalization remain adapter concerns. Qubu applies the
+ * adapter's registered logical result decoders afterward.
  */
 export interface QueryAdapter {
   /** Default rendering policy for queries sent through this adapter. */
@@ -637,8 +639,11 @@ function adapterTransactionOptions(
 }
 
 export interface DriverValueEncoder<TDriverValue = unknown> {
-  /** Convert one Qubu parameter into the driver's bindable representation. */
-  encode(value: unknown): TDriverValue
+  /**
+   * Convert one Qubu parameter into the driver's bindable representation and receive its SQL
+   * domain.
+   */
+  encode(value: unknown, sqlType?: SqlTypeName): TDriverValue
 }
 
 /**
@@ -952,6 +957,9 @@ function createExplainRequest(
       explainRenderOptions(options),
     ),
     parameters: request.statement.parameters,
+    ...(request.statement.parameterSqlTypes === undefined
+      ? {}
+      : { parameterSqlTypes: request.statement.parameterSqlTypes }),
   })
 
   return Object.freeze({

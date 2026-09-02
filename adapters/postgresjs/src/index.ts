@@ -67,7 +67,9 @@ function executionAdapter(
       throwIfAborted(request.signal)
       const result = await sql.unsafe<Row[]>(
         request.statement.text,
-        request.statement.parameters.map((value) => encoder.encode(value)) as never[],
+        request.statement.parameters.map((value, index) =>
+          encoder.encode(value, request.statement.parameterSqlTypes?.[index]),
+        ) as never[],
       )
       const isMutation = request.queryKind !== "select" && request.queryKind !== "set"
 
@@ -80,7 +82,9 @@ function executionAdapter(
       throwIfAborted(request.signal)
       const result = await sql.unsafe<Row[]>(
         request.statement.text,
-        request.statement.parameters.map((value) => encoder.encode(value)) as never[],
+        request.statement.parameters.map((value, index) =>
+          encoder.encode(value, request.statement.parameterSqlTypes?.[index]),
+        ) as never[],
       )
 
       return { rows: Array.from(result) } satisfies ExplainResult<Row>

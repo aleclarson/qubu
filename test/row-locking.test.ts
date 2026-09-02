@@ -41,6 +41,7 @@ test("renders PostgreSQL row locks after pagination and preserves parameter orde
   expect(render(query, postgresDialect())).toEqual({
     text: 'SELECT "users"."id" AS "id", "users"."email" AS "email" FROM "users" WHERE ("users"."id" = $1) LIMIT $2 OFFSET $3 FOR UPDATE SKIP LOCKED',
     parameters: [7, 10, 5],
+    parameterSqlTypes: [undefined, "integer", "integer"],
   })
   expectTypeOf(query.row).toEqualTypeOf<{
     id: number

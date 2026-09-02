@@ -57,7 +57,7 @@ test("forwards the rendered stream request and signal to the adapter", async () 
       parameters: [7],
     },
     queryKind: "select",
-    resultShape: { fields: [{ name: "id" }] },
+    resultShape: { fields: [{ name: "id", sqlType: "integer" }] },
     signal: controller.signal,
   })
   expect(rows).toEqual([{ id: 7 }])

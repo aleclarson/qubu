@@ -76,7 +76,9 @@ function executionAdapter(
       throwIfAborted(request.signal)
       const result = (await sql.unsafe<TRow[]>(
         request.statement.text,
-        request.statement.parameters.map((value) => encoder.encode(value)),
+        request.statement.parameters.map((value, index) =>
+          encoder.encode(value, request.statement.parameterSqlTypes?.[index]),
+        ),
       )) as BunSqlResult<TRow>
       const isMutation = request.queryKind !== "select" && request.queryKind !== "set"
 
@@ -89,7 +91,9 @@ function executionAdapter(
       throwIfAborted(request.signal)
       const result = await sql.unsafe<Record<string, unknown>[]>(
         request.statement.text,
-        request.statement.parameters.map((value) => encoder.encode(value)),
+        request.statement.parameters.map((value, index) =>
+          encoder.encode(value, request.statement.parameterSqlTypes?.[index]),
+        ),
       )
 
       return {

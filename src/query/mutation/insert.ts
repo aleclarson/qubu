@@ -7,9 +7,11 @@ import type {
 import { identifier } from "../../core/primitives/identifier.ts"
 import { isExpression, type ExpressionWithOutput } from "../../expressions/types.ts"
 import {
+  columnSqlType,
   encodeColumnParameter,
   type ColumnHasDefault,
   type ColumnIsGenerated,
+  type ColumnStorage,
 } from "../../schema/column.ts"
 import type { AnyTable, TableInsertInput } from "../../schema/table.ts"
 import { queryValidationError, type QueryTypeValidation } from "../errors.ts"
@@ -75,6 +77,7 @@ type RuntimeInsertDefinition = {
   readonly hasRuntimeDefault?: boolean
   readonly defaultFn?: () => unknown
   readonly parameterEncoder?: (value: unknown) => unknown
+  readonly storage?: ColumnStorage
 }
 
 type InsertSourceMetadata<TSource extends InsertSource> =
@@ -352,7 +355,7 @@ function renderInsertValue(
   if (isExpression(input)) {
     context.render(input)
   } else {
-    context.parameter(encodeColumnParameter(definition, input))
+    context.parameter(encodeColumnParameter(definition, input), columnSqlType(definition))
   }
 }
 

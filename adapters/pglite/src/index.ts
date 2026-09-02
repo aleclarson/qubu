@@ -61,7 +61,9 @@ function executionAdapter(
       throwIfAborted(request.signal)
       const result = await database.query<TRow>(
         request.statement.text,
-        request.statement.parameters.map((value) => encoder.encode(value)),
+        request.statement.parameters.map((value, index) =>
+          encoder.encode(value, request.statement.parameterSqlTypes?.[index]),
+        ),
       )
       const isMutation = request.queryKind !== "select" && request.queryKind !== "set"
       const affectedRows = result.rowCount ?? result.affectedRows
@@ -75,7 +77,9 @@ function executionAdapter(
       throwIfAborted(request.signal)
       const result = await database.query<Row>(
         request.statement.text,
-        request.statement.parameters.map((value) => encoder.encode(value)),
+        request.statement.parameters.map((value, index) =>
+          encoder.encode(value, request.statement.parameterSqlTypes?.[index]),
+        ),
       )
 
       return { rows: result.rows } satisfies ExplainResult<Row>

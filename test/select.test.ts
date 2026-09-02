@@ -70,6 +70,7 @@ test("renders a parameterized standard SQL select", () => {
   expect(render(query)).toEqual({
     text: 'SELECT "users"."id" AS "id", "users"."name" AS "displayName" FROM "users" WHERE ("users"."id" = ?) ORDER BY "users"."name" DESC FETCH FIRST ? ROWS ONLY',
     parameters: [7, 10],
+    parameterSqlTypes: [undefined, "integer"],
   })
 })
 
@@ -102,6 +103,7 @@ test("normalizes clause order and follows rendered parameter order", () => {
   expect(render(query)).toEqual({
     text: 'SELECT "users"."id" AS "id" FROM "users" WHERE ("users"."id" = ?) ORDER BY "users"."name" DESC OFFSET ? ROWS FETCH FIRST ? ROWS ONLY',
     parameters: [7, 5, 10],
+    parameterSqlTypes: [undefined, "integer", "integer"],
   })
 })
 
@@ -137,6 +139,7 @@ test("omits conditional pagination before validation and rendering", () => {
   expect(render(query)).toEqual({
     text: 'SELECT "users"."id" AS "id" FROM "users" FETCH FIRST ? ROWS ONLY',
     parameters: [10],
+    parameterSqlTypes: ["integer"],
   })
 })
 

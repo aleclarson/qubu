@@ -79,6 +79,11 @@ rows. Qubu then uses the query's result shape and the adapter's decoder policy
 to produce the typed `ExecutionResult`. A `TransactionalQueryAdapter` can also
 pin one driver connection for a callback transaction:
 
+When present, `request.statement.parameterSqlTypes` is an optional sidecar
+aligned with `statement.parameters`. Adapters can pass each domain to their
+value encoder or driver binding layer when a client distinguishes values such
+as `DATE`, `TIMESTAMP`, `UUID`, and `DECIMAL`.
+
 ```ts
 import { qubu } from "qubu"
 import { postgresDialect } from "qubu/postgres"
@@ -147,10 +152,11 @@ lifecycle.
 
 ### Decode schema-aware result values
 
-Portable boolean, date, timestamp, and JSON columns retain their logical
-result domains through projection aliases, derived queries, CTEs, set
-operations, and mutation `RETURNING`. Register only the conversions required
-by the selected driver configuration:
+Portable boolean, date, timestamp, JSON, and bigint columns retain their
+logical result domains through projection aliases, derived queries, CTEs, set
+operations, and mutation `RETURNING`. The result field exposes that domain as
+`sqlType` before execution. Register only the conversions required by the
+selected driver configuration:
 
 ```ts
 import {
@@ -179,6 +185,11 @@ const adapter: QueryAdapter = {
   },
 }
 ```
+
+Qubu can decode bigint values exactly when a driver returns a bigint, a safe
+integer, or an integer string. For arbitrary-precision `DECIMAL` values, keep
+the driver's exact representation (usually a string or decimal object) rather
+than converting it to a JavaScript number.
 
 Do not register `jsonTextResultDecoder` when the driver already returns parsed
 JSON. A JSON string is otherwise ambiguous: it may be serialized JSON or an
