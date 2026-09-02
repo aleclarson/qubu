@@ -579,11 +579,14 @@ function diagnoseOperation(
   const supported = isOperationSupported(features, operation)
 
   if (!supported) {
+    const message = hasConcurrentPropertyChanges(operation)
+      ? `The ${features.dialect} DDL emitter does not support ${kind} physical renames with concurrent property changes`
+      : `The ${features.dialect} DDL emitter does not support ${kind} operations`
     diagnostics.push(
       operationDiagnostic(
         operation,
         operation.safety === "unknown" ? "unknown" : "unsupported",
-        `The ${features.dialect} DDL emitter does not support ${kind} operations`,
+        message,
       ),
     )
   }
@@ -698,6 +701,14 @@ function isOperationSupported(features: DdlFeatures, operation: MigrationOperati
     return false
   }
 
+  if (
+    operation.type === "physical-rename" &&
+    hasConcurrentPropertyChanges(operation) &&
+    !supportsRenameWithPropertyChanges(features, operation)
+  ) {
+    return false
+  }
+
   if (operation.kind === "ownership" && operation.type === "remove") {
     return false
   }
@@ -763,6 +774,25 @@ function isOperationSupported(features: DdlFeatures, operation: MigrationOperati
   }
 
   return true
+}
+
+function supportsRenameWithPropertyChanges(
+  features: DdlFeatures,
+  operation: MigrationOperation,
+): boolean {
+  if (operation.kind === "column") {
+    return features.dialect === "postgresql" || features.dialect === "mysql"
+  }
+
+  if (operation.kind === "index") {
+    return features.dialect === "postgresql" || features.dialect === "mysql"
+  }
+
+  if (operation.kind === "view") {
+    return features.dialect === "postgresql" || features.dialect === "mysql"
+  }
+
+  return operation.kind === "materialized-view" && features.dialect === "postgresql"
 }
 
 function renderOperation(
@@ -1095,75 +1125,128 @@ function renderRename(
   const newName = requiredValueName(after.value)
   const oldQualified = qualifiedName(operation, oldName, dialect)
   const quotedNew = dialect.quoteIdentifier(newName)
+  let rename: string | undefined
 
   switch (operation.kind) {
     case "namespace": {
-      return features.dialect === "postgresql"
-        ? `ALTER SCHEMA ${dialect.quoteIdentifier(oldName)} RENAME TO ${quotedNew}`
-        : undefined
+      rename =
+        features.dialect === "postgresql"
+          ? `ALTER SCHEMA ${dialect.quoteIdentifier(oldName)} RENAME TO ${quotedNew}`
+          : undefined
+      break
     }
 
     case "table": {
-      return `ALTER TABLE ${oldQualified} RENAME TO ${quotedNew}`
+      rename = `ALTER TABLE ${oldQualified} RENAME TO ${quotedNew}`
+      break
     }
 
     case "column": {
-      return `ALTER TABLE ${parentTable(operation, operations, dialect)} RENAME COLUMN ${dialect.quoteIdentifier(oldName)} TO ${quotedNew}`
+      rename = `ALTER TABLE ${parentTable(operation, operations, dialect)} RENAME COLUMN ${dialect.quoteIdentifier(oldName)} TO ${quotedNew}`
+      break
     }
 
     case "constraint": {
-      return features.dialect === "postgresql"
-        ? `ALTER TABLE ${parentTable(operation, operations, dialect)} RENAME CONSTRAINT ${dialect.quoteIdentifier(oldName)} TO ${quotedNew}`
-        : undefined
+      rename =
+        features.dialect === "postgresql"
+          ? `ALTER TABLE ${parentTable(operation, operations, dialect)} RENAME CONSTRAINT ${dialect.quoteIdentifier(oldName)} TO ${quotedNew}`
+          : undefined
+      break
     }
 
     case "index": {
       if (features.dialect === "postgresql") {
-        return `ALTER INDEX ${oldQualified} RENAME TO ${quotedNew}`
+        rename = `ALTER INDEX ${oldQualified} RENAME TO ${quotedNew}`
+        break
       }
 
       if (features.dialect === "mysql") {
-        return `ALTER TABLE ${parentTable(operation, operations, dialect)} RENAME INDEX ${dialect.quoteIdentifier(oldName)} TO ${quotedNew}`
+        rename = `ALTER TABLE ${parentTable(operation, operations, dialect)} RENAME INDEX ${dialect.quoteIdentifier(oldName)} TO ${quotedNew}`
+        break
       }
 
-      return undefined
+      break
     }
 
     case "view": {
-      return features.dialect === "mysql"
-        ? `RENAME TABLE ${oldQualified} TO ${qualifiedName(operation, newName, dialect)}`
-        : `ALTER VIEW ${oldQualified} RENAME TO ${quotedNew}`
+      rename =
+        features.dialect === "mysql"
+          ? `RENAME TABLE ${oldQualified} TO ${qualifiedName(operation, newName, dialect)}`
+          : `ALTER VIEW ${oldQualified} RENAME TO ${quotedNew}`
+      break
     }
 
     case "materialized-view": {
-      return features.dialect === "postgresql"
-        ? `ALTER MATERIALIZED VIEW ${oldQualified} RENAME TO ${quotedNew}`
-        : undefined
+      rename =
+        features.dialect === "postgresql"
+          ? `ALTER MATERIALIZED VIEW ${oldQualified} RENAME TO ${quotedNew}`
+          : undefined
+      break
     }
 
     case "sequence": {
-      return features.dialect === "postgresql"
-        ? `ALTER SEQUENCE ${oldQualified} RENAME TO ${quotedNew}`
-        : undefined
+      rename =
+        features.dialect === "postgresql"
+          ? `ALTER SEQUENCE ${oldQualified} RENAME TO ${quotedNew}`
+          : undefined
+      break
     }
 
     case "enum":
     case "domain": {
-      return features.dialect === "postgresql"
-        ? `ALTER TYPE ${oldQualified} RENAME TO ${quotedNew}`
-        : undefined
+      rename =
+        features.dialect === "postgresql"
+          ? `ALTER TYPE ${oldQualified} RENAME TO ${quotedNew}`
+          : undefined
+      break
     }
 
     case "collation": {
-      return features.dialect === "postgresql"
-        ? `ALTER COLLATION ${oldQualified} RENAME TO ${quotedNew}`
-        : undefined
+      rename =
+        features.dialect === "postgresql"
+          ? `ALTER COLLATION ${oldQualified} RENAME TO ${quotedNew}`
+          : undefined
+      break
     }
 
     default: {
-      return undefined
+      break
     }
   }
+
+  if (!hasConcurrentPropertyChanges(operation)) {
+    return rename
+  }
+
+  const afterValue = after.value
+
+  if (operation.kind === "index") {
+    const replacement = renderPropertyChange(operation, afterValue, operations, dialect, features)
+
+    if (replacement === undefined || replacement.length === 0) {
+      throw new TypeError(
+        "Index physical rename with concurrent property changes cannot be rendered safely",
+      )
+    }
+
+    return replacement
+  }
+
+  if (rename === undefined) {
+    throw new TypeError(
+      `${features.dialect} cannot render ${operation.kind} physical rename with concurrent property changes`,
+    )
+  }
+
+  const propertyChange = renderPropertyChange(operation, afterValue, operations, dialect, features)
+
+  if (propertyChange === undefined || propertyChange.length === 0) {
+    throw new TypeError(
+      `${features.dialect} cannot render ${operation.kind} property changes carried with a physical rename`,
+    )
+  }
+
+  return `${rename};\n${propertyChange}`
 }
 
 function renderCreateTable(
@@ -2617,6 +2700,62 @@ function expressionsIn(value: JsonRecord): readonly SnapshotExpression[] {
 
   visit(value)
   return result
+}
+
+function hasConcurrentPropertyChanges(operation: MigrationOperation): boolean {
+  if (operation.type !== "physical-rename") {
+    return false
+  }
+
+  const before = operation.origin?.before?.value
+  const after = operation.origin?.after?.value
+
+  if (!isRecord(before) || !isRecord(after)) {
+    return false
+  }
+
+  return !sameComparableValue(before, after, [])
+}
+
+function sameComparableValue(
+  left: unknown,
+  right: unknown,
+  path: readonly (string | number)[],
+): boolean {
+  const key = path[path.length - 1]
+
+  if (
+    path.length === 1 &&
+    (key === "id" ||
+      key === "physicalName" ||
+      key === "physicalReference" ||
+      key === "columns" ||
+      key === "constraints" ||
+      key === "indexes")
+  ) {
+    return true
+  }
+
+  if (Object.is(left, right)) {
+    return true
+  }
+
+  if (Array.isArray(left) && Array.isArray(right)) {
+    return (
+      left.length === right.length &&
+      left.every((item, index) => sameComparableValue(item, right[index], [...path, index]))
+    )
+  }
+
+  if (isRecord(left) && isRecord(right)) {
+    const keys = new Set([...Object.keys(left), ...Object.keys(right)])
+
+    return [...keys].every((childKey) =>
+      sameComparableValue(left[childKey], right[childKey], [...path, childKey]),
+    )
+  }
+
+  return false
 }
 
 function storageDialect(value: unknown): string | undefined {

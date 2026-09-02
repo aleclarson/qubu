@@ -309,6 +309,97 @@ test("rejects blocked rename plans before rendering", () => {
   )
 })
 
+test("renders a reviewed column rename with its nullable narrowing", () => {
+  const dialect = {
+    name: "postgresql",
+    version: 1,
+  } as const
+  const before = snapshot(dialect, [
+    table("accounts", [
+      {
+        ...column("name"),
+        physicalName: "legacy_name",
+        nullable: true,
+      },
+    ]),
+  ])
+  const after = snapshot(dialect, [
+    table("accounts", [
+      {
+        ...column("name"),
+        physicalName: "name",
+        nullable: false,
+      },
+    ]),
+  ])
+  const planned = createMigrationPlan(diffSnapshots(before, after), {
+    allowDestructive: true,
+  })
+
+  expect(planned.ok).toBe(true)
+  if (!planned.ok) {
+    return
+  }
+
+  const emission = postgresDdl.emitMigrationPlan(planned.plan, {
+    allowDestructive: true,
+  })
+
+  expect(emission.ok).toBe(true)
+  expect(emission.statements).toHaveLength(1)
+  expect(emission.statements[0]?.sql).toBe(
+    'ALTER TABLE "public"."accounts" RENAME COLUMN "legacy_name" TO "name";\nALTER TABLE "public"."accounts" ALTER COLUMN "name" SET NOT NULL',
+  )
+  expect(emission.sql).toBe(`${emission.statements[0]?.sql};`)
+})
+
+test("blocks SQLite column renames with concurrent property changes", () => {
+  const dialect = {
+    name: "sqlite",
+    version: 1,
+  } as const
+  const before = snapshot(dialect, [
+    table("accounts", [
+      {
+        ...column("name"),
+        physicalName: "legacy_name",
+        nullable: true,
+      },
+    ]),
+  ])
+  const after = snapshot(dialect, [
+    table("accounts", [
+      {
+        ...column("name"),
+        physicalName: "name",
+        nullable: false,
+      },
+    ]),
+  ])
+  const planned = createMigrationPlan(diffSnapshots(before, after), {
+    allowDestructive: true,
+  })
+
+  expect(planned.ok).toBe(true)
+  if (!planned.ok) {
+    return
+  }
+
+  const emission = sqliteDdl.emitMigrationPlan(planned.plan, {
+    allowDestructive: true,
+  })
+
+  expect(emission.ok).toBe(false)
+  expect(emission.statements).toEqual([])
+  expect(
+    emission.diagnostics.some(
+      (diagnostic) =>
+        diagnostic.code === "unsupported" &&
+        diagnostic.message.includes("concurrent property changes"),
+    ),
+  ).toBe(true)
+})
+
 test("keeps explicit custom SQL and rejects opaque operations", () => {
   const dialect = {
     name: "postgresql",

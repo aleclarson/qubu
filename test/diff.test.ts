@@ -80,6 +80,7 @@ function table(id: string, physicalName = id, columns: readonly TestColumn[] = [
 function completeSnapshot(
   opaqueObjects: CompleteSchemaSnapshot["opaqueObjects"] = [],
   deferredObjects: CompleteSchemaSnapshot["deferredObjects"] = [],
+  extensions: CompleteSchemaSnapshot["extensions"] = [],
 ): CompleteSchemaSnapshot {
   return {
     format: "qubu-schema",
@@ -118,7 +119,7 @@ function completeSnapshot(
     routines: [],
     partitions: [],
     policies: [],
-    extensions: [],
+    extensions,
     deferredObjects,
     opaqueObjects,
     comments: [],
@@ -203,6 +204,184 @@ test("keeps explicit rename hints authoritative and serializable", () => {
   expect(encodeSnapshotRenameHints(hints)).toBe(
     '[{"from":"legacy_accounts","kind":"table","namespace":"public","to":"accounts"}]',
   )
+})
+
+test("propagates parent renames into descendant matching", () => {
+  const before = tableSnapshot([
+    table("legacy_accounts", "legacy_accounts", [
+      {
+        id: "status",
+        physicalName: "status",
+        nullable: true,
+        hasDefault: false,
+        generated: false,
+      },
+    ]),
+  ])
+  const after = tableSnapshot([
+    table("accounts", "accounts", [
+      {
+        id: "status",
+        physicalName: "status",
+        nullable: false,
+        hasDefault: false,
+        generated: false,
+      },
+    ]),
+  ])
+
+  const result = diffSnapshots(before, after, {
+    renameHints: [
+      {
+        kind: "table",
+        namespace: "public",
+        from: "legacy_accounts",
+        to: "accounts",
+      },
+    ],
+  })
+
+  expect(result.renames.map((operation) => operation.logicalId)).toEqual(["accounts"])
+  expect(result.additions).toEqual([])
+  expect(result.removals).toEqual([])
+  expect(result.propertyChanges).toEqual([
+    expect.objectContaining({
+      kind: "column",
+      logicalId: "status",
+      changedProperties: [
+        expect.objectContaining({
+          path: ["nullable"],
+          before: true,
+          after: false,
+        }),
+      ],
+    }),
+  ])
+})
+
+test("compares nested foreign-key target references", () => {
+  const accounts = table("accounts", "accounts", [
+    {
+      id: "id",
+      physicalName: "id",
+      nullable: false,
+      hasDefault: false,
+      generated: false,
+    },
+  ])
+  const profiles = table("profiles", "profiles", [
+    {
+      id: "id",
+      physicalName: "id",
+      nullable: false,
+      hasDefault: false,
+      generated: false,
+    },
+  ])
+  const orders = (target: string) => ({
+    ...table("orders", "orders", [
+      {
+        id: "accountId",
+        physicalName: "account_id",
+        nullable: false,
+        hasDefault: false,
+        generated: false,
+      },
+    ]),
+    constraints: [
+      {
+        kind: "foreign-key" as const,
+        id: "orders_account_fk",
+        physicalName: "orders_account_fk",
+        columns: ["accountId"],
+        target: {
+          table: {
+            kind: "table" as const,
+            id: target,
+          },
+          columns: ["id"],
+        },
+      },
+    ],
+  })
+
+  const result = diffSnapshots(
+    tableSnapshot([accounts, profiles, orders("accounts")]),
+    tableSnapshot([accounts, profiles, orders("profiles")]),
+  )
+
+  expect(result.propertyChanges).toEqual([
+    expect.objectContaining({
+      kind: "constraint",
+      logicalId: "orders_account_fk",
+      changedProperties: expect.arrayContaining([
+        expect.objectContaining({
+          path: ["target", "table", "id"],
+          before: "accounts",
+          after: "profiles",
+        }),
+      ]),
+    }),
+  ])
+})
+
+test("extracts domain constraints as diffable child objects", () => {
+  const domain = (expression: string, constraints = true) => ({
+    kind: "domain" as const,
+    id: "positive_amount",
+    physicalName: "positive_amount",
+    storage: {
+      kind: "portable" as const,
+      type: "integer",
+    },
+    ...(constraints
+      ? {
+          constraints: [
+            {
+              kind: "check" as const,
+              id: "positive_amount_check",
+              physicalName: "positive_amount_check",
+              expression: {
+                kind: "expression" as const,
+                expressionKind: "check",
+                sql: expression,
+              },
+            },
+          ],
+        }
+      : {}),
+  })
+  const empty = { ...tableSnapshot([]), domains: [domain("VALUE > 0", false)] }
+  const present = { ...tableSnapshot([]), domains: [domain("VALUE > 0")] }
+  const changed = { ...tableSnapshot([]), domains: [domain("VALUE >= 0")] }
+
+  expect(diffSnapshots(empty, present).additions).toEqual([
+    expect.objectContaining({
+      kind: "constraint",
+      logicalId: "positive_amount_check",
+      path: ["domains", 0, "constraints", 0],
+    }),
+  ])
+  expect(diffSnapshots(present, empty).removals).toEqual([
+    expect.objectContaining({
+      kind: "constraint",
+      logicalId: "positive_amount_check",
+      path: ["domains", 0, "constraints", 0],
+    }),
+  ])
+  expect(diffSnapshots(present, changed).propertyChanges).toEqual([
+    expect.objectContaining({
+      kind: "constraint",
+      logicalId: "positive_amount_check",
+      changedProperties: expect.arrayContaining([
+        expect.objectContaining({
+          path: ["expression", "sql"],
+          before: "VALUE > 0",
+          after: "VALUE >= 0",
+        }),
+      ]),
+    }),
+  ])
 })
 
 test("reports structural rename suggestions without creating renames", () => {
@@ -331,6 +510,35 @@ test("compares complete v1 object groups independently of array order", () => {
   expect(result.operations).toEqual([])
   expect(result.diagnostics.some((issue) => issue.code === "unknown")).toBe(true)
   expect(result.diagnostics.some((issue) => issue.code === "unsupported")).toBe(true)
+})
+
+test("preserves order-sensitive extension payload arrays", () => {
+  const extension = (values: readonly string[]) => ({
+    kind: "extension" as const,
+    id: "ordered_payload",
+    physicalName: "ordered_payload",
+    extensionName: "ordered_payload",
+    data: { values },
+  })
+  const before = completeSnapshot([], [], [extension(["first", "second"])])
+  const after = completeSnapshot([], [], [extension(["second", "first"])])
+
+  const result = diffSnapshots(before, after)
+
+  expect(result.equal).toBe(false)
+  expect(result.propertyChanges).toEqual([
+    expect.objectContaining({
+      kind: "extension",
+      logicalId: "ordered_payload",
+      changedProperties: expect.arrayContaining([
+        expect.objectContaining({
+          path: ["data", "values", 0],
+          before: "first",
+          after: "second",
+        }),
+      ]),
+    }),
+  ])
 })
 
 test("decodes invalid snapshots as structured diff diagnostics", () => {

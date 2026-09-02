@@ -182,6 +182,11 @@ export function diffSnapshots(
   const usedBefore = new Set<InternalObject>()
   const usedAfter = new Set<InternalObject>()
   const matches: Match[] = []
+  const parentRenameMappings = new Map<string, string>()
+  const recordMatch = (match: Match): void => {
+    matches.push(match)
+    addParentRenameMapping(match, parentRenameMappings)
+  }
 
   for (const hint of validHints) {
     const beforeCandidates = resolveHintTarget(left.records, hint.kind, hint.namespace, hint.from)
@@ -229,7 +234,7 @@ export function diffSnapshots(
 
     usedBefore.add(beforeObject)
     usedAfter.add(afterObject)
-    matches.push({
+    recordMatch({
       before: beforeObject,
       after: afterObject,
       source: "explicit-hint",
@@ -255,7 +260,7 @@ export function diffSnapshots(
 
     usedBefore.add(beforeObject)
     usedAfter.add(afterObject)
-    matches.push({
+    recordMatch({
       before: beforeObject,
       after: afterObject,
       source: "stable-id",
@@ -269,6 +274,51 @@ export function diffSnapshots(
         ),
       ],
     })
+  }
+
+  let matchedDescendant = true
+
+  while (matchedDescendant) {
+    matchedDescendant = false
+    const remainingBefore = left.records.filter(
+      (record) => !usedBefore.has(record) && record.object.parent !== undefined,
+    )
+    const remainingAfter = right.records.filter(
+      (record) => !usedAfter.has(record) && record.object.parent !== undefined,
+    )
+    const beforeByMappedKey = groupByKey(remainingBefore, (record) =>
+      remappedObjectKey(record, parentRenameMappings),
+    )
+    const afterByRemainingKey = groupByKey(remainingAfter)
+
+    for (const [key, beforeCandidates] of beforeByMappedKey) {
+      const afterCandidates = afterByRemainingKey.get(key) ?? []
+
+      if (beforeCandidates.length !== 1 || afterCandidates.length !== 1) {
+        continue
+      }
+
+      const beforeObject = beforeCandidates[0]!
+      const afterObject = afterCandidates[0]!
+
+      usedBefore.add(beforeObject)
+      usedAfter.add(afterObject)
+      recordMatch({
+        before: beforeObject,
+        after: afterObject,
+        source: "stable-id",
+        evidence: [
+          evidence(
+            "logical-id",
+            [...beforeObject.object.path, "id"],
+            beforeObject.object.id,
+            1,
+            "Stable logical ID match within a renamed parent scope",
+          ),
+        ],
+      })
+      matchedDescendant = true
+    }
   }
 
   const suggestions: SnapshotRenameSuggestion[] = []
@@ -287,7 +337,7 @@ export function diffSnapshots(
           (candidate) =>
             !candidate.lossy &&
             !candidate.unsupported &&
-            candidate.scopeKey === beforeObject.scopeKey,
+            candidate.scopeKey === scopeKeyForRecord(beforeObject, parentRenameMappings),
         )
         .map((candidate) => ({
           candidate,
@@ -846,6 +896,22 @@ function extractSnapshotObjects(snapshot: SchemaSnapshot): readonly InternalObje
           )
         }
       }
+
+      if (kind === "domain") {
+        const constraints = (value as SchemaSnapshot["domains"][number]).constraints ?? []
+
+        for (const [constraintIndex, constraint] of constraints.entries()) {
+          addInternalObject(
+            records,
+            "constraint",
+            constraint,
+            [String(group), index, "constraints", constraintIndex],
+            namespace,
+            object,
+            snapshot,
+          )
+        }
+      }
     }
   }
 
@@ -964,7 +1030,28 @@ function operationForMatch(
     )
   }
 
+  const destructive = effectiveChanges.some(isDestructiveProperty)
+
   if (physicalRename && !blockedRename) {
+    if (destructive) {
+      diagnostics.push(
+        diffDiagnostic(
+          "destructive",
+          `Property changes on ${before.kind} "${before.id}" may remove or narrow existing data`,
+          before.path,
+          {
+            kind: before.kind,
+            namespace: before.namespace,
+            logicalId: before.id,
+            physicalName: before.physicalName,
+            dialect: after.dialect,
+            relatedPaths: [after.path],
+            evidence: match.evidence,
+          },
+        ),
+      )
+    }
+
     return freeze({
       type: "physical-rename",
       operation: "physical-rename",
@@ -1003,15 +1090,13 @@ function operationForMatch(
         ),
       ]),
       source: match.source,
-      destructive: false,
+      destructive,
     })
   }
 
   if (effectiveChanges.length === 0) {
     return undefined
   }
-
-  const destructive = effectiveChanges.some(isDestructiveProperty)
 
   if (destructive) {
     diagnostics.push(
@@ -1173,9 +1258,9 @@ function structuralSignature(value: JsonRecord): string {
   return canonicalJson(stripIdentity(value as SnapshotJsonValue))
 }
 
-function stripIdentity(value: SnapshotJsonValue): SnapshotJsonValue {
+function stripIdentity(value: SnapshotJsonValue, root = true): SnapshotJsonValue {
   if (Array.isArray(value)) {
-    return value.map((item) => stripIdentity(item)) as readonly SnapshotJsonValue[]
+    return value.map((item) => stripIdentity(item, false)) as readonly SnapshotJsonValue[]
   }
 
   if (value === null || typeof value !== "object") {
@@ -1185,16 +1270,11 @@ function stripIdentity(value: SnapshotJsonValue): SnapshotJsonValue {
   const result: Record<string, SnapshotJsonValue> = {}
 
   for (const [key, child] of Object.entries(value)) {
-    if (
-      key === "id" ||
-      key === "physicalName" ||
-      key === "physicalReference" ||
-      key === "provenance"
-    ) {
+    if (root && isIdentityField(key)) {
       continue
     }
 
-    result[key] = stripIdentity(child)
+    result[key] = stripIdentity(child, false)
   }
 
   return result
@@ -1218,7 +1298,10 @@ function compareValues(
 ): void {
   const key = path[path.length - 1]
 
-  if (key === "id" || key === "physicalName" || key === "physicalReference") {
+  if (
+    path.length === 1 &&
+    (key === "id" || key === "physicalName" || key === "physicalReference")
+  ) {
     return
   }
 
@@ -1260,6 +1343,12 @@ function compareValues(
     ...(before === undefined ? {} : { before }),
     ...(after === undefined ? {} : { after }),
   })
+}
+
+function isIdentityField(key: string | number | undefined): boolean {
+  return (
+    key === "id" || key === "physicalName" || key === "physicalReference" || key === "provenance"
+  )
 }
 
 function isDestructiveProperty(change: SnapshotDiffPropertyChange): boolean {
@@ -1418,14 +1507,16 @@ function mapSnapshotDiagnostics(
 
 function groupByKey(
   records: readonly InternalObject[],
+  keyFor: (record: InternalObject) => string = (record) => record.key,
 ): ReadonlyMap<string, readonly InternalObject[]> {
   const groups = new Map<string, InternalObject[]>()
 
   for (const record of records) {
-    const values = groups.get(record.key)
+    const key = keyFor(record)
+    const values = groups.get(key)
 
     if (values === undefined) {
-      groups.set(record.key, [record])
+      groups.set(key, [record])
     } else {
       values.push(record)
     }
@@ -1440,28 +1531,89 @@ function objectKey(
   parent: InternalObject | undefined,
   id: string,
 ): string {
-  return `${kind}\u0000${namespace ?? ""}\u0000${parent?.object.kind ?? ""}\u0000${parent?.object.id ?? ""}\u0000${id}`
+  return objectKeyFor(kind, namespace, parent?.object.kind, parent?.object.id, id)
+}
+
+function objectKeyFor(
+  kind: SnapshotDiffObjectKind,
+  namespace: string | undefined,
+  parentKind: SnapshotDiffObjectKind | undefined,
+  parentId: string | undefined,
+  id: string,
+): string {
+  return `${kind}\u0000${namespace ?? ""}\u0000${parentKind ?? ""}\u0000${parentId ?? ""}\u0000${id}`
+}
+
+function addParentRenameMapping(match: Match, mappings: Map<string, string>): void {
+  const before = match.before.object
+  const after = match.after.object
+  const key = parentMappingKey(before.kind, before.namespace, before.id)
+  const existing = mappings.get(key)
+
+  if (existing === undefined || existing === after.id) {
+    mappings.set(key, after.id)
+  }
+}
+
+function parentMappingKey(
+  kind: SnapshotDiffObjectKind,
+  namespace: string | undefined,
+  id: string,
+): string {
+  return `${kind}\u0000${namespace ?? ""}\u0000${id}`
+}
+
+function remappedObjectKey(record: InternalObject, mappings: ReadonlyMap<string, string>): string {
+  const parent = record.object.parent
+
+  if (parent === undefined) {
+    return record.key
+  }
+
+  const parentNamespace = parent.namespace ?? record.object.namespace
+  const parentId =
+    mappings.get(parentMappingKey(parent.kind, parentNamespace, parent.id)) ?? parent.id
+
+  return objectKeyFor(
+    record.object.kind,
+    record.object.namespace,
+    parent.kind,
+    parentId,
+    record.object.id,
+  )
+}
+
+function scopeKeyForRecord(
+  record: InternalObject,
+  mappings: ReadonlyMap<string, string> = new Map(),
+): string {
+  const parent = record.object.parent
+
+  if (parent === undefined) {
+    return `${record.object.kind}\u0000${record.object.namespace ?? ""}\u0000`
+  }
+
+  const parentNamespace = parent.namespace ?? record.object.namespace
+  const parentId =
+    mappings.get(parentMappingKey(parent.kind, parentNamespace, parent.id)) ?? parent.id
+
+  return `${record.object.kind}\u0000${record.object.namespace ?? ""}\u0000${parentId}`
 }
 
 function sortSnapshotArrays(value: JsonRecord): JsonRecord {
-  const visit = (current: unknown, key: string | undefined): unknown => {
+  const visit = (current: unknown, path: SnapshotDiffPath): unknown => {
     if (Array.isArray(current)) {
-      const values = current.map((item) => visit(item, key))
+      const values = current.map((item, index) => visit(item, [...path, index]))
 
-      if (key !== undefined && isObjectArrayKey(key) && values.every(isRecord)) {
+      if (isObjectArrayPath(path) && values.every(isRecord)) {
         return values.sort(compareUnknownRecords)
       }
 
-      if (
-        key === "dependencies" ||
-        key === "roles" ||
-        key === "events" ||
-        key === "includedColumns"
-      ) {
+      if (isUnorderedArrayPath(path)) {
         return values.sort(compareUnknownRecords)
       }
 
-      if (key === "terms" || key === "values" || key === "parameters") {
+      if (isPositionedArrayPath(path)) {
         return values.sort(comparePositionedRecords)
       }
 
@@ -1475,35 +1627,90 @@ function sortSnapshotArrays(value: JsonRecord): JsonRecord {
     const output: JsonRecord = {}
 
     for (const [childKey, child] of Object.entries(current)) {
-      output[childKey] = visit(child, childKey)
+      output[childKey] = visit(child, [...path, childKey])
     }
 
     return output
   }
 
-  return visit(value, undefined) as JsonRecord
+  return visit(value, []) as JsonRecord
 }
 
-function isObjectArrayKey(key: string): boolean {
+function isObjectArrayPath(path: SnapshotDiffPath): boolean {
+  if (path.length === 1) {
+    return (
+      path[0] === "tables" ||
+      path[0] === "views" ||
+      path[0] === "sequences" ||
+      path[0] === "enums" ||
+      path[0] === "domains" ||
+      path[0] === "collations" ||
+      path[0] === "triggers" ||
+      path[0] === "routines" ||
+      path[0] === "partitions" ||
+      path[0] === "policies" ||
+      path[0] === "extensions" ||
+      path[0] === "deferredObjects" ||
+      path[0] === "opaqueObjects" ||
+      path[0] === "comments" ||
+      path[0] === "ownership"
+    )
+  }
+
+  if (path.length !== 3 || !Number.isSafeInteger(path[1])) {
+    return false
+  }
+
+  if (path[0] === "tables") {
+    return path[2] === "columns" || path[2] === "constraints" || path[2] === "indexes"
+  }
+
+  if (path[0] === "views") {
+    return path[2] === "columns"
+  }
+
+  return path[0] === "domains" && path[2] === "constraints"
+}
+
+function isUnorderedArrayPath(path: SnapshotDiffPath): boolean {
+  if (path.length === 3 && Number.isSafeInteger(path[1])) {
+    if ((path[0] === "views" || path[0] === "routines") && path[2] === "dependencies") {
+      return true
+    }
+
+    if (
+      (path[0] === "policies" && path[2] === "roles") ||
+      (path[0] === "triggers" && path[2] === "events")
+    ) {
+      return true
+    }
+  }
+
   return (
-    key === "tables" ||
-    key === "views" ||
-    key === "sequences" ||
-    key === "enums" ||
-    key === "domains" ||
-    key === "collations" ||
-    key === "triggers" ||
-    key === "routines" ||
-    key === "partitions" ||
-    key === "policies" ||
-    key === "extensions" ||
-    key === "deferredObjects" ||
-    key === "opaqueObjects" ||
-    key === "comments" ||
-    key === "ownership" ||
-    key === "columns" ||
-    key === "constraints" ||
-    key === "indexes"
+    path.length === 5 &&
+    path[0] === "tables" &&
+    Number.isSafeInteger(path[1]) &&
+    path[2] === "indexes" &&
+    Number.isSafeInteger(path[3]) &&
+    path[4] === "includedColumns"
+  )
+}
+
+function isPositionedArrayPath(path: SnapshotDiffPath): boolean {
+  if (path.length === 3 && Number.isSafeInteger(path[1])) {
+    return (
+      (path[0] === "enums" && path[2] === "values") ||
+      (path[0] === "routines" && path[2] === "parameters")
+    )
+  }
+
+  return (
+    path.length === 5 &&
+    path[0] === "tables" &&
+    Number.isSafeInteger(path[1]) &&
+    path[2] === "indexes" &&
+    Number.isSafeInteger(path[3]) &&
+    path[4] === "terms"
   )
 }
 
