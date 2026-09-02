@@ -1,13 +1,14 @@
-import type { ResultSetHeader, RowDataPacket } from "mysql2/promise"
-import type {
-  DriverValueEncoder,
-  ExecutionRequest,
-  ExecutionResult,
-  ExplainableQueryAdapter,
-  ExplainRequest,
-  ExplainResult,
-  TransactionOptions,
-  TransactionalQueryAdapter,
+import type { RowDataPacket } from "mysql2/promise"
+import {
+  booleanResultDecoder,
+  type DriverValueEncoder,
+  type ExecutionRequest,
+  type ExecutionResult,
+  type ExplainableQueryAdapter,
+  type ExplainRequest,
+  type ExplainResult,
+  type TransactionOptions,
+  type TransactionalQueryAdapter,
 } from "qubu"
 import { mysqlDialect } from "qubu/mysql"
 
@@ -15,11 +16,15 @@ export interface Mysql2AdapterOptions {
   readonly encoder?: DriverValueEncoder
 }
 
+interface Mysql2ExecuteOptions {
+  readonly sql: string
+  readonly values: any[]
+  readonly rowsAsArray: false
+  readonly nestTables: false
+}
+
 export interface Mysql2Connection {
-  execute(
-    text: string,
-    parameters?: any[],
-  ): Promise<[RowDataPacket[] | RowDataPacket[][] | ResultSetHeader, readonly unknown[]]>
+  execute(options: Mysql2ExecuteOptions): Promise<[unknown, readonly unknown[]]>
   beginTransaction(): Promise<void>
   commit(): Promise<void>
   rollback(): Promise<void>
@@ -35,6 +40,9 @@ export interface Mysql2Adapter
 }
 
 const identityEncoder: DriverValueEncoder = { encode: (value) => value }
+const mysql2Decoders = Object.freeze({
+  boolean: booleanResultDecoder,
+})
 
 /** Adapt one application-owned `mysql2/promise` connection. */
 export function mysql2Adapter(
@@ -52,15 +60,24 @@ export function mysql2Adapter(
     ): Promise<T> {
       throwIfAborted(transactionOptions.signal)
       await connection.beginTransaction()
+
+      let committed = false
+
       try {
+        throwIfAborted(transactionOptions.signal)
         const result = await callback(scoped)
 
         throwIfAborted(transactionOptions.signal)
         await connection.commit()
+        committed = true
+        throwIfAborted(transactionOptions.signal)
         return result
       } catch (error) {
-        await connection.rollback()
-        throw error
+        if (committed) {
+          throw error
+        }
+
+        return rollbackAndRethrow(connection, error)
       }
     },
   }
@@ -72,42 +89,154 @@ function executionAdapter(
 ): Mysql2TransactionAdapter {
   return {
     dialect: mysqlDialect(),
+    decoders: mysql2Decoders,
     async execute<TRow extends object>(request: ExecutionRequest) {
       throwIfAborted(request.signal)
-      const [result] = await connection.execute(
-        request.statement.text,
-        request.statement.parameters.map((value, index) =>
-          encoder.encode(value, request.statement.parameterSqlTypes?.[index]),
-        ),
-      )
+      const [result] = await executeStatement(connection, encoder, request)
+
+      throwIfAborted(request.signal)
 
       if (Array.isArray(result)) {
-        return { rows: result as unknown as readonly TRow[] }
+        return {
+          rows: normalizeRows<TRow>(
+            result,
+            "execute",
+            request.resultShape.fields.map((field) => field.name),
+          ),
+        }
       }
 
-      const header = result as ResultSetHeader
+      const header = normalizeHeader(result)
 
       return {
         rows: [],
         affectedRows: header.affectedRows,
-        changedRows: header.changedRows,
-        ...(request.queryKind === "insert" ? { insertId: header.insertId } : {}),
+        ...(header.changedRows === undefined ? {} : { changedRows: header.changedRows }),
+        ...(request.queryKind === "insert" && header.insertId !== undefined
+          ? { insertId: header.insertId }
+          : {}),
       } satisfies ExecutionResult<TRow>
     },
     async explain(request: ExplainRequest) {
       throwIfAborted(request.signal)
-      const [result] = await connection.execute(
-        request.statement.text,
-        request.statement.parameters.map((value, index) =>
-          encoder.encode(value, request.statement.parameterSqlTypes?.[index]),
-        ),
-      )
+      const [result] = await executeStatement(connection, encoder, request)
+
+      throwIfAborted(request.signal)
+
+      if (!Array.isArray(result)) {
+        throw new TypeError("mysql2 EXPLAIN returned a non-row result")
+      }
 
       return {
-        rows: (Array.isArray(result) ? result : []) as readonly RowDataPacket[],
+        rows: normalizeRows<RowDataPacket>(result, "EXPLAIN"),
       } satisfies ExplainResult<RowDataPacket>
     },
   }
+}
+
+async function executeStatement(
+  connection: Mysql2Connection,
+  encoder: DriverValueEncoder,
+  request: ExecutionRequest,
+): Promise<[unknown, readonly unknown[]]> {
+  return connection.execute({
+    sql: request.statement.text,
+    values: request.statement.parameters.map((value, index) =>
+    encodeParameter(value, encoder, request.statement.parameterSqlTypes?.[index]),
+  ),
+    rowsAsArray: false,
+    nestTables: false,
+  })
+}
+
+function encodeParameter(
+  value: unknown,
+  encoder: DriverValueEncoder,
+  sqlType: Parameters<DriverValueEncoder["encode"]>[1],
+): unknown {
+  const encoded = encoder.encode(value, sqlType)
+
+  return encoded === undefined ? null : encoded
+}
+
+function normalizeRows<TRow extends object>(
+  result: unknown[],
+  operation: string,
+  expectedFields?: readonly string[],
+): readonly TRow[] {
+  if (expectedFields?.length === 0 && result.length > 0 && result.every(isResultHeader)) {
+    throw new TypeError(`mysql2 ${operation} returned multiple result headers`)
+  }
+
+  for (const [index, row] of result.entries()) {
+    if (!isObjectRow(row)) {
+      throw new TypeError(`mysql2 ${operation} returned an invalid row at index ${index}`)
+    }
+
+    if (expectedFields !== undefined) {
+      for (const field of expectedFields) {
+        if (!Object.hasOwn(row, field)) {
+          throw new TypeError(`mysql2 ${operation} row ${index} is missing result field "${field}"`)
+        }
+      }
+    }
+  }
+
+  return result as readonly TRow[]
+}
+
+function normalizeHeader(result: unknown): {
+  readonly affectedRows: number | bigint
+  readonly changedRows?: number | bigint
+  readonly insertId?: string | number | bigint
+} {
+  if (!isResultHeader(result)) {
+    throw new TypeError("mysql2 returned an unsupported result shape")
+  }
+
+  return result
+}
+
+function isObjectRow(value: unknown): value is object {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function isResultHeader(value: unknown): value is {
+  readonly affectedRows: number | bigint
+  readonly changedRows?: number | bigint
+  readonly insertId?: string | number | bigint
+} {
+  if (!isObjectRow(value)) {
+    return false
+  }
+
+  const header = value as Record<string, unknown>
+
+  return (
+    isNumericResultValue(header.affectedRows) &&
+    (header.changedRows === undefined || isNumericResultValue(header.changedRows)) &&
+    (header.insertId === undefined ||
+      typeof header.insertId === "string" ||
+      isNumericResultValue(header.insertId))
+  )
+}
+
+function isNumericResultValue(value: unknown): value is number | bigint {
+  return typeof value === "number" || typeof value === "bigint"
+}
+
+async function rollbackAndRethrow(connection: Mysql2Connection, error: unknown): Promise<never> {
+  try {
+    await connection.rollback()
+  } catch (rollbackError) {
+    throw new AggregateError(
+      [error, rollbackError],
+      "mysql2 transaction failed and rollback failed",
+      { cause: error },
+    )
+  }
+
+  throw error
 }
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
