@@ -1962,6 +1962,8 @@ interface MySqlPartitionKey {
 }
 
 function partitionKeyColumns(expression: string): MySqlPartitionKey {
+  // Snapshot v1 can represent only plain column keys; functional terms stay as dialect evidence
+  // instead of being silently dropped or partially parsed.
   const terms = splitPartitionKeyExpression(expression)
   const columns: string[] = []
 
@@ -2156,6 +2158,8 @@ function isTextDataType(value: string | undefined): boolean {
 }
 
 function numericLiteral(value: string): number | bigint | undefined {
+  // Do not let JavaScript silently round a database default: large integers stay bigint, and
+  // decimals are accepted only when their text survives the Number conversion unchanged.
   if (/^[+-]?\d+$/.test(value)) {
     try {
       const integer = BigInt(value)
