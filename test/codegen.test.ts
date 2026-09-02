@@ -16,6 +16,7 @@ import type {
   SchemaSnapshot,
   SnapshotConstraint,
   SnapshotIndexTerm,
+  SnapshotKeyConstraint,
 } from '../src/snapshot/index.ts'
 import { createSchemaSnapshot as createPostgresSchemaSnapshot } from '../src/snapshot/postgres.ts'
 import { createSchemaSnapshot as createSqliteSchemaSnapshot } from '../src/snapshot/sqlite.ts'
@@ -616,7 +617,7 @@ function physicalFacts(snapshot: SchemaSnapshot): unknown {
             ? {}
             : {
                 backingConstraint: {
-                  ...index.backingConstraint,
+                  ...physicalReference(index.backingConstraint, tablesById),
                   id:
                     table.constraints.find(
                       constraint =>
@@ -628,6 +629,24 @@ function physicalFacts(snapshot: SchemaSnapshot): unknown {
       }),
     })),
   }
+}
+
+// Generated schemas use logical table IDs; normalize owner scopes before comparing physical facts.
+function physicalReference(
+  reference: NonNullable<SnapshotKeyConstraint['backingIndex']>,
+  tables: ReadonlyMap<string, SchemaSnapshot['tables'][number]>
+): NonNullable<SnapshotKeyConstraint['backingIndex']> {
+  const owner = reference.owner
+
+  return owner?.kind !== 'table'
+    ? reference
+    : {
+        ...reference,
+        owner: {
+          ...owner,
+          id: tables.get(owner.id)?.physicalName ?? `missing:${owner.id}`,
+        },
+      }
 }
 
 function physicalConstraint(
@@ -655,7 +674,7 @@ function physicalConstraint(
         ? {}
         : {
             backingIndex: {
-              ...constraint.backingIndex,
+              ...physicalReference(constraint.backingIndex, tables),
               id:
                 tables
                   .get(tableId)

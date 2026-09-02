@@ -17,10 +17,10 @@ import type {
   SourceConstraint,
   ForeignKeyTarget,
 } from "../schema/constraints.ts"
-import type { IndexTermOptions } from "../schema/indexes.ts"
 import type { SchemaDialect } from "../schema/dialect.ts"
 import { createSchemaDialect } from "../schema/dialect.ts"
 import { isUnsafeSchemaSql, renderSchemaExpression } from "../schema/expressions.ts"
+import type { IndexTermOptions } from "../schema/indexes.ts"
 import type { SchemaDialectExtension } from "../schema/metadata.ts"
 import { generatedSchemaObjectName } from "../schema/metadata.ts"
 import { defaultSchemaNamingPolicy, type Schema } from "../schema/registry.ts"
@@ -33,6 +33,7 @@ import {
 import type {
   CompleteSnapshotCapabilities,
   CompleteSnapshotNamespace,
+  CompleteSnapshotObjectOwner,
   CompleteSnapshotValueFact,
 } from "./complete-types.ts"
 import { assertSchemaSnapshot, SnapshotValidationError } from "./decode.ts"
@@ -300,6 +301,7 @@ function serializeTable(
   diagnostics: SnapshotDiagnostic[],
 ): SnapshotTable | undefined {
   const definitions = table.definitions as TableDefinitions
+  const owner: CompleteSnapshotObjectOwner = { kind: "table", id }
   const tableMetadata = table as AnyTable & {
     readonly constraints: Readonly<Record<string, SourceConstraint>>
     readonly indexes: Readonly<
@@ -352,6 +354,7 @@ function serializeTable(
         constraintId,
         constraint as SourceConstraint,
         table,
+        owner,
         tableIds,
         tablesById,
         dialect,
@@ -364,7 +367,7 @@ function serializeTable(
 
   const indexes = Object.entries(tableMetadata.indexes)
     .map(([indexId, indexMetadata]) =>
-      serializeIndex(indexId, indexMetadata, table, dialect, options, diagnostics),
+      serializeIndex(indexId, indexMetadata, table, owner, dialect, options, diagnostics),
     )
     .filter((index): index is SnapshotIndex => index !== undefined)
     .sort(compareId)
@@ -649,6 +652,7 @@ function serializeConstraint(
   id: string,
   constraint: SourceConstraint,
   table: AnyTable,
+  owner: CompleteSnapshotObjectOwner,
   tableIds: ReadonlyMap<object, string>,
   tablesById: ReadonlyMap<string, AnyTable>,
   dialect: SchemaDialect,
@@ -685,7 +689,7 @@ function serializeConstraint(
     }
 
     const timing = serializeTiming(constraint)
-    const backingIndex = serializeBackingIndex(constraint)
+    const backingIndex = serializeBackingIndex(constraint, owner)
 
     if (constraint.kind === "unique-constraint") {
       return {
@@ -792,12 +796,14 @@ function serializeConstraint(
 
 function serializeBackingIndex(
   constraint: KeyConstraint | import("../schema/constraints.ts").UniqueConstraint,
+  owner: CompleteSnapshotObjectOwner,
 ): SnapshotKeyConstraint["backingIndex"] | undefined {
   return constraint.backingIndex === undefined
     ? undefined
     : {
         kind: "index",
         id: constraint.backingIndex,
+        owner,
       }
 }
 
@@ -915,6 +921,7 @@ function serializeIndex(
     readonly termOptions?: readonly (IndexTermOptions | undefined)[]
   },
   table: AnyTable,
+  owner: CompleteSnapshotObjectOwner,
   dialect: SchemaDialect,
   options: SchemaSnapshotOptions,
   diagnostics: SnapshotDiagnostic[],
@@ -1002,6 +1009,7 @@ function serializeIndex(
           backingConstraint: {
             kind: "constraint" as const,
             id: indexMetadata.backingConstraint,
+            owner,
           },
         }),
     ...(indexMetadata.method === undefined ? {} : { method: indexMetadata.method }),
@@ -1070,7 +1078,13 @@ function serializeIndexTermOptions(
   const prefixLength =
     value.prefixLength === undefined
       ? undefined
-      : encodeValueFact(value.prefixLength, dialect, [...path, "prefixLength"], options, diagnostics)
+      : encodeValueFact(
+          value.prefixLength,
+          dialect,
+          [...path, "prefixLength"],
+          options,
+          diagnostics,
+        )
 
   return value.prefixLength !== undefined && prefixLength === undefined
     ? undefined
