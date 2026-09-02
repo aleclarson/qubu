@@ -5,6 +5,7 @@ import type {
   CatalogColumn,
   CatalogConstraint,
   CatalogIndex,
+  CatalogRoutine,
   CatalogSqlExpression,
   IntrospectionCatalog,
 } from "../src/introspection/index.ts"
@@ -286,6 +287,224 @@ test("carries table and column identities from a previous snapshot", () => {
   expect(result.snapshot.tables[0]?.columns[0]?.id).toBe("account_id")
 })
 
+test("remaps metadata and backing references with table and child identities", () => {
+  const previous = mapCatalogToSnapshot(
+    catalog(
+      [column("account_id", "id", 1)],
+      [
+        {
+          kind: "primary-key",
+          id: "accounts_pkey",
+          identitySource: "physical-name",
+          physicalName: "accounts_pkey",
+          columns: ["id"],
+        },
+      ],
+      [
+        {
+          kind: "index",
+          id: "accounts_pkey_index",
+          identitySource: "physical-name",
+          physicalName: "accounts_pkey_index",
+          unique: true,
+          terms: [{ kind: "column", column: "id", position: 1 }],
+        },
+      ],
+    ),
+    { namespace: "public" },
+  )
+
+  expect(previous.ok).toBe(true)
+  if (!previous.ok) {
+    return
+  }
+
+  const owner = { kind: "table" as const, id: "current-table" }
+  const currentColumn = column("current-column", "id", 1, {
+    comment: {
+      kind: "comment",
+      id: "column-comment",
+      object: { kind: "column", id: "current-column", owner },
+      text: "Column metadata",
+    },
+    ownership: {
+      kind: "ownership",
+      id: "column-ownership",
+      object: { kind: "column", id: "current-column", owner },
+      owner: "app_owner",
+    },
+  })
+  const currentConstraint: CatalogConstraint = {
+    kind: "primary-key",
+    id: "current-primary",
+    identitySource: "physical-name",
+    physicalName: "accounts_pkey",
+    columns: ["id"],
+    backingIndex: {
+      kind: "index",
+      id: "current-index",
+      tableId: "current-table",
+    },
+    comment: {
+      kind: "comment",
+      id: "constraint-comment",
+      object: { kind: "constraint", id: "current-primary", owner },
+      text: "Constraint metadata",
+    },
+  }
+  const currentIndex: CatalogIndex = {
+    kind: "index",
+    id: "current-index",
+    identitySource: "physical-name",
+    physicalName: "accounts_pkey_index",
+    unique: true,
+    terms: [{ kind: "column", column: "id", position: 1 }],
+    backingConstraint: {
+      kind: "constraint",
+      id: "current-primary",
+      tableId: "current-table",
+    },
+    ownership: {
+      kind: "ownership",
+      id: "index-ownership",
+      object: { kind: "index", id: "current-index", owner },
+      owner: "app_owner",
+    },
+  }
+  const base = catalog([currentColumn], [currentConstraint], [currentIndex])
+  const currentTable = {
+    ...base.tables[0]!,
+    id: "current-table",
+    comment: {
+      kind: "comment" as const,
+      id: "table-comment",
+      object: { kind: "table" as const, id: "current-table" },
+      text: "Table metadata",
+    },
+    ownership: {
+      kind: "ownership" as const,
+      id: "table-ownership",
+      object: { kind: "table" as const, id: "current-table" },
+      owner: "app_owner",
+    },
+  }
+  const result = mapCatalogToSnapshot(
+    {
+      ...base,
+      tables: [currentTable],
+      comments: [
+        {
+          kind: "comment",
+          id: "catalog-column-comment",
+          object: { kind: "column", id: "current-column", owner },
+          text: "Catalog column metadata",
+        },
+      ],
+      ownership: [
+        {
+          kind: "ownership",
+          id: "catalog-index-ownership",
+          object: { kind: "index", id: "current-index", owner },
+          owner: "app_owner",
+        },
+      ],
+    },
+    {
+      namespace: "public",
+      previousSnapshot: previous.snapshot,
+    },
+  )
+
+  expect(result.ok).toBe(true)
+  if (!result.ok) {
+    return
+  }
+
+  const table = result.snapshot.tables[0]!
+  expect(table.id).toBe("accounts")
+  expect(table.columns[0]?.id).toBe("account_id")
+  expect(table.constraints[0]).toMatchObject({
+    id: "accounts_pkey",
+    backingIndex: {
+      kind: "index",
+      id: "accounts_pkey_index",
+      owner: { kind: "table", id: "accounts" },
+    },
+  })
+  expect(table.indexes[0]).toMatchObject({
+    id: "accounts_pkey_index",
+    backingConstraint: {
+      kind: "constraint",
+      id: "accounts_pkey",
+      owner: { kind: "table", id: "accounts" },
+    },
+  })
+  expect(result.snapshot.comments).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        id: "table-comment",
+        object: { kind: "table", id: "accounts" },
+      }),
+      expect.objectContaining({
+        id: "column-comment",
+        object: {
+          kind: "column",
+          id: "account_id",
+          owner: { kind: "table", id: "accounts" },
+        },
+      }),
+      expect.objectContaining({
+        id: "constraint-comment",
+        object: {
+          kind: "constraint",
+          id: "accounts_pkey",
+          owner: { kind: "table", id: "accounts" },
+        },
+      }),
+      expect.objectContaining({
+        id: "catalog-column-comment",
+        object: {
+          kind: "column",
+          id: "account_id",
+          owner: { kind: "table", id: "accounts" },
+        },
+      }),
+    ]),
+  )
+  expect(result.snapshot.ownership).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        id: "table-ownership",
+        object: { kind: "table", id: "accounts" },
+      }),
+      expect.objectContaining({
+        id: "column-ownership",
+        object: {
+          kind: "column",
+          id: "account_id",
+          owner: { kind: "table", id: "accounts" },
+        },
+      }),
+      expect.objectContaining({
+        id: "index-ownership",
+        object: {
+          kind: "index",
+          id: "accounts_pkey_index",
+          owner: { kind: "table", id: "accounts" },
+        },
+      }),
+      expect.objectContaining({
+        id: "catalog-index-ownership",
+        object: {
+          kind: "index",
+          id: "accounts_pkey_index",
+          owner: { kind: "table", id: "accounts" },
+        },
+      }),
+    ]),
+  )
+})
+
 test("maps constraints and ordered index terms to Snapshot v1", () => {
   const constraints: CatalogConstraint[] = [
     {
@@ -405,6 +624,99 @@ test("uses mapped column IDs for index candidate keys and physical names for con
       columns: ["nullable-code"],
     }),
   ])
+})
+
+test("maps table-local references with owner scope and preserves parameter provenance", () => {
+  const constraints: CatalogConstraint[] = [
+    {
+      kind: "primary-key",
+      id: "accounts_pkey",
+      identitySource: "physical-name",
+      physicalName: "accounts_pkey",
+      columns: ["id"],
+      backingIndex: {
+        kind: "index",
+        id: "accounts_index",
+        tableId: "accounts",
+      },
+    },
+  ]
+  const indexes: CatalogIndex[] = [
+    {
+      kind: "index",
+      id: "accounts_index",
+      identitySource: "physical-name",
+      physicalName: "accounts_index",
+      unique: true,
+      terms: [{ kind: "column", column: "id", position: 1 }],
+      backingConstraint: {
+        kind: "constraint",
+        id: "accounts_pkey",
+        tableId: "accounts",
+      },
+    },
+  ]
+  const routine: CatalogRoutine = {
+    kind: "routine",
+    id: "account_count",
+    identitySource: "physical-name",
+    physicalName: "account_count",
+    routineKind: "function",
+    parameters: [
+      {
+        storage: { nativeType: "integer" },
+        ordinalPosition: 1,
+        provenance: {
+          kind: "catalog",
+          dialect: "postgresql",
+          path: ["pg_proc", "proargtypes"],
+        },
+      },
+    ],
+  }
+  const base = catalog([column("id", "id", 1)], constraints, indexes)
+  const result = mapCatalogToSnapshot(
+    {
+      ...base,
+      tables: [
+        ...base.tables,
+        {
+          ...base.tables[0]!,
+          id: "users",
+          physicalName: "users",
+          constraints: [],
+          indexes: [],
+        },
+      ],
+      routines: [routine],
+    },
+    { namespace: "public" },
+  )
+
+  expect(result.ok).toBe(true)
+  if (!result.ok) {
+    return
+  }
+
+  const primary = result.snapshot.tables[0]?.constraints[0]
+  expect(primary?.kind).toBe("primary-key")
+  if (primary?.kind === "primary-key") {
+    expect(primary.backingIndex).toEqual({
+      kind: "index",
+      id: "accounts_index",
+      owner: { kind: "table", id: "accounts" },
+    })
+  }
+  expect(result.snapshot.tables[0]?.indexes[0]?.backingConstraint).toEqual({
+    kind: "constraint",
+    id: "accounts_pkey",
+    owner: { kind: "table", id: "accounts" },
+  })
+  expect(result.snapshot.routines[0]?.parameters[0]?.provenance).toEqual({
+    kind: "catalog",
+    dialect: "postgresql",
+    path: ["pg_proc", "proargtypes"],
+  })
 })
 
 test("rejects unresolved foreign-key references in strict mode", () => {
@@ -781,6 +1093,10 @@ test("remaps catalog-wide identities and every supported relationship", () => {
       backingIndex: {
         kind: "index",
         id: "parentIndex",
+        owner: {
+          kind: "table",
+          id: "parent",
+        },
       },
     }),
   )
@@ -805,6 +1121,10 @@ test("remaps catalog-wide identities and every supported relationship", () => {
   expect(result.snapshot.sequences[0]?.ownedBy).toEqual({
     kind: "column",
     id: "childParentId",
+    owner: {
+      kind: "table",
+      id: "child",
+    },
   })
   expect(result.snapshot.triggers[0]?.table).toEqual({
     kind: "table",

@@ -127,6 +127,14 @@ generated expressions, checks, predicates, and expression index terms remain
 dialect-tagged SQL. Falsy values such as `0`, `false`, `NULL`, and empty
 strings are preserved.
 
+References to nested columns, constraints, and indexes include their owning
+table, view, or domain in the complete Snapshot v1 output. References to
+top-level objects remain unscoped, and table-local backing relationships must
+resolve within the table that contains them. Dialect provenance, extensions,
+native storage, and typed expressions are checked against the selected
+snapshot dialect; arbitrary catalog `data` and `configuration` JSON remains
+opaque.
+
 PostgreSQL readers expose views, materialized views, sequences, enums, domains,
 collations, routines, triggers, policies, partitions, extensions, comments,
 and ownership as typed complete catalog records. `mapCatalogToCompleteSnapshot`

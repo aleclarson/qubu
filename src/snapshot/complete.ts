@@ -20,6 +20,7 @@ import {
   type CompleteSnapshotIndexTerm,
   type CompleteSnapshotNamespace,
   type CompleteSnapshotObject,
+  type CompleteSnapshotObjectOwner,
   type CompleteSnapshotObjectMetadata,
   type CompleteSnapshotObjectReference,
   type CompleteSnapshotOpaqueObject,
@@ -235,49 +236,103 @@ function validateCompleteSnapshot(
   }
 
   const dialect = validateDialect(value.dialect, ["dialect"], diagnostics)
+  const snapshotDialect = dialect?.name
   const namingPolicy = validateNamingPolicy(value.namingPolicy, ["namingPolicy"], diagnostics)
   const namespace = validateNamespace(value.namespace, ["namespace"], diagnostics, dialect?.name)
   const capabilities = validateCapabilities(value.capabilities, ["capabilities"], diagnostics)
-  const tables = validateObjects(value.tables, ["tables"], diagnostics, validateTable)
-  const views = validateObjects(value.views, ["views"], diagnostics, validateView)
-  const sequences = validateObjects(value.sequences, ["sequences"], diagnostics, validateSequence)
-  const enums = validateObjects(value.enums, ["enums"], diagnostics, validateEnum)
-  const domains = validateObjects(value.domains, ["domains"], diagnostics, validateDomain)
+  const tables = validateObjects(
+    value.tables,
+    ["tables"],
+    diagnostics,
+    validateTable,
+    snapshotDialect,
+  )
+  const views = validateObjects(value.views, ["views"], diagnostics, validateView, snapshotDialect)
+  const sequences = validateObjects(
+    value.sequences,
+    ["sequences"],
+    diagnostics,
+    validateSequence,
+    snapshotDialect,
+  )
+  const enums = validateObjects(value.enums, ["enums"], diagnostics, validateEnum, snapshotDialect)
+  const domains = validateObjects(
+    value.domains,
+    ["domains"],
+    diagnostics,
+    validateDomain,
+    snapshotDialect,
+  )
   const collations = validateObjects(
     value.collations,
     ["collations"],
     diagnostics,
     validateCollation,
+    snapshotDialect,
   )
-  const triggers = validateObjects(value.triggers, ["triggers"], diagnostics, validateTrigger)
-  const routines = validateObjects(value.routines, ["routines"], diagnostics, validateRoutine)
+  const triggers = validateObjects(
+    value.triggers,
+    ["triggers"],
+    diagnostics,
+    validateTrigger,
+    snapshotDialect,
+  )
+  const routines = validateObjects(
+    value.routines,
+    ["routines"],
+    diagnostics,
+    validateRoutine,
+    snapshotDialect,
+  )
   const partitions = validateObjects(
     value.partitions,
     ["partitions"],
     diagnostics,
     validatePartition,
+    snapshotDialect,
   )
-  const policies = validateObjects(value.policies, ["policies"], diagnostics, validatePolicy)
+  const policies = validateObjects(
+    value.policies,
+    ["policies"],
+    diagnostics,
+    validatePolicy,
+    snapshotDialect,
+  )
   const extensions = validateObjects(
     value.extensions,
     ["extensions"],
     diagnostics,
     validateExtensionObject,
+    snapshotDialect,
   )
   const deferredObjects = validateObjects(
     value.deferredObjects,
     ["deferredObjects"],
     diagnostics,
     validateDeferredObject,
+    snapshotDialect,
   )
   const opaqueObjects = validateObjects(
     value.opaqueObjects,
     ["opaqueObjects"],
     diagnostics,
     validateOpaqueObject,
+    snapshotDialect,
   )
-  const comments = validateObjects(value.comments, ["comments"], diagnostics, validateComment)
-  const ownership = validateObjects(value.ownership, ["ownership"], diagnostics, validateOwnership)
+  const comments = validateObjects(
+    value.comments,
+    ["comments"],
+    diagnostics,
+    validateComment,
+    snapshotDialect,
+  )
+  const ownership = validateObjects(
+    value.ownership,
+    ["ownership"],
+    diagnostics,
+    validateOwnership,
+    snapshotDialect,
+  )
 
   if (
     dialect === undefined ||
@@ -327,7 +382,6 @@ function validateCompleteSnapshot(
     ownership,
   }
 
-  validateCompleteDialectMetadata(snapshot, diagnostics)
   validateCompleteCrossReferences(snapshot, diagnostics)
   return diagnostics.length === 0 ? snapshot : undefined
 }
@@ -479,7 +533,7 @@ function validateCapabilities(
         issue("invalid-value", "Capability values must be boolean or string", [...path, key]),
       )
     } else {
-      result[key] = child
+      setOwn(result, key, child)
     }
   }
 
@@ -533,7 +587,9 @@ function validateObjects<T>(
     value: unknown,
     path: readonly (string | number)[],
     diagnostics: SnapshotDiagnostic[],
+    dialect: string | undefined,
   ) => T | undefined,
+  dialect: string | undefined,
 ): T[] | undefined {
   if (!Array.isArray(value)) {
     diagnostics.push(issue("invalid-snapshot", "Value must be an array", path))
@@ -544,7 +600,7 @@ function validateObjects<T>(
   const result: T[] = []
 
   for (const [index, item] of value.entries()) {
-    const valid = validate(item, [...path, index], diagnostics)
+    const valid = validate(item, [...path, index], diagnostics, dialect)
 
     if (valid !== undefined) {
       result.push(valid)
@@ -633,8 +689,9 @@ function validateTable(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ): CompleteSnapshotTable | undefined {
-  const base = validateBase(value, path, "table", undefined, diagnostics, [
+  const base = validateBase(value, path, "table", dialect, diagnostics, [
     "columns",
     "constraints",
     "indexes",
@@ -644,14 +701,27 @@ function validateTable(
     return undefined
   }
 
-  const columns = validateObjects(value.columns, [...path, "columns"], diagnostics, validateColumn)
+  const columns = validateObjects(
+    value.columns,
+    [...path, "columns"],
+    diagnostics,
+    validateColumn,
+    dialect,
+  )
   const constraints = validateObjects(
     value.constraints,
     [...path, "constraints"],
     diagnostics,
     validateConstraint,
+    dialect,
   )
-  const indexes = validateObjects(value.indexes, [...path, "indexes"], diagnostics, validateIndex)
+  const indexes = validateObjects(
+    value.indexes,
+    [...path, "indexes"],
+    diagnostics,
+    validateIndex,
+    dialect,
+  )
 
   if (columns === undefined || constraints === undefined || indexes === undefined) {
     return undefined
@@ -674,8 +744,9 @@ function validateColumn(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ): CompleteSnapshotColumn | undefined {
-  const base = validateBase(value, path, "column", undefined, diagnostics, [
+  const base = validateBase(value, path, "column", dialect, diagnostics, [
     "ordinalPosition",
     "nullable",
     "hasDefault",
@@ -702,23 +773,23 @@ function validateColumn(
   const storage =
     value.storage === undefined
       ? undefined
-      : validateStorage(value.storage, [...path, "storage"], diagnostics)
+      : validateStorage(value.storage, [...path, "storage"], diagnostics, dialect)
   const defaultValue =
     value.default === undefined
       ? undefined
-      : validateDefault(value.default, [...path, "default"], diagnostics)
+      : validateDefault(value.default, [...path, "default"], diagnostics, dialect)
   const generatedColumn =
     value.generatedColumn === undefined
       ? undefined
-      : validateGenerated(value.generatedColumn, [...path, "generatedColumn"], diagnostics)
+      : validateGenerated(value.generatedColumn, [...path, "generatedColumn"], diagnostics, dialect)
   const identity =
     value.identity === undefined
       ? undefined
-      : validateIdentity(value.identity, [...path, "identity"], diagnostics)
+      : validateIdentity(value.identity, [...path, "identity"], diagnostics, dialect)
   const onUpdate =
     value.onUpdate === undefined
       ? undefined
-      : validateExpression(value.onUpdate, [...path, "onUpdate"], diagnostics)
+      : validateExpression(value.onUpdate, [...path, "onUpdate"], diagnostics, dialect)
 
   if (
     ordinalPosition === undefined ||
@@ -750,6 +821,7 @@ function validateConstraint(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ): CompleteSnapshotConstraint | undefined {
   if (!isRecord(value)) {
     diagnostics.push(issue("invalid-snapshot", "Constraint must be an object", path))
@@ -772,14 +844,19 @@ function validateConstraint(
       : kind === "check"
         ? ["expression", "deferrable", "initially", "validated"]
         : ["columns", "nulls", "backingIndex", "deferrable", "initially", "validated"]
-  const base = validateBase(value, path, String(kind), undefined, diagnostics, allowed)
+  const base = validateBase(value, path, String(kind), dialect, diagnostics, allowed)
 
   if (base === undefined) {
     return undefined
   }
 
   if (kind === "check") {
-    const expression = validateExpression(value.expression, [...path, "expression"], diagnostics)
+    const expression = validateExpression(
+      value.expression,
+      [...path, "expression"],
+      diagnostics,
+      dialect,
+    )
     const timing = validateTiming(value, path, diagnostics)
     const validated = optionalBoolean(value.validated, [...path, "validated"], diagnostics)
 
@@ -871,8 +948,9 @@ function validateIndex(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ): CompleteSnapshotIndex | undefined {
-  const base = validateBase(value, path, "index", undefined, diagnostics, [
+  const base = validateBase(value, path, "index", dialect, diagnostics, [
     "terms",
     "unique",
     "candidateKey",
@@ -886,7 +964,13 @@ function validateIndex(
     return undefined
   }
 
-  const terms = validateArray(value.terms, [...path, "terms"], diagnostics, validateIndexTerm)
+  const terms = validateArray(
+    value.terms,
+    [...path, "terms"],
+    diagnostics,
+    validateIndexTerm,
+    dialect,
+  )
 
   if (terms !== undefined) {
     if (terms.length === 0) {
@@ -903,7 +987,7 @@ function validateIndex(
   const predicate =
     value.predicate === undefined
       ? undefined
-      : validateExpression(value.predicate, [...path, "predicate"], diagnostics)
+      : validateExpression(value.predicate, [...path, "predicate"], diagnostics, dialect)
   const includedColumns =
     value.includedColumns === undefined
       ? undefined
@@ -944,6 +1028,7 @@ function validateIndexTerm(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ): CompleteSnapshotIndexTerm | undefined {
   if (!isRecord(value)) {
     diagnostics.push(issue("invalid-snapshot", "Index term must be an object", path))
@@ -979,7 +1064,7 @@ function validateIndexTerm(
     const prefixLength =
       value.prefixLength === undefined
         ? undefined
-        : validateValueFact(value.prefixLength, [...path, "prefixLength"], diagnostics)
+        : validateValueFact(value.prefixLength, [...path, "prefixLength"], diagnostics, dialect)
 
     if (column === undefined || position === undefined) {
       return undefined
@@ -997,7 +1082,12 @@ function validateIndexTerm(
   }
 
   if (kind === "expression") {
-    const expression = validateExpression(value.expression, [...path, "expression"], diagnostics)
+    const expression = validateExpression(
+      value.expression,
+      [...path, "expression"],
+      diagnostics,
+      dialect,
+    )
 
     if (expression === undefined || position === undefined) {
       return undefined
@@ -1021,8 +1111,9 @@ function validateView(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ): CompleteSnapshotView | undefined {
-  const base = validateBase(value, path, "view", undefined, diagnostics, [
+  const base = validateBase(value, path, "view", dialect, diagnostics, [
     "columns",
     "definition",
     "dependencies",
@@ -1035,8 +1126,19 @@ function validateView(
     return undefined
   }
 
-  const columns = validateObjects(value.columns, [...path, "columns"], diagnostics, validateColumn)
-  const definition = validateExpression(value.definition, [...path, "definition"], diagnostics)
+  const columns = validateObjects(
+    value.columns,
+    [...path, "columns"],
+    diagnostics,
+    validateColumn,
+    dialect,
+  )
+  const definition = validateExpression(
+    value.definition,
+    [...path, "definition"],
+    diagnostics,
+    dialect,
+  )
   const dependencies =
     value.dependencies === undefined
       ? undefined
@@ -1075,8 +1177,9 @@ function validateSequence(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ): CompleteSnapshotSequence | undefined {
-  const base = validateBase(value, path, "sequence", undefined, diagnostics, [
+  const base = validateBase(value, path, "sequence", dialect, diagnostics, [
     "storage",
     "start",
     "increment",
@@ -1095,27 +1198,27 @@ function validateSequence(
   const storage =
     value.storage === undefined
       ? undefined
-      : validateStorage(value.storage, [...path, "storage"], diagnostics)
+      : validateStorage(value.storage, [...path, "storage"], diagnostics, dialect)
   const start =
     value.start === undefined
       ? undefined
-      : validateValueFact(value.start, [...path, "start"], diagnostics)
+      : validateValueFact(value.start, [...path, "start"], diagnostics, dialect)
   const increment =
     value.increment === undefined
       ? undefined
-      : validateValueFact(value.increment, [...path, "increment"], diagnostics)
+      : validateValueFact(value.increment, [...path, "increment"], diagnostics, dialect)
   const minimum =
     value.minimum === undefined
       ? undefined
-      : validateValueFact(value.minimum, [...path, "minimum"], diagnostics)
+      : validateValueFact(value.minimum, [...path, "minimum"], diagnostics, dialect)
   const maximum =
     value.maximum === undefined
       ? undefined
-      : validateValueFact(value.maximum, [...path, "maximum"], diagnostics)
+      : validateValueFact(value.maximum, [...path, "maximum"], diagnostics, dialect)
   const cache =
     value.cache === undefined
       ? undefined
-      : validateValueFact(value.cache, [...path, "cache"], diagnostics)
+      : validateValueFact(value.cache, [...path, "cache"], diagnostics, dialect)
   const cycle = optionalBoolean(value.cycle, [...path, "cycle"], diagnostics)
   const ownedBy =
     value.ownedBy === undefined
@@ -1124,7 +1227,7 @@ function validateSequence(
   const identity =
     value.identity === undefined
       ? undefined
-      : validateIdentity(value.identity, [...path, "identity"], diagnostics)
+      : validateIdentity(value.identity, [...path, "identity"], diagnostics, dialect)
 
   return {
     kind: "sequence",
@@ -1147,14 +1250,21 @@ function validateEnum(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ): CompleteSnapshotEnum | undefined {
-  const base = validateBase(value, path, "enum", undefined, diagnostics, ["values"])
+  const base = validateBase(value, path, "enum", dialect, diagnostics, ["values"])
 
   if (!isRecord(value) || base === undefined) {
     return undefined
   }
 
-  const values = validateArray(value.values, [...path, "values"], diagnostics, validateEnumValue)
+  const values = validateArray(
+    value.values,
+    [...path, "values"],
+    diagnostics,
+    validateEnumValue,
+    dialect,
+  )
 
   if (values === undefined) {
     return undefined
@@ -1190,6 +1300,7 @@ function validateEnumValue(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ): CompleteSnapshotEnum["values"][number] | undefined {
   if (!isRecord(value)) {
     diagnostics.push(issue("invalid-snapshot", "Enum value must be an object", path))
@@ -1206,7 +1317,7 @@ function validateEnumValue(
   const provenance =
     value.provenance === undefined
       ? undefined
-      : validateProvenance(value.provenance, [...path, "provenance"], undefined, diagnostics)
+      : validateProvenance(value.provenance, [...path, "provenance"], dialect, diagnostics)
 
   return label === undefined || ordinalPosition === undefined
     ? undefined
@@ -1221,8 +1332,9 @@ function validateDomain(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ): CompleteSnapshotDomain | undefined {
-  const base = validateBase(value, path, "domain", undefined, diagnostics, [
+  const base = validateBase(value, path, "domain", dialect, diagnostics, [
     "storage",
     "nullable",
     "default",
@@ -1233,12 +1345,15 @@ function validateDomain(
     return undefined
   }
 
-  const storage = validateStorage(value.storage, [...path, "storage"], diagnostics)
+  const storage = validateStorage(value.storage, [...path, "storage"], diagnostics, dialect)
   const nullable = optionalBoolean(value.nullable, [...path, "nullable"], diagnostics)
   const defaultValue =
     value.default === undefined
       ? undefined
-      : validateValueFact(value.default, [...path, "default"], diagnostics)
+      : validateValueFact(value.default, [...path, "default"], diagnostics, dialect)
+  if (value.constraints !== undefined) {
+    validateSortedIds(value.constraints, [...path, "constraints"], diagnostics)
+  }
   const constraints =
     value.constraints === undefined
       ? undefined
@@ -1247,6 +1362,7 @@ function validateDomain(
           [...path, "constraints"],
           diagnostics,
           validateCheckConstraint,
+          dialect,
         )
 
   if (storage === undefined) {
@@ -1269,8 +1385,9 @@ function validateCheckConstraint(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ): CompleteSnapshotCheckConstraint | undefined {
-  const constraint = validateConstraint(value, path, diagnostics)
+  const constraint = validateConstraint(value, path, diagnostics, dialect)
 
   if (constraint?.kind !== "check") {
     diagnostics.push(
@@ -1286,8 +1403,9 @@ function validateCollation(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ): CompleteSnapshotCollation | undefined {
-  const base = validateBase(value, path, "collation", undefined, diagnostics, [
+  const base = validateBase(value, path, "collation", dialect, diagnostics, [
     "provider",
     "locale",
     "deterministic",
@@ -1332,8 +1450,9 @@ function validateTrigger(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ): CompleteSnapshotTrigger | undefined {
-  const base = validateBase(value, path, "trigger", undefined, diagnostics, [
+  const base = validateBase(value, path, "trigger", dialect, diagnostics, [
     "table",
     "timing",
     "events",
@@ -1354,8 +1473,8 @@ function validateTrigger(
   const condition =
     value.condition === undefined
       ? undefined
-      : validateExpression(value.condition, [...path, "condition"], diagnostics)
-  const body = validateExpression(value.body, [...path, "body"], diagnostics)
+      : validateExpression(value.condition, [...path, "condition"], diagnostics, dialect)
+  const body = validateExpression(value.body, [...path, "body"], diagnostics, dialect)
   const enabled = optionalBoolean(value.enabled, [...path, "enabled"], diagnostics)
 
   if (table === undefined || timing === undefined || events === undefined || body === undefined) {
@@ -1381,8 +1500,9 @@ function validateRoutine(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ): CompleteSnapshotRoutine | undefined {
-  const base = validateBase(value, path, "routine", undefined, diagnostics, [
+  const base = validateBase(value, path, "routine", dialect, diagnostics, [
     "routineKind",
     "parameters",
     "returnType",
@@ -1404,6 +1524,7 @@ function validateRoutine(
     [...path, "parameters"],
     diagnostics,
     validateRoutineParameter,
+    dialect,
   )
 
   if (parameters !== undefined) {
@@ -1413,7 +1534,7 @@ function validateRoutine(
   const returnType =
     value.returnType === undefined
       ? undefined
-      : validateStorage(value.returnType, [...path, "returnType"], diagnostics)
+      : validateStorage(value.returnType, [...path, "returnType"], diagnostics, dialect)
   const language =
     value.language === undefined
       ? undefined
@@ -1421,7 +1542,7 @@ function validateRoutine(
   const body =
     value.body === undefined
       ? undefined
-      : validateExpression(value.body, [...path, "body"], diagnostics)
+      : validateExpression(value.body, [...path, "body"], diagnostics, dialect)
   const volatility = validateChoice(
     value.volatility,
     ["immutable", "stable", "volatile", "unknown"] as const,
@@ -1470,6 +1591,7 @@ function validateRoutineParameter(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ): CompleteSnapshotRoutineParameter | undefined {
   if (!isRecord(value)) {
     diagnostics.push(issue("invalid-snapshot", "Routine parameter must be an object", path))
@@ -1480,6 +1602,7 @@ function validateRoutineParameter(
     "name",
     "mode",
     "default",
+    "provenance",
   ])
   const name =
     value.name === undefined ? undefined : stringValue(value.name, [...path, "name"], diagnostics)
@@ -1489,11 +1612,15 @@ function validateRoutineParameter(
     [...path, "mode"],
     diagnostics,
   )
-  const storage = validateStorage(value.storage, [...path, "storage"], diagnostics)
+  const storage = validateStorage(value.storage, [...path, "storage"], diagnostics, dialect)
   const defaultValue =
     value.default === undefined
       ? undefined
-      : validateValueFact(value.default, [...path, "default"], diagnostics)
+      : validateValueFact(value.default, [...path, "default"], diagnostics, dialect)
+  const provenance =
+    value.provenance === undefined
+      ? undefined
+      : validateProvenance(value.provenance, [...path, "provenance"], dialect, diagnostics)
   const ordinalPosition = integerValue(
     value.ordinalPosition,
     [...path, "ordinalPosition"],
@@ -1508,6 +1635,7 @@ function validateRoutineParameter(
         storage,
         ...(defaultValue === undefined ? {} : { default: defaultValue }),
         ordinalPosition,
+        ...(provenance === undefined ? {} : { provenance }),
       }
 }
 
@@ -1515,8 +1643,9 @@ function validatePartition(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ): CompleteSnapshotPartition | undefined {
-  const base = validateBase(value, path, "partition", undefined, diagnostics, [
+  const base = validateBase(value, path, "partition", dialect, diagnostics, [
     "parent",
     "strategy",
     "keyColumns",
@@ -1542,7 +1671,7 @@ function validatePartition(
   const bound =
     value.bound === undefined
       ? undefined
-      : validateExpression(value.bound, [...path, "bound"], diagnostics)
+      : validateExpression(value.bound, [...path, "bound"], diagnostics, dialect)
   const defaultValue = optionalBoolean(value.default, [...path, "default"], diagnostics)
 
   if (parent === undefined || strategy === undefined) {
@@ -1566,8 +1695,9 @@ function validatePolicy(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ): CompleteSnapshotPolicy | undefined {
-  const base = validateBase(value, path, "policy", undefined, diagnostics, [
+  const base = validateBase(value, path, "policy", dialect, diagnostics, [
     "table",
     "command",
     "roles",
@@ -1595,11 +1725,11 @@ function validatePolicy(
   const using =
     value.using === undefined
       ? undefined
-      : validateExpression(value.using, [...path, "using"], diagnostics)
+      : validateExpression(value.using, [...path, "using"], diagnostics, dialect)
   const check =
     value.check === undefined
       ? undefined
-      : validateExpression(value.check, [...path, "check"], diagnostics)
+      : validateExpression(value.check, [...path, "check"], diagnostics, dialect)
 
   if (table === undefined || command === undefined) {
     return undefined
@@ -1623,8 +1753,9 @@ function validateExtensionObject(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ): CompleteSnapshotExtension | undefined {
-  const base = validateBase(value, path, "extension", undefined, diagnostics, [
+  const base = validateBase(value, path, "extension", dialect, diagnostics, [
     "extensionName",
     "extensionVersion",
     "schema",
@@ -1677,8 +1808,9 @@ function validateDeferredObject(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ): CompleteSnapshotDeferredObject | undefined {
-  const base = validateBase(value, path, "deferred-object", undefined, diagnostics, [
+  const base = validateBase(value, path, "deferred-object", dialect, diagnostics, [
     "objectKind",
     "reason",
     "data",
@@ -1717,8 +1849,9 @@ function validateOpaqueObject(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ): CompleteSnapshotOpaqueObject | undefined {
-  const base = validateBase(value, path, "opaque-object", undefined, diagnostics, [
+  const base = validateBase(value, path, "opaque-object", dialect, diagnostics, [
     "objectKind",
     "data",
     "sql",
@@ -1733,7 +1866,7 @@ function validateOpaqueObject(
   const sql =
     value.sql === undefined
       ? undefined
-      : validateExpression(value.sql, [...path, "sql"], diagnostics)
+      : validateExpression(value.sql, [...path, "sql"], diagnostics, dialect)
 
   if (objectKind === undefined || data === undefined) {
     return undefined
@@ -1754,8 +1887,9 @@ function validateComment(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ): CompleteSnapshotComment | undefined {
-  const base = validateBase(value, path, "comment", undefined, diagnostics, ["object", "text"])
+  const base = validateBase(value, path, "comment", dialect, diagnostics, ["object", "text"])
 
   if (!isRecord(value) || base === undefined) {
     return undefined
@@ -1782,8 +1916,9 @@ function validateOwnership(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ): CompleteSnapshotOwnership | undefined {
-  const base = validateBase(value, path, "ownership", undefined, diagnostics, ["object", "owner"])
+  const base = validateBase(value, path, "ownership", dialect, diagnostics, ["object", "owner"])
 
   if (!isRecord(value) || base === undefined) {
     return undefined
@@ -1810,6 +1945,7 @@ function validateStorage(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ): SnapshotStorage | undefined {
   if (!isRecord(value)) {
     diagnostics.push(issue("invalid-snapshot", "Storage must be an object", path))
@@ -1830,7 +1966,7 @@ function validateStorage(
 
   if (value.kind === "native") {
     requireKeys(value, ["kind", "dialect", "type", "affinity"], path, diagnostics, ["affinity"])
-    const dialect = stringValue(value.dialect, [...path, "dialect"], diagnostics, true)
+    const storageDialect = stringValue(value.dialect, [...path, "dialect"], diagnostics, true)
     const type = stringValue(value.type, [...path, "type"], diagnostics, true)
     const affinity =
       value.affinity === undefined
@@ -1842,13 +1978,23 @@ function validateStorage(
             diagnostics,
           )
 
-    if (dialect === undefined || type === undefined) {
+    if (storageDialect === undefined || type === undefined) {
       return undefined
+    }
+
+    if (dialect !== undefined && storageDialect !== dialect) {
+      diagnostics.push(
+        issue(
+          "dialect-mismatch",
+          `Native storage belongs to "${storageDialect}" but snapshot dialect is "${dialect}"`,
+          [...path, "dialect"],
+        ),
+      )
     }
 
     return {
       kind: "native",
-      dialect,
+      dialect: storageDialect,
       type,
       ...(affinity === undefined ? {} : { affinity }),
     }
@@ -1862,6 +2008,7 @@ function validateDefault(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ) {
   if (!isRecord(value)) {
     diagnostics.push(issue("invalid-snapshot", "Default must be an object", path))
@@ -1887,7 +2034,12 @@ function validateDefault(
 
   if (value.kind === "expression") {
     requireKeys(value, ["kind", "expression"], path, diagnostics)
-    const expression = validateExpression(value.expression, [...path, "expression"], diagnostics)
+    const expression = validateExpression(
+      value.expression,
+      [...path, "expression"],
+      diagnostics,
+      dialect,
+    )
 
     return expression === undefined
       ? undefined
@@ -1905,6 +2057,7 @@ function validateGenerated(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ) {
   if (!isRecord(value)) {
     diagnostics.push(issue("invalid-snapshot", "Generated-column metadata must be an object", path))
@@ -1918,7 +2071,12 @@ function validateGenerated(
 
   if (value.kind === "expression") {
     requireKeys(value, ["kind", "expression", "mode"], path, diagnostics)
-    const expression = validateExpression(value.expression, [...path, "expression"], diagnostics)
+    const expression = validateExpression(
+      value.expression,
+      [...path, "expression"],
+      diagnostics,
+      dialect,
+    )
     const mode = validateChoice(
       value.mode,
       ["stored", "virtual"] as const,
@@ -1943,6 +2101,7 @@ function validateIdentity(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ): CompleteSnapshotIdentity | undefined {
   if (!isRecord(value)) {
     diagnostics.push(issue("invalid-snapshot", "Identity must be an object", path))
@@ -1966,8 +2125,8 @@ function validateIdentity(
     [...path, "generation"],
     diagnostics,
   )
-  const options = validateValueFactRecord(value.options, [...path, "options"], diagnostics)
-  const metadata = validateObjectMetadata(value, path, undefined, diagnostics)
+  const options = validateValueFactRecord(value.options, [...path, "options"], diagnostics, dialect)
+  const metadata = validateObjectMetadata(value, path, dialect, diagnostics)
 
   if (generation === undefined || options === undefined || value.kind !== "identity") {
     return undefined
@@ -1985,6 +2144,7 @@ function validateExpression(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ) {
   if (!isRecord(value)) {
     diagnostics.push(issue("invalid-snapshot", "Expression must be an object", path))
@@ -1999,7 +2159,7 @@ function validateExpression(
     true,
   )
   const sql = stringValue(value.sql, [...path, "sql"], diagnostics)
-  const dialect =
+  const expressionDialect =
     value.dialect === undefined
       ? undefined
       : stringValue(value.dialect, [...path, "dialect"], diagnostics, true)
@@ -2016,7 +2176,7 @@ function validateExpression(
     )
   }
 
-  if (expressionKind === "unsafe" && dialect === undefined) {
+  if (expressionKind === "unsafe" && expressionDialect === undefined) {
     diagnostics.push(
       issue("invalid-snapshot", "Unsafe expressions must carry a dialect tag", [
         ...path,
@@ -2025,12 +2185,26 @@ function validateExpression(
     )
   }
 
-  if (expressionKind !== undefined && expressionKind !== "unsafe" && dialect !== undefined) {
+  if (
+    expressionKind !== undefined &&
+    expressionKind !== "unsafe" &&
+    expressionDialect !== undefined
+  ) {
     diagnostics.push(
       issue("invalid-snapshot", "Only unsafe expressions may carry a dialect tag", [
         ...path,
         "dialect",
       ]),
+    )
+  }
+
+  if (dialect !== undefined && expressionDialect !== undefined && expressionDialect !== dialect) {
+    diagnostics.push(
+      issue(
+        "dialect-mismatch",
+        `Expression belongs to "${expressionDialect}" but snapshot dialect is "${dialect}"`,
+        [...path, "dialect"],
+      ),
     )
   }
 
@@ -2042,7 +2216,7 @@ function validateExpression(
     kind: "expression" as const,
     expressionKind,
     sql,
-    ...(dialect === undefined ? {} : { dialect }),
+    ...(expressionDialect === undefined ? {} : { dialect: expressionDialect }),
   }
 }
 
@@ -2109,6 +2283,7 @@ function validateValueFact(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ): CompleteSnapshotValueFact | undefined {
   if (!isRecord(value)) {
     diagnostics.push(issue("invalid-snapshot", "Value fact must be an object", path))
@@ -2129,7 +2304,12 @@ function validateValueFact(
 
   if (value.kind === "expression") {
     requireKeys(value, ["kind", "expression"], path, diagnostics)
-    const expression = validateExpression(value.expression, [...path, "expression"], diagnostics)
+    const expression = validateExpression(
+      value.expression,
+      [...path, "expression"],
+      diagnostics,
+      dialect,
+    )
 
     return expression === undefined
       ? undefined
@@ -2147,6 +2327,7 @@ function validateValueFactRecord(
   value: unknown,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  dialect: string | undefined,
 ): Readonly<Record<string, CompleteSnapshotValueFact>> | undefined {
   if (!isRecord(value)) {
     diagnostics.push(issue("invalid-snapshot", "Value-fact options must be an object", path))
@@ -2156,10 +2337,10 @@ function validateValueFactRecord(
   const result: Record<string, CompleteSnapshotValueFact> = {}
 
   for (const key of Object.keys(value).sort()) {
-    const fact = validateValueFact(value[key], [...path, key], diagnostics)
+    const fact = validateValueFact(value[key], [...path, key], diagnostics, dialect)
 
     if (fact !== undefined) {
-      result[key] = fact
+      setOwn(result, key, fact)
     }
   }
 
@@ -2387,7 +2568,7 @@ function validateJsonValue(
       const child = validateJsonValue(value[key], [...path, key], diagnostics, seen)
 
       if (child !== undefined) {
-        result[key] = child
+        setOwn(result, key, child)
       }
     }
 
@@ -2407,9 +2588,13 @@ function validateObjectReference(
     return undefined
   }
 
-  requireKeys(value, ["kind", "id"], path, diagnostics)
+  requireKeys(value, ["kind", "id"], path, diagnostics, ["owner"])
   const kind = stringValue(value.kind, [...path, "kind"], diagnostics, true)
   const id = stringValue(value.id, [...path, "id"], diagnostics, true)
+  const owner =
+    value.owner === undefined
+      ? undefined
+      : validateObjectOwner(value.owner, [...path, "owner"], diagnostics)
 
   if (kind === "namespace") {
     diagnostics.push(
@@ -2426,10 +2611,40 @@ function validateObjectReference(
   return kind === undefined ||
     id === undefined ||
     !completeObjectKinds.has(kind) ||
-    kind === "namespace"
+    kind === "namespace" ||
+    (value.owner !== undefined && owner === undefined)
     ? undefined
     : {
         kind: kind as CompleteSnapshotObjectReference["kind"],
+        id,
+        ...(owner === undefined ? {} : { owner }),
+      }
+}
+
+function validateObjectOwner(
+  value: unknown,
+  path: readonly (string | number)[],
+  diagnostics: SnapshotDiagnostic[],
+): CompleteSnapshotObjectOwner | undefined {
+  if (!isRecord(value)) {
+    diagnostics.push(issue("invalid-snapshot", "Object reference owner must be an object", path))
+    return undefined
+  }
+
+  requireKeys(value, ["kind", "id"], path, diagnostics)
+  const kind = stringValue(value.kind, [...path, "kind"], diagnostics, true)
+  const id = stringValue(value.id, [...path, "id"], diagnostics, true)
+
+  if (kind !== undefined && !completeObjectOwnerKinds.has(kind)) {
+    diagnostics.push(
+      issue("invalid-snapshot", `Unknown object reference owner kind: ${kind}`, [...path, "kind"]),
+    )
+  }
+
+  return kind === undefined || id === undefined || !completeObjectOwnerKinds.has(kind)
+    ? undefined
+    : {
+        kind: kind as CompleteSnapshotObjectOwner["kind"],
         id,
       }
 }
@@ -2527,7 +2742,9 @@ function validateArray<T>(
     value: unknown,
     path: readonly (string | number)[],
     diagnostics: SnapshotDiagnostic[],
+    dialect: string | undefined,
   ) => T | undefined,
+  dialect?: string,
 ): T[] | undefined {
   if (!Array.isArray(value)) {
     diagnostics.push(issue("invalid-snapshot", "Value must be an array", path))
@@ -2537,7 +2754,7 @@ function validateArray<T>(
   const result: T[] = []
 
   for (const [index, item] of value.entries()) {
-    const child = validate(item, [...path, index], diagnostics)
+    const child = validate(item, [...path, index], diagnostics, dialect)
 
     if (child !== undefined) {
       result.push(child)
@@ -2790,7 +3007,9 @@ function optionalBoolean(
 function isCanonicalNumber(value: string, integer: boolean): boolean {
   return integer
     ? /^(?:0|-[1-9]\d*|[1-9]\d*)$/u.test(value)
-    : /^(?:0|-?(?:[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?|0(?:\.\d+)?(?:[eE][+-]?\d+)?)$/u.test(value)
+    : /^(?:(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?(?:0|[1-9]\d*))?|-[1-9]\d*(?:\.\d+)?(?:[eE][+-]?(?:0|[1-9]\d*))?|-0\.\d*[1-9]\d*(?:[eE][+-]?(?:0|[1-9]\d*))?)$/u.test(
+        value,
+      )
 }
 
 const completeObjectKinds = new Set<string>([
@@ -2815,176 +3034,130 @@ const completeObjectKinds = new Set<string>([
   "opaque-object",
 ])
 
-function validateCompleteDialectMetadata(
-  snapshot: CompleteSchemaSnapshot,
-  diagnostics: SnapshotDiagnostic[],
-): void {
-  const dialect = snapshot.dialect.name
-  const objects = [
-    ...snapshot.tables,
-    ...snapshot.views,
-    ...snapshot.sequences,
-    ...snapshot.enums,
-    ...snapshot.domains,
-    ...snapshot.collations,
-    ...snapshot.triggers,
-    ...snapshot.routines,
-    ...snapshot.partitions,
-    ...snapshot.policies,
-    ...snapshot.extensions,
-    ...snapshot.deferredObjects,
-    ...snapshot.opaqueObjects,
-    ...snapshot.comments,
-    ...snapshot.ownership,
-  ]
+const completeObjectOwnerKinds = new Set<string>(["table", "view", "materialized-view", "domain"])
 
-  for (const object of objects) {
-    if (object.dialect?.dialect !== undefined && object.dialect.dialect !== dialect) {
-      diagnostics.push(
-        issue(
-          "dialect-mismatch",
-          `Dialect extension belongs to "${object.dialect.dialect}" but snapshot dialect is "${dialect}"`,
-          [object.kind, object.id, "dialect", "dialect"],
-        ),
-      )
-    }
+const nestedReferenceOwnerKinds = new Map<string, readonly CompleteSnapshotObjectOwner["kind"][]>([
+  ["column", ["table", "view", "materialized-view"]],
+  ["constraint", ["table", "domain"]],
+  ["index", ["table"]],
+])
 
-    if (object.provenance?.dialect !== undefined && object.provenance.dialect !== dialect) {
-      diagnostics.push(
-        issue(
-          "dialect-mismatch",
-          `Provenance belongs to "${object.provenance.dialect}" but snapshot dialect is "${dialect}"`,
-          [object.kind, object.id, "provenance", "dialect"],
-        ),
-      )
-    }
-  }
+const constraintObjectKinds = new Set([
+  "primary-key",
+  "unique",
+  "unique-constraint",
+  "foreign-key",
+  "check",
+])
 
-  walkCompleteMetadata(snapshot, [], dialect, diagnostics)
-}
-
-function walkCompleteMetadata(
-  value: unknown,
-  path: readonly (string | number)[],
-  dialect: string,
-  diagnostics: SnapshotDiagnostic[],
-  seen = new WeakSet<object>(),
-): void {
-  if (value === null || typeof value !== "object") {
-    return
-  }
-
-  if (seen.has(value)) {
-    return
-  }
-
-  seen.add(value)
-  try {
-    if (Array.isArray(value)) {
-      for (const [index, child] of value.entries()) {
-        walkCompleteMetadata(child, [...path, index], dialect, diagnostics, seen)
-      }
-
-      return
-    }
-
-    if (!isRecord(value)) {
-      return
-    }
-
-    if (
-      value.kind === "expression" &&
-      typeof value.dialect === "string" &&
-      value.dialect !== dialect
-    ) {
-      diagnostics.push(
-        issue(
-          "dialect-mismatch",
-          `Expression belongs to "${value.dialect}" but snapshot dialect is "${dialect}"`,
-          [...path, "dialect"],
-        ),
-      )
-    }
-
-    if (value.kind === "native" && typeof value.dialect === "string" && value.dialect !== dialect) {
-      diagnostics.push(
-        issue(
-          "dialect-mismatch",
-          `Native storage belongs to "${value.dialect}" but snapshot dialect is "${dialect}"`,
-          [...path, "dialect"],
-        ),
-      )
-    }
-
-    for (const [key, child] of Object.entries(value)) {
-      if (key !== "data") {
-        walkCompleteMetadata(child, [...path, key], dialect, diagnostics, seen)
-      }
-    }
-  } finally {
-    seen.delete(value)
-  }
+function referenceKind(kind: string): string {
+  return constraintObjectKinds.has(kind) ? "constraint" : kind
 }
 
 function validateCompleteCrossReferences(
   snapshot: CompleteSchemaSnapshot,
   diagnostics: SnapshotDiagnostic[],
 ): void {
-  const objects = new Map<string, CompleteSnapshotObject>()
-  const add = (object: CompleteSnapshotObject): void => {
-    const kind = object.kind as string
+  type IndexedObject = {
+    readonly object: CompleteSnapshotObject
+    readonly path: readonly (string | number)[]
+  }
 
-    objects.set(referenceKey(kind, object.id), object)
-    if (
-      kind === "primary-key" ||
-      kind === "unique" ||
-      kind === "unique-constraint" ||
-      kind === "foreign-key" ||
-      kind === "check"
-    ) {
-      objects.set(referenceKey("constraint", object.id), object)
+  const objects = new Map<string, IndexedObject>()
+  const add = (
+    object: CompleteSnapshotObject,
+    path: readonly (string | number)[],
+    owner?: CompleteSnapshotObjectOwner,
+  ): void => {
+    const kind = referenceKind(object.kind)
+    const key = referenceKey(owner, kind, object.id)
+
+    if (objects.has(key)) {
+      diagnostics.push(
+        issue(
+          "invalid-cross-reference",
+          `Duplicate ${kind} "${object.id}" in the same owner scope`,
+          path,
+        ),
+      )
+      return
+    }
+
+    objects.set(key, { object, path })
+  }
+
+  for (const [tableIndex, table] of snapshot.tables.entries()) {
+    const tablePath = ["tables", tableIndex] as const
+    const owner: CompleteSnapshotObjectOwner = { kind: "table", id: table.id }
+
+    add(table, tablePath)
+    for (const [columnIndex, column] of table.columns.entries()) {
+      add(
+        column as unknown as CompleteSnapshotObject,
+        [...tablePath, "columns", columnIndex],
+        owner,
+      )
+    }
+
+    for (const [constraintIndex, constraint] of table.constraints.entries()) {
+      add(
+        constraint as unknown as CompleteSnapshotObject,
+        [...tablePath, "constraints", constraintIndex],
+        owner,
+      )
+    }
+
+    for (const [indexIndex, index] of table.indexes.entries()) {
+      add(index as unknown as CompleteSnapshotObject, [...tablePath, "indexes", indexIndex], owner)
     }
   }
 
-  for (const table of snapshot.tables) {
-    add(table)
-    for (const column of table.columns) {
-      add(column as unknown as CompleteSnapshotObject)
-    }
+  for (const [viewIndex, view] of snapshot.views.entries()) {
+    const viewPath = ["views", viewIndex] as const
+    const owner: CompleteSnapshotObjectOwner = { kind: view.kind, id: view.id }
 
-    for (const constraint of table.constraints) {
-      add(constraint as unknown as CompleteSnapshotObject)
-    }
-
-    for (const index of table.indexes) {
-      add(index as unknown as CompleteSnapshotObject)
+    add(view, viewPath)
+    for (const [columnIndex, column] of view.columns.entries()) {
+      add(column as unknown as CompleteSnapshotObject, [...viewPath, "columns", columnIndex], owner)
     }
   }
 
-  for (const group of [
-    snapshot.views,
-    snapshot.sequences,
-    snapshot.enums,
-    snapshot.domains,
-    snapshot.collations,
-    snapshot.triggers,
-    snapshot.routines,
-    snapshot.partitions,
-    snapshot.policies,
-    snapshot.extensions,
-    snapshot.deferredObjects,
-    snapshot.opaqueObjects,
-    snapshot.comments,
-    snapshot.ownership,
-  ]) {
-    for (const object of group) {
-      add(object as CompleteSnapshotObject)
+  for (const [index, object] of snapshot.sequences.entries()) {
+    add(object, ["sequences", index])
+  }
+
+  for (const [index, object] of snapshot.enums.entries()) {
+    add(object, ["enums", index])
+  }
+
+  for (const [domainIndex, domain] of snapshot.domains.entries()) {
+    const domainPath = ["domains", domainIndex] as const
+    const owner: CompleteSnapshotObjectOwner = { kind: "domain", id: domain.id }
+
+    add(domain, domainPath)
+    for (const [constraintIndex, constraint] of (domain.constraints ?? []).entries()) {
+      add(
+        constraint as unknown as CompleteSnapshotObject,
+        [...domainPath, "constraints", constraintIndex],
+        owner,
+      )
     }
   }
 
-  for (const view of snapshot.views) {
-    for (const column of view.columns) {
-      add(column as unknown as CompleteSnapshotObject)
+  for (const [name, group] of [
+    ["collations", snapshot.collations],
+    ["triggers", snapshot.triggers],
+    ["routines", snapshot.routines],
+    ["partitions", snapshot.partitions],
+    ["policies", snapshot.policies],
+    ["extensions", snapshot.extensions],
+    ["deferredObjects", snapshot.deferredObjects],
+    ["opaqueObjects", snapshot.opaqueObjects],
+    ["comments", snapshot.comments],
+    ["ownership", snapshot.ownership],
+  ] as const) {
+    for (const [index, object] of group.entries()) {
+      add(object, [name, index])
     }
   }
 
@@ -2992,14 +3165,68 @@ function validateCompleteCrossReferences(
     reference: CompleteSnapshotObjectReference,
     path: readonly (string | number)[],
     expected?: CompleteSnapshotObjectReference["kind"],
-  ): void => {
+    requiredOwner?: CompleteSnapshotObjectOwner,
+  ): IndexedObject | undefined => {
     if (expected !== undefined && reference.kind !== expected) {
       diagnostics.push(
         issue("invalid-cross-reference", `Reference must target a ${expected}`, path),
       )
     }
 
-    if (!objects.has(referenceKey(reference.kind, reference.id))) {
+    const allowedOwnerKinds = nestedReferenceOwnerKinds.get(reference.kind)
+
+    if (allowedOwnerKinds !== undefined) {
+      if (reference.owner === undefined) {
+        diagnostics.push(
+          issue(
+            "invalid-cross-reference",
+            `Reference to nested ${reference.kind} "${reference.id}" must include an owner scope`,
+            [...path, "owner"],
+          ),
+        )
+        return undefined
+      }
+
+      if (!allowedOwnerKinds.includes(reference.owner.kind)) {
+        diagnostics.push(
+          issue(
+            "invalid-cross-reference",
+            `Owner kind "${reference.owner.kind}" cannot contain ${reference.kind} objects`,
+            [...path, "owner", "kind"],
+          ),
+        )
+        return undefined
+      }
+    } else if (reference.owner !== undefined) {
+      diagnostics.push(
+        issue(
+          "invalid-cross-reference",
+          `Top-level ${reference.kind} references cannot include an owner scope`,
+          [...path, "owner"],
+        ),
+      )
+      return undefined
+    }
+
+    if (
+      requiredOwner !== undefined &&
+      (reference.owner === undefined ||
+        reference.owner.kind !== requiredOwner.kind ||
+        reference.owner.id !== requiredOwner.id)
+    ) {
+      diagnostics.push(
+        issue(
+          "invalid-cross-reference",
+          `Reference scope must target ${requiredOwner.kind} "${requiredOwner.id}"`,
+          [...path, "owner"],
+        ),
+      )
+      return undefined
+    }
+
+    const indexed = objects.get(referenceKey(reference.owner, reference.kind, reference.id))
+
+    if (indexed === undefined) {
       diagnostics.push(
         issue(
           "invalid-cross-reference",
@@ -3008,6 +3235,8 @@ function validateCompleteCrossReferences(
         ),
       )
     }
+
+    return indexed
   }
 
   for (const [tableIndex, table] of snapshot.tables.entries()) {
@@ -3029,24 +3258,21 @@ function validateCompleteCrossReferences(
       }
 
       if (constraint.kind === "foreign-key") {
-        requireReference(
+        const target = requireReference(
           constraint.target.table,
           ["tables", tableIndex, "constraints", constraintIndex, "target", "table"],
           "table",
         )
-        const target = objects.get(
-          referenceKey(constraint.target.table.kind, constraint.target.table.id),
-        )
 
-        if (target?.kind === "table") {
-          const targetColumns = new Set(target.columns.map((column) => column.id))
+        if (target?.object.kind === "table") {
+          const targetColumns = new Set(target.object.columns.map((column) => column.id))
 
           for (const [columnIndex, column] of constraint.target.columns.entries()) {
             if (!targetColumns.has(column)) {
               diagnostics.push(
                 issue(
                   "invalid-cross-reference",
-                  `Foreign-key target column "${column}" is not declared on table "${target.id}"`,
+                  `Foreign-key target column "${column}" is not declared on table "${target.object.id}"`,
                   [
                     "tables",
                     tableIndex,
@@ -3072,6 +3298,7 @@ function validateCompleteCrossReferences(
           constraint.backingIndex,
           ["tables", tableIndex, "constraints", constraintIndex, "backingIndex"],
           "index",
+          { kind: "table", id: table.id },
         )
       }
     }
@@ -3106,6 +3333,7 @@ function validateCompleteCrossReferences(
           index.backingConstraint,
           ["tables", tableIndex, "indexes", indexIndex, "backingConstraint"],
           "constraint",
+          { kind: "table", id: table.id },
         )
       }
     }
@@ -3150,8 +3378,12 @@ function validateCompleteCrossReferences(
   }
 }
 
-function referenceKey(kind: string, id: string): string {
-  return `${kind}\u0000${id}`
+function referenceKey(
+  owner: CompleteSnapshotObjectOwner | undefined,
+  kind: string,
+  id: string,
+): string {
+  return JSON.stringify([owner?.kind ?? null, owner?.id ?? null, kind, id])
 }
 
 function validateSortedIds(
@@ -3273,6 +3505,15 @@ function issue(
     message,
     path: Object.freeze([...path]),
   }
+}
+
+function setOwn<T>(target: Record<string, T>, key: string, value: T): void {
+  Object.defineProperty(target, key, {
+    configurable: true,
+    enumerable: true,
+    value,
+    writable: true,
+  })
 }
 
 function deepFreeze<T>(value: T, seen = new WeakSet<object>()): T {

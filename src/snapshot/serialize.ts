@@ -816,6 +816,7 @@ function serializeColumns(
   table: AnyTable,
   path: readonly (string | number)[],
   diagnostics: SnapshotDiagnostic[],
+  nonEmpty = true,
 ): readonly string[] | undefined {
   const result: string[] = []
 
@@ -841,7 +842,7 @@ function serializeColumns(
     result.push(column.fieldName)
   }
 
-  return result.length === columns.length && result.length > 0 ? result : undefined
+  return result.length === columns.length && (!nonEmpty || result.length > 0) ? result : undefined
 }
 
 function resolveForeignKeyTarget(
@@ -956,6 +957,7 @@ function serializeIndex(
           table,
           ["indexes", id, "includedColumns"],
           diagnostics,
+          false,
         )
   const extension = encodeExtension(
     indexMetadata.dialect,
@@ -1235,7 +1237,7 @@ function encodeExtension(
 
   for (const [key, value] of Object.entries(extension)) {
     if (key !== "dialect") {
-      data[key] = value
+      setOwn(data, key, value)
     }
   }
 
@@ -1277,6 +1279,15 @@ function isSchemaRoot(value: unknown): value is Schema<any> {
 
 function compareId(left: { readonly id: string }, right: { readonly id: string }): number {
   return left.id < right.id ? -1 : left.id > right.id ? 1 : 0
+}
+
+function setOwn<T>(target: Record<string, T>, key: string, value: T): void {
+  Object.defineProperty(target, key, {
+    configurable: true,
+    enumerable: true,
+    value,
+    writable: true,
+  })
 }
 
 function namespaceFor(dialect: string, name: string): CompleteSnapshotNamespace {

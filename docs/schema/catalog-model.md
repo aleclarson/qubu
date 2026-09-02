@@ -49,6 +49,19 @@ strictly validated. Arrays are ordered by logical ID (with ordinal sequences
 and index terms ordered by their semantic position), and the fingerprint is computed
 from the deterministic encoding.
 
+Normalized references to nested catalog objects retain their owner scope. A
+table-local index or constraint reference is mapped with
+`owner: { kind: "table", id }`; view columns use the view kind and ID; domain
+constraints use the domain kind and ID. The legacy `tableId` shorthand on
+catalog entity references is converted to that owner form at the Snapshot v1
+boundary. Top-level references have no owner. This scope prevents equal child
+IDs from different tables or object families from overwriting one another.
+
+Catalog extension payloads and configuration records are opaque JSON. Their
+keys and values are preserved through normalization and canonical encoding;
+objects inside those payloads are not treated as Snapshot expressions or
+native storage declarations.
+
 Snapshot v1 is the only strict schema snapshot format. `decodeSchemaSnapshot`
 and `decodeCompleteSchemaSnapshot` both validate the same version-1 envelope,
 reject unknown fields and future versions, and never evaluate database-provided
