@@ -32,6 +32,7 @@ import {
   type ExpressionDefaultDescriptor,
   type SchemaLiteralValue,
 } from "./column-behavior.ts"
+import type { SchemaDialectExtension } from "./metadata.ts"
 
 /** Portable physical storage spellings understood by every schema dialect. */
 export type PortableStorageType =
@@ -220,6 +221,8 @@ export interface ColumnOptions<TOutput = unknown, TInsert = TOutput> {
   readonly sqlName?: string
   /** Physical storage metadata for a custom column definition. */
   readonly storage?: ColumnStorage
+  /** Dialect-owned column metadata retained by schema snapshots. */
+  readonly dialect?: SchemaDialectExtension
   /** Override adapter decoding for values selected from this column. */
   readonly decode?: ResultDecoder
   /** Convert values at the live application-to-driver boundary without affecting schema metadata. */
@@ -327,6 +330,8 @@ export interface ColumnDefinition<TConfig extends ColumnDefinitionConfig = {}> {
   readonly sqlName?: string
   /** Physical storage metadata, separate from the application and SQL types. */
   readonly storage?: ColumnConfigStorage<TConfig>
+  /** Dialect-owned metadata retained by schema snapshots. */
+  readonly dialect?: SchemaDialectExtension
   /** Runtime decoder used when this definition is projected. */
   readonly resultDecoder?: ResultDecoder
   /** Runtime default used when an application insert omits this definition. */
@@ -853,6 +858,7 @@ export function column<const TOptions extends ColumnOptions<any, any> = {}>(
     ...resolveColumnBehavior(options ?? {}),
     sqlName: options?.sqlName,
     storage: options?.storage ? Object.freeze({ ...options.storage }) : undefined,
+    dialect: options?.dialect,
     ...(options?.decode === undefined && options?.codec === undefined
       ? {}
       : { resultDecoder: options?.decode ?? options?.codec?.fromDriver }),

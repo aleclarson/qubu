@@ -1,4 +1,9 @@
 import { mapCatalogToSnapshot } from "../introspection/snapshot.ts"
+import {
+  candidateKeyIndexColumns,
+  hasCandidateKeyShape,
+  isCandidateKeyIndex,
+} from "../snapshot/candidate-key.ts"
 import type {
   CatalogColumn,
   CatalogDialect,
@@ -112,7 +117,7 @@ const reservedBindings = new Set([
   "yield",
 ])
 
-const excludedFamilies = [
+const unsupportedSnapshotFamilies = [
   ["views", "views"],
   ["sequences", "sequences"],
   ["enums", "enums"],
@@ -122,7 +127,7 @@ const excludedFamilies = [
   ["routines", "routines"],
   ["partitions", "partitions"],
   ["policies", "policies"],
-  ["extensionObjects", "extension objects"],
+  ["extensions", "extensions"],
   ["deferredObjects", "deferred objects"],
   ["opaqueObjects", "opaque objects"],
   ["comments", "comments"],
@@ -141,7 +146,7 @@ const excludedFamilies = [
  *   expressions use dialect-tagged schema data, checks use `catalogCheck()`, and foreign keys use
  *   lazy `catalogForeignKey()` targets. Foreign keys must have equal local and target arity and
  *   target an exact primary key, strict unique key, or candidate index. Nullable database UNIQUE
- *   constraints do not provide that candidate-key proof and fail generation. Application output,
+ *   constraints and indexes with lossy candidate-key facts do not provide that proof. Application output,
  *   insert, and update types default independently to `unknown`. The generator may attach a
  *   conservative SQL semantic domain, and {@link SchemaCodegenOptions.mapColumn} can override either
  *   type axis with a fixed token. Naming callbacks can replace suggested camelCase IDs, but they
@@ -172,8 +177,11 @@ export function generateSchemaSource(
       return failure(diagnostics)
     }
 
+    if (!validateOptions(options, diagnostics)) {
+      return failure(diagnostics)
+    }
+
     diagnostics.push(...input.diagnostics)
-    appendExcludedFamilyDiagnostics(input.catalog, diagnostics)
 
     if (!input.ok) {
       diagnostics.push(
@@ -213,6 +221,12 @@ export function generateSchemaSource(
     }
 
     const snapshot = decoded.value
+
+    appendUnsupportedSnapshotFamilyDiagnostics(snapshot, diagnostics)
+
+    if (hasErrors(diagnostics)) {
+      return failure(diagnostics)
+    }
 
     validateInputEnvelope(input.catalog, snapshot, diagnostics)
     validatePhysicalFacts(input.catalog, snapshot, diagnostics)
@@ -375,12 +389,7 @@ function validateSchemaProofs(snapshot: SchemaSnapshot, diagnostics: CodegenDiag
         continue
       }
 
-      const candidateColumns = candidateIndexColumns(index)
-
-      if (
-        candidateColumns === undefined ||
-        candidateColumns.some((column) => columns.get(column)?.nullable !== false)
-      ) {
+      if (!hasCandidateKeyShape(index, columns)) {
         diagnostics.push(
           errorDiagnostic(
             "unrepresentable-fact",
@@ -443,38 +452,14 @@ function hasCandidateKey(table: SnapshotTable, targetColumns: readonly string[])
   }
 
   return table.indexes.some((index) => {
-    if (!index.candidateKey) {
+    if (!isCandidateKeyIndex(index, columns)) {
       return false
     }
 
-    const candidateColumns = candidateIndexColumns(index)
+    const candidateColumns = candidateKeyIndexColumns(index)
 
-    return (
-      candidateColumns !== undefined &&
-      candidateColumns.every((column) => columns.get(column)?.nullable === false) &&
-      sameColumns(candidateColumns, targetColumns)
-    )
+    return candidateColumns !== undefined && sameColumns(candidateColumns, targetColumns)
   })
-}
-
-function candidateIndexColumns(index: SnapshotIndex): readonly string[] | undefined {
-  if (!index.candidateKey || !index.unique || index.predicate !== undefined) {
-    return undefined
-  }
-
-  const columns: string[] = []
-
-  for (const term of index.terms) {
-    const expression = term
-
-    if (expression.kind !== "column") {
-      return undefined
-    }
-
-    columns.push(expression.column)
-  }
-
-  return columns.length > 0 ? columns : undefined
 }
 
 function sameColumns(left: readonly string[], right: readonly string[]): boolean {
@@ -596,7 +581,7 @@ function resolveTable(
   const columns: ResolvedColumn[] = []
   const columnNames = new Map<string, readonly (string | number)[]>()
 
-  for (const column of [...snapshot.columns].sort(comparePhysicalName)) {
+  for (const column of [...snapshot.columns].sort(comparePhysicalPosition)) {
     const path = ["snapshot", "tables", snapshot.id, "columns", column.id] as const
     const catalogColumn = columnCatalog.get(column.physicalName)
 
@@ -725,7 +710,7 @@ function resolveTable(
     return undefined
   }
 
-  const orderedColumns = columns.sort(compareName)
+  const orderedColumns = columns
 
   return {
     name: tableName,
@@ -1188,10 +1173,10 @@ function toPhysicalFacts(snapshot: SchemaSnapshot): unknown {
     namespace: snapshot.namespace.name,
     tables: [...snapshot.tables].sort(comparePhysicalName).map((table) => ({
       physicalName: table.physicalName,
-      columns: [...table.columns].sort(comparePhysicalName).map((column) => ({
-        ...column,
-        id: column.physicalName,
-      })),
+      ...(table.dialect === undefined ? {} : { dialect: stripEvidence(table.dialect) }),
+      columns: [...table.columns].sort(comparePhysicalPosition).map((column) =>
+        stripObjectIdentity(column),
+      ),
       constraints: [...table.constraints]
         .sort(comparePhysicalName)
         .map((constraint) => physicalConstraint(constraint, table, tableById, columnNames)),
@@ -1209,10 +1194,7 @@ function physicalConstraint(
   columns: ReadonlyMap<string, ReadonlyMap<string, string>>,
 ): unknown {
   if (constraint.kind === "check") {
-    return {
-      ...constraint,
-      id: constraint.physicalName,
-    }
+    return stripObjectIdentity(constraint)
   }
 
   const localColumns = constraint.columns.map(
@@ -1220,18 +1202,26 @@ function physicalConstraint(
   )
 
   if (constraint.kind !== "foreign-key") {
+    const facts = stripObjectIdentity(constraint)
+
     return {
-      ...constraint,
-      id: constraint.physicalName,
+      ...facts,
       columns: localColumns,
+      ...(constraint.backingIndex === undefined
+        ? {}
+        : {
+            backingIndex: physicalReference(
+              constraint.backingIndex,
+              table.indexes,
+            ),
+          }),
     }
   }
 
   const targetTable = tables.get(constraint.target.table.id)
 
   return {
-    ...constraint,
-    id: constraint.physicalName,
+    ...stripObjectIdentity(constraint),
     columns: localColumns,
     target: {
       table: targetTable?.physicalName ?? `missing:${constraint.target.table.id}`,
@@ -1250,13 +1240,19 @@ function physicalIndex(
   const names = columns.get(table.id)
 
   return {
-    ...index,
-    id: index.physicalName,
-    terms: index.terms.map((term) => physicalIndexTerm(term, names)),
+    ...stripObjectIdentity(index),
+    terms: [...index.terms]
+      .sort((left, right) => left.position - right.position)
+      .map((term) => physicalIndexTerm(term, names)),
     ...(index.includedColumns === undefined
       ? {}
       : {
           includedColumns: index.includedColumns.map((id) => names?.get(id) ?? `missing:${id}`),
+        }),
+    ...(index.backingConstraint === undefined
+      ? {}
+      : {
+          backingConstraint: physicalReference(index.backingConstraint, table.constraints),
         }),
   }
 }
@@ -1279,28 +1275,68 @@ function physicalIndexTerm(
   return term
 }
 
-function appendExcludedFamilyDiagnostics(
-  catalog: IntrospectionCatalog | undefined,
+function appendUnsupportedSnapshotFamilyDiagnostics(
+  snapshot: SchemaSnapshot,
   diagnostics: CodegenDiagnostic[],
 ): void {
-  if (catalog === undefined) {
-    return
-  }
+  for (const [property, label] of unsupportedSnapshotFamilies) {
+    const values = snapshot[property]
 
-  for (const [property, label] of excludedFamilies) {
-    const values = catalog[property]
-
-    if (values === undefined || values.length === 0) {
+    if (values.length === 0) {
       continue
     }
 
-    diagnostics.push({
-      severity: "warning",
-      code: "excluded-object-family",
-      message: `Snapshot v1 source generation excludes ${values.length} ${label}`,
-      path: Object.freeze(["catalog", property]),
-      remediation: "Use the complete normalized catalog or Snapshot v1 for this object family.",
-    })
+    diagnostics.push(
+      errorDiagnostic(
+        "excluded-object-family",
+        `Snapshot v1 source generation cannot represent ${values.length} ${label}`,
+        ["snapshot", property],
+        "Generate source from a snapshot containing tables only.",
+      ),
+    )
+  }
+}
+
+function stripObjectIdentity(value: { readonly id: string }): Record<string, unknown> {
+  const stripped = stripEvidence(value)
+
+  if (typeof stripped !== "object" || stripped === null || Array.isArray(stripped)) {
+    return {}
+  }
+
+  const { id: _id, ...facts } = stripped as Record<string, unknown>
+  return facts
+}
+
+function stripEvidence(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(stripEvidence)
+  }
+
+  if (typeof value !== "object" || value === null) {
+    return value
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+      .flatMap(([key, item]) =>
+      key === "provenance" || key === "physicalReference"
+        ? []
+        : [[key, stripEvidence(item)]],
+      ),
+  )
+}
+
+function physicalReference(
+  reference: { readonly kind: string; readonly id: string },
+  objects: readonly { readonly id: string; readonly physicalName: string }[],
+): Record<string, unknown> {
+  const target = objects.find((object) => object.id === reference.id)
+
+  return {
+    ...reference,
+    id: target?.physicalName ?? `missing:${reference.id}`,
   }
 }
 
@@ -1411,12 +1447,39 @@ function comparePhysicalName(
       : 0
 }
 
+function comparePhysicalPosition(
+  left: { readonly ordinalPosition: number; readonly physicalName: string },
+  right: { readonly ordinalPosition: number; readonly physicalName: string },
+): number {
+  return left.ordinalPosition - right.ordinalPosition || comparePhysicalName(left, right)
+}
+
 function compareName(left: { readonly name: string }, right: { readonly name: string }): number {
   return left.name < right.name ? -1 : left.name > right.name ? 1 : 0
 }
 
 function isOptions(value: unknown): value is SchemaCodegenOptions {
   return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function validateOptions(
+  options: SchemaCodegenOptions,
+  diagnostics: CodegenDiagnostic[],
+): boolean {
+  let valid = true
+
+  for (const key of ["naming", "mapColumn"] as const) {
+    const callback = options[key]
+
+    if (callback !== undefined && typeof callback !== "function") {
+      diagnostics.push(
+        errorDiagnostic("invalid-option", `${key} must be a function`, ["options", key]),
+      )
+      valid = false
+    }
+  }
+
+  return valid
 }
 
 function isIntrospectionResult(value: unknown): value is IntrospectionResult {

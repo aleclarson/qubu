@@ -93,6 +93,12 @@ export type GeneratedDescriptor = GeneratedColumnDescriptor
 /** Identity generation policy. Identity is not an ordinary SQL expression. */
 export type IdentityGeneration = "always" | "by-default"
 
+/** Literal or deterministic schema-expression identity option value. */
+export type IdentityOptionValue = SchemaLiteralValue | AnySchemaExpression
+
+/** Dialect-neutral identity options retained in Snapshot v1. */
+export type IdentityOptions = Readonly<Record<string, IdentityOptionValue>>
+
 /** SQLite's opt-in AUTOINCREMENT behavior for an INTEGER rowid alias. */
 export interface SqliteIdentityExtension extends SchemaDialectExtension<"sqlite"> {
   /** Preserve deleted rowids instead of allowing SQLite to reuse them. */
@@ -115,6 +121,7 @@ export type IdentityDialectExtension =
 export interface IdentityDescriptor {
   readonly kind: "identity"
   readonly generation: IdentityGeneration
+  readonly options?: IdentityOptions
   /** Optional dialect-owned identity semantics such as SQLite AUTOINCREMENT. */
   readonly dialect?: IdentityDialectExtension
 }
@@ -247,7 +254,7 @@ export function externalGeneratedColumn(): ExternalGeneratedColumnDescriptor {
 /** Describe a database identity column without inventing a generated SQL expression. */
 export function identityColumn(
   generation?: IdentityGeneration,
-  options?: { readonly dialect?: IdentityDialectExtension },
+  options?: { readonly dialect?: IdentityDialectExtension; readonly options?: IdentityOptions },
 ): IdentityDescriptor {
   const resolvedGeneration = generation ?? "by-default"
 
@@ -262,6 +269,9 @@ export function identityColumn(
   return Object.freeze({
     kind: "identity" as const,
     generation: resolvedGeneration,
+    ...(options?.options === undefined
+      ? {}
+      : { options: freezeIdentityOptions(options.options) }),
     ...(options?.dialect === undefined ? {} : { dialect: freezeSchemaMetadata(options.dialect) }),
   })
 }
@@ -465,8 +475,17 @@ function freezeIdentityDescriptor(value: IdentityDescriptor): IdentityDescriptor
   return Object.freeze({
     kind: "identity" as const,
     generation: value.generation,
+    ...(value.options === undefined ? {} : { options: freezeIdentityOptions(value.options) }),
     ...(value.dialect === undefined ? {} : { dialect: freezeSchemaMetadata(value.dialect) }),
   })
+}
+
+function freezeIdentityOptions(value: IdentityOptions): IdentityOptions {
+  return Object.freeze(
+    Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, item]),
+    ),
+  ) as IdentityOptions
 }
 
 function assertSchemaExpression(
@@ -576,6 +595,37 @@ function assertIdentityDescriptor(value: IdentityDescriptor): void {
         "Identity dialect metadata must contain a non-empty dialect tag",
         "identity.dialect",
       )
+    }
+  }
+
+  if (value.options !== undefined) {
+    if (
+      typeof value.options !== "object" ||
+      value.options === null ||
+      Array.isArray(value.options)
+    ) {
+      throw new ColumnBehaviorError(
+        "invalid-identity",
+        "Identity options must be an object",
+        "identity.options",
+      )
+    }
+
+    for (const [key, option] of Object.entries(value.options)) {
+      if (
+        typeof option === "number" && !Number.isFinite(option) ||
+        (typeof option !== "string" &&
+          typeof option !== "number" &&
+          typeof option !== "boolean" &&
+          option !== null &&
+          !isSchemaExpression(option))
+      ) {
+        throw new ColumnBehaviorError(
+          "invalid-identity",
+          `Identity option "${key}" must be a finite literal or schema expression`,
+          `identity.options.${key}`,
+        )
+      }
     }
   }
 }

@@ -1,4 +1,5 @@
 import { toSnapshotJsonValue } from "../snapshot/canonical.ts"
+import { hasCandidateKeyShape } from "../snapshot/candidate-key.ts"
 import {
   assertCompleteSchemaSnapshot,
   type CompleteSchemaSnapshot,
@@ -368,13 +369,18 @@ function mapTable(
   const columnNullability = new Map(
     table.columns.map((column) => [column.physicalName, column.nullable]),
   )
+  const snapshotColumnNullability = new Map(
+    table.columns.map((column) => [column.id, column.nullable]),
+  )
   const constraints = table.constraints
     .map((constraint) =>
       mapConstraint(constraint, dialect, columnIds, columnNullability, tables, diagnostics),
     )
     .filter((value): value is CompleteSnapshotConstraint => value !== undefined)
     .sort(compareId)
-  const indexes = table.indexes.map((index) => mapIndex(index, dialect, columnIds)).sort(compareId)
+  const indexes = table.indexes
+    .map((index) => mapIndex(index, dialect, columnIds, snapshotColumnNullability))
+    .sort(compareId)
 
   return {
     kind: "table",
@@ -552,8 +558,9 @@ function mapIndex(
   index: CatalogIndex,
   dialect: string,
   columns: ReadonlyMap<string, string>,
+  columnNullability: ReadonlyMap<string, boolean>,
 ): CompleteSnapshotIndex {
-  return {
+  const mapped: CompleteSnapshotIndex = {
     kind: "index",
     id: index.id,
     physicalName: index.physicalName ?? index.id,
@@ -562,7 +569,7 @@ function mapIndex(
       .filter((term): term is CompleteSnapshotIndexTerm => term !== undefined)
       .sort((left, right) => left.position - right.position),
     unique: index.unique,
-    candidateKey: index.unique,
+    candidateKey: false,
     ...(index.predicate === undefined ? {} : { predicate: mapExpression(index.predicate) }),
     ...(index.includedColumns === undefined
       ? {}
@@ -574,6 +581,11 @@ function mapIndex(
       : { backingConstraint: mapReference(index.backingConstraint) }),
     ...(index.method === undefined ? {} : { method: index.method }),
     ...mapMetadata(undefined, index.dialect, dialect, index.reference),
+  }
+
+  return {
+    ...mapped,
+    candidateKey: hasCandidateKeyShape(mapped, columnNullability),
   }
 }
 
