@@ -10,6 +10,7 @@ import type {
 } from "qubu"
 import type { Dialect } from "qubu/core"
 
+/** Array-like Bun result with execution metadata attached to the returned row list. */
 export interface BunSqlResult<TRow extends object = Record<string, unknown>> extends Array<TRow> {
   readonly count?: number | null
   readonly affectedRows?: number | bigint | null
@@ -17,7 +18,10 @@ export interface BunSqlResult<TRow extends object = Record<string, unknown>> ext
 }
 
 export interface BunSqlQuery<TRows extends object[]> extends PromiseLike<TRows> {
-  /** Cancel an in-flight query; Bun's SQLite backend may already be synchronous at this point. */
+  /**
+   * Cancel an in-flight query; SQLite execution can be synchronous and uninterruptible once
+   * started.
+   */
   cancel(): void
 }
 
@@ -90,7 +94,9 @@ function executionAdapter(
         request.signal,
       )) as BunSqlResult<TRow>
       const isMutation = request.queryKind !== "select" && request.queryKind !== "set"
+      // Prefer Bun's array count, but accept the alternate affectedRows field when present.
       const affectedRows = result.count ?? result.affectedRows
+      // Bun may retain the previous insert ID on later result arrays, so queryKind is authoritative.
       const insertId = request.queryKind === "insert" ? result.lastInsertRowid : undefined
 
       return {
@@ -131,8 +137,9 @@ async function executeQuery<TRows extends object[]>(
     return await query
   }
 
-  // Bun's SQLite backend may execute synchronously, so an abort cannot interrupt the native call
-  // once it has started. The query handle still enables cancellation for asynchronous backends.
+  // The second check closes the gap before listener registration. Bun's SQLite backend may execute
+  // synchronously, so an abort cannot interrupt the native call once it has started; asynchronous
+  // backends can still cancel through the query handle.
   if (signal.aborted) {
     query.cancel()
     throwIfAborted(signal)
@@ -140,6 +147,7 @@ async function executeQuery<TRows extends object[]>(
 
   const cancel = () => query.cancel()
 
+  // Bun query objects are lazy; install the listener before awaiting so it covers query start.
   signal.addEventListener("abort", cancel, { once: true })
   try {
     const result = await query
