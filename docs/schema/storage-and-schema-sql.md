@@ -36,14 +36,19 @@ declaration:
 import { nativeColumn, nativeStorage, table } from "qubu"
 
 const accounts = table("accounts", {
-  handle: nativeColumn(nativeStorage("postgresql", 'citext COLLATE "C"')),
+  handle: nativeColumn(nativeStorage("postgresql", 'citext COLLATE "C"'), {
+    sqlType: "postgres.citext",
+  }),
 })
 ```
 
 `nativeStorage()` preserves the declaration text and freezes the descriptor. The
 `ColumnStorageOf`, `ColumnStorageTypeOf`, `ColumnStorageDialectOf`, and
 `ColumnStorageDeclarationOf` helpers read its metadata. Native storage is
-descriptive. It does not change selection, mutation, or query rendering.
+descriptive. The optional `sqlType` field is the runtime semantic domain passed
+to adapters; provide it for custom domains because the compile-time SQL type is
+not available at runtime. It does not change selection, mutation, or query
+rendering.
 
 ## Render deterministic schema expressions
 

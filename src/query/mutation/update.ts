@@ -1,7 +1,8 @@
 import type { RenderContext, RequiresOf, RequiresOuterOf } from "../../core/fragment.ts"
 import { identifier } from "../../core/primitives/identifier.ts"
+import type { SqlTypeName } from "../../core/sql-types.ts"
 import { isExpression, type ExpressionWithOutput } from "../../expressions/types.ts"
-import { columnSqlType, encodeColumnParameter, type ColumnStorage } from "../../schema/column.ts"
+import { columnSqlType, encodeColumnParameter } from "../../schema/column.ts"
 import type { SourceIdentity } from "../../schema/source.ts"
 import type { AnyTable, TableUpdateInput } from "../../schema/table.ts"
 import { queryValidationError, type QueryTypeValidation } from "../errors.ts"
@@ -187,7 +188,7 @@ function renderAssignmentValue(
   value: unknown,
   definition: {
     readonly parameterEncoder?: (value: unknown) => unknown
-    readonly storage?: ColumnStorage
+    readonly sqlType?: SqlTypeName
   },
 ) {
   if (isExpression(value)) {

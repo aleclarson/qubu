@@ -156,7 +156,8 @@ Portable boolean, date, timestamp, JSON, and bigint columns retain their
 logical result domains through projection aliases, derived queries, CTEs, set
 operations, and mutation `RETURNING`. The result field exposes that domain as
 `sqlType` before execution. Register only the conversions required by the
-selected driver configuration:
+selected driver configuration. `sqlType` identifies the SQL domain; `type` and
+the selected decoder determine whether Qubu converts the returned value:
 
 ```ts
 import {

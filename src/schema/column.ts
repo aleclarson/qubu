@@ -220,6 +220,8 @@ export interface ColumnOptions<TOutput = unknown, TInsert = TOutput> {
   readonly onUpdate?: AnySchemaExpression
   /** Override the snake_case SQL identifier derived from the field name. */
   readonly sqlName?: string
+  /** Runtime SQL semantic domain name for adapter binding and result metadata. */
+  readonly sqlType?: SqlTypeName
   /** Physical storage metadata for a custom column definition. */
   readonly storage?: ColumnStorage
   /** Dialect-owned column metadata retained by schema snapshots. */
@@ -237,9 +239,10 @@ export interface ColumnOptions<TOutput = unknown, TInsert = TOutput> {
 
 type BuiltInColumnOptions<TOutput> = Omit<
   ColumnOptions<TOutput, TOutput>,
-  "castType" | "storage"
+  "castType" | "sqlType" | "storage"
 > & {
   readonly castType?: never
+  readonly sqlType?: never
   readonly storage?: never
 }
 
@@ -329,6 +332,8 @@ export interface ColumnDefinition<TConfig extends ColumnDefinitionConfig = {}> {
   /** MySQL's optional parameter-free `ON UPDATE` expression. */
   readonly onUpdate?: ColumnConfigOnUpdate<TConfig>
   readonly sqlName?: string
+  /** Runtime SQL semantic domain name for adapter binding and result metadata. */
+  readonly sqlType?: SqlTypeName
   /** Physical storage metadata, separate from the application and SQL types. */
   readonly storage?: ColumnConfigStorage<TConfig>
   /** Dialect-owned metadata retained by schema snapshots. */
@@ -650,6 +655,7 @@ function withPortableStorage<
   return Object.freeze({
     ...definition,
     storage: portableStorage(type),
+    sqlType: type === "numeric" ? "decimal" : type,
   }) as StoredColumnDefinition<TDefinition, PortableColumnStorage<TType>>
 }
 
@@ -858,6 +864,7 @@ export function column<const TOptions extends ColumnOptions<any, any> = {}>(
     nullable: options?.nullable === true,
     ...resolveColumnBehavior(options ?? {}),
     sqlName: options?.sqlName,
+    ...(options?.sqlType === undefined ? {} : { sqlType: options.sqlType }),
     storage: options?.storage ? Object.freeze({ ...options.storage }) : undefined,
     dialect: options?.dialect,
     ...(options?.decode === undefined && options?.codec === undefined
@@ -881,7 +888,7 @@ export function column<const TOptions extends ColumnOptions<any, any> = {}>(
 
 /** Resolve the runtime result metadata carried by a column definition. */
 export function columnResultValue(definition: {
-  readonly storage?: ColumnStorage
+  readonly sqlType?: SqlTypeName
   readonly resultDecoder?: ResultDecoder
 }): ResultValueMetadata | undefined {
   const sqlType = columnSqlType(definition)
@@ -897,17 +904,11 @@ export function columnResultValue(definition: {
   return resultValue(type, definition.resultDecoder, sqlType)
 }
 
-/** Resolve a portable column's semantic SQL domain for driver-facing metadata. */
+/** Resolve a column's explicit runtime semantic SQL domain for driver-facing metadata. */
 export function columnSqlType(definition: {
-  readonly storage?: ColumnStorage
+  readonly sqlType?: SqlTypeName
 }): SqlTypeName | undefined {
-  const storage = definition.storage
-
-  if (storage?.kind !== "portable") {
-    return undefined
-  }
-
-  return storage.type === "numeric" ? "decimal" : storage.type
+  return definition.sqlType
 }
 
 /** Apply a live column codec while preserving SQL NULL unchanged. */

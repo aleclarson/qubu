@@ -84,6 +84,10 @@ render(id)
 // parameterSqlTypes: ["uuid"]
 ```
 
+The domain is a binding hint, not an instruction to convert the returned
+JavaScript value. Result decoding comes from a field's `type` or an explicit
+decoder.
+
 Plain JavaScript values remain untyped at runtime. Use an explicit domain when
 `Date` could mean either `DATE` or `TIMESTAMP`, or when a string is a UUID
 rather than text.

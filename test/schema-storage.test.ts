@@ -75,6 +75,29 @@ test("attaches deterministic portable storage to every built-in helper", () => {
     kind: "portable",
     type: "binary",
   })
+  expect({
+    integer: definitions.integer.sqlType,
+    numeric: definitions.numeric.sqlType,
+    text: definitions.text.sqlType,
+    boolean: definitions.boolean.sqlType,
+    date: definitions.date.sqlType,
+    timestamp: definitions.timestamp.sqlType,
+    uuid: definitions.uuid.sqlType,
+    json: definitions.json.sqlType,
+    bigint: definitions.bigint.sqlType,
+    binary: definitions.binary.sqlType,
+  }).toEqual({
+    integer: "integer",
+    numeric: "decimal",
+    text: "text",
+    boolean: "boolean",
+    date: "date",
+    timestamp: "timestamp",
+    uuid: "uuid",
+    json: "json",
+    bigint: "bigint",
+    binary: "binary",
+  })
   for (const definition of Object.values(definitions)) {
     expect(Object.isFrozen(definition.storage)).toBe(true)
   }
@@ -82,7 +105,10 @@ test("attaches deterministic portable storage to every built-in helper", () => {
 
 test("keeps dialect and exact declaration for native storage", () => {
   const descriptor = nativeStorage("postgresql", 'citext COLLATE "C"')
-  const custom = nativeColumn(descriptor, { nullable: true })
+  const custom = nativeColumn(descriptor, {
+    nullable: true,
+    sqlType: "postgres.citext",
+  })
   const records = table("native_storage_records", { value: custom })
 
   expect(custom.storage).toEqual({
@@ -91,6 +117,7 @@ test("keeps dialect and exact declaration for native storage", () => {
     type: 'citext COLLATE "C"',
   })
   expect(custom.storage).not.toBe(descriptor)
+  expect(custom.sqlType).toBe("postgres.citext")
   expect(records.definitions.value.storage).toEqual(custom.storage)
   expect(Object.isFrozen(custom.storage)).toBe(true)
 })

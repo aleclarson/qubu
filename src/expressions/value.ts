@@ -11,19 +11,12 @@ export interface ValueExpression<
   readonly value: T
 }
 
+/** Build a parameterized value expression with an optional runtime SQL domain for the adapter. */
 export function value<T>(input: T, sqlType?: SqlTypeName): ValueExpression<T> {
-  const resultType =
-    sqlType === "boolean" ||
-    sqlType === "date" ||
-    sqlType === "timestamp" ||
-    sqlType === "json" ||
-    sqlType === "bigint"
-      ? sqlType
-      : undefined
   const expression = makeSchemaExpression<ResultMeta<T> | ExpressionMeta<never>, "value">(
     "value",
     (context) => context.render(parameter(input, sqlType)),
-    resultValue(resultType, undefined, sqlType),
+    resultValue(undefined, undefined, sqlType),
   )
 
   return Object.freeze({
@@ -32,7 +25,12 @@ export function value<T>(input: T, sqlType?: SqlTypeName): ValueExpression<T> {
   })
 }
 
-/** Bind a value while declaring its compile-time and runtime SQL semantic domain. */
+/**
+ * Bind a value while declaring its compile-time and runtime SQL semantic domain.
+ *
+ * @remarks
+ *   The domain is a binding hint; it does not select a JavaScript result decoder.
+ */
 export function typedValue<TSqlType extends AnySqlType, T>(
   input: T,
   sqlType: TSqlType["sqlType"],

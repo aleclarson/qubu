@@ -70,8 +70,9 @@ const generated = unsafeExpression<string, SqlText>("custom_text()")
 is the fallback when no reusable definition describes the target. It preserves
 operand nullability and source metadata while emitting its supplied type name
 verbatim. `typedValue()` binds a parameter and declares its runtime SQL domain
-for the adapter. `unsafeExpression()` emits its string unchanged and should
-remain a last resort.
+for the adapter; it does not select a JavaScript result decoder. Schema columns
+carry result-decoder metadata separately. `unsafeExpression()` emits its string
+unchanged and should remain a last resort.
 
 The lower-level forms also expose the SQL domain in their generic lists:
 `call<Output, Name, Arguments, NullableFrom, SqlType>()` and
