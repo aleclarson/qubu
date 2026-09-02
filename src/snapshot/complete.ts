@@ -3050,6 +3050,8 @@ const constraintObjectKinds = new Set([
   "check",
 ])
 
+// Stored constraints keep their concrete kind, while references use the common
+// "constraint" kind.
 function referenceKind(kind: string): string {
   return constraintObjectKinds.has(kind) ? "constraint" : kind
 }
@@ -3063,6 +3065,8 @@ function validateCompleteCrossReferences(
     readonly path: readonly (string | number)[]
   }
 
+  // Child IDs are only unique within their owner, so every lookup key includes
+  // the containing table, view, or domain when one exists.
   const objects = new Map<string, IndexedObject>()
   const add = (
     object: CompleteSnapshotObject,
@@ -3507,6 +3511,8 @@ function issue(
   }
 }
 
+// `__proto__` is a legacy setter on ordinary objects; define an own property
+// so arbitrary JSON keys survive conversion.
 function setOwn<T>(target: Record<string, T>, key: string, value: T): void {
   Object.defineProperty(target, key, {
     configurable: true,

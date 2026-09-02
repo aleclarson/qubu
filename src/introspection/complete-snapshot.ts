@@ -329,6 +329,8 @@ function applyIdentityOptions(
     options?.namespace ?? input.namespace.name,
     identityDiagnostics,
   )
+  // Resolve the complete identity graph before rewriting objects so cross-object references use
+  // the same selected IDs as their targets.
   const entries = collectIdentityEntries(input)
   const previousIndex = previous === undefined ? undefined : collectPreviousIdentities(previous)
   const resolver = createIdentityResolver(
@@ -2349,6 +2351,8 @@ function mapReference(
   expectedKind?: CompleteSnapshotObjectReference["kind"],
   fallbackOwner?: CompleteSnapshotObjectOwner,
 ): CompleteSnapshotObjectReference | undefined {
+  // Nested refs may use legacy tableId or omit owner metadata; infer a unique scope before the
+  // complete-snapshot validator requires one.
   const kind = normalizeReferenceKind(reference.kind)
   const tableId = isEntityReference(reference) ? reference.tableId : undefined
   const explicitOwner =

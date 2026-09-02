@@ -1870,6 +1870,8 @@ function objectComment(
   }
 }
 
+// Nested IDs can repeat across owners, so qualify them before placing metadata
+// in the top-level metadata collection.
 function metadataId(object: CatalogObjectReference, suffix: "comment"): string {
   const owner = object.owner
   const ownerPrefix = owner === undefined ? "" : `${owner.kind}_${owner.id}_`
