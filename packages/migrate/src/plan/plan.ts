@@ -488,7 +488,7 @@ function preconditionsFor(source: SnapshotDiffOperation): readonly MigrationPrec
     },
   ]
 
-  if (source.type === "property-change") {
+  if (source.type === "property-change" || source.type === "physical-rename") {
     for (const change of source.changedProperties ?? []) {
       if (change.before !== undefined) {
         result.push({

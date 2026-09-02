@@ -165,6 +165,44 @@ test("requires a decision for explicit physical renames", () => {
   }
 })
 
+test("carries destructive property changes through a physical rename", () => {
+  const before = snapshot([
+    table("accounts", [
+      {
+        ...column("name"),
+        physicalName: "legacy_name",
+        nullable: true,
+      },
+    ]),
+  ])
+  const after = snapshot([
+    table("accounts", [
+      {
+        ...column("name"),
+        physicalName: "name",
+        nullable: false,
+      },
+    ]),
+  ])
+  const diff = diffSnapshots(before, after)
+  const blocked = createMigrationPlan(diff)
+
+  expect(blocked.ok).toBe(false)
+  expect(blocked.plan.operations).toHaveLength(1)
+  const operation = blocked.plan.operations[0]!
+
+  expect(operation.type).toBe("physical-rename")
+  expect(operation.safety).toBe("destructive")
+  expect(operation.transaction).toBe("required")
+  expect(operation.preconditions).toContainEqual(
+    expect.objectContaining({
+      type: "property-equals",
+      property: ["nullable"],
+      value: true,
+    }),
+  )
+})
+
 test("keeps opaque facts blocked without inferring SQL", () => {
   const before = {
     format: "qubu-schema" as const,
