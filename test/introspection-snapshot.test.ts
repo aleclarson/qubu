@@ -573,10 +573,7 @@ test("maps constraints and ordered index terms to Snapshot v1", () => {
 test("uses mapped column IDs for index candidate keys and physical names for constraints", () => {
   const result = mapCatalogToSnapshot(
     catalog(
-      [
-        column("account-id", "id", 1),
-        column("nullable-code", "code", 2, { nullable: true }),
-      ],
+      [column("account-id", "id", 1), column("nullable-code", "code", 2, { nullable: true })],
       [
         {
           kind: "unique",

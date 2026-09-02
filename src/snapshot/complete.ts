@@ -3461,11 +3461,11 @@ function validateUniqueOrdinalPositions(
 
     if (previousIndex !== undefined) {
       diagnostics.push(
-        issue(
-          "invalid-snapshot",
-          `Column ordinal position ${item.ordinalPosition} is duplicated`,
-          [...path, index, "ordinalPosition"],
-        ),
+        issue("invalid-snapshot", `Column ordinal position ${item.ordinalPosition} is duplicated`, [
+          ...path,
+          index,
+          "ordinalPosition",
+        ]),
       )
     } else {
       positions.set(item.ordinalPosition, index)
