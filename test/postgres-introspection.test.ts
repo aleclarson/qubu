@@ -10,6 +10,7 @@ import {
   postgresColumnsQuery,
   postgresCollationsQuery,
   postgresConstraintsQuery,
+  postgresConstraintsQueryWithoutNullsNotDistinct,
   postgresDomainConstraintsQuery,
   postgresDomainsQuery,
   postgresEnumsQuery,
@@ -390,6 +391,251 @@ test("gates unsupported PostgreSQL versions", async () => {
       }),
     ]),
   )
+})
+
+test("selects PostgreSQL constraint metadata supported by the server version", async () => {
+  const fake = exactConnection({
+    [postgresServerQuery]: [
+      {
+        server_version_num: "140012",
+        server_version: "14.12",
+      },
+    ],
+    [postgresRelationsQuery]: [
+      {
+        oid: "10",
+        namespace: "tenant",
+        relname: "items",
+        relkind: "r",
+      },
+    ],
+    [postgresColumnsQuery]: [
+      {
+        table_oid: "10",
+        ordinal_position: 1,
+        physical_name: "id",
+        nullable: false,
+        native_type: "integer",
+      },
+    ],
+    [postgresConstraintsQueryWithoutNullsNotDistinct]: [
+      {
+        oid: "101",
+        table_oid: "10",
+        physical_name: "items_id_unique",
+        contype: "u",
+        conkey: [1],
+        condeferrable: false,
+        condeferred: false,
+        convalidated: true,
+      },
+    ],
+  })
+  const catalog = await readCatalog(fake.connection, options())
+
+  expect(fake.calls.find((call) => call.text.includes("FROM pg_constraint con"))?.text).toBe(
+    postgresConstraintsQueryWithoutNullsNotDistinct,
+  )
+  expect(
+    fake.calls.find((call) => call.text.includes("FROM pg_constraint con"))?.text,
+  ).not.toContain("indnullsnotdistinct")
+  expect(catalog.tables[0]?.constraints).toEqual([
+    expect.objectContaining({
+      kind: "unique",
+      columns: ["id"],
+      nulls: "distinct",
+    }),
+  ])
+})
+
+test("retains PostgreSQL unsupported relationships and exact unavailable facts", async () => {
+  const fake = exactConnection({
+    [postgresServerQuery]: [
+      {
+        server_version_num: "160002",
+        server_version: "16.0",
+      },
+    ],
+    [postgresRelationsQuery]: [
+      {
+        oid: "10",
+        namespace: "tenant",
+        relname: "parent",
+        relkind: "r",
+      },
+      {
+        oid: "11",
+        namespace: "tenant",
+        relname: "child",
+        relkind: "r",
+      },
+      {
+        oid: "12",
+        namespace: "tenant",
+        relname: "parent_2026",
+        relkind: "r",
+        relispartition: true,
+      },
+      {
+        oid: "20",
+        namespace: "tenant",
+        relname: "missing_view",
+        relkind: "v",
+      },
+    ],
+    [postgresViewsQuery]: [
+      {
+        oid: "20",
+        namespace: "tenant",
+        physical_name: "missing_view",
+        relkind: "v",
+        definition: null,
+      },
+    ],
+    [postgresColumnsQuery]: [
+      {
+        table_oid: "10",
+        ordinal_position: 1,
+        physical_name: "id",
+        nullable: false,
+        native_type: "integer",
+      },
+      {
+        table_oid: "10",
+        ordinal_position: 2,
+        physical_name: "code",
+        nullable: false,
+        native_type: "text",
+      },
+    ],
+    [postgresConstraintsQuery]: [
+      {
+        oid: "101",
+        table_oid: "10",
+        physical_name: "parent_no_overlap",
+        contype: "x",
+        conkey: [1],
+        definition: "EXCLUDE USING gist (id WITH =)",
+      },
+      {
+        oid: "102",
+        table_oid: "10",
+        physical_name: "parent_check",
+        contype: "c",
+        conkey: [],
+        definition: null,
+      },
+    ],
+    [postgresDomainsQuery]: [
+      {
+        oid: "301",
+        namespace: "tenant",
+        physical_name: "status",
+        native_type: "text",
+        nullable: true,
+        default_expression: "now()",
+      },
+      {
+        oid: "303",
+        namespace: "tenant",
+        physical_name: "enabled",
+        native_type: "boolean",
+        nullable: false,
+        default_expression: "TRUE",
+      },
+    ],
+    [postgresDomainConstraintsQuery]: [
+      {
+        oid: "302",
+        domain_oid: "301",
+        physical_name: "status_check",
+        definition: null,
+      },
+    ],
+    [postgresPartitionsQuery]: [
+      {
+        partition_oid: "12",
+        parent_oid: "10",
+        namespace: "tenant",
+        physical_name: "parent_2026",
+        partstrat: "r",
+        key_attributes: "[0:1]={1,0}",
+        key_definition: "RANGE (id, lower(code))",
+        bound: "FOR VALUES FROM (1, 2) TO (3, 4)",
+        relispartition: true,
+        relkind: "r",
+      },
+      {
+        partition_oid: "11",
+        parent_oid: "10",
+        namespace: "tenant",
+        physical_name: "child",
+        partstrat: null,
+        key_attributes: null,
+        key_definition: null,
+        relispartition: false,
+        relkind: "r",
+      },
+    ],
+  })
+  const catalog = await readCatalog(fake.connection, options())
+  const partition = catalog.partitions?.[0]
+
+  expect(catalog.opaqueObjects).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        objectKind: "exclusion-constraint",
+        physicalName: "parent_no_overlap",
+        sql: expect.objectContaining({ text: "EXCLUDE USING gist (id WITH =)" }),
+      }),
+      expect.objectContaining({
+        objectKind: "constraint",
+        physicalName: "parent_check",
+      }),
+      expect.objectContaining({
+        objectKind: "domain-constraint",
+        physicalName: "status_check",
+        data: expect.objectContaining({ definitionAvailable: false }),
+      }),
+      expect.objectContaining({
+        objectKind: "ordinary-inheritance",
+        physicalName: "child",
+      }),
+    ]),
+  )
+  expect(partition).toMatchObject({
+    physicalName: "parent_2026",
+    parent: { id: "parent" },
+    unknownFields: [
+      expect.objectContaining({
+        name: "keyDefinition",
+        value: expect.objectContaining({
+          text: "RANGE (id, lower(code))",
+        }),
+      }),
+    ],
+  })
+  expect(partition).not.toHaveProperty("keyColumns")
+  expect(catalog.domains?.[0]?.default).toEqual({
+    kind: "expression",
+    expression: expect.objectContaining({
+      text: "now()",
+    }),
+  })
+  expect(catalog.domains?.find((domain) => domain.physicalName === "enabled")?.default).toEqual({
+    kind: "literal",
+    value: true,
+  })
+  expect(catalog.deferredObjects).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        objectKind: "view",
+        physicalName: "missing_view",
+      }),
+    ]),
+  )
+  expect(JSON.stringify(catalog)).not.toContain("CHECK (true)")
+  expect(JSON.stringify(catalog)).not.toContain("unavailable")
 })
 
 test("reports query failures without exposing driver errors", async () => {

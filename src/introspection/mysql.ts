@@ -16,6 +16,7 @@ import type {
   CatalogOpaqueObject,
   CatalogPartition,
   CatalogScalar,
+  CatalogValueFact,
   CatalogPrimaryKeyConstraint,
   CatalogQueryRow,
   CatalogReference,
@@ -1076,7 +1077,13 @@ function column(
     : undefined
   const onUpdateMatch = extra.match(/on update\s+(.+)$/i)
   const defaultText = text(row.column_default)
-  const defaultValue = literal(defaultText, text(row.data_type))
+  const defaultValue = mysqlDefault(
+    defaultText,
+    text(row.data_type),
+    namespace,
+    table,
+    physicalName,
+  )
 
   return {
     kind: "column",
@@ -1086,18 +1093,7 @@ function column(
     ordinalPosition: number(row.ordinal_position) ?? 0,
     nullable: text(row.is_nullable)?.toUpperCase() !== "NO",
     storage: { nativeType: text(row.column_type) ?? "unknown" },
-    default:
-      defaultValue !== undefined
-        ? {
-            kind: "literal",
-            value: defaultValue,
-          }
-        : defaultText !== undefined
-          ? {
-              kind: "expression",
-              expression: sql(defaultText, namespace, table, physicalName),
-            }
-          : undefined,
+    default: defaultValue,
     generated,
     identity,
     onUpdate: onUpdateMatch?.[1]
@@ -1681,11 +1677,31 @@ function partitionObject(
     )
   }
 
-  const boundText =
-    text(row.partition_description) ??
-    text(row.subpartition_expression) ??
-    text(row.partition_expression)
-  const expression = text(row.partition_expression)
+  const boundText = text(row.partition_description)
+  const keyExpression = text(row.subpartition_expression) ?? text(row.partition_expression)
+  const key = keyExpression === undefined ? undefined : partitionKeyColumns(keyExpression)
+  const unknownFields: NonNullable<CatalogPartition["unknownFields"]>[number][] = []
+
+  if (keyExpression !== undefined && key !== undefined && !key.representable) {
+    const keySql = sql(keyExpression, namespace, parent, physicalName)
+
+    unknownFields.push({
+      name: "partitionExpression",
+      value: keySql,
+    })
+    diagnostics.push(
+      createIntrospectionDiagnostic({
+        severity: "warning",
+        code: "unsupported-feature",
+        message: `MySQL partition ${physicalName} has a functional key retained as dialect evidence`,
+        path: ["partitions", physicalName, "partitionExpression"],
+        physicalReference,
+        remediation:
+          "Inspect the retained partition expression before using it as migration input.",
+      }),
+    )
+  }
+
   const partition: CatalogPartition = {
     kind: "partition",
     id: stableId(`partition:${tableName}:${physicalName}`),
@@ -1696,13 +1712,14 @@ function partitionObject(
       id: parent.id,
     },
     strategy,
-    ...(expression === undefined ? {} : { keyColumns: partitionKeyColumns(expression) }),
+    ...(key?.representable && key.columns.length > 0 ? { keyColumns: key.columns } : {}),
     ...(boundText === undefined
       ? {}
       : {
           bound: sql(boundText, namespace, parent, physicalName),
         }),
     reference: physicalReference,
+    ...(unknownFields.length === 0 ? {} : { unknownFields }),
     dialect: extension({
       ...(text(row.partition_method) === undefined
         ? {}
@@ -1939,12 +1956,76 @@ function partitionStrategy(value: string): CatalogPartition["strategy"] {
         : "unknown"
 }
 
-function partitionKeyColumns(expression: string): readonly string[] {
-  const values = expression
-    .split(",")
-    .map((value) => value.trim())
-    .filter((value) => /^[A-Za-z_][A-Za-z0-9_$]*$/.test(value))
+interface MySqlPartitionKey {
+  readonly columns: readonly string[]
+  readonly representable: boolean
+}
 
+function partitionKeyColumns(expression: string): MySqlPartitionKey {
+  const terms = splitPartitionKeyExpression(expression)
+  const columns: string[] = []
+
+  for (const term of terms) {
+    const value = term.trim()
+
+    if (/^[A-Za-z_][A-Za-z0-9_$]*$/.test(value)) {
+      columns.push(value)
+      continue
+    }
+
+    const quoted = value.match(/^`((?:``|[^`])*)`$/)
+
+    if (quoted) {
+      columns.push(quoted[1]!.replace(/``/g, "`"))
+      continue
+    }
+
+    return {
+      columns: [],
+      representable: false,
+    }
+  }
+
+  return {
+    columns,
+    representable: true,
+  }
+}
+
+function splitPartitionKeyExpression(source: string): readonly string[] {
+  const values: string[] = []
+  let start = 0
+  let depth = 0
+  let quote = false
+
+  for (let index = 0; index < source.length; index++) {
+    const character = source[index]
+
+    if (quote) {
+      if (character === "`") {
+        if (source[index + 1] === "`") {
+          index++
+        } else {
+          quote = false
+        }
+      }
+
+      continue
+    }
+
+    if (character === "`") {
+      quote = true
+    } else if (character === "(") {
+      depth++
+    } else if (character === ")") {
+      depth--
+    } else if (character === "," && depth === 0) {
+      values.push(source.slice(start, index))
+      start = index + 1
+    }
+  }
+
+  values.push(source.slice(start))
   return values
 }
 
@@ -1999,39 +2080,147 @@ function reference(
   }
 }
 
-function literal(value: string | undefined, dataType?: string): CatalogScalar | undefined {
+function mysqlDefault(
+  value: string | undefined,
+  dataType: string | undefined,
+  namespace: string,
+  table: CatalogTable | CatalogView,
+  columnName: string,
+): CatalogValueFact | undefined {
   if (value === undefined) {
     return undefined
   }
 
-  if (value.toUpperCase() === "NULL") {
+  const literalValue = literal(value, dataType)
+
+  return literalValue !== undefined
+    ? {
+        kind: "literal",
+        value: literalValue,
+      }
+    : {
+        kind: "expression",
+        expression: sql(value, namespace, table, columnName),
+      }
+}
+
+function literal(value: string, dataType?: string): CatalogScalar | undefined {
+  const trimmed = value.trim()
+  const normalizedType = dataType?.trim().toLowerCase()
+
+  if (trimmed.toUpperCase() === "NULL") {
     return null
   }
 
-  if (value.toUpperCase() === "TRUE") {
+  if (trimmed.toUpperCase() === "TRUE") {
     return true
   }
 
-  if (value.toUpperCase() === "FALSE") {
+  if (trimmed.toUpperCase() === "FALSE") {
     return false
   }
 
-  if (/^-?(?:\d+\.?\d*|\.\d+)$/.test(value)) {
-    return Number(value)
+  if (isNumericDataType(normalizedType)) {
+    const numeric = numericLiteral(trimmed)
+
+    if (numeric !== undefined) {
+      return numeric
+    }
   }
 
-  if (/^'(?:''|[^'])*'$/.test(value)) {
-    return value.slice(1, -1).replace(/''/g, "'")
+  if (/^'(?:''|[^'])*'$/.test(trimmed)) {
+    return trimmed.slice(1, -1).replace(/''/g, "'")
   }
 
-  if (
-    value === "" ||
-    /^(?:char|varchar|text|tinytext|mediumtext|longtext|enum|set)$/i.test(dataType ?? "")
-  ) {
+  if (trimmed === "" && isTextDataType(normalizedType)) {
+    return ""
+  }
+
+  if (isTextDataType(normalizedType)) {
     return value
   }
 
   return undefined
+}
+
+function isNumericDataType(value: string | undefined): boolean {
+  return /^(?:tinyint|smallint|mediumint|int|integer|bigint|decimal|numeric|dec|float|double|real)/.test(
+    value ?? "",
+  )
+}
+
+function isTextDataType(value: string | undefined): boolean {
+  return /^(?:char|varchar|text|tinytext|mediumtext|longtext|enum|set|binary|varbinary|blob)/.test(
+    value ?? "",
+  )
+}
+
+function numericLiteral(value: string): number | bigint | undefined {
+  if (/^[+-]?\d+$/.test(value)) {
+    try {
+      const integer = BigInt(value)
+
+      return integer <= BigInt(Number.MAX_SAFE_INTEGER) &&
+        integer >= BigInt(Number.MIN_SAFE_INTEGER)
+        ? Number(integer)
+        : integer
+    } catch {
+      return undefined
+    }
+  }
+
+  if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(value)) {
+    return undefined
+  }
+
+  const numeric = Number(value)
+
+  return Number.isFinite(numeric) &&
+    canonicalNumericText(value) === canonicalNumericText(String(numeric))
+    ? numeric
+    : undefined
+}
+
+function canonicalNumericText(value: string): string | undefined {
+  const match = value.match(/^([+-]?)(?:(\d+)(?:\.(\d*))?|\.(\d+))(?:[eE]([+-]?\d+))?$/)
+
+  if (!match) {
+    return undefined
+  }
+
+  const sign = match[1] === "-" ? "-" : ""
+  const integerPart = match[2] ?? ""
+  const fractionalPart = match[3] ?? match[4] ?? ""
+  const exponent = Number(match[5] ?? 0)
+
+  if (!Number.isSafeInteger(exponent)) {
+    return undefined
+  }
+
+  const digits = integerPart + fractionalPart
+  const decimalPosition = integerPart.length + exponent
+  let integer: string
+  let fraction: string
+
+  if (decimalPosition <= 0) {
+    integer = "0"
+    fraction = `${"0".repeat(-decimalPosition)}${digits}`
+  } else if (decimalPosition >= digits.length) {
+    integer = `${digits}${"0".repeat(decimalPosition - digits.length)}`
+    fraction = ""
+  } else {
+    integer = digits.slice(0, decimalPosition)
+    fraction = digits.slice(decimalPosition)
+  }
+
+  integer = integer.replace(/^0+(?=\d)/, "") || "0"
+  fraction = fraction.replace(/0+$/, "")
+
+  if (integer === "0" && fraction === "") {
+    return "0"
+  }
+
+  return `${sign}${integer}${fraction === "" ? "" : `.${fraction}`}`
 }
 
 function emptyCatalog(

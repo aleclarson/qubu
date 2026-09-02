@@ -623,6 +623,109 @@ test("reads constraints, referential actions, STATISTICS terms, and prefix diagn
   )
 })
 
+test("preserves exact MySQL numeric defaults and functional partition keys", async () => {
+  const fake = connection((statement) => {
+    if (statement.text === mysqlServerQuery) {
+      return [
+        {
+          version: "8.0.36",
+          version_comment: "MySQL Community Server",
+        },
+      ]
+    }
+
+    if (statement.text === mysqlTablesQuery) {
+      return [
+        {
+          table_name: "measurements",
+          table_type: "BASE TABLE",
+        },
+      ]
+    }
+
+    if (statement.text === mysqlColumnsQuery) {
+      return [
+        {
+          table_name: "measurements",
+          column_name: "large_count",
+          ordinal_position: 1,
+          column_type: "bigint",
+          data_type: "bigint",
+          is_nullable: "NO",
+          column_default: "9007199254740993",
+          extra: "",
+        },
+        {
+          table_name: "measurements",
+          column_name: "precise_ratio",
+          ordinal_position: 2,
+          column_type: "decimal(30,18)",
+          data_type: "decimal",
+          is_nullable: "NO",
+          column_default: "12345678901234567890.123456789",
+          extra: "",
+        },
+      ]
+    }
+
+    if (statement.text === mysqlPartitionsQuery) {
+      return [
+        {
+          table_name: "measurements",
+          partition_name: "p0",
+          subpartition_name: null,
+          partition_method: "RANGE",
+          subpartition_method: null,
+          partition_expression: "YEAR(`recorded_at`)",
+          subpartition_expression: null,
+          partition_description: "2026",
+        },
+      ]
+    }
+
+    return []
+  })
+  const catalog = await readCatalog(fake.connection, options())
+  const measurements = catalog.tables[0]!
+  const partition = catalog.partitions?.[0]
+  const largeCount = measurements.columns.find((column) => column.physicalName === "large_count")!
+  const preciseRatio = measurements.columns.find(
+    (column) => column.physicalName === "precise_ratio",
+  )!
+
+  expect(largeCount.default).toEqual({
+    kind: "literal",
+    value: 9007199254740993n,
+  })
+  expect(preciseRatio.default).toEqual({
+    kind: "expression",
+    expression: expect.objectContaining({
+      text: "12345678901234567890.123456789",
+    }),
+  })
+  expect(partition).toMatchObject({
+    physicalName: "p0",
+    bound: expect.objectContaining({ text: "2026" }),
+    unknownFields: [
+      {
+        name: "partitionExpression",
+        value: expect.objectContaining({
+          text: "YEAR(`recorded_at`)",
+        }),
+      },
+    ],
+  })
+  expect(partition).not.toHaveProperty("keyColumns")
+  expect(catalog.diagnostics).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        code: "unsupported-feature",
+        path: ["partitions", "p0", "partitionExpression"],
+      }),
+    ]),
+  )
+})
+
 test("normalizes complete MySQL object families, retains boundaries, and maps Snapshot v1", async () => {
   const fake = completeConnection()
   const catalog = await readCatalog(fake.connection, options())
