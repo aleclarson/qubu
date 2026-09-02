@@ -603,6 +603,241 @@ test("maps complete SQLite objects through the Snapshot v1 table surface", async
   }
 })
 
+test("resolves implicit SQLite foreign keys and nested checks", async () => {
+  const fake = connection((statement) => {
+    if (statement.text === sqliteServerQuery) {
+      return [{ version: "3.45.1" }]
+    }
+
+    if (statement.text === sqliteDatabaseListQuery) {
+      return [
+        {
+          seq: 0,
+          name: "main",
+          file: "",
+        },
+      ]
+    }
+
+    if (statement.text === sqliteSchemaQuery) {
+      return [
+        {
+          type: "table",
+          name: "child",
+          tbl_name: "child",
+          sql: "CREATE TABLE child (source_a INTEGER, source_b INTEGER, CONSTRAINT child_check CHECK (coalesce(length(trim(source_a)), 0) > 0), FOREIGN KEY (source_a, source_b) REFERENCES parent)",
+        },
+        {
+          type: "table",
+          name: "parent",
+          tbl_name: "parent",
+          sql: "CREATE TABLE parent (parent_a INTEGER, parent_b INTEGER, PRIMARY KEY (parent_a, parent_b))",
+        },
+      ]
+    }
+
+    if (statement.text === sqliteTableListQuery) {
+      return [
+        {
+          schema: "main",
+          name: "child",
+          type: "table",
+        },
+        {
+          schema: "main",
+          name: "parent",
+          type: "table",
+        },
+      ]
+    }
+
+    if (statement.text === sqliteTableInfoQuery && statement.parameters[0] === "parent") {
+      return [
+        {
+          cid: 0,
+          name: "parent_a",
+          type: "INTEGER",
+          not_null: 1,
+          pk: 1,
+          hidden: 0,
+        },
+        {
+          cid: 1,
+          name: "parent_b",
+          type: "INTEGER",
+          not_null: 1,
+          pk: 2,
+          hidden: 0,
+        },
+      ]
+    }
+
+    if (statement.text === sqliteTableInfoQuery && statement.parameters[0] === "child") {
+      return [
+        {
+          cid: 0,
+          name: "source_a",
+          type: "INTEGER",
+          not_null: 0,
+          pk: 0,
+          hidden: 0,
+        },
+        {
+          cid: 1,
+          name: "source_b",
+          type: "INTEGER",
+          not_null: 0,
+          pk: 0,
+          hidden: 0,
+        },
+      ]
+    }
+
+    if (statement.text === sqliteForeignKeyQuery && statement.parameters[0] === "child") {
+      return [
+        {
+          id: 0,
+          seq: 1,
+          target_table: "parent",
+          source_column: "source_b",
+          target_column: null,
+          on_update: "NO ACTION",
+          on_delete: "NO ACTION",
+          match: "NONE",
+        },
+        {
+          id: 0,
+          seq: 0,
+          target_table: "parent",
+          source_column: "source_a",
+          target_column: null,
+          on_update: "NO ACTION",
+          on_delete: "NO ACTION",
+          match: "NONE",
+        },
+      ]
+    }
+
+    return []
+  })
+  const catalog = await readCatalog(fake.connection, options())
+  const child = catalog.tables.find((table) => table.physicalName === "child")!
+
+  expect(child.constraints).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        kind: "check",
+        expression: expect.objectContaining({
+          text: "coalesce(length(trim(source_a)), 0) > 0",
+        }),
+      }),
+      expect.objectContaining({
+        kind: "foreign-key",
+        columns: ["source_a", "source_b"],
+        target: {
+          table: "parent",
+          columns: ["parent_a", "parent_b"],
+        },
+      }),
+    ]),
+  )
+  expect(JSON.stringify(catalog)).not.toContain('"unknown"')
+})
+
+test("retains SQLite foreign keys without recoverable target columns as opaque data", async () => {
+  const fake = connection((statement) => {
+    if (statement.text === sqliteServerQuery) {
+      return [{ version: "3.45.1" }]
+    }
+
+    if (statement.text === sqliteSchemaQuery) {
+      return [
+        {
+          type: "table",
+          name: "child",
+          tbl_name: "child",
+          sql: "CREATE TABLE child (source_id INTEGER, FOREIGN KEY (source_id) REFERENCES target)",
+        },
+        {
+          type: "table",
+          name: "target",
+          tbl_name: "target",
+          sql: "CREATE TABLE target (id INTEGER)",
+        },
+      ]
+    }
+
+    if (statement.text === sqliteTableListQuery) {
+      return [
+        {
+          schema: "main",
+          name: "child",
+          type: "table",
+        },
+        {
+          schema: "main",
+          name: "target",
+          type: "table",
+        },
+      ]
+    }
+
+    if (statement.text === sqliteTableInfoQuery) {
+      return [
+        {
+          cid: 0,
+          name: statement.parameters[0] === "child" ? "source_id" : "id",
+          type: "INTEGER",
+          not_null: 0,
+          pk: 0,
+          hidden: 0,
+        },
+      ]
+    }
+
+    if (statement.text === sqliteForeignKeyQuery && statement.parameters[0] === "child") {
+      return [
+        {
+          id: 0,
+          seq: 0,
+          target_table: "target",
+          source_column: "source_id",
+          target_column: null,
+          on_update: "NO ACTION",
+          on_delete: "NO ACTION",
+          match: "NONE",
+        },
+      ]
+    }
+
+    return []
+  })
+  const catalog = await readCatalog(fake.connection, options())
+  const child = catalog.tables.find((table) => table.physicalName === "child")!
+
+  expect(child.constraints).toEqual([])
+  expect(catalog.opaqueObjects).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        objectKind: "foreign-key",
+        data: expect.objectContaining({
+          targetTable: "target",
+          sourceColumns: ["source_id"],
+          targetColumns: [null],
+        }),
+      }),
+    ]),
+  )
+  expect(catalog.diagnostics).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        code: "unresolved-reference",
+        severity: "error",
+      }),
+    ]),
+  )
+})
+
 test("verifies SQLite catalog SQL against an in-memory database", async () => {
   const database = new DatabaseSync(":memory:")
 
@@ -618,7 +853,18 @@ test("verifies SQLite catalog SQL against an in-memory database", async () => {
       CREATE TABLE child (
         parent_id INTEGER REFERENCES parent(id),
         name TEXT,
-        CONSTRAINT child_name_check CHECK (length(name) > 0)
+        CONSTRAINT child_name_check CHECK (coalesce(length(trim(name)), 0) > 0)
+      );
+      CREATE TABLE implicit_parent (
+        first_key TEXT NOT NULL,
+        second_key TEXT NOT NULL,
+        PRIMARY KEY (first_key, second_key)
+      );
+      CREATE TABLE implicit_child (
+        first_key TEXT,
+        second_key TEXT,
+        CONSTRAINT implicit_child_check CHECK (coalesce(length(trim(first_key)), 0) > 0),
+        FOREIGN KEY (first_key, second_key) REFERENCES implicit_parent
       );
       CREATE UNIQUE INDEX child_name_idx
         ON child (lower(name))
@@ -640,6 +886,7 @@ test("verifies SQLite catalog SQL against an in-memory database", async () => {
     })
     const parent = catalog.tables.find((table) => table.physicalName === "parent")!
     const child = catalog.tables.find((table) => table.physicalName === "child")!
+    const implicitChild = catalog.tables.find((table) => table.physicalName === "implicit_child")!
 
     expect(parent.columns).toEqual(
       expect.arrayContaining([
@@ -673,6 +920,33 @@ test("verifies SQLite catalog SQL against an in-memory database", async () => {
       ],
       predicate: expect.objectContaining({ text: "name IS NOT NULL" }),
     })
+    expect(child.constraints).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "check",
+          expression: expect.objectContaining({
+            text: "coalesce(length(trim(name)), 0) > 0",
+          }),
+        }),
+      ]),
+    )
+    expect(implicitChild.constraints).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "check",
+          expression: expect.objectContaining({
+            text: "coalesce(length(trim(first_key)), 0) > 0",
+          }),
+        }),
+        expect.objectContaining({
+          kind: "foreign-key",
+          target: {
+            table: "implicit_parent",
+            columns: ["first_key", "second_key"],
+          },
+        }),
+      ]),
+    )
     expect(catalog.views?.[0]).toMatchObject({
       kind: "view",
       physicalName: "child_view",

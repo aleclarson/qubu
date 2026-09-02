@@ -51,6 +51,8 @@ export async function readCatalog(
   options: IntrospectionOptions,
 ): Promise<IntrospectionCatalog> {
   const diagnostics = [] as IntrospectionCatalog["diagnostics"][number][]
+  const deferredObjects: CatalogDeferredObject[] = []
+  const opaqueObjects: CatalogOpaqueObject[] = []
 
   if (connection.dialect !== "postgresql") {
     diagnostics.push(
@@ -212,9 +214,13 @@ export async function readCatalog(
     }
   }
 
+  const constraintsQuery =
+    (server.parsedVersion?.major ?? 0) >= 15
+      ? postgresConstraintsQuery
+      : postgresConstraintsQueryWithoutNullsNotDistinct
   const constraintRows = await query<PostgresConstraintRow>(
     connection,
-    postgresConstraintsQuery,
+    constraintsQuery,
     [options.namespace],
     options,
     diagnostics,
@@ -230,19 +236,29 @@ export async function readCatalog(
         column.physicalName,
       ]),
     )
-    const constraints = rows
-      .map((row) =>
-        constraint(
-          row,
-          table,
-          columnsByNumber,
-          tableByOid,
-          options.namespace,
-          diagnostics,
-          indexReferences,
-        ),
-      )
-      .filter((value): value is CatalogConstraint => value !== undefined)
+    const constraints: CatalogConstraint[] = []
+
+    for (const value of rows.map((row) =>
+      constraint(
+        row,
+        table,
+        columnsByNumber,
+        tableByOid,
+        options.namespace,
+        diagnostics,
+        indexReferences,
+      ),
+    )) {
+      if (value === undefined) {
+        continue
+      }
+
+      if (value.kind === "opaque-object") {
+        opaqueObjects.push(value)
+      } else {
+        constraints.push(value)
+      }
+    }
 
     ;(table as Mutable<CatalogTable>).constraints = constraints
   }
@@ -257,7 +273,14 @@ export async function readCatalog(
         column.physicalName,
       ]),
     )
-    const mappedIndexes = mapIndexes(rows, table, columnsByNumber, options.namespace)
+    const mappedIndexes = mapIndexes(
+      rows,
+      table,
+      columnsByNumber,
+      options.namespace,
+      diagnostics,
+      opaqueObjects,
+    )
 
     ;(table as Mutable<CatalogTable>).indexes = mappedIndexes
   }
@@ -300,7 +323,13 @@ export async function readCatalog(
     diagnostics,
     "domain-constraints",
   )
-  const domains = mapDomains(domainRows, domainConstraintRows, options.namespace)
+  const domains = mapDomains(
+    domainRows,
+    domainConstraintRows,
+    options.namespace,
+    opaqueObjects,
+    diagnostics,
+  )
 
   const collationRows = await query<PostgresCollationRow>(
     connection,
@@ -359,9 +388,23 @@ export async function readCatalog(
     diagnostics,
     "partitions",
   )
-  const partitions = partitionRows
-    .map((row) => partitionObject(row, options.namespace, tableByOid, diagnostics))
-    .filter((value): value is CatalogPartition => value !== undefined)
+  const partitions: CatalogPartition[] = []
+
+  for (const row of partitionRows) {
+    const value = partitionObject(row, options.namespace, tableByOid, diagnostics)
+
+    if (value === undefined) {
+      continue
+    }
+
+    if (value.kind === "partition") {
+      partitions.push(value)
+    } else if (value.kind === "deferred-object") {
+      deferredObjects.push(value)
+    } else {
+      opaqueObjects.push(value)
+    }
+  }
 
   const policyRows = await query<PostgresPolicyRow>(
     connection,
@@ -388,39 +431,49 @@ export async function readCatalog(
   const typedRelationOids = new Set(
     [...views, ...sequences].map((object) => object.reference?.catalog?.value),
   )
-  const deferredObjects = relationObjects
-    .filter((row) => {
-      const relkind = text(row.relkind)
 
-      return (
-        relkind === "f" ||
-        ((relkind === "v" || relkind === "m" || relkind === "S") &&
-          !typedRelationOids.has(row.oid === undefined ? undefined : text(row.oid)))
-      )
-    })
-    .map((row) =>
-      deferredObject(
-        row,
-        text(row.relkind) === "f"
-          ? "foreign-table"
-          : text(row.relkind) === "v"
-            ? "view"
-            : text(row.relkind) === "m"
-              ? "materialized-view"
-              : "sequence",
+  deferredObjects.push(
+    ...relationObjects
+      .filter((row) => {
+        const relkind = text(row.relkind)
+
+        return (
+          relkind === "f" ||
+          ((relkind === "v" || relkind === "m" || relkind === "S") &&
+            !typedRelationOids.has(row.oid === undefined ? undefined : text(row.oid)))
+        )
+      })
+      .map((row) =>
+        deferredObject(
+          row,
+          text(row.relkind) === "f"
+            ? "foreign-table"
+            : text(row.relkind) === "v"
+              ? "view"
+              : text(row.relkind) === "m"
+                ? "materialized-view"
+                : "sequence",
+        ),
       ),
-    )
+  )
 
   deferredObjects.push(...triggerDeferredObjects)
-  const opaqueObjects = relationObjects
-    .filter((row) => {
-      const kind = text(row.relkind)
+  opaqueObjects.push(
+    ...relationObjects
+      .filter((row) => {
+        const kind = text(row.relkind)
 
-      return (
-        kind !== "r" && kind !== "p" && kind !== "v" && kind !== "m" && kind !== "S" && kind !== "f"
-      )
-    })
-    .map((row) => opaqueRelationObject(row, options.namespace, diagnostics))
+        return (
+          kind !== "r" &&
+          kind !== "p" &&
+          kind !== "v" &&
+          kind !== "m" &&
+          kind !== "S" &&
+          kind !== "f"
+        )
+      })
+      .map((row) => opaqueRelationObject(row, options.namespace, diagnostics)),
+  )
 
   const metadataRows = await query<PostgresMetadataRow>(
     connection,
@@ -526,6 +579,25 @@ export const postgresColumnsQuery = `
   ORDER BY a.attrelid, a.attnum
 `
 
+/** Constraint metadata for PostgreSQL versions before pg_index.indnullsnotdistinct. */
+export const postgresConstraintsQueryWithoutNullsNotDistinct = `
+  SELECT con.oid::text AS oid, con.conrelid::text AS table_oid,
+         con.conname AS physical_name, con.contype,
+         con.conkey, con.confrelid::text AS target_table_oid, con.confkey,
+         con.confupdtype, con.confdeltype, con.confmatchtype,
+         con.condeferrable, con.condeferred, con.convalidated,
+         con.conindid::text AS backing_index_oid,
+         pg_get_constraintdef(con.oid, true) AS definition
+  FROM pg_constraint con
+  JOIN pg_class c ON c.oid = con.conrelid
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  LEFT JOIN pg_index i ON i.indexrelid = con.conindid
+  WHERE n.nspname = $1
+    AND con.contype IN ('p', 'u', 'f', 'c', 'x')
+  ORDER BY con.conrelid, con.oid
+`
+
+/** Constraint metadata for PostgreSQL versions that expose nulls-not-distinct indexes. */
 export const postgresConstraintsQuery = `
   SELECT con.oid::text AS oid, con.conrelid::text AS table_oid,
          con.conname AS physical_name, con.contype,
@@ -702,6 +774,7 @@ export const postgresPartitionsQuery = `
   SELECT child.oid::text AS partition_oid, parent.oid::text AS parent_oid,
          n.nspname AS namespace, child.relname AS physical_name,
          part.partstrat, part.partattrs::text AS key_attributes,
+         pg_get_partkeydef(parent.oid, true) AS key_definition,
          pg_get_expr(child.relpartbound, child.oid, true) AS bound,
          child.relispartition, child.relkind
   FROM pg_catalog.pg_inherits inh
@@ -1002,6 +1075,7 @@ interface PostgresPartitionRow extends CatalogQueryRow {
   readonly physical_name?: unknown
   readonly partstrat?: unknown
   readonly key_attributes?: unknown
+  readonly key_definition?: unknown
   readonly bound?: unknown
   readonly relispartition?: unknown
   readonly relkind?: unknown
@@ -1204,12 +1278,6 @@ function viewObject(
       kind === "view" ? "view" : "materialized-view",
       physicalName,
       physicalReference,
-      [
-        {
-          name: "definition",
-          value: expression("/* view definition unavailable */", "decompiler", physicalReference),
-        },
-      ],
     )
   }
 
@@ -1426,6 +1494,8 @@ function mapDomains(
   rows: readonly PostgresDomainRow[],
   constraintRows: readonly PostgresDomainConstraintRow[],
   namespace: string,
+  opaqueObjects: CatalogOpaqueObject[],
+  diagnostics: IntrospectionCatalog["diagnostics"][number][],
 ): readonly CatalogDomain[] {
   const constraintsByDomain = groupBy(constraintRows, (row) => text(row.domain_oid) ?? "unknown")
 
@@ -1439,8 +1509,8 @@ function mapDomains(
       "oid",
       row.oid,
     )
-    const domainConstraints = (constraintsByDomain.get(text(row.oid)) ?? []).map(
-      (constraintRow) => {
+    const domainConstraints = (constraintsByDomain.get(text(row.oid)) ?? [])
+      .map((constraintRow): CatalogCheckConstraint | undefined => {
         const constraintName =
           text(constraintRow.physical_name) ??
           `domain_constraint_${text(constraintRow.oid) ?? "unknown"}`
@@ -1453,16 +1523,32 @@ function mapDomains(
           constraintRow.oid,
         )
 
+        const definition = text(constraintRow.definition)
+
+        if (definition === undefined || definition.trim() === "") {
+          diagnostics.push(
+            createIntrospectionDiagnostic({
+              severity: "warning",
+              code: "unmodeled-object",
+              message: `PostgreSQL domain constraint ${constraintName} has no recoverable definition`,
+              path: ["domains", physicalName, "constraints", constraintName],
+              physicalReference: constraintReference,
+              remediation:
+                "Inspect the opaque domain constraint before using it as migration input.",
+            }),
+          )
+          opaqueObjects.push(
+            opaqueDomainConstraint(physicalName, constraintName, constraintReference, undefined),
+          )
+          return undefined
+        }
+
         return {
           kind: "check" as const,
           id: stableId(constraintName),
           identitySource: "physical-name" as const,
           physicalName: constraintName,
-          expression: expression(
-            text(constraintRow.definition) ?? "CHECK (true)",
-            "decompiler",
-            constraintReference,
-          ),
+          expression: expression(definition, "decompiler", constraintReference),
           deferrable:
             constraintRow.condeferrable === undefined
               ? undefined
@@ -1479,8 +1565,10 @@ function mapDomains(
               : boolean(constraintRow.convalidated),
           reference: constraintReference,
         } satisfies CatalogCheckConstraint
-      },
-    )
+      })
+      .filter((value): value is CatalogCheckConstraint => value !== undefined)
+
+    const defaultValue = domainDefault(row.default_expression, physicalReference)
 
     return {
       kind: "domain",
@@ -1491,13 +1579,123 @@ function mapDomains(
       ...(row.nullable === undefined || row.nullable === null
         ? {}
         : { nullable: boolean(row.nullable) }),
-      ...(factIfPresent(row.default_expression) === undefined
-        ? {}
-        : { default: factIfPresent(row.default_expression) }),
+      ...(defaultValue === undefined ? {} : { default: defaultValue }),
       ...(domainConstraints.length === 0 ? {} : { constraints: domainConstraints }),
       reference: physicalReference,
     }
   })
+}
+
+function opaqueDomainConstraint(
+  domainName: string,
+  constraintName: string,
+  physicalReference: CatalogReference,
+  definition: string | undefined,
+): CatalogOpaqueObject {
+  return {
+    kind: "opaque-object",
+    id: stableId(`domain-constraint:${domainName}:${constraintName}`),
+    identitySource: "physical-name",
+    objectKind: "domain-constraint",
+    physicalName: constraintName,
+    data: {
+      domain: domainName,
+      definitionAvailable: definition !== undefined,
+    },
+    ...(definition === undefined
+      ? {}
+      : {
+          sql: expression(definition, "decompiler", physicalReference),
+        }),
+    reference: physicalReference,
+    provenance: {
+      kind: "catalog",
+      dialect: "postgresql",
+      reference: physicalReference,
+    },
+  }
+}
+
+function domainDefault(
+  value: unknown,
+  physicalReference: CatalogReference,
+): CatalogValueFact | undefined {
+  const textValue = text(value)
+
+  if (textValue === undefined || textValue.trim() === "") {
+    return undefined
+  }
+
+  const trimmed = textValue.trim()
+
+  if (/^NULL$/i.test(trimmed)) {
+    return {
+      kind: "literal",
+      value: null,
+    }
+  }
+
+  if (/^TRUE$/i.test(trimmed)) {
+    return {
+      kind: "literal",
+      value: true,
+    }
+  }
+
+  if (/^FALSE$/i.test(trimmed)) {
+    return {
+      kind: "literal",
+      value: false,
+    }
+  }
+
+  if (/^[+-]?\d+$/.test(trimmed)) {
+    const fact = literalFact(trimmed)
+
+    if (fact !== undefined) {
+      return fact
+    }
+  }
+
+  if (/^[+-]?\d+\.\d+$/.test(trimmed)) {
+    const fact = literalFact(trimmed)
+
+    if (
+      fact?.value !== undefined &&
+      typeof fact.value === "number" &&
+      canonicalDecimal(trimmed) === canonicalDecimal(String(fact.value))
+    ) {
+      return fact
+    }
+  }
+
+  const stringLiteral = trimmed.match(/^'(?:''|[^'])*'$/)
+
+  if (stringLiteral) {
+    return {
+      kind: "literal",
+      value: trimmed.slice(1, -1).replace(/''/g, "'"),
+    }
+  }
+
+  return {
+    kind: "expression",
+    expression: expression(textValue, "catalog", physicalReference),
+  }
+}
+
+function canonicalDecimal(value: string): string | undefined {
+  const match = value.match(/^([+-]?)(\d+)(?:\.(\d+))?$/)
+
+  if (!match) {
+    return undefined
+  }
+
+  const sign = match[1] === "-" ? "-" : ""
+  const integer = match[2]!.replace(/^0+(?=\d)/, "")
+  const fraction = (match[3] ?? "").replace(/0+$/, "")
+
+  return `${sign}${integer}${fraction === "" ? "" : `.${fraction}`}`
 }
 
 function collationObject(
@@ -1746,7 +1944,7 @@ function partitionObject(
   namespace: string,
   tableByOid: ReadonlyMap<string | number | undefined, CatalogTable>,
   diagnostics: IntrospectionCatalog["diagnostics"][number][],
-): CatalogPartition {
+): CatalogPartition | CatalogDeferredObject | CatalogOpaqueObject {
   const physicalName =
     text(row.physical_name) ?? `partition_${text(row.partition_oid) ?? "unknown"}`
   const physicalReference = reference(
@@ -1757,7 +1955,14 @@ function partitionObject(
     "oid",
     row.partition_oid,
   )
+
+  if (!boolean(row.relispartition)) {
+    return inheritanceObject(row, namespace, diagnostics)
+  }
+
   const parent = tableByOid.get(text(row.parent_oid))
+  const keyDefinition = text(row.key_definition)
+  const bound = text(row.bound)
 
   if (parent === undefined) {
     diagnostics.push(
@@ -1770,31 +1975,183 @@ function partitionObject(
         remediation: "Select the parent table schema before mapping partitions.",
       }),
     )
+
+    return deferredCatalogObject("partition", physicalName, physicalReference, [
+      ...(text(row.parent_oid) === undefined
+        ? []
+        : [
+            {
+              name: "parentOid",
+              value: text(row.parent_oid)!,
+            },
+          ]),
+      ...(text(row.key_attributes) === undefined
+        ? []
+        : [
+            {
+              name: "keyAttributes",
+              value: text(row.key_attributes)!,
+            },
+          ]),
+      ...(keyDefinition === undefined
+        ? []
+        : [
+            {
+              name: "keyDefinition",
+              value: expression(keyDefinition, "decompiler", physicalReference),
+            },
+          ]),
+      ...(bound === undefined
+        ? []
+        : [
+            {
+              name: "bound",
+              value: expression(bound, "decompiler", physicalReference),
+            },
+          ]),
+    ])
   }
 
-  const parentReference = parent
-    ? ({
-        kind: "table" as const,
-        id: parent.id,
-      } satisfies CatalogObjectReference)
-    : ({
-        kind: "table" as const,
-        id: stableId(`missing_parent_${text(row.parent_oid) ?? "unknown"}`),
-      } satisfies CatalogObjectReference)
-  const keyColumns = partitionKeyColumns(row.key_attributes, parent?.columns ?? [])
-  const bound = text(row.bound)
+  const keyInfo = partitionKeyInfo(row.key_attributes, parent.columns)
+  const unknownFields: NonNullable<CatalogPartition["unknownFields"]>[number][] = []
+
+  if (
+    keyDefinition !== undefined &&
+    (keyInfo.hasExpression || keyInfo.missingPositions.length > 0 || keyInfo.columns.length === 0)
+  ) {
+    unknownFields.push({
+      name: "keyDefinition",
+      value: expression(keyDefinition, "decompiler", physicalReference),
+    })
+  }
+
+  if (
+    keyInfo.missingPositions.length > 0 ||
+    (keyInfo.hasExpression && keyDefinition === undefined)
+  ) {
+    const keyAttributes = text(row.key_attributes)
+
+    if (keyAttributes !== undefined) {
+      unknownFields.push({
+        name: "keyAttributes",
+        value: keyAttributes,
+      })
+    }
+  }
+
+  if (keyInfo.hasExpression) {
+    diagnostics.push(
+      createIntrospectionDiagnostic({
+        severity: "warning",
+        code: "unsupported-feature",
+        message: `PostgreSQL partition ${physicalName} has an expression key retained as dialect evidence`,
+        path: ["partitions", physicalName, "keyDefinition"],
+        physicalReference,
+        remediation:
+          "Inspect the retained partition key definition before using it as migration input.",
+      }),
+    )
+  }
+
+  if (keyInfo.missingPositions.length > 0) {
+    diagnostics.push(
+      createIntrospectionDiagnostic({
+        severity: "warning",
+        code: "unresolved-reference",
+        message: `PostgreSQL partition ${physicalName} has unknown key attributes`,
+        path: ["partitions", physicalName, "keyAttributes"],
+        physicalReference,
+      }),
+    )
+  }
 
   return {
     kind: "partition",
     id: stableId(physicalName),
     identitySource: "physical-name",
     physicalName,
-    parent: parentReference,
+    parent: {
+      kind: "table",
+      id: parent.id,
+    },
     strategy: partitionStrategy(row.partstrat),
-    ...(keyColumns.length === 0 ? {} : { keyColumns }),
+    ...(keyInfo.hasExpression || keyInfo.missingPositions.length > 0 || keyInfo.columns.length === 0
+      ? {}
+      : { keyColumns: keyInfo.columns }),
     ...(bound === undefined ? {} : { bound: expression(bound, "decompiler", physicalReference) }),
     ...(bound !== undefined && /^default$/i.test(bound.trim()) ? { default: true } : {}),
+    ...(unknownFields.length === 0 ? {} : { unknownFields }),
     reference: physicalReference,
+  }
+}
+
+function inheritanceObject(
+  row: PostgresPartitionRow,
+  namespace: string,
+  diagnostics: IntrospectionCatalog["diagnostics"][number][],
+): CatalogOpaqueObject {
+  const physicalName =
+    text(row.physical_name) ?? `inherited_${text(row.partition_oid) ?? "unknown"}`
+  const physicalReference = reference(
+    "opaque-object",
+    physicalName,
+    text(row.namespace) ?? namespace,
+    "pg_inherits",
+    "inhrelid",
+    row.partition_oid,
+  )
+
+  diagnostics.push(
+    createIntrospectionDiagnostic({
+      severity: "warning",
+      code: "unmodeled-object",
+      message: `PostgreSQL ordinary inheritance ${physicalName} was retained as opaque evidence`,
+      path: ["opaqueObjects", physicalName],
+      physicalReference,
+      remediation: "Inspect the inheritance relationship before using it as migration input.",
+    }),
+  )
+
+  return {
+    kind: "opaque-object",
+    id: stableId(`inheritance:${physicalName}`),
+    identitySource: "physical-name",
+    objectKind: "ordinary-inheritance",
+    physicalName,
+    data: {
+      ...(text(row.parent_oid) === undefined ? {} : { parentOid: text(row.parent_oid)! }),
+      ...(text(row.relkind) === undefined ? {} : { childRelkind: text(row.relkind)! }),
+      relispartition: false,
+    },
+    reference: physicalReference,
+    provenance: {
+      kind: "catalog",
+      dialect: "postgresql",
+      reference: physicalReference,
+    },
+  }
+}
+
+interface PartitionKeyInfo {
+  readonly columns: readonly string[]
+  readonly hasExpression: boolean
+  readonly missingPositions: readonly number[]
+}
+
+function partitionKeyInfo(value: unknown, columns: readonly CatalogColumn[]): PartitionKeyInfo {
+  const attributes = integerArray(value)
+  const byOrdinal = new Map(columns.map((column) => [column.ordinalPosition, column.physicalName]))
+  const positions = attributes.filter((position) => position > 0)
+  const missingPositions = positions.filter((position) => !byOrdinal.has(position))
+
+  return {
+    columns: positions.flatMap((position) => {
+      const name = byOrdinal.get(position)
+
+      return name === undefined ? [] : [name]
+    }),
+    hasExpression: attributes.some((position) => position === 0),
+    missingPositions,
   }
 }
 
@@ -2013,14 +2370,6 @@ function partitionStrategy(value: unknown): CatalogPartition["strategy"] {
       } as const
     )[text(value) as "r" | "l" | "h"] ?? "unknown"
   )
-}
-
-function partitionKeyColumns(value: unknown, columns: readonly CatalogColumn[]): readonly string[] {
-  const byOrdinal = new Map(columns.map((column) => [column.ordinalPosition, column.physicalName]))
-
-  return integerArray(value)
-    .filter((position) => position > 0)
-    .map((position) => byOrdinal.get(position) ?? `attnum_${position}`)
 }
 
 function policyCommand(value: unknown): CatalogPolicy["command"] {
@@ -2270,9 +2619,10 @@ function constraint(
   namespace: string,
   diagnostics: IntrospectionCatalog["diagnostics"][number][],
   indexReferences: ReadonlyMap<string, CatalogEntityRecord>,
-): CatalogConstraint | undefined {
+): CatalogConstraint | CatalogOpaqueObject | undefined {
   const kind = text(row.contype)
   const physicalName = text(row.physical_name) ?? `constraint_${text(row.oid) ?? "unknown"}`
+  const definition = text(row.definition)
   const numbers = integerArray(row.conkey)
   const columns = numbers.map(
     (numberValue) => columnsByNumber.get(numberValue) ?? `attnum_${numberValue}`,
@@ -2303,6 +2653,30 @@ function constraint(
       } satisfies CatalogObjectReference)
     : undefined
 
+  if (kind === "x" || (kind === "c" && (definition === undefined || definition.trim() === ""))) {
+    diagnostics.push(
+      createIntrospectionDiagnostic({
+        severity: "warning",
+        code: "unmodeled-object",
+        message:
+          kind === "x"
+            ? `PostgreSQL exclusion constraint ${physicalName} was retained as opaque evidence`
+            : `PostgreSQL check constraint ${physicalName} has no recoverable definition`,
+        path: ["tables", table.physicalName, "constraints", physicalName],
+        physicalReference: reference(
+          "opaque-object",
+          physicalName,
+          namespace,
+          "pg_constraint",
+          "oid",
+          row.oid,
+        ),
+        remediation: "Inspect the opaque constraint before using it as migration input.",
+      }),
+    )
+    return opaqueConstraint(row, table, namespace, definition)
+  }
+
   if (kind === "p") {
     return {
       kind: "primary-key",
@@ -2326,12 +2700,21 @@ function constraint(
     return {
       kind: "check",
       ...common,
-      expression: sql(text(row.definition) ?? "CHECK (true)", namespace, table, physicalName),
+      expression: sql(definition!, namespace, table, physicalName),
     } satisfies CatalogCheckConstraint
   }
 
   if (kind !== "f") {
-    return undefined
+    diagnostics.push(
+      createIntrospectionDiagnostic({
+        severity: "warning",
+        code: "unmodeled-object",
+        message: `PostgreSQL constraint ${physicalName} (${kind ?? "unknown"}) was retained as opaque evidence`,
+        path: ["tables", table.physicalName, "constraints", physicalName],
+        remediation: "Inspect the opaque constraint before using it as migration input.",
+      }),
+    )
+    return opaqueConstraint(row, table, namespace, definition)
   }
 
   const targetTable = tableByOid.get(text(row.target_table_oid))
@@ -2371,11 +2754,54 @@ function constraint(
   } satisfies CatalogForeignKeyConstraint
 }
 
+function opaqueConstraint(
+  row: PostgresConstraintRow,
+  table: CatalogTable,
+  namespace: string,
+  definition: string | undefined,
+): CatalogOpaqueObject {
+  const physicalName = text(row.physical_name) ?? `constraint_${text(row.oid) ?? "unknown"}`
+  const physicalReference = reference(
+    "opaque-object",
+    physicalName,
+    namespace,
+    "pg_constraint",
+    "oid",
+    row.oid,
+  )
+  const data: Record<string, CatalogData> = {
+    table: table.physicalName,
+    constraintType: text(row.contype) ?? "unknown",
+    ...(text(row.conkey) === undefined ? {} : { keyAttributes: text(row.conkey)! }),
+    ...(text(row.backing_index_oid) === undefined
+      ? {}
+      : { backingIndexOid: text(row.backing_index_oid)! }),
+  }
+
+  return {
+    kind: "opaque-object",
+    id: stableId(`constraint:${table.physicalName}:${physicalName}`),
+    identitySource: "physical-name",
+    objectKind: text(row.contype) === "x" ? "exclusion-constraint" : "constraint",
+    physicalName,
+    data,
+    ...(definition === undefined ? {} : { sql: sql(definition, namespace, table, physicalName) }),
+    reference: physicalReference,
+    provenance: {
+      kind: "catalog",
+      dialect: "postgresql",
+      reference: physicalReference,
+    },
+  }
+}
+
 function mapIndexes(
   rows: readonly PostgresIndexRow[],
   table: CatalogTable,
   columnsByNumber: ReadonlyMap<number, string>,
   namespace: string,
+  diagnostics: IntrospectionCatalog["diagnostics"][number][],
+  opaqueObjects: CatalogOpaqueObject[],
 ): readonly CatalogIndex[] {
   const grouped = new Map<string, PostgresIndexRow[]>()
 
@@ -2387,80 +2813,144 @@ function mapIndexes(
     grouped.set(key, existing)
   }
 
-  return [...grouped.values()].map((indexRows) => {
-    const orderedRows = [...indexRows].sort(
-      (left, right) => (number(left.position) ?? 0) - (number(right.position) ?? 0),
-    )
-    const first = orderedRows[0]
-    const physicalName = text(first.physical_name) ?? `index_${text(first.index_oid) ?? "unknown"}`
-    const keyCount = number(first.indnkeyatts) ?? indexRows.length
-    const terms: CatalogIndexTerm[] = []
-    const includedColumns: string[] = []
+  return [...grouped.values()]
+    .map((indexRows): CatalogIndex | undefined => {
+      const orderedRows = [...indexRows].sort(
+        (left, right) => (number(left.position) ?? 0) - (number(right.position) ?? 0),
+      )
+      const first = orderedRows[0]
+      const physicalName =
+        text(first.physical_name) ?? `index_${text(first.index_oid) ?? "unknown"}`
+      const keyCount = number(first.indnkeyatts) ?? indexRows.length
+      const terms: CatalogIndexTerm[] = []
+      const includedColumns: string[] = []
+      let unavailableTerm = false
 
-    for (const row of orderedRows) {
-      const position = number(row.position) ?? 0
-      const attnum = number(row.attnum) ?? 0
-      const columnName = attnum > 0 ? columnsByNumber.get(attnum) : undefined
+      for (const row of orderedRows) {
+        const position = number(row.position) ?? 0
+        const attnum = number(row.attnum) ?? 0
+        const columnName = attnum > 0 ? columnsByNumber.get(attnum) : undefined
 
-      if (position > keyCount) {
-        if (columnName) {
-          includedColumns.push(columnName)
+        if (position > keyCount) {
+          if (columnName) {
+            includedColumns.push(columnName)
+          }
+
+          continue
         }
 
-        continue
+        const termDefinition = text(row.term_definition)
+
+        if (!columnName && (termDefinition === undefined || termDefinition.trim() === "")) {
+          unavailableTerm = true
+          diagnostics.push(
+            createIntrospectionDiagnostic({
+              severity: "warning",
+              code: "unmodeled-object",
+              message: `PostgreSQL index ${physicalName} has an expression term with no recoverable definition`,
+              path: [table.physicalName, "indexes", physicalName, "terms", position],
+              physicalReference: reference(
+                "index",
+                physicalName,
+                namespace,
+                "pg_class",
+                "oid",
+                first.index_oid,
+              ),
+              remediation: "Inspect the opaque index record before using it as migration input.",
+            }),
+          )
+          continue
+        }
+
+        terms.push(
+          columnName
+            ? {
+                kind: "column",
+                column: columnName,
+                position,
+                ...indexTermOptions(row, text(first.method)),
+                ...(text(row.operator_class) === undefined
+                  ? {}
+                  : { operatorClass: text(row.operator_class) }),
+              }
+            : {
+                kind: "expression",
+                expression: sql(termDefinition!, namespace, table, physicalName),
+                position,
+                ...indexTermOptions(row, text(first.method)),
+                ...(text(row.operator_class) === undefined
+                  ? {}
+                  : { operatorClass: text(row.operator_class) }),
+              },
+        )
       }
 
-      terms.push(
-        columnName
-          ? {
-              kind: "column",
-              column: columnName,
-              position,
-              ...indexTermOptions(row, text(first.method)),
-              ...(text(row.operator_class) === undefined
-                ? {}
-                : { operatorClass: text(row.operator_class) }),
-            }
-          : {
-              kind: "expression",
-              expression: sql(
-                text(row.term_definition) ?? "/* expression unavailable */",
-                namespace,
-                table,
-                physicalName,
-              ),
-              position,
-              ...indexTermOptions(row, text(first.method)),
-              ...(text(row.operator_class) === undefined
-                ? {}
-                : { operatorClass: text(row.operator_class) }),
-            },
-      )
-    }
+      if (unavailableTerm) {
+        opaqueObjects.push(opaqueIndex(indexRows, table, namespace))
+        return undefined
+      }
 
-    return {
-      kind: "index",
-      id: stableId(physicalName),
-      identitySource: "physical-name",
-      physicalName,
-      unique: boolean(first.indisunique),
-      terms,
-      predicate: text(first.predicate)
-        ? sql(text(first.predicate) as string, namespace, table, physicalName)
-        : undefined,
-      includedColumns: includedColumns.length > 0 ? includedColumns : undefined,
-      method: text(first.method),
-      dialect:
-        text(first.method) && text(first.method) !== "btree"
-          ? {
-              dialect: "postgresql" as const,
-              version: 1,
-              data: { method: text(first.method) as string },
-            }
+      return {
+        kind: "index",
+        id: stableId(physicalName),
+        identitySource: "physical-name",
+        physicalName,
+        unique: boolean(first.indisunique),
+        terms,
+        predicate: text(first.predicate)
+          ? sql(text(first.predicate) as string, namespace, table, physicalName)
           : undefined,
-      reference: reference("index", physicalName, namespace, "pg_class", "oid", first.index_oid),
-    } satisfies CatalogIndex
-  })
+        includedColumns: includedColumns.length > 0 ? includedColumns : undefined,
+        method: text(first.method),
+        dialect:
+          text(first.method) && text(first.method) !== "btree"
+            ? {
+                dialect: "postgresql" as const,
+                version: 1,
+                data: { method: text(first.method) as string },
+              }
+            : undefined,
+        reference: reference("index", physicalName, namespace, "pg_class", "oid", first.index_oid),
+      } satisfies CatalogIndex
+    })
+    .filter((value): value is CatalogIndex => value !== undefined)
+}
+
+function opaqueIndex(
+  rows: readonly PostgresIndexRow[],
+  table: CatalogTable,
+  namespace: string,
+): CatalogOpaqueObject {
+  const first = rows[0]
+  const physicalName = text(first.physical_name) ?? `index_${text(first.index_oid) ?? "unknown"}`
+  const physicalReference = reference(
+    "opaque-object",
+    physicalName,
+    namespace,
+    "pg_class",
+    "oid",
+    first.index_oid,
+  )
+
+  return {
+    kind: "opaque-object",
+    id: stableId(`index:${table.physicalName}:${physicalName}`),
+    identitySource: "physical-name",
+    objectKind: "index",
+    physicalName,
+    data: {
+      table: table.physicalName,
+      reason: "term-definition-unavailable",
+      ...(text(first.index_oid) === undefined ? {} : { indexOid: text(first.index_oid)! }),
+    },
+    reference: physicalReference,
+    provenance: {
+      kind: "catalog",
+      dialect: "postgresql",
+      reference: physicalReference,
+    },
+  }
 }
 
 interface MetadataTarget {
@@ -3053,13 +3543,19 @@ function integerArray(value: unknown): number[] {
     return value.map((item) => number(item) ?? 0)
   }
 
-  const parsed = text(value)?.replace(/[{}]/g, "").trim()
+  const parsed = text(value)
+    ?.replace(/^\[[^\]]+\]=/, "")
+    .replace(/[{}]/g, "")
+    .trim()
 
   if (!parsed) {
     return []
   }
 
-  return parsed.split(",").map((item) => number(item.trim()) ?? 0)
+  return parsed
+    .split(/[\s,]+/)
+    .map((item) => number(item.trim()))
+    .filter((item): item is number => item !== undefined)
 }
 
 function referentialAction(value: unknown): CatalogForeignKeyConstraint["onUpdate"] {

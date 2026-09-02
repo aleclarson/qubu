@@ -168,6 +168,9 @@ export async function readCatalog(
   const tables = tableRows
     .filter((row) => normalizeType(row.type) === "table")
     .map((row) => table(row, tableSql.get(text(row.name) ?? "") ?? undefined, options.namespace))
+  const tableByName = new Map(
+    tables.map((currentTable) => [currentTable.physicalName, currentTable]),
+  )
   const deferredObjects: CatalogDeferredObject[] = []
   const opaqueObjects: CatalogOpaqueObject[] = []
 
@@ -284,7 +287,14 @@ export async function readCatalog(
       columns,
       sqlText,
       options.namespace,
+      diagnostics,
+      opaqueObjects,
     )
+  }
+
+  for (const currentTable of tables) {
+    const tableName = currentTable.physicalName
+    const sqlText = tableSql.get(tableName)
     const indexRows = await query<SqliteIndexListRow>(
       connection,
       sqliteIndexListQuery,
@@ -346,7 +356,20 @@ export async function readCatalog(
       `foreign-key:${tableName}`,
     )
 
-    mappedConstraints.push(...foreignKeys(currentTable, foreignRows, options.namespace))
+    for (const value of foreignKeys(
+      currentTable,
+      foreignRows,
+      tableByName,
+      options.namespace,
+      diagnostics,
+    )) {
+      if (value.kind === "opaque-object") {
+        opaqueObjects.push(value)
+      } else {
+        mappedConstraints.push(value)
+      }
+    }
+
     ;(currentTable as Mutable<CatalogTable>).indexes = mappedIndexes
     ;(currentTable as Mutable<CatalogTable>).constraints = mappedConstraints
   }
@@ -1322,6 +1345,8 @@ function tableConstraints(
   columns: readonly CatalogColumn[],
   sqlText: string | undefined,
   namespace: string,
+  diagnostics: IntrospectionCatalog["diagnostics"][number][],
+  opaqueObjects: CatalogOpaqueObject[],
 ): CatalogConstraint[] {
   const primaryNames = new Map(
     rows
@@ -1355,27 +1380,228 @@ function tableConstraints(
     constraints.push(primary)
   }
 
-  const checkExpressions = [
-    ...(sqlText?.matchAll(
-      /(?:CONSTRAINT\s+("(?:[^"]|"")*"|`[^`]*`|\[[^\]]*\]|[A-Za-z_][A-Za-z0-9_$]*)\s+)?CHECK\s*\(([^()]*(?:\([^()]*\)[^()]*)*)\)/gi,
-    ) ?? []),
-  ]
+  const checkResult = checkExpressions(sqlText)
 
-  checkExpressions.forEach((match, index) => {
-    const declaredName = unquoteIdentifier(match[1])
+  checkResult.values.forEach((checkValue, index) => {
+    const declaredName = checkValue.name
     const name = declaredName ?? `check_${index}_${table.physicalName}`
     const check: CatalogCheckConstraint = {
       kind: "check",
       id: stableId(name),
       identitySource: "deterministic-fallback",
       physicalName: name,
-      expression: sql(match[2] ?? "true", namespace, table, name),
+      expression: sql(checkValue.expression, namespace, table, name),
       dialect: extension({ source: "create-sql" }),
     }
 
     constraints.push(check)
   })
+
+  if (checkResult.unrecoverable) {
+    const name =
+      checkResult.unrecoverableName ?? `check_${checkResult.values.length}_${table.physicalName}`
+
+    diagnostics.push(
+      createIntrospectionDiagnostic({
+        severity: "error",
+        code: "expression-parse-failed",
+        message: `SQLite CHECK constraint ${name} could not be recovered from CREATE TABLE SQL`,
+        path: [table.id, "constraints", name],
+        physicalReference: reference("opaque-object", name, namespace, "sqlite_schema", "name"),
+        remediation: "Preserve the complete CREATE TABLE SQL or use lossy mode.",
+      }),
+    )
+    opaqueObjects.push(opaqueCheckConstraint(table, name, sqlText, namespace))
+  }
+
   return constraints
+}
+
+interface SqliteCheckExpression {
+  readonly name?: string
+  readonly expression: string
+}
+
+interface SqliteCheckExpressions {
+  readonly values: readonly SqliteCheckExpression[]
+  readonly unrecoverable: boolean
+  readonly unrecoverableName?: string
+}
+
+function checkExpressions(sqlText: string | undefined): SqliteCheckExpressions {
+  if (!sqlText) {
+    return {
+      values: [],
+      unrecoverable: false,
+    }
+  }
+
+  const values: SqliteCheckExpression[] = []
+  let offset = 0
+
+  while (offset < sqlText.length) {
+    const checkIndex = findSqlKeyword(sqlText, "CHECK", offset)
+
+    if (checkIndex < 0) {
+      return {
+        values,
+        unrecoverable: false,
+      }
+    }
+
+    let open = checkIndex + "CHECK".length
+
+    while (/\s/.test(sqlText[open] ?? "")) {
+      open++
+    }
+
+    if (sqlText[open] !== "(") {
+      offset = checkIndex + "CHECK".length
+      continue
+    }
+
+    const close = matchingParen(sqlText, open)
+
+    if (close < 0) {
+      return {
+        values,
+        unrecoverable: true,
+        unrecoverableName: checkConstraintName(sqlText, checkIndex),
+      }
+    }
+
+    values.push({
+      name: checkConstraintName(sqlText, checkIndex),
+      expression: sqlText.slice(open + 1, close).trim(),
+    })
+    offset = close + 1
+  }
+
+  return {
+    values,
+    unrecoverable: false,
+  }
+}
+
+function findSqlKeyword(source: string, keyword: string, start: number): number {
+  let quote: "single" | "double" | "backtick" | "bracket" | undefined
+
+  for (let index = start; index < source.length; index++) {
+    const character = source[index]
+
+    if (quote === "single") {
+      if (character === "'" && source[index + 1] === "'") {
+        index++
+      } else if (character === "'") {
+        quote = undefined
+      }
+
+      continue
+    }
+
+    if (quote === "double") {
+      if (character === '"' && source[index + 1] === '"') {
+        index++
+      } else if (character === '"') {
+        quote = undefined
+      }
+
+      continue
+    }
+
+    if (quote === "backtick") {
+      if (character === "`") {
+        quote = undefined
+      }
+
+      continue
+    }
+
+    if (quote === "bracket") {
+      if (character === "]") {
+        quote = undefined
+      }
+
+      continue
+    }
+
+    if (character === "'") {
+      quote = "single"
+      continue
+    }
+
+    if (character === '"') {
+      quote = "double"
+      continue
+    }
+
+    if (character === "`") {
+      quote = "backtick"
+      continue
+    }
+
+    if (character === "[") {
+      quote = "bracket"
+      continue
+    }
+
+    if (
+      source.slice(index, index + keyword.length).toUpperCase() === keyword.toUpperCase() &&
+      !isSqlIdentifierCharacter(source[index - 1]) &&
+      !isSqlIdentifierCharacter(source[index + keyword.length])
+    ) {
+      return index
+    }
+  }
+
+  return -1
+}
+
+function isSqlIdentifierCharacter(value: string | undefined): boolean {
+  return value !== undefined && /[A-Za-z0-9_$]/.test(value)
+}
+
+function checkConstraintName(source: string, checkIndex: number): string | undefined {
+  return unquoteIdentifier(
+    source
+      .slice(0, checkIndex)
+      .match(/CONSTRAINT\s+("(?:[^"]|"")*"|`[^`]*`|\[[^\]]*\]|[A-Za-z_][A-Za-z0-9_$]*)\s*$/i)?.[1],
+  )
+}
+
+function opaqueCheckConstraint(
+  table: CatalogTable,
+  constraintName: string,
+  sqlText: string | undefined,
+  namespace: string,
+): CatalogOpaqueObject {
+  const physicalReference = reference(
+    "opaque-object",
+    constraintName,
+    namespace,
+    "sqlite_schema",
+    "name",
+    table.physicalName,
+  )
+
+  return {
+    kind: "opaque-object",
+    id: stableId(`check:${table.physicalName}:${constraintName}`),
+    identitySource: "deterministic-fallback",
+    objectKind: "check-constraint",
+    physicalName: constraintName,
+    data: {
+      table: table.physicalName,
+      reason: "definition-unavailable",
+    },
+    ...(sqlText === undefined ? {} : { sql: sql(sqlText, namespace, table, constraintName) }),
+    reference: physicalReference,
+    provenance: {
+      kind: "catalog",
+      dialect: "sqlite",
+      reference: physicalReference,
+    },
+  }
 }
 
 function mapIndex(
@@ -1537,8 +1763,10 @@ function declaredConstraintName(
 function foreignKeys(
   table: CatalogTable,
   rows: readonly SqliteForeignKeyRow[],
+  tables: ReadonlyMap<string, CatalogTable>,
   namespace: string,
-): readonly CatalogForeignKeyConstraint[] {
+  diagnostics: IntrospectionCatalog["diagnostics"][number][],
+): readonly (CatalogForeignKeyConstraint | CatalogOpaqueObject)[] {
   const grouped = new Map<string, SqliteForeignKeyRow[]>()
 
   for (const row of rows) {
@@ -1550,20 +1778,92 @@ function foreignKeys(
   }
 
   return [...grouped.entries()].map(([key, group]) => {
-    const first = group[0]
+    const ordered = [...group].sort(
+      (left, right) => (number(left.seq) ?? 0) - (number(right.seq) ?? 0),
+    )
+    const first = ordered[0]
     const physicalName = `foreign_key_${table.physicalName}_${key}`
+    const targetTableName = text(first.target_table)
+    const targetTable = targetTableName === undefined ? undefined : tables.get(targetTableName)
+    const targetColumns = ordered.map((row) => text(row.target_column))
+    const sourceColumns = ordered.map((row) => text(row.source_column))
+    const explicitTargetColumns = targetColumns.every((column) => column !== undefined)
+    const implicitTargetColumns = targetColumns.every((column) => column === undefined)
+    let normalizedTargetColumns: readonly string[] | undefined
+    let problem: string | undefined
+
+    if (targetTableName === undefined) {
+      problem = "has no referenced table"
+    } else if (targetTable === undefined) {
+      problem = `references table ${targetTableName}, which is not visible`
+    } else if (implicitTargetColumns) {
+      const primaryKey = targetTable.constraints.find(
+        (constraint): constraint is CatalogPrimaryKeyConstraint =>
+          constraint.kind === "primary-key",
+      )
+
+      if (primaryKey === undefined) {
+        problem = `references ${targetTableName} without target columns, but that table has no declared primary key`
+      } else if (primaryKey.columns.length !== ordered.length) {
+        problem = `references ${targetTableName} without target columns with an incompatible primary-key width`
+      } else {
+        normalizedTargetColumns = primaryKey.columns
+      }
+    } else if (explicitTargetColumns) {
+      normalizedTargetColumns = targetColumns as string[]
+    } else {
+      problem = "has a mixture of explicit and implicit target columns"
+    }
+
+    if (sourceColumns.some((column) => column === undefined)) {
+      problem = problem ?? "has an unresolved source column"
+    }
+
+    const physicalReference = reference(
+      "opaque-object",
+      physicalName,
+      namespace,
+      "pragma_foreign_key_list",
+      "id",
+      key,
+    )
+
+    if (
+      problem !== undefined ||
+      targetTableName === undefined ||
+      normalizedTargetColumns === undefined
+    ) {
+      diagnostics.push(
+        createIntrospectionDiagnostic({
+          severity: "error",
+          code: "unresolved-reference",
+          message: `SQLite foreign key ${physicalName} ${problem ?? "has no recoverable target columns"}`,
+          path: [table.id, "constraints", physicalName, "target"],
+          physicalReference,
+          remediation:
+            "Declare explicit target columns or expose the referenced table primary key.",
+        }),
+      )
+      return opaqueForeignKey(
+        table,
+        physicalName,
+        key,
+        targetTableName,
+        sourceColumns,
+        targetColumns,
+        physicalReference,
+      )
+    }
 
     return {
       kind: "foreign-key",
       id: stableId(physicalName),
       identitySource: "deterministic-fallback",
       physicalName,
-      columns: group
-        .sort((left, right) => (number(left.seq) ?? 0) - (number(right.seq) ?? 0))
-        .map((row) => text(row.source_column) ?? "unknown"),
+      columns: sourceColumns as string[],
       target: {
-        table: text(first.target_table) ?? "unknown",
-        columns: group.map((row) => text(row.target_column) ?? "unknown"),
+        table: targetTableName,
+        columns: normalizedTargetColumns,
       },
       onUpdate: action(first.on_update),
       onDelete: action(first.on_delete),
@@ -1579,6 +1879,37 @@ function foreignKeys(
       ),
     }
   })
+}
+
+function opaqueForeignKey(
+  table: CatalogTable,
+  physicalName: string,
+  key: string,
+  targetTable: string | undefined,
+  sourceColumns: readonly (string | undefined)[],
+  targetColumns: readonly (string | undefined)[],
+  physicalReference: CatalogReference,
+): CatalogOpaqueObject {
+  return {
+    kind: "opaque-object",
+    id: stableId(`foreign-key:${table.physicalName}:${key}`),
+    identitySource: "deterministic-fallback",
+    objectKind: "foreign-key",
+    physicalName,
+    data: {
+      table: table.physicalName,
+      foreignKeyId: key,
+      ...(targetTable === undefined ? {} : { targetTable }),
+      sourceColumns: sourceColumns.map((column) => column ?? null),
+      targetColumns: targetColumns.map((column) => column ?? null),
+    },
+    reference: physicalReference,
+    provenance: {
+      kind: "catalog",
+      dialect: "sqlite",
+      reference: physicalReference,
+    },
+  }
 }
 
 function partialPredicate(
