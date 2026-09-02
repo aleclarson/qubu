@@ -1,6 +1,7 @@
 import type { DatabaseSync } from "node:sqlite"
 
 import type { PGliteInterface } from "@electric-sql/pglite"
+import type { SQL } from "bun"
 import type { ClientBase } from "pg"
 import type { Sql } from "postgres"
 import { expectTypeOf } from "vitest"
@@ -20,12 +21,14 @@ import { pgliteAdapter } from "../adapters/pglite/src/index.ts"
 import { planetscaleAdapter, type PlanetScaleClient } from "../adapters/planetscale/src/index.ts"
 import { postgresJsAdapter } from "../adapters/postgresjs/src/index.ts"
 import { sqliteWasmAdapter, type SqliteWasmDatabase } from "../adapters/sqlite-wasm/src/index.ts"
+import { sqliteDialect } from "../src/dialects/sqlite.ts"
 import { qubu, type QubuExplainableClient } from "../src/index.ts"
 
 declare const nodeSqlite: DatabaseSync
 declare const pg: ClientBase
 declare const mysql2: Mysql2Connection
 declare const bunSql: BunSqlClient
+declare const bunRuntimeSql: SQL
 declare const postgresJs: Sql
 declare const d1: D1Database
 declare const pglite: PGliteInterface
@@ -43,9 +46,16 @@ qubu(pgAdapter(pg)).transaction(async (transaction) => {
 qubu(mysql2Adapter(mysql2)).transaction(async (transaction) => {
   expectTypeOf(transaction.explain).toBeFunction()
 })
-qubu(bunSqlAdapter(bunSql)).transaction(async (transaction) => {
+// @ts-expect-error Bun SQL adapter requires an explicit dialect.
+bunSqlAdapter(bunSql)
+qubu(bunSqlAdapter(bunSql, { dialect: sqliteDialect() })).transaction(async (transaction) => {
   expectTypeOf(transaction.explain).toBeFunction()
 })
+qubu(bunSqlAdapter(bunRuntimeSql, { dialect: sqliteDialect() })).transaction(
+  async (transaction) => {
+    expectTypeOf(transaction.explain).toBeFunction()
+  },
+)
 qubu(postgresJsAdapter(postgresJs)).transaction(async (transaction) => {
   expectTypeOf(transaction.explain).toBeFunction()
 })

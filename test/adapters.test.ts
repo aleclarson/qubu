@@ -14,6 +14,7 @@ import { pgliteAdapter } from "../adapters/pglite/src/index.ts"
 import { planetscaleAdapter } from "../adapters/planetscale/src/index.ts"
 import { postgresJsAdapter } from "../adapters/postgresjs/src/index.ts"
 import { sqliteWasmAdapter } from "../adapters/sqlite-wasm/src/index.ts"
+import { sqliteDialect } from "../src/dialects/sqlite.ts"
 import type { ExecutionRequest } from "../src/execution.ts"
 import { eq, executeRows, from, integer, render, select, table, text, where } from "../src/index.ts"
 
@@ -198,17 +199,168 @@ describe("workspace adapters", () => {
     })
   })
 
-  test("Bun.SQL normalizes array metadata", async () => {
+  test("Bun.SQL normalizes array metadata with an explicit dialect", async () => {
     const rows = Object.assign([{ id: 1 }], { count: 1 })
     const sql = {
-      unsafe: vi.fn(async () => rows),
+      unsafe: vi.fn(() => Object.assign(Promise.resolve(rows), { cancel: vi.fn() })),
       begin: vi.fn(),
     }
 
-    await expect(bunSqlAdapter(sql as never).execute(request("update"))).resolves.toEqual({
+    await expect(
+      bunSqlAdapter(sql as never, { dialect: sqliteDialect() }).execute(request("update")),
+    ).resolves.toEqual({
       rows: [{ id: 1 }],
       affectedRows: 1,
     })
+  })
+
+  test("Bun.SQL requires an explicit dialect", () => {
+    const sql = {
+      unsafe: vi.fn(),
+      begin: vi.fn(),
+    }
+
+    expect(() => Reflect.apply(bunSqlAdapter, undefined, [sql])).toThrow(
+      "bunSqlAdapter requires an explicit dialect",
+    )
+  })
+
+  test("Bun.SQL maps insert identifiers without leaking stale metadata", async () => {
+    const insertRows = Object.assign([], {
+      count: 1,
+      lastInsertRowid: 7n,
+    })
+    const updateRows = Object.assign([], {
+      affectedRows: 1,
+      lastInsertRowid: 7n,
+    })
+    const selectRows = Object.assign([{ id: 7 }], {
+      count: 1,
+      lastInsertRowid: null,
+    })
+    const unsafe = vi
+      .fn()
+      .mockReturnValueOnce(Object.assign(Promise.resolve(insertRows), { cancel: vi.fn() }))
+      .mockReturnValueOnce(Object.assign(Promise.resolve(updateRows), { cancel: vi.fn() }))
+      .mockReturnValueOnce(Object.assign(Promise.resolve(selectRows), { cancel: vi.fn() }))
+    const adapter = bunSqlAdapter(
+      {
+        unsafe,
+        begin: vi.fn(),
+      } as never,
+      {
+        dialect: sqliteDialect(),
+      },
+    )
+
+    await expect(adapter.execute(request("insert"))).resolves.toEqual({
+      rows: [],
+      affectedRows: 1,
+      insertId: 7n,
+    })
+    await expect(adapter.execute(request("update"))).resolves.toEqual({
+      rows: [],
+      affectedRows: 1,
+    })
+    await expect(adapter.execute(request("select"))).resolves.toEqual({ rows: [{ id: 7 }] })
+  })
+
+  test("Bun.SQL delegates transaction commit and rollback to Bun", async () => {
+    const events: string[] = []
+    const query = Object.assign(Promise.resolve([]), { cancel: vi.fn() })
+    const transactionClient = {
+      unsafe: vi.fn(() => query),
+    }
+    const begin = vi.fn(
+      async (callback: (transaction: typeof transactionClient) => Promise<unknown>) => {
+        events.push("begin")
+        try {
+          const result = await callback(transactionClient)
+          events.push("commit")
+          return result
+        } catch (error) {
+          events.push("rollback")
+          throw error
+        }
+      },
+    )
+    const adapter = bunSqlAdapter(
+      {
+        unsafe: vi.fn(() => query),
+        begin,
+      } as never,
+      {
+        dialect: sqliteDialect(),
+      },
+    )
+
+    await expect(
+      adapter.transaction(async (transaction) => transaction.execute(request("select"))),
+    ).resolves.toEqual({ rows: [] })
+
+    const error = new Error("rollback")
+    await expect(
+      adapter.transaction(async () => {
+        throw error
+      }),
+    ).rejects.toBe(error)
+    expect(events).toEqual(["begin", "commit", "begin", "rollback"])
+  })
+
+  test("Bun.SQL cancels an in-flight query when its signal aborts", async () => {
+    const controller = new AbortController()
+    const reason = new Error("query aborted")
+    let resolveQuery!: (rows: readonly Record<string, unknown>[]) => void
+    const queryPromise = new Promise<readonly Record<string, unknown>[]>((resolve) => {
+      resolveQuery = resolve
+    })
+    const cancel = vi.fn()
+    const unsafe = vi.fn(() => Object.assign(queryPromise, { cancel }))
+    const adapter = bunSqlAdapter(
+      {
+        unsafe,
+        begin: vi.fn(),
+      } as never,
+      {
+        dialect: sqliteDialect(),
+      },
+    )
+
+    const pending = adapter.execute({
+      ...request("select"),
+      signal: controller.signal,
+    })
+
+    await Promise.resolve()
+    controller.abort(reason)
+    expect(cancel).toHaveBeenCalledOnce()
+
+    resolveQuery([])
+    await expect(pending).rejects.toBe(reason)
+  })
+
+  test("Bun.SQL removes its abort listener after a query settles", async () => {
+    const controller = new AbortController()
+    const cancel = vi.fn()
+    const rows = Object.assign([], { count: 1 })
+    const unsafe = vi.fn(() => Object.assign(Promise.resolve(rows), { cancel }))
+    const adapter = bunSqlAdapter(
+      {
+        unsafe,
+        begin: vi.fn(),
+      } as never,
+      {
+        dialect: sqliteDialect(),
+      },
+    )
+
+    await adapter.execute({
+      ...request("select"),
+      signal: controller.signal,
+    })
+    controller.abort()
+
+    expect(cancel).not.toHaveBeenCalled()
   })
 
   test("postgres.js normalizes row-list metadata", async () => {

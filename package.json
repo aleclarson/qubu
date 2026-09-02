@@ -123,6 +123,7 @@
     "test:type-performance": "node ./scripts/test-type-performance.mjs",
     "diff-check": "vitest --run test/diff.test.ts && pnpm --filter @qubu/migrate test -- plan.test.ts",
     "test:bun": "node ./scripts/test-package.mjs --runtime=bun",
+    "test:bun-sql": "bun test adapters/bun-sql/test/bun-sql.test.ts",
     "test:package": "node ./scripts/test-package.mjs",
     "test:workspace-children": "pnpm run build:workspace-packages && node ./scripts/test-workspace-packages.mjs",
     "test:workspace-packages": "pnpm run test:package && pnpm run test:workspace-children",
