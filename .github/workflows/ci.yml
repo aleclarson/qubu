@@ -48,6 +48,9 @@ jobs:
       - name: Test
         run: pnpm run --if-present test -- --run
 
+      - name: Test Bun SQL adapter
+        run: pnpm run test:bun-sql
+
       - name: Test packed workspace packages
         run: pnpm run test:workspace-packages
 
