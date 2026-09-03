@@ -13,7 +13,7 @@ export type ColumnBuilder = {
     value: drizzle.SQL,
     config?: { readonly mode?: "stored" | "virtual" },
   ): ColumnBuilder
-  $onUpdateFn(callback: () => drizzle.SQL): ColumnBuilder
+  onUpdateNow?(config?: { readonly fsp?: number }): ColumnBuilder
   primaryKey?(config?: { readonly autoIncrement?: boolean }): ColumnBuilder
   autoincrement?(): ColumnBuilder
   generatedAlwaysAsIdentity?(): ColumnBuilder
@@ -61,6 +61,11 @@ export type DialectAdapter = {
   applyIdentity(
     builder: ColumnBuilder,
     definition: ColumnDefinition,
+    column: snapshot.SnapshotColumn,
+    table: snapshot.SnapshotTable,
+  ): ColumnBuilder
+  applyOnUpdate?(
+    builder: ColumnBuilder,
     column: snapshot.SnapshotColumn,
     table: snapshot.SnapshotTable,
   ): ColumnBuilder
@@ -179,6 +184,22 @@ function createColumnBuilder(
     builder = builder.default(decodeSnapshotLiteral(column.default.value))
   } else if (column.default?.kind === "expression") {
     builder = builder.default(drizzle.sql.raw(column.default.expression.sql))
+  } else if (
+    column.default?.kind === "external" &&
+    definition.defaultFn === undefined &&
+    adapter.dialect === "sqlite"
+  ) {
+    throw unsupportedMetadata(
+      `Drizzle SQLite cannot safely represent externally managed default metadata for column "${table.id}.${column.id}"`,
+      ["tables", table.id, "columns", column.id, "default"],
+    )
+  }
+
+  if (column.generatedColumn?.kind === "external") {
+    throw unsupportedMetadata(
+      `Drizzle cannot safely omit externally managed generated column "${table.id}.${column.id}"`,
+      ["tables", table.id, "columns", column.id, "generatedColumn"],
+    )
   }
 
   if (column.generatedColumn?.kind === "expression") {
@@ -188,7 +209,14 @@ function createColumnBuilder(
   }
 
   if (column.onUpdate !== undefined) {
-    builder = builder.$onUpdateFn(() => drizzle.sql.raw(column.onUpdate?.sql ?? ""))
+    if (adapter.applyOnUpdate === undefined) {
+      throw unsupportedMetadata(
+        `Drizzle ${adapter.dialect} cannot represent column ON UPDATE metadata`,
+        ["tables", table.id, "columns", column.id, "onUpdate"],
+      )
+    }
+
+    builder = adapter.applyOnUpdate(builder, column, table)
   }
 
   if (column.identity !== undefined) {
@@ -397,6 +425,15 @@ function assertRepresentableMetadata(
         ])
       }
 
+      for (const [termIndex, term] of index.terms.entries()) {
+        if (term.nulls !== undefined && dialect !== "postgresql") {
+          throw unsupportedMetadata(
+            `Drizzle ${dialect} indexes cannot represent NULLS ${term.nulls}`,
+            [...path, "terms", termIndex, "nulls"],
+          )
+        }
+      }
+
       assertIndexExtension(index.dialect, dialect, path)
     }
   }
@@ -497,7 +534,7 @@ export function recordExtension(
     : undefined
 }
 
-function unsupportedMetadata(
+export function unsupportedMetadata(
   message: string,
   path: readonly (string | number)[],
 ): DrizzleSchemaConversionError {

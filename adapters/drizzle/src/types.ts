@@ -110,7 +110,8 @@ export type DrizzleColumnConfig<TTableName extends string, TDefinition> = {
   readonly tableName: TTableName
   readonly dataType: "custom"
   readonly data: ColumnOutput<TDefinition>
-  readonly driverParam: ColumnInsertInput<TDefinition>
+  /** The physical driver value is not exposed by Qubu's current column type surface. */
+  readonly driverParam: unknown
   readonly enumValues: undefined
   /**
    * Qubu makes nullable columns required on insert unless they have a default. Keeping this flag
