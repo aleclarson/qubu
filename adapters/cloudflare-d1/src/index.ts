@@ -6,6 +6,12 @@ import type {
   ExplainRequest,
   ExplainResult,
 } from "qubu"
+import {
+  booleanResultDecoder,
+  dateResultDecoder,
+  jsonTextResultDecoder,
+  timestampResultDecoder,
+} from "qubu"
 import { sqliteDialect } from "qubu/sqlite"
 
 export interface D1ResultMeta {
@@ -36,20 +42,25 @@ export interface D1Adapter extends ExplainableQueryAdapter<Record<string, unknow
   readonly database: D1Database
 }
 
-const identityEncoder: DriverValueEncoder = { encode: (value) => value }
-
 /** Adapt one application-owned Cloudflare D1 binding. */
 export function d1Adapter(database: D1Database, options: D1AdapterOptions = {}): D1Adapter {
-  const encoder = options.encoder ?? identityEncoder
-
   return {
     database,
     dialect: sqliteDialect(),
+    // D1 reads SQLite booleans as 0/1 and text-backed date, timestamp, and JSON values as strings.
+    decoders: {
+      boolean: booleanResultDecoder,
+      date: dateResultDecoder,
+      timestamp: timestampResultDecoder,
+      json: jsonTextResultDecoder,
+    },
     async execute<TRow extends object>(request: ExecutionRequest) {
       throwIfAborted(request.signal)
       const statement = database
         .prepare(request.statement.text)
-        .bind(...request.statement.parameters.map((value) => encoder.encode(value)))
+        .bind(
+          ...request.statement.parameters.map((value) => encodeD1Parameter(value, options.encoder)),
+        )
 
       if (request.queryKind === "select" || request.queryKind === "set") {
         const result = await statement.all<TRow>()
@@ -58,20 +69,21 @@ export function d1Adapter(database: D1Database, options: D1AdapterOptions = {}):
       }
 
       const result = await statement.run()
+      const insertId = request.queryKind === "insert" ? validInsertId(result.meta) : undefined
 
       return {
         rows: (result.results ?? []) as readonly TRow[],
         ...(result.meta?.changes === undefined ? {} : { affectedRows: result.meta.changes }),
-        ...(request.queryKind === "insert" && result.meta?.last_row_id !== undefined
-          ? { insertId: result.meta.last_row_id }
-          : {}),
+        ...(insertId === undefined ? {} : { insertId }),
       } satisfies ExecutionResult<TRow>
     },
     async explain(request: ExplainRequest) {
       throwIfAborted(request.signal)
       const result = await database
         .prepare(request.statement.text)
-        .bind(...request.statement.parameters.map((value) => encoder.encode(value)))
+        .bind(
+          ...request.statement.parameters.map((value) => encodeD1Parameter(value, options.encoder)),
+        )
         .all<Record<string, unknown>>()
 
       return {
@@ -79,6 +91,40 @@ export function d1Adapter(database: D1Database, options: D1AdapterOptions = {}):
       } satisfies ExplainResult<Record<string, unknown>>
     },
   }
+}
+
+function encodeD1Parameter(value: unknown, encoder: DriverValueEncoder | undefined): unknown {
+  // Validate the encoded value because D1 sees the result after any custom encoder or column codec.
+  const encoded = encoder === undefined ? value : encoder.encode(value)
+
+  if (
+    encoded === null ||
+    typeof encoded === "number" ||
+    typeof encoded === "string" ||
+    typeof encoded === "boolean" ||
+    encoded instanceof ArrayBuffer ||
+    ArrayBuffer.isView(encoded)
+  ) {
+    return encoded
+  }
+
+  throw new TypeError(
+    "Cloudflare D1 parameters must be null, number, string, boolean, ArrayBuffer, or an ArrayBuffer view",
+  )
+}
+
+function validInsertId(meta: D1ResultMeta | undefined): number | undefined {
+  // D1 exposes SQLite's connection-level last_insert_rowid(), which ignored or WITHOUT ROWID
+  // inserts do not update, and large rowids cannot be represented safely by JavaScript numbers.
+  if (meta?.changes === undefined || meta.changes <= 0) {
+    return undefined
+  }
+
+  const insertId = meta.last_row_id
+
+  return insertId !== undefined && insertId !== 0 && Number.isSafeInteger(insertId)
+    ? insertId
+    : undefined
 }
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
