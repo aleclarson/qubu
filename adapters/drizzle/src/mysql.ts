@@ -28,6 +28,7 @@ import {
   convertDrizzleSchema,
   extensionData,
   stringExtension,
+  unsupportedMetadata,
   type ColumnBuilder,
   type ColumnDefinition,
   type DialectAdapter,
@@ -70,14 +71,48 @@ const mysqlAdapter: DialectAdapter = {
       : mysqlSchema(namespace).table) as unknown as TableFactory
   },
   createStorageBuilder,
-  applyIdentity(builder, definition) {
+  applyIdentity(builder, definition, column, table) {
     const extension = definition.identity?.dialect
     const autoIncrement =
-      extension?.dialect === "mysql" &&
-      "autoIncrement" in extension &&
-      extension.autoIncrement === true
+      extension?.dialect === "mysql" && "autoIncrement" in extension && extension.autoIncrement
 
-    return autoIncrement && builder.autoincrement ? builder.autoincrement() : builder
+    if (autoIncrement === false) {
+      throw unsupportedMetadata(
+        `Drizzle MySQL cannot represent a non-autoincrement identity column "${table.id}.${column.id}"`,
+        ["tables", table.id, "columns", column.id, "identity", "dialect", "autoIncrement"],
+      )
+    }
+
+    if (builder.autoincrement === undefined) {
+      throw unsupportedMetadata(
+        `Drizzle MySQL cannot represent identity metadata for column "${table.id}.${column.id}"`,
+        ["tables", table.id, "columns", column.id, "identity"],
+      )
+    }
+
+    return builder.autoincrement()
+  },
+  applyOnUpdate(builder, column, table) {
+    const expression = column.onUpdate?.sql.trim() ?? ""
+    const match = /^CURRENT_TIMESTAMP(?:\(([0-6])\))?$/iu.exec(expression)
+
+    if (match === null) {
+      throw unsupportedMetadata(
+        `Drizzle MySQL cannot represent ON UPDATE expression "${expression}"`,
+        ["tables", table.id, "columns", column.id, "onUpdate"],
+      )
+    }
+
+    if (builder.onUpdateNow === undefined) {
+      throw unsupportedMetadata(
+        `Drizzle MySQL cannot represent ON UPDATE metadata for column "${table.id}.${column.id}"`,
+        ["tables", table.id, "columns", column.id, "onUpdate"],
+      )
+    }
+
+    return match[1] === undefined
+      ? builder.onUpdateNow()
+      : builder.onUpdateNow({ fsp: Number(match[1]) })
   },
   createPrimaryKey(name, columns) {
     return (primaryKey as (config: object) => unknown)({
