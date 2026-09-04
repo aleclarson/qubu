@@ -123,7 +123,6 @@ describe("workspace adapters", () => {
     ).resolves.toEqual({
       rows: [],
       affectedRows: 1,
-      insertId: 7,
     })
     const selected = await adapter.execute({
       statement: {
@@ -140,7 +139,7 @@ describe("workspace adapters", () => {
     expect(selectStatement.bind).toHaveBeenCalledWith([1])
     expect(mutationStatement.finalize).toHaveBeenCalledOnce()
     expect(selectStatement.finalize).toHaveBeenCalledOnce()
-    expect(database.selectValue).toHaveBeenCalledWith("SELECT last_insert_rowid()")
+    expect(database.selectValue).not.toHaveBeenCalled()
 
     adapter.close()
     adapter.close()
