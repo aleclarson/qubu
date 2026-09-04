@@ -14,6 +14,7 @@ import {
   type ResultSetOptions,
   type RollbackTransactionCommandOutput,
 } from "@aws-sdk/client-rds-data"
+import { dateResultDecoder, jsonTextResultDecoder, timestampResultDecoder } from "qubu"
 import type {
   DriverValueEncoder,
   ExecutionRequest,
@@ -82,6 +83,12 @@ export interface RdsDataApiAdapter<TEngine extends RdsDataApiEngine = RdsDataApi
 
 const identityEncoder: DriverValueEncoder = { encode: (value) => value }
 
+const rdsDataApiDecoders = Object.freeze({
+  date: dateResultDecoder,
+  timestamp: timestampResultDecoder,
+  json: jsonTextResultDecoder,
+})
+
 /** Create the named-placeholder dialect required by Aurora's Data API. */
 export function createRdsDataApiDialect(engine: "postgresql"): ReturnType<typeof postgresDialect>
 export function createRdsDataApiDialect(engine: "mysql"): ReturnType<typeof mysqlDialect>
@@ -115,6 +122,7 @@ export function createRdsDataApiAdapter<TEngine extends RdsDataApiEngine>(
       transactionOptions: TransactionOptions = {},
     ): Promise<T> {
       throwIfAborted(transactionOptions.signal)
+      assertStatementSchemaSupported(options)
       const begin = await sendCommand<BeginTransactionCommandOutput>(
         client,
         new BeginTransactionCommand(transactionInput(options)),
@@ -164,6 +172,7 @@ function executionAdapter(
 ): RdsDataApiTransactionAdapter {
   return {
     dialect: createRdsDataApiDialect(engine),
+    decoders: rdsDataApiDecoders,
     async execute<TRow extends object>(request: ExecutionRequest) {
       return executeRequest<TRow>(client, options, encoder, request, transactionId)
     },
@@ -189,6 +198,7 @@ async function executeRequest<TRow extends object>(
   transactionId?: string,
 ): Promise<ExecutionResult<TRow>> {
   throwIfAborted(request.signal)
+  assertStatementSchemaSupported(options)
   const response = await sendCommand<ExecuteStatementCommandOutput>(
     client,
     new ExecuteStatementCommand(statementInput(options, encoder, request, transactionId)),
@@ -206,6 +216,14 @@ async function executeRequest<TRow extends object>(
       : {}),
     ...(insertId === undefined ? {} : { insertId }),
   } satisfies ExecutionResult<TRow>
+}
+
+function assertStatementSchemaSupported(options: RdsDataApiAdapterOptions): void {
+  if (options.schema !== undefined) {
+    throw new Error(
+      "AWS RDS Data API does not support the schema parameter; qualify schema identifiers in SQL",
+    )
+  }
 }
 
 function statementInput(
@@ -228,7 +246,6 @@ function statementInput(
     includeResultMetadata: true,
     formatRecordsAs: "NONE",
     ...(options.database === undefined ? {} : { database: options.database }),
-    ...(options.schema === undefined ? {} : { schema: options.schema }),
     ...(options.continueAfterTimeout === undefined
       ? {}
       : { continueAfterTimeout: options.continueAfterTimeout }),
@@ -246,7 +263,6 @@ function transactionInput(options: RdsDataApiAdapterOptions) {
     resourceArn: options.resourceArn,
     secretArn: options.secretArn,
     ...(options.database === undefined ? {} : { database: options.database }),
-    ...(options.schema === undefined ? {} : { schema: options.schema }),
   }
 }
 
