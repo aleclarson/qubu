@@ -237,6 +237,22 @@ test("materializes defaults, generated columns, constraints, and indexes", () =>
   expect(membershipConfig.foreignKeys[0].onDelete).toBe("cascade")
 })
 
+test("preserves portable MySQL identities without a dialect extension", () => {
+  const records = table(
+    "mysql_identity",
+    {
+      id: integer({ identity: identityColumn("by-default") }),
+    },
+    (row) => ({
+      constraints: { primary: primaryKey(row.id) },
+      indexes: {},
+    }),
+  )
+  const converted = mysqlDrizzle.toDrizzleSchema(schema({ records }))
+
+  expect((converted.records.id as unknown as { autoIncrement: boolean }).autoIncrement).toBe(true)
+})
+
 test("uses SQLite inline primary-key metadata for autoincrement identities", () => {
   const records = table(
     "identity_records",

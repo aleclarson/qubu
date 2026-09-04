@@ -74,7 +74,9 @@ const mysqlAdapter: DialectAdapter = {
   applyIdentity(builder, definition, column, table) {
     const extension = definition.identity?.dialect
     const autoIncrement =
-      extension?.dialect === "mysql" && "autoIncrement" in extension && extension.autoIncrement
+      extension?.dialect === "mysql" && "autoIncrement" in extension
+        ? extension.autoIncrement
+        : undefined
 
     if (autoIncrement === false) {
       throw unsupportedMetadata(
