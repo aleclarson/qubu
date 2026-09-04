@@ -143,9 +143,14 @@ export interface CustomSourceOptions<TIdentity, TDefinitions extends TableDefini
   readonly sourceKind?: SourceKind
 }
 
-export type CustomSource<TIdentity, TDefinitions extends TableDefinitions> = Source<{
+export type CustomSource<
+  TIdentity,
+  TDefinitions extends TableDefinitions,
+  TMetadata = never,
+> = Source<{
   readonly identity: TIdentity
   readonly row: TableRow<TDefinitions>
+  readonly metadata: TMetadata
   readonly sqlTypes: import("./table.ts").TableSqlTypes<TDefinitions>
 }> & {
   readonly identity: TIdentity
@@ -199,12 +204,16 @@ export function createSource<
  * function. The renderer owns the relation syntax and may bind values through context.parameter();
  * the source identity and output columns remain available to the normal FROM/JOIN scope checks.
  */
-export function customSource<const TIdentity, const TDefinitions extends TableDefinitions>(
+export function customSource<
+  const TIdentity,
+  const TDefinitions extends TableDefinitions,
+  const TMetadata = never,
+>(
   options: CustomSourceOptions<TIdentity, TDefinitions>,
-): CustomSource<TIdentity, TDefinitions> {
+): CustomSource<TIdentity, TDefinitions, TMetadata> {
   type TRow = TableRow<TDefinitions>
   type TSqlTypes = import("./table.ts").TableSqlTypes<TDefinitions>
-  const source = createSource<TIdentity, TRow, never, TSqlTypes>(
+  const source = createSource<TIdentity, TRow, TMetadata, TSqlTypes>(
     options.sourceKind ?? "custom",
     options.render,
     options.reference,
@@ -236,7 +245,7 @@ export function customSource<const TIdentity, const TDefinitions extends TableDe
   })
   exposeColumns(source, columns)
 
-  return source as CustomSource<TIdentity, TDefinitions>
+  return source as CustomSource<TIdentity, TDefinitions, TMetadata>
 }
 
 /**

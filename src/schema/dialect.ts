@@ -55,7 +55,7 @@ export interface SchemaDialectHooks {
  * query rendering object and adds only schema behavior and snapshot metadata.
  */
 export interface SchemaDialect<
-  TCapabilities extends DialectCapability = DialectCapability,
+  TCapabilities extends string = DialectCapability,
 > extends Dialect<TCapabilities> {
   readonly schema: SchemaDialectHooks
 }
@@ -64,9 +64,10 @@ export interface SchemaDialect<
  * Add schema behavior to an existing query dialect without rebuilding any of its identifier,
  * literal, placeholder, JSON, cast, or capability policies.
  */
-export function createSchemaDialect<
-  const TCapabilities extends DialectCapability = DialectCapability,
->(queryDialect: Dialect<TCapabilities>, schema: SchemaDialectHooks): SchemaDialect<TCapabilities> {
+export function createSchemaDialect<const TCapabilities extends string = DialectCapability>(
+  queryDialect: Dialect<TCapabilities>,
+  schema: SchemaDialectHooks,
+): SchemaDialect<TCapabilities> {
   return Object.freeze({
     ...queryDialect,
     schema: Object.freeze({ ...schema }),

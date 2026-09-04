@@ -1,4 +1,4 @@
-import { assertDialectCapability, type DialectCapability } from "../core/dialect.ts"
+import { assertDialectCapability } from "../core/dialect.ts"
 import {
   type AggregateMeta,
   type DependenciesOf,
@@ -68,7 +68,7 @@ export type ExpressionSqlType<T> = import("../core/fragment.ts").SqlTypeOf<T>
 
 /** Add a concrete dialect requirement without dropping expression metadata. */
 export function withDialectCapability<
-  const TCapability extends DialectCapability,
+  const TCapability extends string,
   TExpression extends AnyExpression,
 >(
   expression: TExpression,
