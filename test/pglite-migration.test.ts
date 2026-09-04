@@ -1,7 +1,8 @@
 import { PGlite } from "@electric-sql/pglite"
 import type { SchemaSnapshot } from "qubu/snapshot"
-import { afterEach, test } from "vitest"
+import { afterEach, expect, test, vi } from "vitest"
 
+import { postgresMigrationAdapter } from "../adapters/pg/src/migration-support.ts"
 import { pgliteMigrationAdapter } from "../adapters/pglite/src/migration.ts"
 import { verifyMigrationAdapterConformance } from "../packages/migrate/src/testing/index.ts"
 
@@ -114,4 +115,32 @@ test("runs the shared conformance probe against a pinned PGlite session", async 
       ],
     },
   })
+})
+
+test("shared PostgreSQL polling removes its abort listener after the timer settles", async () => {
+  vi.useFakeTimers()
+  let attempts = 0
+  const query = vi.fn(async (sql: string) =>
+    sql.includes("pg_try_advisory_lock") ? { rows: [{ acquired: attempts++ > 0 }] } : { rows: [] },
+  )
+  const adapter = postgresMigrationAdapter({
+    openConnection: async () => ({ query }),
+    readSnapshot: async () => snapshot(),
+    leasePollMilliseconds: 10,
+  })
+  const session = await adapter.openMigrationSession()
+  const controller = new AbortController()
+  const removeEventListener = vi.spyOn(controller.signal, "removeEventListener")
+
+  try {
+    const pending = session.acquireLease(controller.signal)
+    await vi.advanceTimersByTimeAsync(10)
+    await pending
+
+    expect(removeEventListener).toHaveBeenCalledWith("abort", expect.any(Function))
+    await session.releaseLease()
+  } finally {
+    await session.close()
+    vi.useRealTimers()
+  }
 })

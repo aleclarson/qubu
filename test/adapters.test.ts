@@ -178,6 +178,31 @@ describe("workspace adapters", () => {
     })
   })
 
+  test("pg preserves both the transaction and rollback failures", async () => {
+    const transactionError = new Error("statement failed")
+    const rollbackError = new Error("rollback failed")
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [], rowCount: null })
+      .mockRejectedValueOnce(rollbackError)
+    const adapter = pgAdapter({ query } as never)
+
+    let failure: unknown
+    try {
+      await adapter.transaction(async () => {
+        throw transactionError
+      })
+    } catch (error) {
+      failure = error
+    }
+
+    expect(failure).toBeInstanceOf(AggregateError)
+    expect((failure as AggregateError).errors).toEqual([transactionError, rollbackError])
+    expect((failure as Error & { readonly cause?: unknown }).cause).toBe(transactionError)
+    expect(query).toHaveBeenNthCalledWith(1, "BEGIN")
+    expect(query).toHaveBeenNthCalledWith(2, "ROLLBACK")
+  })
+
   test("mysql2 normalizes result headers", async () => {
     const connection = {
       execute: vi.fn(async () => [

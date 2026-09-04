@@ -65,7 +65,7 @@ function table(
     kind: "table",
     id,
     physicalName: id,
-    columns,
+    columns: columns.map((column, index) => ({ ...column, ordinalPosition: index + 1 })),
     constraints: [],
     indexes: [],
   }

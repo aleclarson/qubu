@@ -21,6 +21,7 @@ import {
   type PhaseCheckpoint,
   type ReconciliationRecord,
 } from "@qubu/migrate/journal"
+import { evaluateMigrationPrecondition } from "@qubu/migrate/plan"
 import type { SnapshotJsonValue } from "qubu/snapshot"
 
 export interface PostgresMigrationResult {
@@ -73,6 +74,7 @@ class PostgresMigrationSession implements MigrationSession {
   #transaction = false
   #closed = false
   #ddlLock = false
+  #expectedSnapshot: MigrationSnapshot | undefined
   constructor(
     readonly connection: PostgresMigrationConnection,
     readonly options: PostgresMigrationAdapterOptions,
@@ -178,6 +180,10 @@ class PostgresMigrationSession implements MigrationSession {
     await this.connection.query(sql, parameters.map(decodeParameter))
   }
   async checkCondition(condition: ProgramCondition): Promise<boolean> {
+    if (condition.type === "snapshot-fingerprint") {
+      const { snapshot } = await this.readSnapshot(this.#expectedSnapshot)
+      return evaluateMigrationPrecondition(snapshot, condition.value)
+    }
     if (condition.type === "snapshot-digest") {
       return (
         isSha256Digest(condition.value) && (await this.currentSnapshotDigest()) === condition.value
@@ -192,16 +198,15 @@ class PostgresMigrationSession implements MigrationSession {
       return truthy(Object.values(result.rows[0] ?? {})[0])
     }
 
-    const value = asObject(condition.value)
-    const name = typeof value?.physicalName === "string" ? value.physicalName : undefined
-    const kind = typeof value?.kind === "string" ? value.kind : undefined
-
-    if (!name || !kind) {
-      return false
+    if (
+      condition.type === "object-present" ||
+      condition.type === "object-absent" ||
+      condition.type === "property-equals"
+    ) {
+      const { snapshot } = await this.readSnapshot(this.#expectedSnapshot)
+      return evaluateMigrationPrecondition(snapshot, condition.value)
     }
-    const present = await objectPresent(this.connection, kind, name, value!)
-
-    return condition.type === "object-present" ? present : !present
+    return false
   }
   async readSnapshot(expected?: MigrationSnapshot): Promise<MigrationSnapshotInspection> {
     const value = await this.options.readSnapshot(this.connection, expected)
@@ -217,6 +222,7 @@ class PostgresMigrationSession implements MigrationSession {
         }
   }
   async currentSnapshotDigest(expected?: MigrationSnapshot): Promise<Sha256Digest> {
+    if (expected !== undefined) this.#expectedSnapshot = expected
     const value = await this.options.readSnapshot(this.connection, expected)
 
     if (isSha256Digest(value)) {
@@ -536,33 +542,6 @@ function decodeParameter(value: TaggedParameterValue): unknown {
   }
 }
 
-async function objectPresent(
-  connection: PostgresMigrationConnection,
-  kind: string,
-  name: string,
-  value: Record<string, unknown>,
-): Promise<boolean> {
-  const path = Array.isArray(value.path) ? value.path : []
-  const table = typeof path[0] === "string" ? path[0] : undefined
-
-  if (kind === "column" && table) {
-    return (
-      (
-        await connection.query(
-          "SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name=$1 AND column_name=$2",
-          [table, name],
-        )
-      ).rows.length > 0
-    )
-  }
-  const relation = kind === "table" || kind === "view" || kind === "index"
-
-  return (
-    relation &&
-    (await connection.query("SELECT to_regclass($1) AS value", [name])).rows[0]?.value != null
-  )
-}
-
 function text(value: unknown): string {
   if (typeof value !== "string") {
     throw new Error("Invalid migration journal text")
@@ -583,12 +562,6 @@ function digest(value: unknown): Sha256Digest {
 
 function nullableDigest(value: unknown): Sha256Digest | null {
   return value == null ? null : digest(value)
-}
-
-function asObject(value: SnapshotJsonValue): Record<string, unknown> | undefined {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined
 }
 
 function isInspection(value: unknown): value is MigrationSnapshotInspection {
@@ -612,15 +585,20 @@ function failureCode(error: unknown): string | undefined {
 
 function delay(milliseconds: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(resolve, milliseconds)
+    if (signal?.aborted) {
+      reject(signal.reason)
+      return
+    }
 
-    signal?.addEventListener(
-      "abort",
-      () => {
-        clearTimeout(timer)
-        reject(signal.reason)
-      },
-      { once: true },
-    )
+    const onAbort = () => {
+      clearTimeout(timer)
+      signal?.removeEventListener("abort", onAbort)
+      reject(signal?.reason)
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort)
+      resolve()
+    }, milliseconds)
+    signal?.addEventListener("abort", onAbort, { once: true })
   })
 }

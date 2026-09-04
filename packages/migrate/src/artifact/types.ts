@@ -44,7 +44,13 @@ export type TaggedParameterValue =
 
 export interface ProgramCondition {
   readonly id: string
-  readonly type: "object-present" | "object-absent" | "snapshot-digest" | "statement"
+  readonly type:
+    | "object-present"
+    | "object-absent"
+    | "property-equals"
+    | "snapshot-fingerprint"
+    | "snapshot-digest"
+    | "statement"
   readonly value: SnapshotJsonValue
 }
 

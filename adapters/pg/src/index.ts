@@ -44,7 +44,15 @@ export function pgAdapter(client: ClientBase, options: PgAdapterOptions = {}): P
         await client.query("COMMIT")
         return result
       } catch (error) {
-        await client.query("ROLLBACK")
+        try {
+          await client.query("ROLLBACK")
+        } catch (rollbackError) {
+          throw new AggregateError(
+            [error, rollbackError],
+            "Transaction failed and rollback failed",
+            { cause: error },
+          )
+        }
         throw error
       }
     },
