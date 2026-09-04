@@ -114,7 +114,7 @@ export interface DialectExplain {
   ) => string
 }
 
-export interface Dialect<TCapabilities extends DialectCapability = DialectCapability> {
+export interface Dialect<TCapabilities extends string = string> {
   readonly name: string
   quoteIdentifier(identifier: string): string
   placeholder(position: number): string
@@ -134,7 +134,7 @@ export interface Dialect<TCapabilities extends DialectCapability = DialectCapabi
 }
 
 export interface DialectOptions<
-  TCapabilities extends Exclude<DialectCapability, "json"> = never,
+  TCapabilities extends string = never,
   TJson extends DialectJson | undefined = DialectJson | undefined,
 > {
   readonly name: string
@@ -181,19 +181,15 @@ const quoteIdentifier = (identifier: string) => `"${identifier.replaceAll('"', '
  * Create a dialect from the few rendering decisions that SQL builders need to leave open. More
  * involved syntax can be supplied as a custom fragment.
  */
-export function createDialect<
-  const TCapabilities extends Exclude<DialectCapability, "json"> = never,
->(
+export function createDialect<const TCapabilities extends string = never>(
   options: DialectOptions<TCapabilities, DialectJson> & {
     readonly json: DialectJson
   },
 ): Dialect<TCapabilities | "json">
-export function createDialect<
-  const TCapabilities extends Exclude<DialectCapability, "json"> = never,
->(options: DialectOptions<TCapabilities, undefined>): Dialect<TCapabilities>
-export function createDialect(
-  options: DialectOptions<Exclude<DialectCapability, "json">>,
-): Dialect {
+export function createDialect<const TCapabilities extends string = never>(
+  options: DialectOptions<TCapabilities, undefined>,
+): Dialect<TCapabilities>
+export function createDialect(options: DialectOptions<string>): Dialect {
   return Object.freeze({
     name: options.name,
     quoteIdentifier: options.quoteIdentifier ?? quoteIdentifier,
@@ -215,10 +211,28 @@ export function createDialect(
  * Check a capability at runtime for callers that intentionally bypass the typed render boundary or
  * use a dialect supplied by an older integration.
  */
-export function assertDialectCapability(dialect: Dialect, capability: DialectCapability): void {
+export function assertDialectCapability(dialect: Dialect<string>, capability: string): void {
   if (dialect.capabilities?.includes(capability)) {
     return
   }
 
   throw new Error(`Dialect "${dialect.name}" does not support the "${capability}" capability`)
+}
+
+/** Extend a dialect with capabilities owned by an addon without changing its SQL policies. */
+export function extendDialect<
+  const TCapabilities extends string,
+  const TAdditionalCapabilities extends string,
+>(
+  dialect: Dialect<TCapabilities>,
+  additionalCapabilities: readonly TAdditionalCapabilities[],
+): Dialect<TCapabilities | TAdditionalCapabilities> {
+  const capabilities = Object.freeze([
+    ...new Set([...(dialect.capabilities ?? []), ...additionalCapabilities]),
+  ]) as readonly (TCapabilities | TAdditionalCapabilities)[]
+
+  return Object.freeze({
+    ...dialect,
+    capabilities,
+  }) as Dialect<TCapabilities | TAdditionalCapabilities>
 }

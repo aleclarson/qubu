@@ -73,7 +73,7 @@ export type CardinalityMeta<TCardinality extends QueryCardinality = QueryCardina
 }
 
 /** A fragment whose syntax must be rendered by a dialect with this capability. */
-export type RequiresCapabilityMeta<TCapability extends DialectCapability = DialectCapability> = {
+export type RequiresCapabilityMeta<TCapability extends string = DialectCapability> = {
   readonly kind: "requires-capability"
   readonly capability: TCapability
 }
@@ -221,7 +221,7 @@ type Cardinality<TMetadata> = TMetadata extends {
 
 type RequiredCapabilities<TMetadata> = TMetadata extends {
   readonly kind: "requires-capability"
-  readonly capability: infer TCapability extends DialectCapability
+  readonly capability: infer TCapability extends string
 }
   ? TCapability
   : never
