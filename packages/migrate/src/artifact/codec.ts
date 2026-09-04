@@ -1,6 +1,6 @@
 import { decodeSchemaSnapshot, type SnapshotJsonValue } from "qubu/snapshot"
 
-import { assertMigrationPlan } from "../plan/index.ts"
+import { assertMigrationPlan, isMigrationPrecondition } from "../plan/index.ts"
 import {
   canonicalText,
   canonicalizationDescriptor,
@@ -1147,11 +1147,32 @@ function conditions(
     id(condition.id, out, [...itemPath, "id"])
     oneOf(
       condition.type,
-      ["object-present", "object-absent", "snapshot-digest", "statement"],
+      [
+        "object-present",
+        "object-absent",
+        "property-equals",
+        "snapshot-fingerprint",
+        "snapshot-digest",
+        "statement",
+      ],
       out,
       [...itemPath, "type"],
     )
     jsonValue(condition.value, out, [...itemPath, "value"])
+    if (
+      ["object-present", "object-absent", "property-equals", "snapshot-fingerprint"].includes(
+        condition.type,
+      ) &&
+      (!isMigrationPrecondition(condition.value) || condition.value.type !== condition.type)
+    ) {
+      out.push(
+        diag(
+          "invalid-value",
+          [...itemPath, "value"],
+          "Structured condition must match its declared type",
+        ),
+      )
+    }
   })
   uniqueIds(value, out, path)
 }

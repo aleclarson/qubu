@@ -332,10 +332,7 @@ function resolveRequirements(
 function conditionsFor(operation: MigrationOperation): readonly ProgramCondition[] {
   return operation.preconditions.map((condition, index) => ({
     id: `${operation.id}-precondition-${index}`,
-    type:
-      condition.type === "object-present" || condition.type === "object-absent"
-        ? condition.type
-        : "statement",
+    type: condition.type,
     value: condition as unknown as SnapshotJsonValue,
   }))
 }

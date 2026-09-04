@@ -22,6 +22,7 @@ import {
   type PhaseCheckpoint,
   type ReconciliationRecord,
 } from "@qubu/migrate/journal"
+import { evaluateMigrationPrecondition } from "@qubu/migrate/plan"
 import { mapCatalogToSnapshot } from "qubu/introspection"
 import { readCatalog } from "qubu/introspection/sqlite"
 import type { SchemaSnapshot, SnapshotJsonValue } from "qubu/snapshot"
@@ -186,6 +187,7 @@ class LibsqlMigrationSession implements MigrationSession {
   #leased = false
   #closed = false
   #ddlLock = false
+  #expectedSnapshot: SchemaSnapshot | undefined
 
   constructor(client: Client, options: LibsqlMigrationAdapterOptions) {
     this.#client = client
@@ -273,6 +275,10 @@ class LibsqlMigrationSession implements MigrationSession {
 
   async checkCondition(condition: ProgramCondition): Promise<boolean> {
     this.#open()
+    if (condition.type === "snapshot-fingerprint") {
+      const { snapshot } = await this.readSnapshot(this.#expectedSnapshot)
+      return evaluateMigrationPrecondition(snapshot, condition.value)
+    }
     if (condition.type === "snapshot-digest") {
       if (!isSha256Digest(condition.value)) return false
       return (await this.currentSnapshotDigest()) === condition.value
@@ -282,12 +288,15 @@ class LibsqlMigrationSession implements MigrationSession {
       const result = await this.#executor().execute(condition.value)
       return truthy(result.rows[0]?.[0])
     }
-    const value = asObject(condition.value)
-    const physicalName = typeof value?.physicalName === "string" ? value.physicalName : undefined
-    const kind = typeof value?.kind === "string" ? value.kind : undefined
-    if (!physicalName || !kind) return false
-    const present = await objectPresent(this.#executor(), kind, physicalName, value!)
-    return condition.type === "object-present" ? present : !present
+    if (
+      condition.type === "object-present" ||
+      condition.type === "object-absent" ||
+      condition.type === "property-equals"
+    ) {
+      const { snapshot } = await this.readSnapshot(this.#expectedSnapshot)
+      return evaluateMigrationPrecondition(snapshot, condition.value)
+    }
+    return false
   }
 
   async readSnapshot(expected?: SchemaSnapshot): Promise<MigrationSnapshotInspection> {
@@ -305,6 +314,7 @@ class LibsqlMigrationSession implements MigrationSession {
 
   async currentSnapshotDigest(expected?: SchemaSnapshot): Promise<Sha256Digest> {
     this.#open()
+    if (expected !== undefined) this.#expectedSnapshot = expected
     const snapshot = await (this.#options.readSnapshot ?? readLibsqlMigrationSnapshot)(
       this.#executor(),
       expected,
@@ -596,31 +606,6 @@ async function leaseOwner(client: Client): Promise<string | undefined> {
   return typeof owner === "string" ? owner : undefined
 }
 
-async function objectPresent(
-  executor: Executor,
-  kind: string,
-  name: string,
-  value: Record<string, unknown>,
-): Promise<boolean> {
-  if (kind === "column") {
-    const path = Array.isArray(value.path) ? value.path : []
-    const table = typeof path[0] === "string" ? path[0] : undefined
-    if (!table) return false
-    const result = await executor.execute({
-      sql: "SELECT 1 FROM pragma_table_xinfo(?) WHERE name = ?",
-      args: [table, name],
-    })
-    return result.rows.length > 0
-  }
-  const type =
-    kind === "index" ? "index" : kind === "view" ? "view" : kind === "trigger" ? "trigger" : "table"
-  const result = await executor.execute({
-    sql: "SELECT 1 FROM sqlite_schema WHERE type = ? AND name = ?",
-    args: [type, name],
-  })
-  return result.rows.length > 0
-}
-
 function decodeParameter(value: TaggedParameterValue): InValue {
   switch (value.type) {
     case "null":
@@ -662,11 +647,6 @@ function digest(value: unknown): Sha256Digest {
 function nullableDigest(value: unknown): Sha256Digest | null {
   return value == null ? null : digest(value)
 }
-function asObject(value: SnapshotJsonValue): Record<string, unknown> | undefined {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? (value as unknown as Record<string, unknown>)
-    : undefined
-}
 function isInspection(value: unknown): value is MigrationSnapshotInspection {
   return (
     value !== null &&
@@ -695,14 +675,20 @@ function failureCode(error: unknown): string | undefined {
 }
 function delay(milliseconds: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(resolve, milliseconds)
-    signal?.addEventListener(
-      "abort",
-      () => {
-        clearTimeout(timer)
-        reject(signal.reason)
-      },
-      { once: true },
-    )
+    if (signal?.aborted) {
+      reject(signal.reason)
+      return
+    }
+
+    const onAbort = () => {
+      clearTimeout(timer)
+      signal?.removeEventListener("abort", onAbort)
+      reject(signal?.reason)
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort)
+      resolve()
+    }, milliseconds)
+    signal?.addEventListener("abort", onAbort, { once: true })
   })
 }

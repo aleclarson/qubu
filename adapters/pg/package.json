@@ -27,9 +27,11 @@
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
+  "dependencies": {
+    "@types/pg": "^8.23.1"
+  },
   "devDependencies": {
     "@qubu/migrate": "workspace:*",
-    "@types/pg": "^8.23.1",
     "pg": "^8.23.0",
     "qubu": "workspace:*"
   },

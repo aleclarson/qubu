@@ -176,13 +176,14 @@ importers:
         version: link:../..
 
   adapters/pg:
+    dependencies:
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
     devDependencies:
       '@qubu/migrate':
         specifier: workspace:*
         version: link:../../packages/migrate
-      '@types/pg':
-        specifier: ^8.23.1
-        version: 8.23.1
       pg:
         specifier: ^8.23.0
         version: 8.23.0

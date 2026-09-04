@@ -7,6 +7,7 @@ import {
   createMigrationPlan,
   decodeMigrationPlan,
   encodeMigrationPlan,
+  evaluateMigrationPrecondition,
   migrationPlanFingerprint,
 } from "../src/plan/index.ts"
 import type { MigrationDecision, MigrationPlan } from "../src/plan/index.ts"
@@ -199,8 +200,69 @@ test("carries destructive property changes through a physical rename", () => {
       type: "property-equals",
       property: ["nullable"],
       value: true,
+      physicalName: "legacy_name",
+      parent: { kind: "table", id: "accounts", namespace: "public" },
     }),
   )
+})
+
+test("evaluates nested migration preconditions against exact object identity", () => {
+  const before = snapshot([
+    table("accounts", [column("name")]),
+    table("audit", [{ ...column("name"), nullable: true }]),
+  ])
+  const after = snapshot([
+    table("accounts", [{ ...column("name"), nullable: true }]),
+    table("audit", [{ ...column("name"), nullable: true }]),
+  ])
+  const planned = createMigrationPlan(diffSnapshots(before, after), { allowReviewRequired: true })
+
+  expect(planned.ok).toBe(true)
+  if (!planned.ok) return
+
+  const operation = planned.plan.operations.find((candidate) => candidate.kind === "column")!
+  const objectCondition = operation.preconditions.find(
+    (condition) => condition.type === "object-present",
+  )!
+  const propertyCondition = operation.preconditions.find(
+    (condition) => condition.type === "property-equals",
+  )!
+
+  expect(objectCondition).toMatchObject({
+    logicalId: "name",
+    physicalName: "name",
+    parent: { kind: "table", id: "accounts", namespace: "public" },
+  })
+  expect(evaluateMigrationPrecondition(before, objectCondition)).toBe(true)
+  expect(evaluateMigrationPrecondition(after, objectCondition)).toBe(false)
+  expect(evaluateMigrationPrecondition(before, propertyCondition)).toBe(true)
+  expect(evaluateMigrationPrecondition(after, propertyCondition)).toBe(false)
+  expect(
+    evaluateMigrationPrecondition(before, {
+      ...objectCondition,
+      parent: { kind: "table", id: "audit", namespace: "public" },
+    }),
+  ).toBe(false)
+})
+
+test("rejects unidentified absence guards and detects physical name collisions", () => {
+  const current = snapshot([table("accounts")])
+  const condition = { type: "object-absent", path: ["tables"], kind: "table" } as const
+  expect(evaluateMigrationPrecondition(current, condition)).toBe(false)
+  expect(
+    evaluateMigrationPrecondition(current, {
+      ...condition,
+      logicalId: "new-logical-id",
+      physicalName: "accounts",
+    }),
+  ).toBe(false)
+  expect(
+    evaluateMigrationPrecondition(current, {
+      ...condition,
+      logicalId: "new-logical-id",
+      physicalName: "new_table",
+    }),
+  ).toBe(true)
 })
 
 test("keeps opaque facts blocked without inferring SQL", () => {

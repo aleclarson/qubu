@@ -1,5 +1,6 @@
 import { diffSnapshots } from "qubu/diff"
 import type { SchemaSnapshot } from "qubu/snapshot"
+import { postgresSchemaDialect } from "qubu/snapshot/postgres"
 import { expect, test } from "vitest"
 
 import {
@@ -8,6 +9,7 @@ import {
   type OperationApproval,
   validateMigrationProgram,
 } from "../src/artifact/index.ts"
+import { compileMigrationProgram as compileGenericMigrationProgram } from "../src/artifact/program.ts"
 import { compileMigrationProgram } from "../src/artifact/sqlite.ts"
 import { createMigrationPlan, type MigrationPlan } from "../src/plan/index.ts"
 
@@ -49,6 +51,44 @@ function snapshot(tables: SchemaSnapshot["tables"] = []): SchemaSnapshot {
     ownership: [],
   }
 }
+
+test("rejects a structured guard whose payload reverses its declared condition", () => {
+  const program = {
+    format: "qubu-migration-program",
+    version: 1,
+    phases: [
+      {
+        id: "guard",
+        position: 0,
+        transaction: "optional",
+        lock: "none",
+        dependsOn: [],
+        statements: [],
+        preconditions: [
+          {
+            id: "present",
+            type: "object-present",
+            value: {
+              type: "object-absent",
+              path: ["tables"],
+              kind: "table",
+              physicalName: "accounts",
+            },
+          },
+        ],
+        postconditions: [],
+      },
+    ],
+  }
+  expect(validateMigrationProgram(program)).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        code: "invalid-value",
+        path: ["program", "phases", 0, "preconditions", 0, "value"],
+      }),
+    ]),
+  )
+})
 
 test("rejects forward dependencies in standalone programs", () => {
   const program = {
@@ -112,6 +152,21 @@ function creationPlan(): MigrationPlan {
   return result.plan
 }
 
+function propertyChangePlan(): MigrationPlan {
+  const before = {
+    ...snapshot([table("accounts", [column("name")])]),
+    dialect: { name: "postgresql", version: 1 } as const,
+    namespace: { kind: "postgres-schema", name: "public" } as const,
+  }
+  const after = {
+    ...before,
+    tables: [table("accounts", [{ ...column("name"), nullable: true }])],
+  }
+  const result = createMigrationPlan(diffSnapshots(before, after), { allowReviewRequired: true })
+  if (!result.ok) throw new Error("Expected safe property-change plan")
+  return result.plan
+}
+
 function customPlan(): MigrationPlan {
   const result = createMigrationPlan(diffSnapshots(snapshot(), snapshot()), {
     customSql: [
@@ -166,6 +221,31 @@ test("compiles a plan into contiguous authoritative phases and statements", () =
   expect(result.program.phases[0]?.transaction).toBe("optional")
   expect(result.program.phases[0]?.lock).toBe("exclusive")
   expect("sql" in result.program).toBe(false)
+})
+
+test("keeps property preconditions structured in the executable program", () => {
+  const plan = propertyChangePlan()
+  const result = compileGenericMigrationProgram(plan, postgresSchemaDialect, {
+    approvals: [approvalFor(plan, "approve")],
+  })
+
+  expect(result.ok).toBe(true)
+  if (!result.ok) return
+
+  expect(result.program.phases[0]?.preconditions).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        type: "property-equals",
+        value: expect.objectContaining({
+          type: "property-equals",
+          property: ["nullable"],
+          value: false,
+          parent: { kind: "table", id: "accounts", namespace: "public" },
+        }),
+      }),
+    ]),
+  )
+  expect(validateMigrationProgram(result.program, plan)).toEqual([])
 })
 
 test("requires exact custom-program approval and preserves tagged parameters and provenance", async () => {

@@ -138,7 +138,12 @@ function program(value: MigrationPlan, withParameter = false): MigrationProgram 
           {
             id: "accounts-present",
             type: "object-present",
-            value: { table: "accounts" },
+            value: {
+              type: "object-present",
+              kind: "table",
+              path: ["tables"],
+              physicalName: "accounts",
+            },
           },
         ],
       },
