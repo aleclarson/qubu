@@ -29,6 +29,7 @@ import {
   extensionData,
   recordExtension,
   stringExtension,
+  unsupportedMetadata,
   type ColumnBuilder,
   type ColumnDefinition,
   type DialectAdapter,
@@ -72,13 +73,20 @@ const postgresAdapter: DialectAdapter = {
       : pgSchema(namespace).table) as unknown as TableFactory
   },
   createStorageBuilder,
-  applyIdentity(builder, _definition, column) {
+  applyIdentity(builder, _definition, column, table) {
     const method =
       column.identity?.generation === "always"
         ? builder.generatedAlwaysAsIdentity
         : builder.generatedByDefaultAsIdentity
 
-    return method === undefined ? builder : method.call(builder)
+    if (method === undefined) {
+      throw unsupportedMetadata(
+        `Drizzle PostgreSQL cannot represent identity metadata for column "${table.id}.${column.id}"`,
+        ["tables", table.id, "columns", column.id, "identity"],
+      )
+    }
+
+    return method.call(builder)
   },
   createPrimaryKey(name, columns) {
     return (primaryKey as (config: object) => unknown)({
