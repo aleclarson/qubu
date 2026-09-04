@@ -33,6 +33,16 @@ export function programs(plan: MigrationPlan): Fts5MigrationInputs {
       continue
     }
 
+    // Inline/contentless indexes cannot be reconstructed from an external source after DROP.
+    // Leave these replacements to an explicit caller-supplied data-preserving custom program.
+    if (
+      operation.type !== "add" &&
+      operation.type !== "remove" &&
+      (!before?.rebuildable || !after?.rebuildable)
+    ) {
+      continue
+    }
+
     const statements =
       operation.type === "remove"
         ? before?.statements.uninstall
@@ -115,6 +125,7 @@ const fts5Data = (
 ):
   | {
       readonly name: string
+      readonly rebuildable: boolean
       readonly statements: {
         readonly install: readonly string[]
         readonly uninstall: readonly string[]
@@ -151,6 +162,7 @@ const fts5Data = (
 
   return {
     name: typeof data.name === "string" ? data.name : (object.physicalName ?? object.id),
+    rebuildable: isSnapshotRecord(data.content),
     statements: {
       install,
       uninstall,
