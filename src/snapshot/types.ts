@@ -200,9 +200,7 @@ export interface SnapshotValidationContext {
  * only selects that schema dialect, so PostgreSQL, SQLite, and MySQL can share the query rendering
  * policy without taking ownership of canonical ordering or cross-reference validation.
  */
-export interface SchemaSnapshotAdapter<
-  TCapabilities extends DialectCapability = DialectCapability,
-> {
+export interface SchemaSnapshotAdapter<TCapabilities extends string = DialectCapability> {
   /** The query dialect plus its schema hooks and metadata. */
   readonly dialect: SchemaDialect<TCapabilities>
 }

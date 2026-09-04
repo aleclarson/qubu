@@ -264,6 +264,18 @@ importers:
         specifier: workspace:*
         version: link:../..
 
+  packages/sqlite-fts5:
+    devDependencies:
+      '@qubu/migrate':
+        specifier: workspace:*
+        version: link:../migrate
+      '@types/node':
+        specifier: ^24.6.2
+        version: 24.6.2
+      qubu:
+        specifier: workspace:*
+        version: link:../..
+
 packages:
 
   '@alloc/cmd-ts@0.17.1':

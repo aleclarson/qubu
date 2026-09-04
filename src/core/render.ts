@@ -1,6 +1,6 @@
 import { standardDialect } from "../dialects/standard.ts"
 import type { QueryTypeValidation } from "../query/errors.ts"
-import type { Dialect, DialectCapability } from "./dialect.ts"
+import type { Dialect } from "./dialect.ts"
 import type { AnyFragment, CapabilitiesOf, RenderContext } from "./fragment.ts"
 import type { SqlTypeName } from "./sql-types.ts"
 
@@ -13,18 +13,18 @@ export interface RenderedQuery {
   readonly parameterSqlTypes?: readonly (SqlTypeName | undefined)[]
 }
 
-export interface RenderOptions<TCapabilities extends DialectCapability = DialectCapability> {
+export interface RenderOptions<TCapabilities extends string = string> {
   readonly dialect?: Dialect<TCapabilities>
 }
 
 type IsAny<T> = 0 extends 1 & T ? true : false
 
-type MissingCapabilities<TQuery, TCapabilities extends DialectCapability> =
+type MissingCapabilities<TQuery, TCapabilities extends string> =
   IsAny<CapabilitiesOf<TQuery>> extends true
     ? never
     : Exclude<CapabilitiesOf<TQuery>, TCapabilities>
 
-export type RenderCapabilityValidation<TQuery, TCapabilities extends DialectCapability> = [
+export type RenderCapabilityValidation<TQuery, TCapabilities extends string> = [
   MissingCapabilities<TQuery, TCapabilities>,
 ] extends [never]
   ? unknown
@@ -38,11 +38,14 @@ export type RenderCapabilityValidation<TQuery, TCapabilities extends DialectCapa
 export function render<TQuery extends AnyFragment>(
   query: TQuery & RenderCapabilityValidation<TQuery, DefaultDialectCapability>,
 ): RenderedQuery
-export function render<TQuery extends AnyFragment, TCapabilities extends DialectCapability>(
+export function render<TQuery extends AnyFragment, TCapabilities extends string>(
   query: TQuery & RenderCapabilityValidation<TQuery, TCapabilities>,
   options: RenderOptions<TCapabilities> | Dialect<TCapabilities>,
 ): RenderedQuery
-export function render(query: AnyFragment, options: RenderOptions | Dialect = {}): RenderedQuery {
+export function render(
+  query: AnyFragment,
+  options: RenderOptions<string> | Dialect<string> = {},
+): RenderedQuery {
   const dialect = isDialect(options) ? options : (options.dialect ?? standardDialect())
   const parameters: unknown[] = []
   const parameterSqlTypes: (SqlTypeName | undefined)[] = []
@@ -90,6 +93,6 @@ export function render(query: AnyFragment, options: RenderOptions | Dialect = {}
   })
 }
 
-function isDialect(value: RenderOptions | Dialect): value is Dialect {
+function isDialect(value: RenderOptions<string> | Dialect<string>): value is Dialect<string> {
   return "placeholder" in value && "quoteIdentifier" in value
 }

@@ -1,0 +1,50 @@
+{
+  "name": "@qubu/sqlite-fts5",
+  "version": "0.6.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aleclarson/qubu",
+    "directory": "packages/sqlite-fts5"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./migration": "./src/migration.ts",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.mts",
+        "import": "./dist/index.mjs"
+      },
+      "./migration": {
+        "types": "./dist/migration.d.mts",
+        "import": "./dist/migration.mjs"
+      },
+      "./package.json": "./package.json"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest --run",
+    "typecheck": "vitest --typecheck --run"
+  },
+  "devDependencies": {
+    "@qubu/migrate": "workspace:*",
+    "@types/node": "^24.6.2",
+    "qubu": "workspace:*"
+  },
+  "peerDependencies": {
+    "@qubu/migrate": "0.6.0",
+    "qubu": "0.6.0"
+  },
+  "peerDependenciesMeta": {
+    "@qubu/migrate": {
+      "optional": true
+    }
+  }
+}
