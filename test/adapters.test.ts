@@ -34,6 +34,21 @@ function request(
 }
 
 describe("workspace adapters", () => {
+  test("RDS Data API rejects schema configuration before queries or transactions", async () => {
+    const send = vi.fn()
+    const adapter = rdsDataApiPostgresAdapter({ send } as never, {
+      resourceArn: "test-cluster",
+      secretArn: "test-secret",
+      schema: "public",
+    })
+
+    await expect(adapter.execute(request("select"))).rejects.toThrow(/qualify schema identifiers/)
+    await expect(adapter.transaction(async () => undefined)).rejects.toThrow(
+      /qualify schema identifiers/,
+    )
+    expect(send).not.toHaveBeenCalled()
+  })
+
   test("node:sqlite executes rows and mutation facts", async () => {
     const database = new DatabaseSync(":memory:")
 

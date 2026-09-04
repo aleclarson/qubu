@@ -122,6 +122,7 @@ export function createRdsDataApiAdapter<TEngine extends RdsDataApiEngine>(
       transactionOptions: TransactionOptions = {},
     ): Promise<T> {
       throwIfAborted(transactionOptions.signal)
+      assertStatementSchemaSupported(options)
       const begin = await sendCommand<BeginTransactionCommandOutput>(
         client,
         new BeginTransactionCommand(transactionInput(options)),
@@ -197,7 +198,7 @@ async function executeRequest<TRow extends object>(
   transactionId?: string,
 ): Promise<ExecutionResult<TRow>> {
   throwIfAborted(request.signal)
-  assertStatementSchemaSupported(options, transactionId)
+  assertStatementSchemaSupported(options)
   const response = await sendCommand<ExecuteStatementCommandOutput>(
     client,
     new ExecuteStatementCommand(statementInput(options, encoder, request, transactionId)),
@@ -217,13 +218,10 @@ async function executeRequest<TRow extends object>(
   } satisfies ExecutionResult<TRow>
 }
 
-function assertStatementSchemaSupported(
-  options: RdsDataApiAdapterOptions,
-  transactionId: string | undefined,
-): void {
-  if (options.schema !== undefined && transactionId === undefined) {
+function assertStatementSchemaSupported(options: RdsDataApiAdapterOptions): void {
+  if (options.schema !== undefined) {
     throw new Error(
-      "AWS RDS Data API does not support schema on ExecuteStatement; use a transaction or qualify schema identifiers in SQL",
+      "AWS RDS Data API does not support the schema parameter; qualify schema identifiers in SQL",
     )
   }
 }
@@ -265,7 +263,6 @@ function transactionInput(options: RdsDataApiAdapterOptions) {
     resourceArn: options.resourceArn,
     secretArn: options.secretArn,
     ...(options.database === undefined ? {} : { database: options.database }),
-    ...(options.schema === undefined ? {} : { schema: options.schema }),
   }
 }
 
