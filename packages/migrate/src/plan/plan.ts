@@ -454,11 +454,12 @@ function makeOperation(
 function preconditionsFor(source: SnapshotDiffOperation): readonly MigrationPrecondition[] {
   const object = source.before ?? source.after
   const base = {
-    path: source.path,
-    kind: source.objectKind,
-    ...(source.namespace === undefined ? {} : { namespace: source.namespace }),
-    ...(source.logicalId === undefined ? {} : { logicalId: source.logicalId }),
-    ...(source.physicalName === undefined ? {} : { physicalName: source.physicalName }),
+    path: object?.path ?? source.path,
+    kind: object?.kind ?? source.objectKind,
+    ...(object?.namespace === undefined ? {} : { namespace: object.namespace }),
+    ...(object?.id === undefined ? {} : { logicalId: object.id }),
+    ...(object?.physicalName === undefined ? {} : { physicalName: object.physicalName }),
+    ...(object?.parent === undefined ? {} : { parent: object.parent }),
   }
 
   if (source.type === "add") {
@@ -2102,7 +2103,7 @@ function validatePreconditions(
       ["type", "path", "kind"],
       itemPath,
       diagnostics,
-      ["namespace", "logicalId", "physicalName", "fingerprint", "property", "value"],
+      ["namespace", "logicalId", "physicalName", "fingerprint", "property", "parent", "value"],
     )
     if (
       precondition.type !== "snapshot-fingerprint" &&
@@ -2141,6 +2142,38 @@ function validatePreconditions(
         planDiagnostic("invalid-plan", "Precondition fingerprint must be a string", [
           ...itemPath,
           "fingerprint",
+        ]),
+      )
+    }
+    if (precondition.parent !== undefined) {
+      if (
+        !isRecord(precondition.parent) ||
+        !isObjectKind(precondition.parent.kind) ||
+        typeof precondition.parent.id !== "string" ||
+        (precondition.parent.namespace !== undefined &&
+          typeof precondition.parent.namespace !== "string")
+      ) {
+        diagnostics.push(
+          planDiagnostic("invalid-plan", "Precondition parent reference is invalid", [
+            ...itemPath,
+            "parent",
+          ]),
+        )
+      }
+    }
+    if (precondition.type === "property-equals" && precondition.property === undefined) {
+      diagnostics.push(
+        planDiagnostic("invalid-plan", "Property preconditions require a property path", [
+          ...itemPath,
+          "property",
+        ]),
+      )
+    }
+    if (precondition.type === "property-equals" && precondition.value === undefined) {
+      diagnostics.push(
+        planDiagnostic("invalid-plan", "Property preconditions require a value", [
+          ...itemPath,
+          "value",
         ]),
       )
     }

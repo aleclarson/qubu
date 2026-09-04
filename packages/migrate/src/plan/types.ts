@@ -4,6 +4,7 @@ import type {
   SnapshotDiffEvidence,
   SnapshotDiffObject,
   SnapshotDiffObjectKind,
+  SnapshotDiffObjectReference,
   SnapshotDiffOperationType,
   SnapshotDiffPath,
 } from "qubu/diff"
@@ -49,6 +50,7 @@ export interface MigrationPrecondition {
   readonly physicalName?: string
   readonly fingerprint?: string
   readonly property?: SnapshotDiffPath
+  readonly parent?: SnapshotDiffObjectReference
   readonly value?: SnapshotJsonValue
 }
 

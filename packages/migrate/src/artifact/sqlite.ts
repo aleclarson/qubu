@@ -147,14 +147,28 @@ function compileRebuildProgram(
         {
           id: `${tableId}-source-present`,
           type: "object-present",
-          value: { kind: "table", physicalName: source.physicalName },
+          value: {
+            type: "object-present",
+            path: ["tables"],
+            kind: "table",
+            namespace: before.namespace.name,
+            logicalId: source.id,
+            physicalName: source.physicalName,
+          },
         },
       ],
       postconditions: [
         {
           id: `${tableId}-target-present`,
           type: "object-present",
-          value: { kind: "table", physicalName: target.physicalName },
+          value: {
+            type: "object-present",
+            path: ["tables"],
+            kind: "table",
+            namespace: after.namespace.name,
+            logicalId: target.id,
+            physicalName: target.physicalName,
+          },
         },
       ],
     })

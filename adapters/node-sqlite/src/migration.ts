@@ -22,6 +22,7 @@ import {
   type PhaseCheckpoint,
   type ReconciliationRecord,
 } from "@qubu/migrate/journal"
+import { evaluateMigrationPrecondition } from "@qubu/migrate/plan"
 import type { SchemaSnapshot, SnapshotJsonValue } from "qubu/snapshot"
 
 const prefix = "__qubu_migration_"
@@ -99,6 +100,7 @@ class NodeSqliteMigrationSession implements MigrationSession {
   #transaction = false
   #closed = false
   #ddlLock = false
+  #expectedSnapshot: SchemaSnapshot | undefined
 
   constructor(
     readonly database: DatabaseSync,
@@ -183,6 +185,10 @@ class NodeSqliteMigrationSession implements MigrationSession {
     this.database.prepare(sql).run(...parameters.map(decodeParameter))
   }
   async checkCondition(condition: ProgramCondition): Promise<boolean> {
+    if (condition.type === "snapshot-fingerprint") {
+      const { snapshot } = await this.readSnapshot(this.#expectedSnapshot)
+      return evaluateMigrationPrecondition(snapshot, condition.value)
+    }
     if (condition.type === "snapshot-digest") {
       return (
         isSha256Digest(condition.value) && (await this.currentSnapshotDigest()) === condition.value
@@ -197,16 +203,15 @@ class NodeSqliteMigrationSession implements MigrationSession {
       return truthy(row?.[Object.keys(row ?? {})[0]!])
     }
 
-    const value = asObject(condition.value)
-    const name = typeof value?.physicalName === "string" ? value.physicalName : undefined
-    const kind = typeof value?.kind === "string" ? value.kind : undefined
-
-    if (!name || !kind) {
-      return false
+    if (
+      condition.type === "object-present" ||
+      condition.type === "object-absent" ||
+      condition.type === "property-equals"
+    ) {
+      const { snapshot } = await this.readSnapshot(this.#expectedSnapshot)
+      return evaluateMigrationPrecondition(snapshot, condition.value)
     }
-    const present = objectPresent(this.database, kind, name, value!)
-
-    return condition.type === "object-present" ? present : !present
+    return false
   }
   async readSnapshot(expected?: SchemaSnapshot): Promise<MigrationSnapshotInspection> {
     const value = await this.options.readSnapshot(this.database, expected)
@@ -222,6 +227,7 @@ class NodeSqliteMigrationSession implements MigrationSession {
         }
   }
   async currentSnapshotDigest(expected?: SchemaSnapshot): Promise<Sha256Digest> {
+    if (expected !== undefined) this.#expectedSnapshot = expected
     const value = await this.options.readSnapshot(this.database, expected)
 
     if (isSha256Digest(value)) {
@@ -531,32 +537,6 @@ function decodeParameter(value: TaggedParameterValue): SQLInputValue {
   }
 }
 
-function objectPresent(
-  database: DatabaseSync,
-  kind: string,
-  name: string,
-  value: Record<string, unknown>,
-): boolean {
-  if (kind === "column") {
-    const path = Array.isArray(value.path) ? value.path : []
-    const table = typeof path[0] === "string" ? path[0] : undefined
-
-    return (
-      !!table &&
-      database.prepare("SELECT 1 FROM pragma_table_xinfo(?) WHERE name = ?").get(table, name) !==
-        undefined
-    )
-  }
-
-  const type =
-    kind === "index" ? "index" : kind === "view" ? "view" : kind === "trigger" ? "trigger" : "table"
-
-  return (
-    database.prepare("SELECT 1 FROM sqlite_schema WHERE type = ? AND name = ?").get(type, name) !==
-    undefined
-  )
-}
-
 function text(value: unknown): string {
   if (typeof value !== "string") {
     throw new Error("Invalid migration journal text")
@@ -573,12 +553,6 @@ function digest(value: unknown): Sha256Digest {
 
 function nullableDigest(value: unknown): Sha256Digest | null {
   return value == null ? null : digest(value)
-}
-
-function asObject(value: SnapshotJsonValue): Record<string, unknown> | undefined {
-  return value !== null && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined
 }
 
 function isInspection(value: unknown): value is MigrationSnapshotInspection {
@@ -602,15 +576,20 @@ function failureCode(error: unknown): string | undefined {
 
 function delay(milliseconds: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(resolve, milliseconds)
+    if (signal?.aborted) {
+      reject(signal.reason)
+      return
+    }
 
-    signal?.addEventListener(
-      "abort",
-      () => {
-        clearTimeout(timer)
-        reject(signal.reason)
-      },
-      { once: true },
-    )
+    const onAbort = () => {
+      clearTimeout(timer)
+      signal?.removeEventListener("abort", onAbort)
+      reject(signal?.reason)
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort)
+      resolve()
+    }, milliseconds)
+    signal?.addEventListener("abort", onAbort, { once: true })
   })
 }
