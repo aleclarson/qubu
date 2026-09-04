@@ -25,7 +25,8 @@ import {
 import { evaluateMigrationPrecondition } from "@qubu/migrate/plan"
 import { mapCatalogToSnapshot } from "qubu/introspection"
 import { readCatalog } from "qubu/introspection/sqlite"
-import type { SchemaSnapshot, SnapshotJsonValue } from "qubu/snapshot"
+import { assertSchemaSnapshot } from "qubu/snapshot"
+import type { SchemaSnapshot, SchemaSnapshotInput, SnapshotJsonValue } from "qubu/snapshot"
 
 const metadataTable = "__qubu_migration_metadata"
 const appliedTable = "__qubu_migration_applied"
@@ -33,6 +34,11 @@ const attemptsTable = "__qubu_migration_attempts"
 const checkpointsTable = "__qubu_migration_checkpoints"
 const reconciliationsTable = "__qubu_migration_reconciliations"
 const leaseTable = "__qubu_migration_lease"
+const checkpointUniqueIndex = "__qubu_migration_checkpoints_unique"
+const defaultLeasePollMilliseconds = 10
+const defaultLeaseDurationMilliseconds = 30_000
+const minimumLeaseDurationMilliseconds = 1_000
+const databaseNowMilliseconds = "CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)"
 
 interface Executor {
   execute(statement: InStatement | string): Promise<ResultSet>
@@ -51,6 +57,8 @@ export interface LibsqlMigrationAdapterOptions {
   /** Read the managed live snapshot. Qubu journal objects must be excluded by the reader. */
   readonly readSnapshot?: LibsqlMigrationSnapshotReader
   readonly leasePollMilliseconds?: number
+  /** Duration of a database lease before an owner must renew it. */
+  readonly leaseDurationMilliseconds?: number
 }
 
 export interface LibsqlMigrationAdapter extends MigrationAdapter {
@@ -63,10 +71,18 @@ export function libsqlMigrationAdapter(
   options: LibsqlMigrationAdapterOptions = {},
 ): LibsqlMigrationAdapter {
   if (
-    !Number.isFinite(options.leasePollMilliseconds ?? 10) ||
-    (options.leasePollMilliseconds ?? 10) < 0
+    !Number.isFinite(options.leasePollMilliseconds ?? defaultLeasePollMilliseconds) ||
+    (options.leasePollMilliseconds ?? defaultLeasePollMilliseconds) < 0
   )
     throw new TypeError("leasePollMilliseconds must be a non-negative finite number")
+  if (
+    !Number.isFinite(options.leaseDurationMilliseconds ?? defaultLeaseDurationMilliseconds) ||
+    (options.leaseDurationMilliseconds ?? defaultLeaseDurationMilliseconds) <
+      minimumLeaseDurationMilliseconds
+  )
+    throw new TypeError(
+      `leaseDurationMilliseconds must be a finite number of at least ${minimumLeaseDurationMilliseconds}`,
+    )
 
   return {
     client,
@@ -183,8 +199,14 @@ class LibsqlMigrationSession implements MigrationSession {
   readonly #leaseToken = crypto.randomUUID()
   readonly #client: Client
   readonly #options: LibsqlMigrationAdapterOptions
+  readonly #leaseDurationMilliseconds: number
+  readonly #leaseHeartbeatMilliseconds: number
   #transaction: Transaction | undefined
   #leased = false
+  #leaseStarted = false
+  #leaseTimer: ReturnType<typeof setInterval> | undefined
+  #leaseRenewal: Promise<void> | undefined
+  #leaseError: Error | undefined
   #closed = false
   #ddlLock = false
   #expectedSnapshot: SchemaSnapshot | undefined
@@ -192,42 +214,67 @@ class LibsqlMigrationSession implements MigrationSession {
   constructor(client: Client, options: LibsqlMigrationAdapterOptions) {
     this.#client = client
     this.#options = options
+    const leaseDurationMilliseconds =
+      options.leaseDurationMilliseconds ?? defaultLeaseDurationMilliseconds
+    this.#leaseDurationMilliseconds = Math.ceil(leaseDurationMilliseconds)
+    this.#leaseHeartbeatMilliseconds = Math.max(250, Math.floor(leaseDurationMilliseconds / 3))
     this.journal = new LibsqlMigrationJournal(
       client,
       () => this.#executor(),
       () => this.#transaction,
+      () => this.#assertLease(),
     )
   }
 
   async acquireLease(signal?: AbortSignal): Promise<void> {
     this.#open()
+    this.#leaseStarted = true
     while (!this.#leased) {
       signal?.throwIfAborted()
       try {
-        await this.#client.execute({
-          sql: `INSERT INTO ${leaseTable} (singleton, owner) VALUES (1, ?)`,
-          args: [this.#leaseToken],
+        const result = await this.#client.execute({
+          sql: `INSERT INTO ${leaseTable} (singleton, owner, expires_at)
+            VALUES (1, ?, ${databaseNowMilliseconds} + ?)
+            ON CONFLICT(singleton) DO UPDATE SET
+              owner = excluded.owner,
+              expires_at = excluded.expires_at
+            WHERE ${leaseTable}.expires_at <= ${databaseNowMilliseconds}`,
+          args: [this.#leaseToken, this.#leaseDurationMilliseconds],
         })
-        this.#leased = true
-      } catch (error) {
-        const owner = await leaseOwner(this.#client)
-        if (owner === this.#leaseToken) {
+        if (result.rowsAffected === 1) {
           this.#leased = true
-          continue
+          this.#leaseError = undefined
+          this.#startLeaseHeartbeat()
+          return
         }
-        if (owner === undefined) throw error
-        await delay(this.#options.leasePollMilliseconds ?? 10, signal)
+      } catch (error) {
+        let state: LeaseState | undefined
+        try {
+          state = await leaseState(this.#client)
+        } catch {
+          throw error
+        }
+        if (state?.owner === this.#leaseToken && state.expiresAt > state.now) {
+          this.#leased = true
+          this.#leaseError = undefined
+          this.#startLeaseHeartbeat()
+          return
+        }
       }
+      await delay(this.#options.leasePollMilliseconds ?? defaultLeasePollMilliseconds, signal)
     }
   }
 
   async releaseLease(): Promise<void> {
     if (!this.#leased) return
+    this.#stopLeaseHeartbeat()
+    await this.#leaseRenewal?.catch(() => undefined)
     await this.#client.execute({
       sql: `DELETE FROM ${leaseTable} WHERE singleton = 1 AND owner = ?`,
       args: [this.#leaseToken],
     })
     this.#leased = false
+    this.#leaseError = undefined
   }
 
   async acquireDdlLock(requirement: "shared" | "exclusive"): Promise<void> {
@@ -245,11 +292,13 @@ class LibsqlMigrationSession implements MigrationSession {
   async beginTransaction(): Promise<void> {
     this.#open()
     if (this.#transaction) throw new Error("A migration transaction is already active")
+    await this.#assertLease()
     this.#transaction = await this.#client.transaction("write")
   }
 
   async commitTransaction(): Promise<void> {
     const transaction = this.#requiredTransaction()
+    await this.#assertLease()
     try {
       await transaction.commit()
     } finally {
@@ -301,29 +350,26 @@ class LibsqlMigrationSession implements MigrationSession {
 
   async readSnapshot(expected?: SchemaSnapshot): Promise<MigrationSnapshotInspection> {
     this.#open()
-    const snapshot = await (this.#options.readSnapshot ?? readLibsqlMigrationSnapshot)(
-      this.#executor(),
-      expected,
+    const snapshot = normalizeSnapshot(
+      await (this.#options.readSnapshot ?? readLibsqlMigrationSnapshot)(this.#executor(), expected),
     )
     if (isSha256Digest(snapshot)) {
       throw new TypeError("The configured snapshot reader returned only a digest")
     }
-    if (isInspection(snapshot)) return snapshot
-    return { snapshot: snapshot as SchemaSnapshot, unmanagedObjects: [] }
+    return snapshot
   }
 
   async currentSnapshotDigest(expected?: SchemaSnapshot): Promise<Sha256Digest> {
     this.#open()
     if (expected !== undefined) this.#expectedSnapshot = expected
-    const snapshot = await (this.#options.readSnapshot ?? readLibsqlMigrationSnapshot)(
-      this.#executor(),
-      expected,
+    const snapshot = normalizeSnapshot(
+      await (this.#options.readSnapshot ?? readLibsqlMigrationSnapshot)(this.#executor(), expected),
     )
     if (isSha256Digest(snapshot)) return snapshot
-    const value = isInspection(snapshot) ? snapshot.snapshot : snapshot
-    if (expected && isSchemaSnapshot(value) && compareManagedSnapshots(expected, value).matches)
+    const value = snapshot.snapshot
+    if (expected && compareManagedSnapshots(expected, value).matches)
       return digestCanonical("schema-snapshot", expected as unknown as SnapshotJsonValue)
-    return digestCanonical("schema-snapshot", value as SnapshotJsonValue)
+    return digestCanonical("schema-snapshot", value as unknown as SnapshotJsonValue)
   }
 
   async close(): Promise<void> {
@@ -359,7 +405,13 @@ class LibsqlMigrationSession implements MigrationSession {
 
   #executor(): Executor {
     this.#open()
-    return this.#transaction ?? this.#client
+    const executor = this.#transaction ?? this.#client
+    return {
+      execute: async (statement) => {
+        await this.#assertLease()
+        return executor.execute(statement)
+      },
+    }
   }
   #requiredTransaction(): Transaction {
     this.#open()
@@ -369,6 +421,70 @@ class LibsqlMigrationSession implements MigrationSession {
   #open(): void {
     if (this.#closed) throw new Error("Migration session is closed")
   }
+  #startLeaseHeartbeat(): void {
+    if (this.#leaseTimer) return
+    this.#leaseTimer = setInterval(() => {
+      if (this.#leaseRenewal || !this.#leased || this.#closed) return
+      const renewal = this.#renewLease()
+      this.#leaseRenewal = renewal
+      void renewal.then(
+        () => {
+          if (this.#leaseRenewal === renewal) this.#leaseRenewal = undefined
+        },
+        (error: unknown) => {
+          this.#markLeaseLost(error)
+          if (this.#leaseRenewal === renewal) this.#leaseRenewal = undefined
+        },
+      )
+    }, this.#leaseHeartbeatMilliseconds)
+  }
+  #stopLeaseHeartbeat(): void {
+    if (this.#leaseTimer) clearInterval(this.#leaseTimer)
+    this.#leaseTimer = undefined
+  }
+  async #renewLease(): Promise<void> {
+    const result = await this.#client.execute({
+      sql: `UPDATE ${leaseTable}
+        SET expires_at = ${databaseNowMilliseconds} + ?
+        WHERE singleton = 1 AND owner = ? AND expires_at > ${databaseNowMilliseconds}`,
+      args: [this.#leaseDurationMilliseconds, this.#leaseToken],
+    })
+    if (result.rowsAffected !== 1) throw new Error("The libSQL migration lease was lost")
+  }
+  async #assertLease(): Promise<void> {
+    this.#open()
+    if (!this.#leaseStarted) return
+    if (!this.#leased) throw this.#leaseError ?? new Error("The migration session has no lease")
+    if (this.#leaseError) throw this.#leaseError
+
+    let state: LeaseState | undefined
+    try {
+      state = await leaseState(this.#client)
+    } catch (error) {
+      this.#markLeaseLost(error)
+      throw error
+    }
+    if (!state || state.owner !== this.#leaseToken || state.expiresAt <= state.now) {
+      const error = new Error("The libSQL migration lease is no longer held")
+      this.#markLeaseLost(error)
+      throw error
+    }
+    if (state.expiresAt - state.now <= this.#leaseHeartbeatMilliseconds) {
+      try {
+        await this.#renewLease()
+      } catch (error) {
+        this.#markLeaseLost(error)
+        throw error
+      }
+    }
+  }
+  #markLeaseLost(error: unknown): void {
+    this.#leaseError ??=
+      error instanceof Error
+        ? error
+        : new Error("The libSQL migration lease was lost", { cause: error })
+    this.#stopLeaseHeartbeat()
+  }
 }
 
 class LibsqlMigrationJournal implements MigrationJournal {
@@ -376,6 +492,7 @@ class LibsqlMigrationJournal implements MigrationJournal {
     readonly client: Client,
     readonly executor: () => Executor,
     readonly transaction: () => Transaction | undefined,
+    readonly assertLease: () => Promise<void>,
   ) {}
 
   async readMetadata(): Promise<JournalMetadata> {
@@ -510,12 +627,18 @@ class LibsqlMigrationJournal implements MigrationJournal {
   ): Promise<boolean> {
     const active = this.transaction()
     if (active) {
-      return this.appendAndAdvance(active, value, expected)
+      return this.appendAndAdvance(guardedExecutor(active, this.assertLease), value, expected)
     }
 
+    await this.assertLease()
     const transaction = await this.client.transaction("write")
     try {
-      const advanced = await this.appendAndAdvance(transaction, value, expected)
+      const advanced = await this.appendAndAdvance(
+        guardedExecutor(transaction, this.assertLease),
+        value,
+        expected,
+      )
+      await this.assertLease()
       await transaction.commit()
       return advanced
     } catch (error) {
@@ -582,15 +705,25 @@ class LibsqlMigrationJournal implements MigrationJournal {
   }
 }
 
+function guardedExecutor(executor: Executor, assertLease: () => Promise<void>): Executor {
+  return {
+    execute: async (statement) => {
+      await assertLease()
+      return executor.execute(statement)
+    },
+  }
+}
+
 async function initializeJournal(client: Client): Promise<void> {
   await client.batch(
     [
       `CREATE TABLE IF NOT EXISTS ${metadataTable} (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), format TEXT NOT NULL, version INTEGER NOT NULL, head TEXT)`,
       `CREATE TABLE IF NOT EXISTS ${appliedTable} (artifact_id TEXT PRIMARY KEY, sequence INTEGER NOT NULL UNIQUE, artifact_digest TEXT NOT NULL UNIQUE, parent_artifact_digest TEXT, kind TEXT NOT NULL CHECK (kind IN ('migration', 'baseline')), attempt_id TEXT NOT NULL UNIQUE, applied_at TEXT NOT NULL)`,
       `CREATE TABLE IF NOT EXISTS ${attemptsTable} (id TEXT PRIMARY KEY, artifact_id TEXT NOT NULL, artifact_digest TEXT NOT NULL, expected_head TEXT, state TEXT NOT NULL CHECK (state IN ('started', 'running', 'applied', 'rolled_back', 'recovery_required')), started_at TEXT NOT NULL, updated_at TEXT NOT NULL, error TEXT)`,
-      `CREATE TABLE IF NOT EXISTS ${checkpointsTable} (attempt_id TEXT NOT NULL, phase_id TEXT NOT NULL, statement_id TEXT, status TEXT NOT NULL CHECK (status IN ('started', 'completed')), recorded_at TEXT NOT NULL, UNIQUE (attempt_id, phase_id, statement_id, status))`,
+      `CREATE TABLE IF NOT EXISTS ${checkpointsTable} (attempt_id TEXT NOT NULL, phase_id TEXT NOT NULL, statement_id TEXT, status TEXT NOT NULL CHECK (status IN ('started', 'completed')), recorded_at TEXT NOT NULL)`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS ${checkpointUniqueIndex} ON ${checkpointsTable} (attempt_id, phase_id, COALESCE(statement_id, ''), status)`,
       `CREATE TABLE IF NOT EXISTS ${reconciliationsTable} (attempt_id TEXT PRIMARY KEY, outcome TEXT NOT NULL CHECK (outcome IN ('applied', 'rolled_back')), reason TEXT NOT NULL, reconciled_at TEXT NOT NULL)`,
-      `CREATE TABLE IF NOT EXISTS ${leaseTable} (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), owner TEXT NOT NULL)`,
+      `CREATE TABLE IF NOT EXISTS ${leaseTable} (singleton INTEGER PRIMARY KEY CHECK (singleton = 1), owner TEXT NOT NULL, expires_at INTEGER NOT NULL)`,
       {
         sql: `INSERT OR IGNORE INTO ${metadataTable} (singleton, format, version, head) VALUES (1, ?, ?, NULL)`,
         args: [migrationJournalFormat, migrationJournalVersion],
@@ -598,12 +731,41 @@ async function initializeJournal(client: Client): Promise<void> {
     ],
     "write",
   )
+  await ensureLeaseExpirationColumn(client)
 }
 
-async function leaseOwner(client: Client): Promise<string | undefined> {
-  const result = await client.execute(`SELECT owner FROM ${leaseTable} WHERE singleton = 1`)
-  const owner = result.rows[0]?.owner
-  return typeof owner === "string" ? owner : undefined
+async function ensureLeaseExpirationColumn(client: Client): Promise<void> {
+  const tableInfo = await client.execute(`PRAGMA table_info(${leaseTable})`)
+  if (tableInfo.rows.some((row) => row.name === "expires_at")) return
+
+  try {
+    await client.execute(
+      `ALTER TABLE ${leaseTable} ADD COLUMN expires_at INTEGER NOT NULL DEFAULT 0`,
+    )
+  } catch (error) {
+    const refreshed = await client.execute(`PRAGMA table_info(${leaseTable})`)
+    if (!refreshed.rows.some((row) => row.name === "expires_at")) throw error
+  }
+}
+
+interface LeaseState {
+  readonly owner: string
+  readonly expiresAt: number
+  readonly now: number
+}
+
+async function leaseState(client: Client): Promise<LeaseState | undefined> {
+  const result = await client.execute(
+    `SELECT owner, expires_at, ${databaseNowMilliseconds} AS now FROM ${leaseTable} WHERE singleton = 1`,
+  )
+  const row = first(result)
+  if (!row) return undefined
+  if (typeof row.owner !== "string") throw new Error("Invalid migration lease owner")
+  return {
+    owner: row.owner,
+    expiresAt: number(row.expires_at),
+    now: number(row.now),
+  }
 }
 
 function decodeParameter(value: TaggedParameterValue): InValue {
@@ -636,9 +798,15 @@ function string(value: unknown): string {
   return value
 }
 function number(value: unknown): number {
-  if (typeof value !== "number" && typeof value !== "bigint")
+  if (
+    typeof value !== "number" &&
+    typeof value !== "bigint" &&
+    (typeof value !== "string" || value.trim() === "")
+  )
     throw new Error("Invalid migration journal number")
-  return Number(value)
+  const result = Number(value)
+  if (!Number.isFinite(result)) throw new Error("Invalid migration journal number")
+  return result
 }
 function digest(value: unknown): Sha256Digest {
   if (!isSha256Digest(value)) throw new Error("Invalid migration journal digest")
@@ -647,24 +815,42 @@ function digest(value: unknown): Sha256Digest {
 function nullableDigest(value: unknown): Sha256Digest | null {
   return value == null ? null : digest(value)
 }
-function isInspection(value: unknown): value is MigrationSnapshotInspection {
+function isInspection(value: unknown): value is {
+  readonly snapshot: unknown
+  readonly unmanagedObjects: readonly unknown[]
+} {
   return (
     value !== null &&
     typeof value === "object" &&
     "snapshot" in value &&
     "unmanagedObjects" in value &&
-    Array.isArray((value as MigrationSnapshotInspection).unmanagedObjects)
+    Array.isArray(value.unmanagedObjects)
   )
 }
-function isSchemaSnapshot(value: unknown): value is SchemaSnapshot {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    "format" in value &&
-    value.format === "qubu-schema" &&
-    "version" in value &&
-    value.version === 1
-  )
+function normalizeSnapshot(
+  value: SnapshotJsonValue | SchemaSnapshot | Sha256Digest | MigrationSnapshotInspection,
+): Sha256Digest | MigrationSnapshotInspection {
+  if (isSha256Digest(value)) return value
+  if (isInspection(value)) {
+    const unmanagedObjects = value.unmanagedObjects.map((item, index) => {
+      if (
+        item === null ||
+        typeof item !== "object" ||
+        typeof item.kind !== "string" ||
+        typeof item.physicalName !== "string"
+      )
+        throw new TypeError(`Invalid unmanaged snapshot object at index ${index}`)
+      return Object.freeze({ kind: item.kind, physicalName: item.physicalName })
+    })
+    return Object.freeze({
+      snapshot: assertSchemaSnapshot(value.snapshot as SchemaSnapshotInput),
+      unmanagedObjects: Object.freeze(unmanagedObjects),
+    })
+  }
+  return Object.freeze({
+    snapshot: assertSchemaSnapshot(value as SchemaSnapshotInput),
+    unmanagedObjects: Object.freeze([]),
+  })
 }
 function truthy(value: unknown): boolean {
   return value === true || value === 1 || value === 1n || value === "1"
