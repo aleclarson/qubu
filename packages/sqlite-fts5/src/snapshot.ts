@@ -43,7 +43,20 @@ export function normalize(
       (object) => object.physicalName === definition.name,
     )
 
-    return observed !== undefined && sameSql(observedCreateSql(observed), definition.createSql)
+    return (
+      observed !== undefined &&
+      sameSql(observedCreateSql(observed), definition.createSql) &&
+      definition.triggerNames.every((name) => {
+        const trigger = snapshot.triggers.find((candidate) => candidate.physicalName === name)
+        const data = trigger?.dialect?.data
+        const rawSql = data !== undefined && isSnapshotRecord(data) ? data.rawSql : undefined
+        const expected = definition.installSql.find((sql) =>
+          sql.startsWith(`CREATE TRIGGER "${name.replaceAll('"', '""')}" `),
+        )
+
+        return typeof rawSql === "string" && expected !== undefined && sameSql(rawSql, expected)
+      })
+    )
   })
 
   return definitions.length === 0 ? snapshot : replaceManagedObjects(snapshot, definitions)
@@ -205,7 +218,8 @@ function sameSql(left: string | undefined, right: string): boolean {
 }
 
 function normalizeSql(sql: string): string {
-  return sql.trim().replace(/;+$/u, "").replace(/\s+/gu, " ").toLowerCase()
+  // Quoted tokenizers, identifiers, and literals must not be rewritten while comparing SQL.
+  return sql.trim().replace(/;+$/u, "")
 }
 
 function isSnapshotRecord(

@@ -7,6 +7,35 @@ import { fts5 } from "../src/index.ts"
 import { fts5Migration } from "../src/migration.ts"
 
 describe("fts5 migration integration", () => {
+  test("requires an explicit data-preserving program to replace inline FTS content", () => {
+    const before = fts5.snapshot.create(schema({}), [
+      fts5.table({
+        name: "search",
+        columns: { title: text() },
+        tokenize: "unicode61",
+      }),
+    ])
+    const after = fts5.snapshot.create(schema({}), [
+      fts5.table({
+        name: "search",
+        columns: { title: text() },
+        tokenize: "porter",
+      }),
+    ])
+    const diff = diffSnapshots(before, after)
+    const initial = createMigrationPlan(diff)
+    const reviewed = createMigrationPlan(diff, {
+      decisions: initial.plan.operations.map((operation) => ({
+        operationId: operation.id,
+        action: "allow" as const,
+        reason: "Review the tokenizer change",
+      })),
+    })
+
+    expect(fts5Migration.programs(reviewed.plan).customPrograms).toEqual([])
+    expect(fts5Migration.compile(reviewed.plan).ok).toBe(false)
+  })
+
   test("turns an addon opaque object into an approved custom program", () => {
     const documents = table("documents", {
       id: integer(),

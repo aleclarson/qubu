@@ -4,6 +4,56 @@ import { describe, expect, test } from "vitest"
 import { fts5 } from "../src/index.ts"
 
 describe("fts5 snapshots", () => {
+  test("preserves observed FTS tables when synchronization triggers are missing", () => {
+    const documents = table("documents", {
+      id: integer(),
+      title: text(),
+    })
+    const search = fts5.table({
+      name: "search",
+      content: documents,
+      contentRowid: documents.id,
+      columns: { title: documents.title },
+    })
+    const observed = {
+      ...fts5.snapshot.create(schema({ documents }), []),
+      deferredObjects: [
+        {
+          kind: "deferred-object" as const,
+          id: "search",
+          physicalName: "search",
+          objectKind: "virtual-table",
+          data: { createSql: search.fts5.createSql },
+        },
+      ],
+    }
+
+    expect(fts5.snapshot.normalize(observed, [search])).toBe(observed)
+    expect(observed.opaqueObjects).toHaveLength(0)
+  })
+
+  test("does not normalize different quoted FTS option values", () => {
+    const search = fts5.table({
+      name: "search",
+      columns: { title: text() },
+      tokenize: "unicode61 tokenchars 'X'",
+    })
+    const observed = {
+      ...fts5.snapshot.create(schema({}), []),
+      deferredObjects: [
+        {
+          kind: "deferred-object" as const,
+          id: "search",
+          physicalName: "search",
+          objectKind: "virtual-table",
+          data: { createSql: search.fts5.createSql.replace("X", "x") },
+        },
+      ],
+    }
+
+    expect(fts5.snapshot.normalize(observed, [search])).toBe(observed)
+  })
+
   test("records one addon-owned object with install and uninstall SQL", () => {
     const documents = table("documents", {
       id: integer(),
