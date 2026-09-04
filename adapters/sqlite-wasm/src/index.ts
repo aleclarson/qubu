@@ -11,6 +11,12 @@ import type {
   ExplainRequest,
   ExplainResult,
 } from "qubu"
+import {
+  booleanResultDecoder,
+  dateResultDecoder,
+  jsonTextResultDecoder,
+  timestampResultDecoder,
+} from "qubu"
 import { sqliteDialect } from "qubu/sqlite"
 
 /** Values accepted by the official SQLite WASM OO1 binding API. */
@@ -23,10 +29,7 @@ export type SqliteWasmPreparedStatement = Pick<
 >
 
 /** The official SQLite WASM OO1 database surface used by this adapter. */
-export type SqliteWasmDatabase = Pick<
-  OfficialSqliteWasmDatabase,
-  "changes" | "close" | "prepare" | "selectValue"
->
+export type SqliteWasmDatabase = Pick<OfficialSqliteWasmDatabase, "changes" | "close" | "prepare">
 
 export interface SqliteWasmAdapterOptions {
   /** Convert Qubu values before the official SQLite binding API receives them. */
@@ -61,6 +64,12 @@ export function sqliteWasmAdapter(
   return {
     database,
     dialect: sqliteDialect(),
+    decoders: {
+      boolean: booleanResultDecoder,
+      date: dateResultDecoder,
+      json: jsonTextResultDecoder,
+      timestamp: timestampResultDecoder,
+    },
     async execute<TRow extends object>(request: ExecutionRequest) {
       return executeRequest<TRow>(database, encoder, request, true)
     },
@@ -121,16 +130,8 @@ async function executeRequest<TRow extends object>(
     return { rows: rows as readonly TRow[] }
   }
 
-  const insertId =
-    request.queryKind === "insert" ? database.selectValue("SELECT last_insert_rowid()") : undefined
-
   return {
     rows: rows as readonly TRow[],
     affectedRows: database.changes(),
-    ...(isInsertId(insertId) ? { insertId } : {}),
   } satisfies ExecutionResult<TRow>
-}
-
-function isInsertId(value: unknown): value is string | number | bigint {
-  return typeof value === "string" || typeof value === "number" || typeof value === "bigint"
 }
