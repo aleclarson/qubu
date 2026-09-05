@@ -26,6 +26,12 @@ scopes Qubu transactions through the client's transaction callback. It can
 execute EXPLAIN statements, but it does not advertise streaming or in-flight
 cancellation because the serverless client does not expose those contracts.
 
+## Limitations
+
 This integration remains outside provider-backed CI until a sponsor or
 maintainer supplies disposable PlanetScale infrastructure and owns production
 hardening.
+
+No migration adapter is provided.
+No streaming or nested transaction/savepoint API is exposed. Abort signals
+are checked before calls and before commit, without cancelling in-flight SQL.

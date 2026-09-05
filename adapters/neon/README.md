@@ -23,6 +23,11 @@ advertise interactive transactions or streaming: Neon's HTTP query function
 is a single-request/non-interactive boundary. Abort signals are forwarded to
 the HTTP fetch request when supplied.
 
+## Limitations
+
 The package is intentionally kept outside provider-backed CI until a sponsor
 or maintainer supplies disposable Neon infrastructure and owns production
 hardening.
+
+No migration adapter is provided.
+Callback transactions and streaming are not exposed by this HTTP adapter.

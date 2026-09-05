@@ -25,13 +25,23 @@ try {
 
 The adapter prepares each rendered statement, binds Qubu's parameters in
 placeholder order, reads object rows, and finalizes the statement in a
-`finally` block. Mutations report SQLite's change count and the generated row
-identifier for inserts, including `RETURNING` rows when the statement has
-result columns. Use `SqliteWasmAdapterOptions.encoder` for application values
-that need conversion before SQLite binds them.
+`finally` block. Mutations report SQLite's change count and include `RETURNING`
+rows when the statement has result columns. Use `SqliteWasmAdapterOptions.encoder`
+for application values that need conversion before SQLite binds them.
 
 The package does not create a worker for you. In a browser application, place
 the module initialization and adapter in a dedicated `Worker`, call
 `adapter.close()` before the worker exits, and terminate the worker from its
 owner. The official package's `sqlite3.wasm` asset must be served beside the
 bundled worker module.
+
+## Limitations
+
+- No callback transactions, streaming, or migration adapter is exposed.
+- Database execution is synchronous and blocks its owning thread. Abort signals
+  are checked before preparation but cannot interrupt an executing statement.
+- Mutations expose `affectedRows`, but no generated `insertId`. Use `RETURNING`
+  when you need inserted keys.
+- Worker creation, WASM initialization, asset serving, and storage configuration
+  belong to the application. The adapter accepts an initialized OO1 database;
+  it does not provide a worker messaging protocol or configure persistent storage.
