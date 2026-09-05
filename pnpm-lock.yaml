@@ -264,6 +264,12 @@ importers:
         specifier: workspace:*
         version: link:../..
 
+  packages/pgvector:
+    devDependencies:
+      qubu:
+        specifier: workspace:*
+        version: link:../..
+
   packages/sqlite-fts5:
     devDependencies:
       '@qubu/migrate':
