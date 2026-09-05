@@ -9,8 +9,11 @@ import {
   type ExplainResult,
   type TransactionOptions,
   type TransactionalQueryAdapter,
+  type NestedTransactionalQueryAdapter,
 } from "qubu"
 import { mysqlDialect } from "qubu/mysql"
+
+import { runSavepointScope, guardTransactionConnection } from "../../shared/savepoints.ts"
 
 export interface Mysql2AdapterOptions {
   readonly encoder?: DriverValueEncoder
@@ -30,7 +33,10 @@ export interface Mysql2Connection {
   rollback(): Promise<void>
 }
 
-export interface Mysql2TransactionAdapter extends ExplainableQueryAdapter<RowDataPacket> {}
+export interface Mysql2TransactionAdapter
+  extends
+    ExplainableQueryAdapter<RowDataPacket>,
+    NestedTransactionalQueryAdapter<ExplainableQueryAdapter<RowDataPacket>> {}
 
 export interface Mysql2Adapter
   extends
@@ -51,33 +57,51 @@ export function mysql2Adapter(
 ): Mysql2Adapter {
   const scoped = executionAdapter(connection, options.encoder ?? identityEncoder)
 
+  const guard = guardTransactionConnection(scoped)
+
   return {
-    ...scoped,
+    ...guard.adapter,
     connection,
     async transaction<T>(
       callback: (adapter: Mysql2TransactionAdapter) => Promise<T>,
       transactionOptions: TransactionOptions = {},
     ): Promise<T> {
-      throwIfAborted(transactionOptions.signal)
-      await connection.beginTransaction()
-
-      let committed = false
+      const releaseGuard = guard.acquire()
 
       try {
         throwIfAborted(transactionOptions.signal)
-        const result = await callback(scoped)
+        await connection.beginTransaction()
 
-        throwIfAborted(transactionOptions.signal)
-        await connection.commit()
-        committed = true
-        throwIfAborted(transactionOptions.signal)
-        return result
-      } catch (error) {
-        if (committed) {
-          throw error
+        let committed = false
+
+        try {
+          throwIfAborted(transactionOptions.signal)
+          const result = await runSavepointScope(
+            scoped,
+            (sql) =>
+              connection.execute({
+                sql,
+                values: [],
+                rowsAsArray: false,
+                nestTables: false,
+              }),
+            callback,
+          )
+
+          throwIfAborted(transactionOptions.signal)
+          await connection.commit()
+          committed = true
+          throwIfAborted(transactionOptions.signal)
+          return result
+        } catch (error) {
+          if (committed) {
+            throw error
+          }
+
+          return await rollbackAndRethrow(connection, error)
         }
-
-        return rollbackAndRethrow(connection, error)
+      } finally {
+        releaseGuard?.()
       }
     },
   }
@@ -86,7 +110,7 @@ export function mysql2Adapter(
 function executionAdapter(
   connection: Mysql2Connection,
   encoder: DriverValueEncoder,
-): Mysql2TransactionAdapter {
+): ExplainableQueryAdapter<RowDataPacket> {
   return {
     dialect: mysqlDialect(),
     decoders: mysql2Decoders,

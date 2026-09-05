@@ -10,11 +10,18 @@ import { qubu } from "qubu"
 const db = qubu(nodeSqliteAdapter(database))
 ```
 
+Scoped clients support `transaction()` through savepoints on the same connection.
+Catch an inner failure to continue the outer transaction; an uncaught failure
+rolls back the outer transaction. Await every query and child scope. Finished
+scopes and overlapping scopes reject; failed savepoint recovery prevents commit.
+See [nested transactions](../../docs/dialects-and-execution.md#roll-back-part-of-a-transaction)
+for an example and lifecycle rules.
+
 ## Limitations
 
 - Requires a Node.js runtime with `node:sqlite`. Database calls are synchronous and block the calling thread despite the adapter’s Promise-based API.
 - No query streaming is exposed. Abort signals are checked before execution, but do not cancel an in-flight driver query.
-- Transactions default to `BEGIN IMMEDIATE`. No nested transactions/savepoints or transaction queue is exposed; avoid overlapping transactions and unrelated work on the same database during a callback. The application owns database shutdown.
+- Transactions default to `BEGIN IMMEDIATE`. There is no transaction queue. Root operations on the same adapter reject while a callback owns the connection; use its scoped client. The application owns database shutdown.
 - Statements with result columns, including mutations with `RETURNING`, return rows without `affectedRows` or `insertId` metadata.
 - The `/migration` entry point requires a `readSnapshot` callback. It rejects transaction-forbidden phases and shared DDL locks.
 

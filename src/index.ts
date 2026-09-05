@@ -47,6 +47,7 @@ export type {
   StreamingTransactionalQueryAdapter,
   TransactionOptions,
   TransactionalQueryAdapter,
+  NestedTransactionalQueryAdapter,
 } from "./execution.ts"
 export {
   bigintResultDecoder,

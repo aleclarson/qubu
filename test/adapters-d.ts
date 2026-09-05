@@ -41,19 +41,59 @@ declare const sqliteWasm: SqliteWasmDatabase
 
 qubu(nodeSqliteAdapter(nodeSqlite)).transaction(async (transaction) => {
   expectTypeOf(transaction.explain).toBeFunction()
+  const value = await transaction.transaction(async (inner) => {
+    expectTypeOf(inner.explain).toBeFunction()
+    expectTypeOf(inner).not.toHaveProperty("stream")
+    return inner.transaction(async (deepest) => {
+      expectTypeOf(deepest.explain).toBeFunction()
+      return 42 as const
+    })
+  })
+
+  expectTypeOf(value).toEqualTypeOf<42>()
 })
 qubu(pgAdapter(pg)).transaction(async (transaction) => {
   expectTypeOf(transaction.explain).toBeFunction()
+  const value = await transaction.transaction(async (inner) => {
+    expectTypeOf(inner.explain).toBeFunction()
+    expectTypeOf(inner).not.toHaveProperty("stream")
+    return inner.transaction(async (deepest) => {
+      expectTypeOf(deepest.explain).toBeFunction()
+      return 42 as const
+    })
+  })
+
+  expectTypeOf(value).toEqualTypeOf<42>()
 })
 expectTypeOf(pgAdapter(pgPool).client).toEqualTypeOf<Pool>()
 expectTypeOf(pgAdapter(pgPoolClient).client).toEqualTypeOf<PoolClient>()
 qubu(pgAdapter(pgPool)).transaction(async (transaction) => {
   expectTypeOf(transaction.explain).toBeFunction()
+  const value = await transaction.transaction(async (inner) => {
+    expectTypeOf(inner.explain).toBeFunction()
+    expectTypeOf(inner).not.toHaveProperty("stream")
+    return inner.transaction(async (deepest) => {
+      expectTypeOf(deepest.explain).toBeFunction()
+      return 42 as const
+    })
+  })
+
+  expectTypeOf(value).toEqualTypeOf<42>()
 })
 // @ts-expect-error A query method alone is not a connected pg client or pool.
 pgAdapter({ query: async () => ({ rows: [] }) })
 qubu(mysql2Adapter(mysql2)).transaction(async (transaction) => {
   expectTypeOf(transaction.explain).toBeFunction()
+  const value = await transaction.transaction(async (inner) => {
+    expectTypeOf(inner.explain).toBeFunction()
+    expectTypeOf(inner).not.toHaveProperty("stream")
+    return inner.transaction(async (deepest) => {
+      expectTypeOf(deepest.explain).toBeFunction()
+      return 42 as const
+    })
+  })
+
+  expectTypeOf(value).toEqualTypeOf<42>()
 })
 // @ts-expect-error Bun SQL adapter requires an explicit dialect.
 bunSqlAdapter(bunSql)
@@ -70,6 +110,8 @@ qubu(postgresJsAdapter(postgresJs)).transaction(async (transaction) => {
 })
 qubu(pgliteAdapter(pglite)).transaction(async (transaction) => {
   expectTypeOf(transaction.explain).toBeFunction()
+  // @ts-expect-error PGlite has not opted into nested transaction scopes.
+  transaction.transaction(async () => {})
 })
 
 expectTypeOf(qubu(d1Adapter(d1))).toEqualTypeOf<
@@ -116,3 +158,20 @@ expectTypeOf(qubu(sqliteWasmAdapter(sqliteWasm))).toEqualTypeOf<
 >()
 // @ts-expect-error SQLite WASM adapter does not expose an interactive transaction primitive.
 qubu(sqliteWasmAdapter(sqliteWasm)).transaction(async () => undefined)
+
+// Custom opt-in adapters retain all scoped capabilities through arbitrary depths.
+declare const nestedStreaming: import("../src/index.ts").StreamingQueryAdapter &
+  import("../src/index.ts").ExplainableQueryAdapter &
+  import("../src/index.ts").NestedTransactionalQueryAdapter<
+    import("../src/index.ts").StreamingQueryAdapter &
+      import("../src/index.ts").ExplainableQueryAdapter
+  >
+qubu(nestedStreaming).transaction(async (outer) => {
+  await outer.transaction(async (inner) => {
+    expectTypeOf(inner.stream).toBeFunction()
+    expectTypeOf(inner.explain).toBeFunction()
+    await inner.transaction(async (deepest) => {
+      expectTypeOf(deepest.stream).toBeFunction()
+    })
+  })
+})

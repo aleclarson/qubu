@@ -9,8 +9,11 @@ import type {
   ExplainResult,
   TransactionOptions,
   TransactionalQueryAdapter,
+  NestedTransactionalQueryAdapter,
 } from "qubu"
 import { sqliteDialect } from "qubu/sqlite"
+
+import { runSavepointScope, guardTransactionConnection } from "../../shared/savepoints.ts"
 
 export type NodeSqliteTransactionMode = "deferred" | "immediate" | "exclusive"
 
@@ -19,9 +22,10 @@ export interface NodeSqliteAdapterOptions {
   readonly transactionMode?: NodeSqliteTransactionMode
 }
 
-export interface NodeSqliteTransactionAdapter extends ExplainableQueryAdapter<
-  Record<string, unknown>
-> {}
+export interface NodeSqliteTransactionAdapter
+  extends
+    ExplainableQueryAdapter<Record<string, unknown>>,
+    NestedTransactionalQueryAdapter<ExplainableQueryAdapter<Record<string, unknown>>> {}
 
 export interface NodeSqliteAdapter
   extends
@@ -46,28 +50,44 @@ export function nodeSqliteAdapter(
   const transactionMode = options.transactionMode ?? "immediate"
   const scoped = executionAdapter(database, encoder)
 
+  const guard = guardTransactionConnection(scoped)
+
   return {
-    ...scoped,
+    ...guard.adapter,
     database,
     transactionMode,
     async transaction<T>(
       callback: (adapter: NodeSqliteTransactionAdapter) => Promise<T>,
       transactionOptions: TransactionOptions = {},
     ): Promise<T> {
-      throwIfAborted(transactionOptions.signal)
-      database.exec(`BEGIN ${transactionMode.toUpperCase()}`)
+      const releaseGuard = guard.acquire()
+
       try {
-        const result = await callback(scoped)
-
         throwIfAborted(transactionOptions.signal)
-        database.exec("COMMIT")
-        return result
-      } catch (error) {
-        if (database.isTransaction) {
-          database.exec("ROLLBACK")
-        }
+        database.exec(`BEGIN ${transactionMode.toUpperCase()}`)
+        try {
+          const result = await runSavepointScope(scoped, (sql) => database.exec(sql), callback)
 
-        throw error
+          throwIfAborted(transactionOptions.signal)
+          database.exec("COMMIT")
+          return result
+        } catch (error) {
+          if (database.isTransaction) {
+            try {
+              database.exec("ROLLBACK")
+            } catch (rollbackError) {
+              throw new AggregateError(
+                [error, rollbackError],
+                "Transaction failed and rollback failed",
+                { cause: error },
+              )
+            }
+          }
+
+          throw error
+        }
+      } finally {
+        releaseGuard?.()
       }
     },
   }
@@ -76,7 +96,7 @@ export function nodeSqliteAdapter(
 function executionAdapter(
   database: DatabaseSync,
   encoder: DriverValueEncoder<SQLInputValue>,
-): NodeSqliteTransactionAdapter {
+): ExplainableQueryAdapter<Record<string, unknown>> {
   return {
     dialect: sqliteDialect(),
     async execute<TRow extends object>(request: ExecutionRequest) {

@@ -8,14 +8,20 @@ import type {
   ExplainResult,
   TransactionOptions,
   TransactionalQueryAdapter,
+  NestedTransactionalQueryAdapter,
 } from "qubu"
 import { postgresDialect } from "qubu/postgres"
+
+import { runSavepointScope, guardTransactionConnection } from "../../shared/savepoints.ts"
 
 export interface PgAdapterOptions {
   readonly encoder?: DriverValueEncoder
 }
 
-export interface PgTransactionAdapter extends ExplainableQueryAdapter<QueryResultRow> {}
+export interface PgTransactionAdapter
+  extends
+    ExplainableQueryAdapter<QueryResultRow>,
+    NestedTransactionalQueryAdapter<ExplainableQueryAdapter<QueryResultRow>> {}
 
 export interface PgAdapter<TClient extends ClientBase | Pool = ClientBase | Pool>
   extends ExplainableQueryAdapter<QueryResultRow>, TransactionalQueryAdapter<PgTransactionAdapter> {
@@ -36,75 +42,87 @@ export function pgAdapter<TClient extends ClientBase | Pool>(
   const encoder = options.encoder ?? identityEncoder
   const scoped = executionAdapter(client, encoder)
 
+  const guard = guardTransactionConnection(scoped)
+
   return {
-    ...scoped,
+    ...("totalCount" in client ? scoped : guard.adapter),
     client,
     async transaction<T>(
       callback: (adapter: PgTransactionAdapter) => Promise<T>,
       transactionOptions: TransactionOptions = {},
     ): Promise<T> {
-      throwIfAborted(transactionOptions.signal)
-      // Pool and Client both expose connect(); pool counts distinguish ownership.
-      const acquired = "totalCount" in client ? await client.connect() : undefined
-      const connection = acquired ?? client
-      let discard = false
-      let failed = false
-      let failure: unknown
-      let result!: T
+      const releaseGuard = "totalCount" in client ? undefined : guard.acquire()
 
       try {
         throwIfAborted(transactionOptions.signal)
+        // Pool and Client both expose connect(); pool counts distinguish ownership.
+        const acquired = "totalCount" in client ? await client.connect() : undefined
+        const connection = acquired ?? client
+        let discard = false
+        let failed = false
+        let failure: unknown
+        let result!: T
+
         try {
-          await connection.query("BEGIN")
+          throwIfAborted(transactionOptions.signal)
+          try {
+            await connection.query("BEGIN")
+          } catch (error) {
+            // A rejected BEGIN may leave the connection state uncertain.
+            discard = true
+            throw error
+          }
+
+          try {
+            result = await runSavepointScope(
+              executionAdapter(connection, encoder),
+              (sql) => connection.query(sql),
+              callback,
+            )
+
+            throwIfAborted(transactionOptions.signal)
+            await connection.query("COMMIT")
+          } catch (error) {
+            try {
+              await connection.query("ROLLBACK")
+            } catch (rollbackError) {
+              discard = true
+              throw new AggregateError(
+                [error, rollbackError],
+                "Transaction failed and rollback failed",
+                { cause: error },
+              )
+            }
+
+            throw error
+          }
         } catch (error) {
-          // A rejected BEGIN may leave the connection state uncertain.
-          discard = true
-          throw error
+          failed = true
+          failure = error
         }
 
         try {
-          result = await callback(executionAdapter(connection, encoder))
-
-          throwIfAborted(transactionOptions.signal)
-          await connection.query("COMMIT")
-        } catch (error) {
-          try {
-            await connection.query("ROLLBACK")
-          } catch (rollbackError) {
-            discard = true
+          acquired?.release(discard)
+        } catch (releaseError) {
+          if (failed) {
             throw new AggregateError(
-              [error, rollbackError],
-              "Transaction failed and rollback failed",
-              { cause: error },
+              [failure, releaseError],
+              "Transaction failed and client release failed",
+              { cause: failure },
             )
           }
 
-          throw error
+          throw releaseError
         }
-      } catch (error) {
-        failed = true
-        failure = error
-      }
 
-      try {
-        acquired?.release(discard)
-      } catch (releaseError) {
         if (failed) {
-          throw new AggregateError(
-            [failure, releaseError],
-            "Transaction failed and client release failed",
-            { cause: failure },
-          )
+          throw failure
         }
 
-        throw releaseError
+        return result
+      } finally {
+        releaseGuard?.()
       }
-
-      if (failed) {
-        throw failure
-      }
-
-      return result
     },
   }
 }
@@ -112,7 +130,7 @@ export function pgAdapter<TClient extends ClientBase | Pool>(
 function executionAdapter(
   client: ClientBase | Pool,
   encoder: DriverValueEncoder,
-): PgTransactionAdapter {
+): ExplainableQueryAdapter<QueryResultRow> {
   return {
     dialect: postgresDialect(),
     async execute<TRow extends object>(request: ExecutionRequest) {

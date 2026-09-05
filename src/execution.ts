@@ -232,6 +232,11 @@ export interface TransactionalQueryAdapter<
   ): Promise<T>
 }
 
+/** Opt-in recursive transaction scopes; adapters own savepoints and scope lifetime. */
+export interface NestedTransactionalQueryAdapter<
+  TBase extends QueryAdapter = QueryAdapter,
+> extends TransactionalQueryAdapter<TBase & NestedTransactionalQueryAdapter<TBase>> {}
+
 type TransactionAdapterOf<TAdapter extends TransactionalQueryAdapter> =
   TAdapter extends TransactionalQueryAdapter<infer TTransactionAdapter>
     ? TTransactionAdapter
@@ -286,13 +291,18 @@ export interface QubuStreamingExplainableClient<
 >
   extends QubuStreamingClient<TAdapter>, QubuExplainableClient<TAdapter> {}
 
-type QubuClientFor<TAdapter extends QueryAdapter> = TAdapter extends StreamingQueryAdapter
+type QubuBaseClientFor<TAdapter extends QueryAdapter> = TAdapter extends StreamingQueryAdapter
   ? TAdapter extends ExplainableQueryAdapter
     ? QubuStreamingExplainableClient<TAdapter>
     : QubuStreamingClient<TAdapter>
   : TAdapter extends ExplainableQueryAdapter
     ? QubuExplainableClient<TAdapter>
     : QubuClient<TAdapter>
+
+type QubuClientFor<TAdapter extends QueryAdapter> = QubuBaseClientFor<TAdapter> &
+  (TAdapter extends TransactionalQueryAdapter
+    ? QubuTransactionalClient<TAdapter, TransactionAdapterOf<TAdapter>>
+    : {})
 
 /** The client available inside a transaction callback. */
 export type QubuTransaction = QubuClient<QueryAdapter>
@@ -362,6 +372,10 @@ interface ActiveHookOperation {
 }
 
 /** Bind an application-owned adapter once for repeated query execution. */
+export function qubu<TAdapter extends NestedTransactionalQueryAdapter>(
+  adapter: TAdapter,
+  options?: QubuOptions,
+): QubuClientFor<TAdapter>
 export function qubu<TAdapter extends ExplainableQueryAdapter & StreamingTransactionalQueryAdapter>(
   adapter: TAdapter,
   options?: QubuOptions,
@@ -408,39 +422,7 @@ export function qubu<TAdapter extends QueryAdapter>(
   adapter: TAdapter,
   options: QubuOptions = {},
 ): QubuClient<TAdapter> {
-  const observation = createObservation(options.hooks)
-  const client = createClient(adapter, observation)
-
-  if (!isTransactionalQueryAdapter(adapter)) {
-    return client
-  }
-
-  return Object.freeze({
-    ...client,
-    async transaction<T>(
-      callback: (transaction: QubuTransaction) => Promise<T>,
-      transactionOptions?: TransactionOptions,
-    ) {
-      const active = startTransactionOperation(observation, transactionOptions?.hookMetadata)
-
-      try {
-        const result = await adapter.transaction(
-          async (transactionAdapter) =>
-            callback(createClient(transactionAdapter, observation, active?.operation.id)),
-          adapterTransactionOptions(transactionOptions),
-        )
-
-        active?.finish({ status: "success" })
-        return result
-      } catch (error) {
-        active?.finish({
-          status: "error",
-          error,
-        })
-        throw error
-      }
-    },
-  }) as QubuClient<TAdapter>
+  return createClient(adapter, createObservation(options.hooks))
 }
 
 function createClient<TAdapter extends QueryAdapter>(
@@ -448,7 +430,7 @@ function createClient<TAdapter extends QueryAdapter>(
   observation?: HookObservation,
   parentId?: number,
 ): QubuClient<TAdapter> {
-  const client = {
+  return Object.freeze({
     adapter,
     execute<TRow extends object>(query: QueryWithRow<TRow>, options?: ExecutionOptions) {
       return executeInternal(query, adapter, options ?? {}, observation, parentId)
@@ -456,27 +438,43 @@ function createClient<TAdapter extends QueryAdapter>(
     rows<TRow extends object>(query: QueryWithRow<TRow>, options?: ExecutionOptions) {
       return executeRowsInternal(query, adapter, options ?? {}, observation, parentId)
     },
-  }
-  const streaming = isStreamingQueryAdapter(adapter)
-  const explainable = isExplainableQueryAdapter(adapter)
-
-  if (!streaming && !explainable) {
-    return Object.freeze(client)
-  }
-
-  return Object.freeze({
-    ...client,
-    ...(streaming
+    ...(isStreamingQueryAdapter(adapter)
       ? {
           stream<TRow extends object>(query: StreamableQuery<TRow>, options?: ExecutionOptions) {
             return streamInternal(query, adapter, options ?? {}, observation, parentId)
           },
         }
       : {}),
-    ...(explainable
+    ...(isExplainableQueryAdapter(adapter)
       ? {
           explain<TQuery extends AnyQuery>(query: TQuery, options?: ExplainOptionsFor<TQuery>) {
             return explainInternal(query, adapter, options ?? {}, observation, parentId)
+          },
+        }
+      : {}),
+    ...(isTransactionalQueryAdapter(adapter)
+      ? {
+          async transaction<T>(
+            callback: (transaction: QubuTransaction) => Promise<T>,
+            options?: TransactionOptions,
+          ) {
+            const active = startTransactionOperation(observation, options?.hookMetadata, parentId)
+
+            try {
+              const result = await adapter.transaction(
+                async (scoped) => callback(createClient(scoped, observation, active?.operation.id)),
+                adapterTransactionOptions(options),
+              )
+
+              active?.finish({ status: "success" })
+              return result
+            } catch (error) {
+              active?.finish({
+                status: "error",
+                error,
+              })
+              throw error
+            }
           },
         }
       : {}),
@@ -528,11 +526,12 @@ function startQueryOperation(
 function startTransactionOperation(
   observation: HookObservation | undefined,
   metadata: HookMetadata | undefined,
+  parentId?: number,
 ): ActiveHookOperation | undefined {
   return startOperation(observation, {
     kind: "transaction",
     metadata,
-    parentId: undefined,
+    parentId,
   })
 }
 
@@ -551,7 +550,7 @@ function startOperation(
     | {
         readonly kind: "transaction"
         readonly metadata: HookMetadata | undefined
-        readonly parentId: undefined
+        readonly parentId: number | undefined
       },
 ): ActiveHookOperation | undefined {
   if (observation === undefined) {

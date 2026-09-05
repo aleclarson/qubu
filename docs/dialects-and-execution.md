@@ -471,13 +471,51 @@ back after it rejects, and releases the connection in every case. Qubu only
 creates the scoped client and passes the callback result through. It never
 emits `BEGIN`, `COMMIT`, or `ROLLBACK` itself.
 
-The transaction client exposes `execute()` and `rows()` but no public
-`transaction()` method, so nested transactions are not part of this contract.
-When the adapter also implements `StreamingQueryAdapter`, the scoped client
-also exposes `stream()` and its streams follow the cleanup rule above. Use
-adapter-specific savepoints when a driver needs nested partial rollback.
-`TransactionOptions.signal` is passed to the adapter. Isolation levels and
-other driver-specific settings remain adapter-specific.
+A scoped client's methods follow its adapter's capabilities: `execute()` and
+`rows()` are always available; EXPLAIN and streaming require their respective
+capabilities. `TransactionOptions.signal` is passed to the adapter. Isolation
+levels and other driver-specific settings remain adapter-specific.
+
+### Roll back part of a transaction
+
+The pg, mysql2, and node:sqlite adapters expose `transaction()` on scoped
+clients through the shared `NestedTransactionalQueryAdapter` capability.
+Other adapters retain their existing transaction surface. For example, with a
+bound pg client, catch a nested failure to keep earlier work:
+
+```ts
+await db.transaction(async (outer) => {
+  await outer.execute(firstMutation)
+  try {
+    await outer.transaction(async (inner) => {
+      await inner.execute(optionalMutation)
+    })
+  } catch (error) {
+    // The nested work was rolled back; the outer transaction can continue.
+  }
+  await outer.execute(secondMutation)
+})
+```
+
+Each nested callback uses a uniquely named savepoint on the same connection.
+Success releases it; failure rolls back to it and releases it. Letting the
+failure escape also rolls back the outer transaction. Failed savepoint creation
+or recovery makes the entire transaction unsafe to commit, even if the callback
+catches the error. Primary and cleanup failures are retained in `AggregateError`.
+
+Await every query and nested transaction before returning. These three adapters
+reject finished scoped clients, overlapping sibling scopes, a child started
+while its parent has pending queries, and parent queries while a child is active.
+If a callback finishes with work still pending, the adapter waits for that work
+and rolls back instead of committing. Use the active scoped client for all work
+on a directly supplied connection; its root client rejects unrelated operations
+during the transaction. A pg pool still accepts independent queries and
+transactions on other acquired connections. Raw driver calls and separately
+constructed adapters remain the application's responsibility.
+
+EXPLAIN and result decoding remain available at every depth. Nested transaction
+hooks identify their enclosing transaction with `parentId`; queries identify
+their immediate scope. Cancellation does not interrupt savepoint recovery.
 
 The standalone functions remain useful when the adapter varies by call or a
 small module does not need a bound client:
