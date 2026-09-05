@@ -23,6 +23,15 @@ The migrator lease and a program's DDL lock are different controls. The lease
 excludes another Qubu runner; a DDL lock protects the database operation. The
 executor never treats one as proof of the other.
 
+## Trusted migration SQL
+
+Migration SQL, including SQL conditions, is trusted across all adapters. Qubu
+validates program structure and adapter capabilities, but does not parse SQL
+to enforce safety. Callers must preserve executor-owned transactions, connection
+settings, and migration journal state. For example, an explicit `COMMIT` can
+leave schema changes applied without their journal record; atomicity and recovery
+guarantees depend on respecting this contract.
+
 ## Current profiles
 
 The following stable profiles have live conformance coverage in this checkout:
@@ -87,11 +96,9 @@ Schema fingerprint and property preconditions are checked against the embedded
 before snapshot, whose physical facts are verified during preparation and
 guarded by the in-batch catalog assertion. Object-presence and scalar SQL checks
 run inside the batch. Postconditions must be object-presence/absence checks
-without fingerprints, or scalar SQL checks returning `1`. Unsupported conditions,
-multiple phases, and transaction/connection-control statements are rejected.
-Each program entry must contain one executable statement. Leading empty
-statements and comments cannot hide transaction control such as `;COMMIT`.
-Semicolons inside quoted SQL and trigger bodies remain supported.
+without fingerprints, or scalar SQL checks returning `1`. Unsupported conditions
+and multiple phases are rejected. SQL content is passed to the driver without
+safety validation; each program entry must follow the driver's statement contract.
 
 The database-row lease has no expiry or heartbeat. A process crash can leave
 it held; ownership must be resolved before another runner can proceed. A lost
