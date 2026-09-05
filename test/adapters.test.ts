@@ -66,9 +66,9 @@ describe("workspace adapters", () => {
           queryKind: "insert",
           resultShape: { fields: [] },
         }),
-      ).resolves.toMatchObject({
+      ).resolves.toEqual({
+        rows: [],
         affectedRows: 1,
-        insertId: 1,
       })
       const selected = await adapter.execute({
         statement: {
