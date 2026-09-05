@@ -88,6 +88,7 @@ function fixture(kind: "pg" | "mysql2" | "node:sqlite") {
                 return {
                   columns: () => [{ name: "id" }],
                   all: () => [{ id: 1 }],
+                  setReturnArrays: () => {},
                 }
               },
             } as unknown as DatabaseSync,
