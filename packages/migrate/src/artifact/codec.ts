@@ -1159,6 +1159,10 @@ function conditions(
       [...itemPath, "type"],
     )
     jsonValue(condition.value, out, [...itemPath, "value"])
+    if (condition.type === "statement" && typeof condition.value !== "string")
+      out.push(
+        diag("invalid-value", [...itemPath, "value"], "Statement conditions require a SQL string"),
+      )
     if (
       ["object-present", "object-absent", "property-equals", "snapshot-fingerprint"].includes(
         condition.type,

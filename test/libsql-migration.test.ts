@@ -5,7 +5,8 @@ import { join } from "node:path"
 import { createClient, type Client } from "@libsql/client"
 import { diffSnapshots } from "qubu/diff"
 import type { SchemaSnapshot } from "qubu/snapshot"
-import { afterEach, expect, test } from "vitest"
+import { completeSchemaSnapshotFingerprint } from "qubu/snapshot"
+import { afterEach, expect, test, vi } from "vitest"
 
 import {
   libsqlMigrationAdapter,
@@ -150,12 +151,12 @@ function adapter(database: Client) {
   })
 }
 
-test("runs the shared conformance probe against a pinned libSQL session", async () => {
+test("advertises atomic batch execution for the libSQL client", async () => {
   await verifyMigrationAdapterConformance({
     adapter: adapter(client()),
     expected: {
       dialect: "sqlite",
-      session: "pinned",
+      session: "atomic-batch",
       transactionalDdl: true,
       optionalTransactions: true,
       transactions: ["required", "optional"],
@@ -223,6 +224,221 @@ test("repeats an applied repository as a no-op", async () => {
   })
 })
 
+test("sends schema changes and journal advancement through one migrate call", async () => {
+  const database = client()
+  const migrate = vi.spyOn(database, "migrate")
+  const migration = await artifact("accounts", 0, null, [], ["accounts"])
+  const result = await executeMigrations({ repository: [migration], adapter: adapter(database) })
+  expect(result.applied[0]?.atomicity).toBe("atomic")
+  expect(migrate).toHaveBeenCalledTimes(1)
+  const statements = migrate.mock.calls[0]![0].map((statement) =>
+    typeof statement === "string" ? statement : statement.sql,
+  )
+  expect(statements.some((sql) => sql.includes("CREATE TABLE"))).toBe(true)
+  expect(statements.some((sql) => sql.includes("INSERT INTO __qubu_migration_applied"))).toBe(true)
+  expect(statements.some((sql) => sql.includes("UPDATE __qubu_migration_metadata"))).toBe(true)
+})
+
+test.each(["schema", "head", "lease"] as const)(
+  "rejects a stale %s inside the submitted batch",
+  async (changed) => {
+    const database = client()
+    const migrate = database.migrate.bind(database)
+    vi.spyOn(database, "migrate").mockImplementationOnce(async (statements) => {
+      if (changed === "schema")
+        await database.execute("CREATE TABLE concurrent_change (id INTEGER)")
+      if (changed === "head")
+        await database.execute("UPDATE __qubu_migration_metadata SET head = 'changed'")
+      if (changed === "lease")
+        await database.execute("UPDATE __qubu_migration_lease SET owner = 'other'")
+      return migrate(statements)
+    })
+    const migration = await artifact("accounts", 0, null, [], ["accounts"])
+    await expect(
+      executeMigrations({ repository: [migration], adapter: adapter(database) }),
+    ).rejects.toMatchObject({ code: "definite-rollback" })
+    expect(await tableNames(database)).not.toContain("accounts")
+    expect(
+      (await database.execute("SELECT count(*) AS count FROM __qubu_migration_applied")).rows[0]
+        ?.count,
+    ).toBe(0)
+  },
+)
+
+test("rolls back schema and journal writes when a batch postcondition fails", async () => {
+  const database = client()
+  const migration = await artifact("accounts", 0, null, [], ["accounts"], (program) => ({
+    ...program,
+    phases: program.phases.map((phase) => ({
+      ...phase,
+      postconditions: [{ id: "false", type: "statement", value: "SELECT 0" }],
+    })),
+  }))
+  await expect(
+    executeMigrations({ repository: [migration], adapter: adapter(database) }),
+  ).rejects.toMatchObject({ code: "definite-rollback" })
+  expect(await tableNames(database)).toEqual([])
+  expect(
+    (await database.execute("SELECT head FROM __qubu_migration_metadata")).rows[0]?.head,
+  ).toBeNull()
+})
+
+test("rolls back foreign-key violations before recording success", async () => {
+  const database = client()
+  const migration = await artifact("accounts", 0, null, [], ["accounts"], (program) => ({
+    ...program,
+    phases: program.phases.map((phase) => ({
+      ...phase,
+      statements: [
+        { ...phase.statements[0]!, sql: "CREATE TABLE accounts (value TEXT PRIMARY KEY NOT NULL)" },
+        {
+          ...phase.statements[0]!,
+          id: "child",
+          position: 1,
+          sql: "CREATE TABLE child (parent_id TEXT REFERENCES accounts(value))",
+        },
+        {
+          ...phase.statements[0]!,
+          id: "orphan",
+          position: 2,
+          sql: "INSERT INTO child VALUES ('missing')",
+        },
+      ],
+    })),
+  }))
+  await expect(
+    executeMigrations({ repository: [migration], adapter: adapter(database) }),
+  ).rejects.toMatchObject({ code: "definite-rollback" })
+  expect(await tableNames(database)).toEqual([])
+  expect(
+    (await database.execute("SELECT count(*) AS count FROM __qubu_migration_applied")).rows[0]
+      ?.count,
+  ).toBe(0)
+})
+
+test.each([undefined, "SQLITE_IOERR"])(
+  "requires recovery for an ambiguous batch error (%s)",
+  async (code) => {
+    const database = client()
+    vi.spyOn(database, "migrate").mockRejectedValueOnce(
+      Object.assign(new Error("batch outcome unknown"), { code }),
+    )
+    const migration = await artifact("accounts", 0, null, [], ["accounts"])
+    await expect(
+      executeMigrations({ repository: [migration], adapter: adapter(database) }),
+    ).rejects.toMatchObject({ code: "uncertain-outcome" })
+    expect((await database.execute("SELECT state FROM __qubu_migration_attempts")).rows).toEqual([
+      { state: "recovery_required" },
+    ])
+    await expect(
+      executeMigrations({ repository: [migration], adapter: adapter(database) }),
+    ).rejects.toMatchObject({ code: "recovery-required" })
+  },
+)
+
+test("recognizes committed history after losing the batch response", async () => {
+  const database = client()
+  const migrate = database.migrate.bind(database)
+  vi.spyOn(database, "migrate").mockImplementationOnce(async (statements) => {
+    await migrate(statements)
+    throw new Error("response lost after commit")
+  })
+  const migration = await artifact("accounts", 0, null, [], ["accounts"])
+  await expect(
+    executeMigrations({ repository: [migration], adapter: adapter(database) }),
+  ).rejects.toMatchObject({ code: "uncertain-outcome" })
+  expect((await database.execute("SELECT state FROM __qubu_migration_attempts")).rows).toEqual([
+    { state: "applied" },
+  ])
+  await expect(
+    executeMigrations({ repository: [migration], adapter: adapter(database) }),
+  ).resolves.toMatchObject({ idempotent: true, head: migration.artifactDigest })
+})
+
+test("checks column identity and schema properties without using indexed paths", async () => {
+  const database = client()
+  await database.execute("CREATE TABLE existing (value TEXT NOT NULL)")
+  const migration = await artifact(
+    "accounts",
+    0,
+    null,
+    ["existing"],
+    ["accounts", "existing"],
+    (program) => ({
+      ...program,
+      phases: program.phases.map((phase): MigrationProgram["phases"][number] => ({
+        ...phase,
+        preconditions: [
+          ...phase.preconditions,
+          {
+            id: "column",
+            type: "object-present",
+            value: {
+              type: "object-present",
+              kind: "column",
+              physicalName: "value",
+              path: ["tables", 9, "columns", 8],
+              parent: { kind: "table", id: "logicalExisting", physicalName: "existing" },
+            },
+          },
+          {
+            id: "nullable",
+            type: "property-equals",
+            value: {
+              type: "property-equals",
+              path: ["tables", 0, "columns", 0],
+              kind: "column",
+              physicalName: "value",
+              parent: { kind: "table", id: "existing", physicalName: "existing" },
+              property: ["nullable"],
+              value: false,
+            },
+          },
+          {
+            id: "fingerprint",
+            type: "snapshot-fingerprint",
+            value: {
+              type: "snapshot-fingerprint",
+              kind: "namespace",
+              path: [],
+              fingerprint: completeSchemaSnapshotFingerprint(snapshot(["existing"])),
+            },
+          },
+        ],
+      })),
+    }),
+  )
+  await expect(
+    executeMigrations({ repository: [migration], adapter: adapter(database) }),
+  ).resolves.toMatchObject({ head: migration.artifactDigest })
+})
+
+test("rejects multiple phases before creating an attempt", async () => {
+  const database = client()
+  const migration = await artifact("accounts", 0, null, [], ["accounts"], (program) => ({
+    ...program,
+    phases: [
+      ...program.phases,
+      {
+        ...program.phases[0]!,
+        id: "second",
+        position: 1,
+        dependsOn: [program.phases[0]!.id],
+        statements: [],
+        preconditions: [],
+        postconditions: [],
+      },
+    ],
+  }))
+  await expect(
+    executeMigrations({ repository: [migration], adapter: adapter(database) }),
+  ).rejects.toMatchObject({ code: "capability" })
+  expect(
+    (await database.execute("SELECT count(*) AS count FROM __qubu_migration_attempts")).rows[0]
+      ?.count,
+  ).toBe(0)
+})
+
 test("applies a multi-artifact chain in order", async () => {
   const database = client()
   const first = await artifact("accounts", 0, null, [], ["accounts"])
@@ -259,7 +475,7 @@ test("rolls back DDL and durably records a failed attempt", async () => {
   await expect(
     executeMigrations({ repository: [migration], adapter: adapter(database) }),
   ).rejects.toMatchObject({
-    code: "adapter",
+    code: "definite-rollback",
   })
   expect(await tableNames(database)).toEqual([])
   const attempts = await database.execute("SELECT state FROM __qubu_migration_attempts")
@@ -589,7 +805,7 @@ test("rolls back an explicit SQLite rebuild when data-copy validation fails", as
         },
       }),
     }),
-  ).rejects.toMatchObject({ code: "adapter" })
+  ).rejects.toMatchObject({ code: "definite-rollback" })
   await expect(database.execute("SELECT value FROM accounts")).resolves.toMatchObject({
     rows: [{ value: null }],
   })

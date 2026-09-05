@@ -24,8 +24,8 @@ export interface MigrationSnapshotInspection {
 export interface MigrationAdapterCapabilities {
   readonly dialect: string
   readonly serverVersion?: string
-  /** The session remains pinned until close resolves. */
-  readonly session: "pinned"
+  /** Batch profiles pin only the atomic batch, not calls made while preparing it. */
+  readonly session: "pinned" | "atomic-batch"
   readonly transactionalDdl: boolean
   readonly optionalTransactions: boolean
   /** Transaction requirements this adapter has proven it can execute safely. */
@@ -46,10 +46,14 @@ export interface MigrationAdapterCapabilities {
 
 export type AdapterFailureClassification = "before-execution" | "definite-failure" | "uncertain"
 
-/** One pinned database connection/session for the complete migration lifecycle. */
+/** Migration resources; the capability profile declares whether execution is pinned or batched. */
 export interface MigrationSession {
   readonly capabilities: MigrationAdapterCapabilities
   readonly journal: MigrationJournal
+  /** Required for atomic-batch profiles. Validate support before creating an attempt. */
+  validateBatch?(artifact: ExecutableMigrationArtifact): void
+  /** Atomically enforce checks, execute one phase, append history, advance head and mark applied. */
+  applyBatch?(input: MigrationBatch): Promise<void>
   acquireLease(signal?: AbortSignal): Promise<void>
   releaseLease(): Promise<void>
   acquireDdlLock(
@@ -67,6 +71,14 @@ export interface MigrationSession {
   currentSnapshotDigest(expected?: MigrationSnapshot): Promise<Sha256Digest>
   close(): Promise<void>
   classifyFailure(error: unknown, boundary: MigrationAwaitBoundary): AdapterFailureClassification
+}
+
+/** One atomic artifact application, including its terminal journal writes. */
+export interface MigrationBatch {
+  readonly artifact: ExecutableMigrationArtifact
+  readonly attemptId: string
+  readonly expectedHead: Sha256Digest | null
+  readonly appliedAt: string
 }
 
 export interface MigrationAdapter {
@@ -102,6 +114,7 @@ export type MigrationAwaitBoundary =
   | "precondition"
   | "checkpoint-phase-started"
   | "execute-statement"
+  | "execute-batch"
   | "checkpoint-statement"
   | "postcondition"
   | "checkpoint-phase"

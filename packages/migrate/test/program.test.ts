@@ -166,6 +166,66 @@ function propertyChangePlan(): MigrationPlan {
   if (!result.ok) throw new Error("Expected safe property-change plan")
   return result.plan
 }
+test("preserves property and snapshot fingerprint condition types through compilation", () => {
+  const original = creationPlan()
+  const plan: MigrationPlan = {
+    ...original,
+    operations: original.operations.map((operation) => ({
+      ...operation,
+      preconditions: [
+        {
+          type: "property-equals",
+          kind: "table",
+          path: ["tables", 0],
+          physicalName: "accounts",
+          property: ["physicalName"],
+          value: "accounts",
+        },
+        {
+          type: "snapshot-fingerprint",
+          kind: "table",
+          path: [],
+          fingerprint: original.beforeFingerprint,
+        },
+      ],
+    })),
+  }
+  const result = compileMigrationProgram(plan)
+  expect(result.ok).toBe(true)
+  if (!result.ok) return
+  expect(result.program.phases[0]!.preconditions.map((condition) => condition.type)).toEqual([
+    "property-equals",
+    "snapshot-fingerprint",
+  ])
+  expect(validateMigrationProgram(result.program, plan)).toEqual([])
+})
+
+test("carries a physical parent reference for column preconditions", () => {
+  const before = snapshot([
+    { ...table("logicalAccounts", [column("name")]), physicalName: "accounts" },
+  ])
+  const after = snapshot([
+    {
+      ...before.tables[0]!,
+      columns: [column("name"), { ...column("nickname"), ordinalPosition: 2, nullable: true }],
+    },
+  ])
+  const result = createMigrationPlan(diffSnapshots(before, after))
+  expect(result.ok).toBe(true)
+  if (!result.ok) return
+  expect(
+    result.plan.operations.find((operation) => operation.kind === "column")?.preconditions[0],
+  ).toMatchObject({
+    parent: { kind: "table", id: "logicalAccounts", physicalName: "accounts" },
+    path: ["tables", 0, "columns", 1],
+  })
+  const compiled = compileMigrationProgram(result.plan)
+  expect(compiled.ok).toBe(true)
+  if (!compiled.ok) return
+  expect(compiled.program.phases[0]!.preconditions[0]!.value).toMatchObject({
+    parent: { physicalName: "accounts" },
+  })
+})
 
 function customPlan(): MigrationPlan {
   const result = createMigrationPlan(diffSnapshots(snapshot(), snapshot()), {

@@ -74,6 +74,7 @@ export interface SnapshotDiffObjectReference {
   readonly kind: SnapshotDiffObjectKind
   readonly id: string
   readonly namespace?: string
+  readonly physicalName?: string
 }
 
 /** One changed property in a matched object pair. */

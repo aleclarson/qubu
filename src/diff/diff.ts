@@ -966,6 +966,9 @@ function addInternalObject(
           parent: freeze({
             kind: parent.object.kind,
             id: parent.object.id,
+            ...(parent.object.physicalName === undefined
+              ? {}
+              : { physicalName: parent.object.physicalName }),
             ...(namespace === undefined ? {} : { namespace }),
           } satisfies SnapshotDiffObjectReference),
         }),
