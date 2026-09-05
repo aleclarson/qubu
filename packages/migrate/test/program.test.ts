@@ -300,7 +300,7 @@ test("keeps property preconditions structured in the executable program", () => 
           type: "property-equals",
           property: ["nullable"],
           value: false,
-          parent: { kind: "table", id: "accounts", namespace: "public" },
+          parent: { kind: "table", id: "accounts", namespace: "public", physicalName: "accounts" },
         }),
       }),
     ]),

@@ -89,6 +89,9 @@ guarded by the in-batch catalog assertion. Object-presence and scalar SQL checks
 run inside the batch. Postconditions must be object-presence/absence checks
 without fingerprints, or scalar SQL checks returning `1`. Unsupported conditions,
 multiple phases, and transaction/connection-control statements are rejected.
+Each program entry must contain one executable statement. Leading empty
+statements and comments cannot hide transaction control such as `;COMMIT`.
+Semicolons inside quoted SQL and trigger bodies remain supported.
 
 The database-row lease has no expiry or heartbeat. A process crash can leave
 it held; ownership must be resolved before another runner can proceed. A lost

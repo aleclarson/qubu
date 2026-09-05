@@ -439,6 +439,98 @@ test("rejects multiple phases before creating an attempt", async () => {
   ).toBe(0)
 })
 
+test.each([
+  ";COMMIT",
+  "; ; /* leading block */ -- leading line\n cOmMiT TRANSACTION;",
+  "\uFEFF;/* BOM and separators */END TRANSACTION;",
+  ";BEGIN IMMEDIATE TRANSACTION",
+  ";BEGIN EXCLUSIVE",
+  ";ROLLBACK TRANSACTION",
+  ";ROLLBACK TRANSACTION TO SAVEPOINT nested",
+  ";SAVEPOINT nested",
+  ";RELEASE SAVEPOINT nested",
+  ";PRAGMA ignore_check_constraints = ON",
+  ";ATTACH DATABASE ':memory:' AS other",
+  ";DETACH DATABASE other",
+  ";VACUUM",
+  "SELECT 1; /* additional executable statement */ COMMIT",
+  "SELECT 'literal;'; -- separate statement\n END",
+  "CREATE TRIGGER control_escape AFTER INSERT ON escaped BEGIN SELECT 1; END; COMMIT",
+  "SELECT 1\0;COMMIT",
+])("rejects batch control SQL without committing schema or history: %s", async (control) => {
+  const database = client()
+  const migrate = vi.spyOn(database, "migrate")
+  const migration = await artifact("escaped", 0, null, [], ["escaped"], (program) => ({
+    ...program,
+    phases: program.phases.map((phase) => ({
+      ...phase,
+      statements: [
+        ...phase.statements,
+        { ...phase.statements[0]!, id: "control", position: 1, sql: control },
+        {
+          ...phase.statements[0]!,
+          id: "failure",
+          position: 2,
+          sql: "INSERT INTO missing_table VALUES (1)",
+        },
+      ],
+    })),
+  }))
+  await expect(
+    executeMigrations({ repository: [migration], adapter: adapter(database) }),
+  ).rejects.toMatchObject({ code: "capability" })
+  expect(migrate).not.toHaveBeenCalled()
+  expect(await tableNames(database)).toEqual([])
+  expect(
+    (await database.execute("SELECT head FROM __qubu_migration_metadata")).rows[0]?.head,
+  ).toBeNull()
+  expect(
+    (await database.execute("SELECT count(*) AS count FROM __qubu_migration_applied")).rows[0]
+      ?.count,
+  ).toBe(0)
+  expect(
+    (await database.execute("SELECT count(*) AS count FROM __qubu_migration_attempts")).rows[0]
+      ?.count,
+  ).toBe(0)
+})
+
+test("allows leading SQL trivia and semicolons inside quoted values and trigger bodies", async () => {
+  const database = client()
+  const migration = await artifact("accounts", 0, null, [], ["accounts"], (program) => ({
+    ...program,
+    phases: program.phases.map((phase) => ({
+      ...phase,
+      statements: [
+        {
+          ...phase.statements[0]!,
+          sql: `; /* before DDL */ -- line comment\n ${phase.statements[0]!.sql}; ;`,
+        },
+        {
+          ...phase.statements[0]!,
+          id: "trigger",
+          position: 1,
+          sql: `CREATE TEMP TRIGGER "semi;trigger" AFTER INSERT ON accounts BEGIN
+        UPDATE accounts SET value = CASE WHEN value = 'it''s; -- /* COMMIT */' THEN 'changed;' ELSE value END;
+        SELECT '/* ;ROLLBACK */'; -- not transaction control
+      END; /* trailing comment */ ;`,
+        },
+        {
+          ...phase.statements[0]!,
+          id: "insert",
+          position: 2,
+          sql: "INSERT INTO accounts VALUES ('it''s; -- /* COMMIT */');",
+        },
+      ],
+    })),
+  }))
+  await expect(
+    executeMigrations({ repository: [migration], adapter: adapter(database) }),
+  ).resolves.toMatchObject({ head: migration.artifactDigest })
+  expect((await database.execute("SELECT value FROM accounts")).rows).toEqual([
+    { value: "changed;" },
+  ])
+})
+
 test("applies a multi-artifact chain in order", async () => {
   const database = client()
   const first = await artifact("accounts", 0, null, [], ["accounts"])
