@@ -5,7 +5,10 @@ import type { SchemaSnapshot } from "qubu/snapshot"
 import { afterEach, expect, test } from "vitest"
 
 import { nodeSqliteMigrationAdapter } from "../adapters/node-sqlite/src/migration.ts"
-import { sealExecutableArtifact } from "../packages/migrate/src/artifact/index.ts"
+import {
+  sealExecutableArtifact,
+  type Sha256Digest,
+} from "../packages/migrate/src/artifact/index.ts"
 import { compileMigrationProgram } from "../packages/migrate/src/artifact/sqlite.ts"
 import { executeMigrations } from "../packages/migrate/src/executor/index.ts"
 import { createMigrationPlan } from "../packages/migrate/src/plan/index.ts"
@@ -214,4 +217,88 @@ test("applies and journals a transactional node:sqlite migration", async () => {
   expect(value.prepare("SELECT COUNT(*) AS count FROM __qubu_migration_applied").get()).toEqual({
     count: 1,
   })
+})
+
+test("accepts BigInt journal change counts", async () => {
+  const value = new DatabaseSync(":memory:", { readBigInts: true })
+  databases.push(value)
+  const session = await adapter(value).openMigrationSession()
+  const artifactDigest = `sha256:${"a".repeat(64)}` as Sha256Digest
+  const timestamp = "2026-01-01T00:00:00.000Z"
+
+  await session.journal.createAttempt({
+    id: "attempt-bigint",
+    artifactId: "artifact-bigint",
+    artifactDigest,
+    expectedHead: null,
+    state: "started",
+    startedAt: timestamp,
+    updatedAt: timestamp,
+  })
+  await session.journal.transitionAttempt("attempt-bigint", "running")
+
+  expect((await session.journal.listAttempts())[0]).toMatchObject({ state: "running" })
+  await expect(session.journal.compareAndSwapHead(null, artifactDigest)).resolves.toBe(true)
+  await expect(session.journal.readMetadata()).resolves.toMatchObject({ head: artifactDigest })
+})
+
+test("lets close roll back a migration transaction left active after commit fails", async () => {
+  const value = database()
+  value.exec(
+    `
+      CREATE TABLE parent (id INTEGER PRIMARY KEY);
+      CREATE TABLE child (
+        parent_id INTEGER REFERENCES parent(id) DEFERRABLE INITIALLY DEFERRED
+      );
+    `,
+  )
+  const session = await adapter(value).openMigrationSession()
+
+  await session.beginTransaction()
+  await session.execute("INSERT INTO child (parent_id) VALUES (1)", [])
+  await expect(session.commitTransaction()).rejects.toMatchObject({
+    code: "ERR_SQLITE_ERROR",
+  })
+  expect(value.isTransaction).toBe(true)
+
+  await expect(session.close()).resolves.toBeUndefined()
+  expect(value.isTransaction).toBe(false)
+  expect(value.prepare("SELECT COUNT(*) AS count FROM child").get()).toMatchObject({ count: 0 })
+})
+
+test("retries rollback cleanup when a failed rollback leaves the driver transaction active", async () => {
+  let active = false
+  let rollbackAttempts = 0
+  const rollbackError = new Error("rollback failed")
+  const value = {
+    get isTransaction() {
+      return active
+    },
+    exec(sql: string) {
+      if (sql === "BEGIN IMMEDIATE") {
+        active = true
+        return
+      }
+      if (sql === "ROLLBACK") {
+        rollbackAttempts += 1
+        if (rollbackAttempts === 1) {
+          throw rollbackError
+        }
+        active = false
+      }
+    },
+  } as unknown as DatabaseSync
+  const session = await nodeSqliteMigrationAdapter(value, {
+    async readSnapshot() {
+      return snapshot([])
+    },
+  }).openMigrationSession()
+
+  await session.beginTransaction()
+  await expect(session.rollbackTransaction()).rejects.toBe(rollbackError)
+  expect(active).toBe(true)
+
+  await expect(session.close()).resolves.toBeUndefined()
+  expect(rollbackAttempts).toBe(2)
+  expect(active).toBe(false)
 })

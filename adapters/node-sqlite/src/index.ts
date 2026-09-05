@@ -107,19 +107,7 @@ export function nodeSqliteAdapter(
           database.exec("COMMIT")
           return result
         } catch (error) {
-          if (database.isTransaction) {
-            try {
-              database.exec("ROLLBACK")
-            } catch (rollbackError) {
-              throw new AggregateError(
-                [error, rollbackError],
-                "Transaction failed and rollback failed",
-                { cause: error },
-              )
-            }
-          }
-
-          throw error
+          return rollbackAndRethrow(database, error)
         }
       } finally {
         releaseGuard?.()
@@ -214,4 +202,18 @@ function isSqliteInputValue(value: unknown): value is SQLInputValue {
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
   signal?.throwIfAborted()
+}
+
+function rollbackAndRethrow(database: DatabaseSync, error: unknown): never {
+  if (database.isTransaction) {
+    try {
+      database.exec("ROLLBACK")
+    } catch (rollbackError) {
+      throw new AggregateError([error, rollbackError], "Transaction failed and rollback failed", {
+        cause: error,
+      })
+    }
+  }
+
+  throw error
 }

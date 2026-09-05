@@ -169,7 +169,7 @@ class NodeSqliteMigrationSession implements MigrationSession {
     try {
       this.database.exec("COMMIT")
     } finally {
-      this.#transaction = false
+      this.#transaction = this.database.isTransaction
     }
   }
   async rollbackTransaction(): Promise<void> {
@@ -177,7 +177,7 @@ class NodeSqliteMigrationSession implements MigrationSession {
     try {
       this.database.exec("ROLLBACK")
     } finally {
-      this.#transaction = false
+      this.#transaction = this.database.isTransaction
     }
   }
   async execute(sql: string, parameters: readonly TaggedParameterValue[]): Promise<void> {
@@ -402,7 +402,7 @@ class NodeSqliteMigrationJournal implements MigrationJournal {
         current.state as SQLInputValue,
       )
 
-    if (result.changes !== 1) {
+    if (!isOneChange(result.changes)) {
       throw new Error("Migration attempt changed concurrently")
     }
   }
@@ -426,12 +426,12 @@ class NodeSqliteMigrationJournal implements MigrationJournal {
     this.insertApplied(value)
   }
   async compareAndSwapHead(expected: Sha256Digest | null, next: Sha256Digest): Promise<boolean> {
-    return (
+    return isOneChange(
       this.database
         .prepare(
           `UPDATE ${metadataTable} SET head = ? WHERE singleton = 1 AND ((head IS NULL AND ? IS NULL) OR head = ?)`,
         )
-        .run(next, expected, expected).changes === 1
+        .run(next, expected, expected).changes,
     )
   }
   async appendAppliedAndAdvanceHead(
@@ -572,6 +572,10 @@ function failureCode(error: unknown): string | undefined {
   return error && typeof error === "object" && "code" in error && typeof error.code === "string"
     ? error.code
     : undefined
+}
+
+function isOneChange(value: number | bigint): boolean {
+  return value === 1 || value === 1n
 }
 
 function delay(milliseconds: number, signal?: AbortSignal): Promise<void> {

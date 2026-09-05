@@ -72,6 +72,35 @@ function request(
   }
 }
 
+function transactionDatabase(commitError?: unknown, rollbackError?: unknown): DatabaseSync {
+  let active = false
+
+  return {
+    get isTransaction() {
+      return active
+    },
+    exec(sql: string) {
+      if (sql.startsWith("BEGIN")) {
+        active = true
+        return
+      }
+      if (sql === "COMMIT") {
+        if (commitError !== undefined) {
+          throw commitError
+        }
+        active = false
+        return
+      }
+      if (sql === "ROLLBACK") {
+        if (rollbackError !== undefined) {
+          throw rollbackError
+        }
+        active = false
+      }
+    },
+  } as unknown as DatabaseSync
+}
+
 test("binds portable SQLite domains and decodes aliased rows from array-configured databases", async () => {
   const database = createDatabase(true)
   const adapter = nodeSqliteAdapter(database)
@@ -238,4 +267,40 @@ test("declares the node:sqlite execution API floor", () => {
   ) as { readonly engines?: { readonly node?: string } }
 
   expect(manifest.engines?.node).toBe(">=22.16.0")
+})
+
+test("preserves a callback failure when rollback cleanup also fails", async () => {
+  const primary = new Error("callback failed")
+  const rollback = new Error("rollback failed")
+  const adapter = nodeSqliteAdapter(transactionDatabase(undefined, rollback))
+
+  let failure: unknown
+  try {
+    await adapter.transaction(async () => {
+      throw primary
+    })
+  } catch (error) {
+    failure = error
+  }
+
+  expect(failure).toBeInstanceOf(AggregateError)
+  expect((failure as AggregateError).errors).toEqual([primary, rollback])
+  expect((failure as Error & { readonly cause?: unknown }).cause).toBe(primary)
+})
+
+test("preserves a commit failure when rollback cleanup also fails", async () => {
+  const commit = new Error("commit failed")
+  const rollback = new Error("rollback failed")
+  const adapter = nodeSqliteAdapter(transactionDatabase(commit, rollback))
+
+  let failure: unknown
+  try {
+    await adapter.transaction(async () => "result")
+  } catch (error) {
+    failure = error
+  }
+
+  expect(failure).toBeInstanceOf(AggregateError)
+  expect((failure as AggregateError).errors).toEqual([commit, rollback])
+  expect((failure as Error & { readonly cause?: unknown }).cause).toBe(commit)
 })
