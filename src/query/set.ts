@@ -51,8 +51,18 @@ export function setOperation<TLeft extends AnyQuery, TRight extends QueryWithRow
     row: left.row,
     resultShape: left.resultShape,
     render: (context) => {
+      // SQLite compound operands cannot be bare parenthesized SELECTs. A derived
+      // SELECT preserves each operand's ORDER BY/LIMIT and compound precedence.
+      if (context.dialect.name === "sqlite") {
+        context.append("SELECT * FROM ")
+      }
+
       context.render(parenthesize(left))
       context.append(` ${operator} `)
+      if (context.dialect.name === "sqlite") {
+        context.append("SELECT * FROM ")
+      }
+
       context.render(parenthesize(right))
     },
   } as SetQuery<{

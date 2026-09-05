@@ -68,6 +68,8 @@ declare global {
   const isNull: typeof import("qubu").isNull
   const isTrue: typeof import("qubu").isTrue
   const json: typeof import("qubu").json
+  const jsonArrayFrom: typeof import("qubu").jsonArrayFrom
+  const jsonObjectFrom: typeof import("qubu").jsonObjectFrom
   const jsonBoolean: typeof import("qubu").jsonBoolean
   const jsonExists: typeof import("qubu").jsonExists
   const jsonNumber: typeof import("qubu").jsonNumber

@@ -1,5 +1,6 @@
 import type { NullabilityOf } from "../../core/fragment.ts"
 import type { SqlDecimal, SqlInteger, SqlNumericLike, SqlOrderable } from "../../core/sql-types.ts"
+import { attachResultValue, resultValue, resultValueOf } from "../../result.ts"
 import type { SqlCapabilityValidation } from "../operators/shared.ts"
 import {
   makeExpression,
@@ -41,6 +42,7 @@ export function count(expression?: AnyExpression) {
       context.append(")")
     },
     "aggregate",
+    resultValue(undefined, undefined, "integer"),
   ) as AggregateResultExpression<{
     readonly output: number
     readonly children: AnyExpression
@@ -59,6 +61,7 @@ export function countDistinct<TExpression extends AnyExpression>(expression: TEx
       context.append(")")
     },
     "aggregate",
+    resultValue(undefined, undefined, "integer"),
   ) as AggregateResultExpression<{
     readonly output: number
     readonly children: TExpression
@@ -72,7 +75,10 @@ export function sum<T, TExpression extends ExpressionWithOutput<T>>(
   expression: TExpression & SqlCapabilityValidation<ExpressionSqlType<TExpression>, SqlNumericLike>,
 ) {
   return markExpressionCategory(
-    call<ExpressionOutput<TExpression>, "SUM", [TExpression]>("SUM", expression),
+    attachResultValue(
+      call<ExpressionOutput<TExpression>, "SUM", [TExpression]>("SUM", expression),
+      resultValueOf(expression),
+    ),
     "aggregate",
   ) as AggregateResultExpression<{
     readonly output: ExpressionOutput<TExpression>
@@ -87,7 +93,10 @@ export function avg<T, TExpression extends ExpressionWithOutput<T>>(
   expression: TExpression & SqlCapabilityValidation<ExpressionSqlType<TExpression>, SqlNumericLike>,
 ) {
   return markExpressionCategory(
-    call<number, "AVG", [TExpression]>("AVG", expression),
+    attachResultValue(
+      call<number, "AVG", [TExpression]>("AVG", expression),
+      resultValue(undefined, undefined, "decimal"),
+    ),
     "aggregate",
   ) as AggregateResultExpression<{
     readonly output: number
@@ -102,7 +111,10 @@ export function min<T, TExpression extends ExpressionWithOutput<T>>(
   expression: TExpression & SqlCapabilityValidation<ExpressionSqlType<TExpression>, SqlOrderable>,
 ) {
   return markExpressionCategory(
-    call<ExpressionOutput<TExpression>, "MIN", [TExpression]>("MIN", expression),
+    attachResultValue(
+      call<ExpressionOutput<TExpression>, "MIN", [TExpression]>("MIN", expression),
+      resultValueOf(expression),
+    ),
     "aggregate",
   ) as AggregateResultExpression<{
     readonly output: ExpressionOutput<TExpression>
@@ -117,7 +129,10 @@ export function max<T, TExpression extends ExpressionWithOutput<T>>(
   expression: TExpression & SqlCapabilityValidation<ExpressionSqlType<TExpression>, SqlOrderable>,
 ) {
   return markExpressionCategory(
-    call<ExpressionOutput<TExpression>, "MAX", [TExpression]>("MAX", expression),
+    attachResultValue(
+      call<ExpressionOutput<TExpression>, "MAX", [TExpression]>("MAX", expression),
+      resultValueOf(expression),
+    ),
     "aggregate",
   ) as AggregateResultExpression<{
     readonly output: ExpressionOutput<TExpression>

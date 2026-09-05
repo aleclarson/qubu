@@ -503,3 +503,4 @@ export {
   type QueryValidationIssue,
   type QueryTypeValidation,
 } from "./query/errors.ts"
+export { jsonArrayFrom, jsonObjectFrom } from "./expressions/nested-json.ts"

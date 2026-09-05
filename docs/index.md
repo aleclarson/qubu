@@ -33,7 +33,7 @@ define a table, build a `SELECT`, and inspect its SQL and parameters.
   derivation and a native transactional database adapter.
 - [Extend Qubu](guides/extensions/overview.md) with a custom source, clause,
   dialect policy, or typed expression.
-- [Read JSON scalars](guides/json.md) from structured JSON paths.
+- [Query nested JSON](guides/json.md) or read scalars from structured paths.
 - [Enable the Vite compiler hint](guides/vite-plugin.md) when query modules
   should opt into named imports through a directive.
 - [Inspect an existing database](schema/introspection.md) through the optional

@@ -9,6 +9,7 @@ import {
   type WindowMeta,
 } from "../../core/fragment.ts"
 import type { OrderTerm } from "../../query/clauses/order-by.ts"
+import { attachResultValue, resultValue, resultValueOf } from "../../result.ts"
 import {
   makeExpression,
   markExpressionCategory,
@@ -87,13 +88,17 @@ export function over<
       context.append(")")
     },
     "window",
+    resultValueOf(expression),
   ) as WindowedExpression<TExpression, TWindow>
 }
 
 export function rowNumber() {
   return markExpressionCategory(
-    call<number, "ROW_NUMBER", [], never, import("../../core/sql-types.ts").SqlInteger>(
-      "ROW_NUMBER",
+    attachResultValue(
+      call<number, "ROW_NUMBER", [], never, import("../../core/sql-types.ts").SqlInteger>(
+        "ROW_NUMBER",
+      ),
+      resultValue(undefined, undefined, "integer"),
     ),
     "window",
   )
@@ -101,15 +106,21 @@ export function rowNumber() {
 
 export function rank() {
   return markExpressionCategory(
-    call<number, "RANK", [], never, import("../../core/sql-types.ts").SqlInteger>("RANK"),
+    attachResultValue(
+      call<number, "RANK", [], never, import("../../core/sql-types.ts").SqlInteger>("RANK"),
+      resultValue(undefined, undefined, "integer"),
+    ),
     "window",
   )
 }
 
 export function denseRank() {
   return markExpressionCategory(
-    call<number, "DENSE_RANK", [], never, import("../../core/sql-types.ts").SqlInteger>(
-      "DENSE_RANK",
+    attachResultValue(
+      call<number, "DENSE_RANK", [], never, import("../../core/sql-types.ts").SqlInteger>(
+        "DENSE_RANK",
+      ),
+      resultValue(undefined, undefined, "integer"),
     ),
     "window",
   )

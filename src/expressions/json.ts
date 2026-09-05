@@ -74,7 +74,9 @@ function jsonScalar<TOutput, TDocument extends AnyExpression, TPath extends Json
 
       context.dialect.json.renderScalar(context, document, path.segments, kind)
     },
-    kind === "boolean" ? resultValue("boolean") : undefined,
+    kind === "boolean"
+      ? resultValue("boolean")
+      : resultValue(undefined, undefined, kind === "number" ? "decimal" : "text"),
   ) as SchemaExpression<JsonExpressionMetadata<TOutput | null, TDocument>, "function">
 }
 

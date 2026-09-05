@@ -91,6 +91,6 @@ type UserRow = typeof query.row
   inputs.
 - [Choose a database dialect](dialects-and-execution.md) when the
   driver expects different identifier, placeholder, or pagination syntax.
-- [Read JSON scalars](guides/json.md) from a JSON column.
+- [Query nested JSON](guides/json.md) or read scalars from a JSON column.
 - [Use the Vite compiler hint](guides/vite-plugin.md) for directive-based
   imports.

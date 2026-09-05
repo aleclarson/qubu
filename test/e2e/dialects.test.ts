@@ -15,6 +15,20 @@ import {
 import { sqliteDialect } from "../../src/dialects/sqlite.ts"
 import {
   add,
+  alias,
+  all,
+  bigint,
+  binary,
+  correlate,
+  desc,
+  distinct,
+  over,
+  rowNumber,
+  unionAll,
+  jsonArrayFrom,
+  jsonObjectFrom,
+  offset,
+  numeric,
   boolean,
   booleanResultDecoder,
   cast,
@@ -381,6 +395,121 @@ describe.skipIf(!selectedDialect)("live dialect E2E", () => {
     await environment.driver.exec(dropSql)
     await environment.driver.close()
   }, 30_000)
+
+  test("round trips correlated, ordered and paginated nested JSON with exact logical values", async () => {
+    if (!environment) {
+      throw new Error("E2E environment was not initialized")
+    }
+    const fixture = table("qubu_e2e_nested_json", {
+      id: integer(),
+      exact: bigint(),
+      amount: numeric(),
+      active: boolean(),
+      bytes: binary({ nullable: true }),
+      day: date(),
+      instant: timestamp(),
+      payload: json<{ label: string }>(),
+    })
+    const parent = alias(fixture, "parent")
+    const binaryType = dialectName === "postgresql" ? "BYTEA" : "BLOB"
+    const binaryValue = dialectName === "postgresql" ? "decode('00ff', 'hex')" : "X'00ff'"
+    const bool = dialectName === "postgresql" ? "TRUE" : "1"
+
+    try {
+      await environment.driver.exec(
+        `CREATE TABLE qubu_e2e_nested_json (id INTEGER, exact BIGINT, amount NUMERIC(30,20), active BOOLEAN, bytes ${binaryType}, day DATE, instant TIMESTAMP, payload ${dialectName === "postgresql" ? "JSONB" : dialectName === "mysql" ? "JSON" : "TEXT"})`,
+      )
+      for (const id of [3, 1, 2]) {
+        await environment.driver.exec(
+          `INSERT INTO qubu_e2e_nested_json VALUES (${id}, 9007199254740993, ${id === 1 ? "0.1" : "0.12345678901234568"}, ${bool}, ${id === 3 ? "NULL" : binaryValue}, '2026-09-05', '2026-09-05 12:30:00', '{"label":"Ada"}')`,
+        )
+      }
+      const children = select(
+        all(fixture),
+        from(fixture),
+        correlate(parent),
+        where(lt(fixture.id, parent.id)),
+        orderBy(desc(fixture.id)),
+      )
+      const page = select(
+        { id: fixture.id },
+        from(fixture),
+        correlate(parent),
+        where(lt(fixture.id, parent.id)),
+        orderBy(desc(fixture.id)),
+        offset(1),
+        fetchFirst(1),
+      )
+      const empty = select(
+        { id: fixture.id },
+        from(fixture),
+        where(eq(fixture.id, 99)),
+        fetchFirst(1),
+      )
+      const query = select(
+        {
+          children: jsonArrayFrom(children),
+          page: jsonArrayFrom(page),
+          combined: jsonArrayFrom(
+            unionAll(
+              select({ id: cast(value(7), integer()) }),
+              select({ id: cast(value(7), integer()) }),
+            ),
+          ),
+          windows: jsonArrayFrom(
+            select(
+              { id: fixture.id },
+              from(fixture),
+              orderBy(desc(over(rowNumber(), { orderBy: [fixture.id] }))),
+            ),
+          ),
+          distinct: jsonArrayFrom(
+            select({ exact: fixture.exact }, from(fixture), distinct(), orderBy(fixture.exact)),
+          ),
+          nested: jsonObjectFrom(
+            select({ rows: jsonArrayFrom(select({ id: cast(value(7), integer()) })) }),
+          ),
+          missing: jsonObjectFrom(empty),
+          nullBytes: jsonObjectFrom(
+            select(
+              { bytes: fixture.bytes },
+              from(fixture),
+              where(eq(fixture.id, 3)),
+              fetchFirst(1),
+            ),
+          ),
+          empty: jsonArrayFrom(empty),
+        },
+        from(parent),
+        where(eq(parent.id, 3)),
+      )
+
+      await expect(executeRows(query, environment.adapter)).resolves.toEqual([
+        {
+          children: [2, 1].map((id) => ({
+            id,
+            exact: 9007199254740993n,
+            amount: id === 1 ? 0.1 : 0.12345678901234568,
+            active: true,
+            bytes: new Uint8Array([0, 255]),
+            day: new Date("2026-09-05T00:00:00Z"),
+            instant: new Date("2026-09-05T12:30:00Z"),
+            payload: { label: "Ada" },
+          })),
+          page: [{ id: 1 }],
+          combined: [{ id: 7 }, { id: 7 }],
+          windows: [{ id: 3 }, { id: 2 }, { id: 1 }],
+          distinct: [{ exact: 9007199254740993n }],
+          nested: { rows: [{ id: 7 }] },
+          missing: null,
+          nullBytes: { bytes: null },
+          empty: [],
+        },
+      ])
+    } finally {
+      await environment.driver.exec("DROP TABLE IF EXISTS qubu_e2e_nested_json")
+    }
+  })
 
   test("executes parameterized queries through the dialect adapter", async () => {
     if (!environment) {

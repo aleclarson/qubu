@@ -67,6 +67,8 @@ export const qubuGlobals = [
   "isNull",
   "isTrue",
   "json",
+  "jsonArrayFrom",
+  "jsonObjectFrom",
   "jsonBoolean",
   "jsonExists",
   "jsonNumber",

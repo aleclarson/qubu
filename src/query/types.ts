@@ -45,9 +45,16 @@ export interface Query<TConfig extends QueryConfig = {}> extends Fragment<
   /** @internal Type-level configuration retained for inference. */
   readonly __queryConfig?: TConfig
   readonly queryKind: QueryKind
+  /** @internal Runtime row-bound proof retained by built-in query constructors. */
+  readonly cardinality?: QueryCardinality
   readonly row: QueryConfigRow<TConfig>
   /** Runtime metadata used to decode named result fields. */
   readonly resultShape: ResultShape
+  /** @internal Render a SELECT with an ordering ordinal for nested JSON aggregation. */
+  readonly renderJsonRows?: (
+    context: import("../core/fragment.ts").RenderContext,
+    ordinal: string,
+  ) => void
   /** Type-only SQL domains of the named query projection. */
   readonly sqlTypes?: QueryConfigSqlTypes<TConfig>
 }

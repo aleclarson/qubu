@@ -1,6 +1,7 @@
 import type { Fragment, SqlTypeOf } from "../core/fragment.ts"
 import type { SqlUnknown } from "../core/sql-types.ts"
 import type { SqlBoolean } from "../core/sql-types.ts"
+import { resultValue, resultValueOf } from "../result.ts"
 import type { BooleanExpression } from "./operators/comparison.ts"
 import { type Operand, type OperandNullability } from "./operators/shared.ts"
 import type { OperandSqlType, SqlEqualityValidation } from "./operators/shared.ts"
@@ -33,15 +34,21 @@ export function caseWhen<
   const thenExpression = asValue(thenValue)
   const elseExpression = asValue(elseValue)
 
-  return makeSchemaExpression("operator", (context) => {
-    context.append("CASE WHEN ")
-    context.render(condition)
-    context.append(" THEN ")
-    context.render(thenExpression)
-    context.append(" ELSE ")
-    context.render(elseExpression)
-    context.append(" END")
-  }) as ResultExpression<{
+  const domain = resultValueOf(thenExpression)?.sqlType ?? resultValueOf(elseExpression)?.sqlType
+
+  return makeSchemaExpression(
+    "operator",
+    (context) => {
+      context.append("CASE WHEN ")
+      context.render(condition)
+      context.append(" THEN ")
+      context.render(thenExpression)
+      context.append(" ELSE ")
+      context.render(elseExpression)
+      context.append(" END")
+    },
+    resultValue(undefined, undefined, domain === "integer" ? "decimal" : domain),
+  ) as ResultExpression<{
     readonly output: T
     readonly children: TCondition | TThen | TElse
     readonly kind: "operator"

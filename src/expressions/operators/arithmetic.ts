@@ -1,5 +1,6 @@
 import type { NullabilityOf } from "../../core/fragment.ts"
 import type { SqlNumericLike } from "../../core/sql-types.ts"
+import { resultValue, resultValueOf } from "../../result.ts"
 import { makeSchemaExpression, type ExpressionWithOutput, type ResultExpression } from "../types.ts"
 import type { ExpressionSqlType } from "../types.ts"
 import { expressionOperand, type Operand } from "./shared.ts"
@@ -12,13 +13,21 @@ function arithmetic<T, TLeft extends ExpressionWithOutput<T>, R extends Operand<
 ) {
   const rightExpression = expressionOperand(right)
 
-  return makeSchemaExpression("operator", (context) => {
-    context.append("(")
-    context.render(left)
-    context.append(` ${operator} `)
-    context.render(rightExpression)
-    context.append(")")
-  }) as ResultExpression<{
+  return makeSchemaExpression(
+    "operator",
+    (context) => {
+      context.append("(")
+      context.render(left)
+      context.append(` ${operator} `)
+      context.render(rightExpression)
+      context.append(")")
+    },
+    resultValue(
+      undefined,
+      undefined,
+      resultValueOf(left)?.sqlType === "integer" ? "decimal" : resultValueOf(left)?.sqlType,
+    ),
+  ) as ResultExpression<{
     readonly output: T
     readonly children: TLeft | R
     readonly kind: "operator"

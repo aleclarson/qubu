@@ -1,4 +1,5 @@
 import type { SqlText, SqlTextLike } from "../../core/sql-types.ts"
+import { attachResultValue, resultValue, resultValueOf } from "../../result.ts"
 import type { Operand } from "../operators/shared.ts"
 import type {
   OperandSqlType,
@@ -36,25 +37,31 @@ type CoalesceValidation<TFirst, TRest extends readonly unknown[]> = TRest extend
 export function lower<const TInput extends Operand<string>>(
   input: TInput & TextOperandValidation<TInput>,
 ) {
-  return schemaCall<
-    string,
-    "LOWER",
-    [TInput],
-    import("../../core/fragment.ts").NullabilityOf<TInput>,
-    SqlText
-  >("LOWER", input)
+  return attachResultValue(
+    schemaCall<
+      string,
+      "LOWER",
+      [TInput],
+      import("../../core/fragment.ts").NullabilityOf<TInput>,
+      SqlText
+    >("LOWER", input),
+    resultValue(undefined, undefined, "text"),
+  )
 }
 
 export function upper<const TInput extends Operand<string>>(
   input: TInput & TextOperandValidation<TInput>,
 ) {
-  return schemaCall<
-    string,
-    "UPPER",
-    [TInput],
-    import("../../core/fragment.ts").NullabilityOf<TInput>,
-    SqlText
-  >("UPPER", input)
+  return attachResultValue(
+    schemaCall<
+      string,
+      "UPPER",
+      [TInput],
+      import("../../core/fragment.ts").NullabilityOf<TInput>,
+      SqlText
+    >("UPPER", input),
+    resultValue(undefined, undefined, "text"),
+  )
 }
 
 export function coalesce<
@@ -62,21 +69,27 @@ export function coalesce<
   TFirst extends ExpressionWithOutput<T>,
   const TRest extends readonly Operand<NoInfer<T>>[],
 >(first: TFirst, ...rest: TRest & CoalesceValidation<TFirst, TRest>) {
-  return schemaCall<T, "COALESCE", [TFirst, ...TRest], never, ExpressionSqlType<TFirst>>(
-    "COALESCE",
-    first,
-    ...(rest as unknown as TRest),
+  return attachResultValue(
+    schemaCall<T, "COALESCE", [TFirst, ...TRest], never, ExpressionSqlType<TFirst>>(
+      "COALESCE",
+      first,
+      ...(rest as unknown as TRest),
+    ),
+    resultValueOf(first),
   )
 }
 
 export function concat<const TArguments extends readonly Operand<string>[]>(
   ...argumentsToConcat: TArguments & TextArgumentsValidation<TArguments>
 ) {
-  return schemaCall<
-    string,
-    "CONCAT",
-    TArguments,
-    import("../../core/fragment.ts").NullabilityOf<TArguments[number]>,
-    SqlText
-  >("CONCAT", ...(argumentsToConcat as TArguments))
+  return attachResultValue(
+    schemaCall<
+      string,
+      "CONCAT",
+      TArguments,
+      import("../../core/fragment.ts").NullabilityOf<TArguments[number]>,
+      SqlText
+    >("CONCAT", ...(argumentsToConcat as TArguments)),
+    resultValue(undefined, undefined, "text"),
+  )
 }
