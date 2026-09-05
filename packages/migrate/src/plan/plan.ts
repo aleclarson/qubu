@@ -2150,6 +2150,8 @@ function validatePreconditions(
         !isRecord(precondition.parent) ||
         !isObjectKind(precondition.parent.kind) ||
         typeof precondition.parent.id !== "string" ||
+        (precondition.parent.physicalName !== undefined &&
+          typeof precondition.parent.physicalName !== "string") ||
         (precondition.parent.namespace !== undefined &&
           typeof precondition.parent.namespace !== "string")
       ) {

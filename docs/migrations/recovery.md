@@ -46,12 +46,18 @@ head, or a non-prefix repository fail before any statement executes.
 ## Execution and concurrency guarantees
 
 For each invocation, the executor verifies the entire repository, opens one
-pinned session, checks capabilities, acquires the migrator lease, validates the
+migration session, checks capabilities, acquires the migrator lease, validates the
 journal and repository prefix, checks the live before-snapshot digest, then
 applies each pending artifact. Within an artifact it creates an attempt,
 executes ordered phases with preconditions and postconditions, writes durable
 checkpoints, appends immutable history, and compare-and-swaps the head.
 Resources are released in reverse order: DDL lock, migrator lease, then session.
+
+An `atomic-batch` profile instead applies one single-phase artifact in one
+database transaction, including its checks and terminal journal writes. It
+records a completed phase checkpoint rather than intermediate statement
+checkpoints. See [libSQL batch execution](./adapters.md#libsql-batch-execution)
+for its supported conditions and concurrency guards.
 
 A second runner cannot rely on the lease alone. Atomic applied-record/head
 advancement uses the expected parent as a compare-and-swap guard. A runner that

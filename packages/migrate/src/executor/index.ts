@@ -165,6 +165,27 @@ async function executeArtifact(
   let activeLock: Exclude<MigrationProgramPhase["lock"], "none"> | undefined
   let context = { artifactId: artifact.id, artifactDigest: artifact.artifactDigest, attemptId }
   try {
+    if (session.capabilities.session === "atomic-batch") {
+      await boundary(options, "execute-batch")
+      try {
+        await session.applyBatch!({ artifact, attemptId, expectedHead, appliedAt: now() })
+      } catch (error) {
+        if (session.classifyFailure(error, "execute-batch") === "uncertain")
+          throw new MigrationExecutionError(
+            "uncertain-outcome",
+            "Migration batch outcome is uncertain",
+            context,
+            { cause: error },
+          )
+        throw error
+      }
+      return Object.freeze({
+        artifactId: artifact.id,
+        artifactDigest: artifact.artifactDigest,
+        attemptId,
+        atomicity: "atomic" as const,
+      })
+    }
     for (const phase of artifact.program.phases) {
       context = { ...context, phaseId: phase.id } as typeof context
       assertNotAborted(options.signal, context)
@@ -356,7 +377,7 @@ function capabilityPreflight(
       { retry: "safe" },
     )
   if (
-    session.capabilities.session !== "pinned" ||
+    !["pinned", "atomic-batch"].includes(session.capabilities.session) ||
     session.capabilities.leaseKind !== "database" ||
     !session.capabilities.journal.compareAndSwapHead ||
     !session.capabilities.journal.atomicAppliedAndHead
@@ -368,6 +389,19 @@ function capabilityPreflight(
       { retry: "safe" },
     )
   for (const artifact of artifacts) {
+    if (
+      session.capabilities.session === "atomic-batch" &&
+      artifact.format === "qubu-executable-migration"
+    ) {
+      if (!session.applyBatch || !session.validateBatch || artifact.program?.phases.length !== 1)
+        throw new MigrationExecutionError(
+          "capability",
+          "Atomic batch execution requires exactly one phase and a batch adapter",
+          {},
+          { retry: "safe" },
+        )
+      session.validateBatch(artifact as ExecutableMigrationArtifact)
+    }
     if (artifact.dialect.name !== session.capabilities.dialect)
       throw new MigrationExecutionError(
         "capability",

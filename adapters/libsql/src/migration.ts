@@ -1,13 +1,20 @@
 import type { Client, InStatement, InValue, ResultSet, Transaction } from "@libsql/client"
 import { canonicalText, digestCanonical, isSha256Digest } from "@qubu/migrate/artifact"
-import type { ProgramCondition, Sha256Digest, TaggedParameterValue } from "@qubu/migrate/artifact"
+import type {
+  ExecutableMigrationArtifact,
+  ProgramCondition,
+  Sha256Digest,
+  TaggedParameterValue,
+} from "@qubu/migrate/artifact"
 import { compareManagedSnapshots } from "@qubu/migrate/baseline"
+import { MigrationExecutionError } from "@qubu/migrate/executor"
 import type {
   AdapterFailureClassification,
   MigrationAdapter,
   MigrationAwaitBoundary,
   MigrationSession,
   MigrationSnapshotInspection,
+  MigrationBatch,
 } from "@qubu/migrate/executor"
 import {
   canTransitionAttempt,
@@ -22,10 +29,14 @@ import {
   type PhaseCheckpoint,
   type ReconciliationRecord,
 } from "@qubu/migrate/journal"
-import { evaluateMigrationPrecondition } from "@qubu/migrate/plan"
+import { evaluateMigrationPrecondition, isMigrationPrecondition } from "@qubu/migrate/plan"
 import { mapCatalogToSnapshot } from "qubu/introspection"
 import { readCatalog } from "qubu/introspection/sqlite"
-import { assertSchemaSnapshot } from "qubu/snapshot"
+import {
+  assertSchemaSnapshot,
+  canonicalizeCompleteSchemaSnapshot,
+  completeSchemaSnapshotFingerprint,
+} from "qubu/snapshot"
 import type { SchemaSnapshot, SchemaSnapshotInput, SnapshotJsonValue } from "qubu/snapshot"
 
 const metadataTable = "__qubu_migration_metadata"
@@ -60,7 +71,7 @@ export interface LibsqlMigrationAdapter extends MigrationAdapter {
   readonly client: Client
 }
 
-/** Adapt one application-owned libSQL client to Qubu's pinned migration-session contract. */
+/** Execute single-phase migrations through the application-owned client's atomic migrate API. */
 export function libsqlMigrationAdapter(
   client: Client,
   options: LibsqlMigrationAdapterOptions = {},
@@ -157,7 +168,7 @@ export async function readLibsqlMigrationSnapshot(
 class LibsqlMigrationSession implements MigrationSession {
   readonly capabilities = Object.freeze({
     dialect: "sqlite",
-    session: "pinned",
+    session: "atomic-batch",
     transactionalDdl: true,
     optionalTransactions: true,
     transactions: Object.freeze(["required", "optional"] as const),
@@ -200,6 +211,155 @@ class LibsqlMigrationSession implements MigrationSession {
       () => this.#executor(),
       () => this.#transaction,
     )
+  }
+
+  validateBatch(artifact: ExecutableMigrationArtifact): void {
+    if (!artifact.beforeSnapshot.value)
+      throw batchCapability("libSQL batches require an embedded before snapshot")
+    if (artifact.program.phases.length !== 1)
+      throw batchCapability("libSQL batch migrations require exactly one phase")
+    const phase = artifact.program.phases[0]!
+    if (phase.transaction === "forbidden" || phase.lock === "shared")
+      throw batchCapability(
+        "libSQL batch migrations require transactional execution without a shared lock",
+      )
+    for (const condition of phase.preconditions) {
+      if (isSnapshotCondition(condition)) {
+        if (
+          !snapshotCondition(
+            condition,
+            artifact.beforeSnapshot.value,
+            artifact.beforeSnapshot.digest,
+          )
+        )
+          throw batchCapability(
+            `Precondition ${condition.id} does not match the embedded before snapshot`,
+          )
+      } else conditionSql(condition)
+    }
+    for (const condition of phase.postconditions) conditionSql(condition)
+    // Transaction control and connection settings belong to migrate(), not program statements.
+    for (const statement of phase.statements) {
+      const sql = statement.sql.replace(/\/\*[\s\S]*?\*\/|--[^\n]*/g, " ").trim()
+      if (/^(BEGIN|COMMIT|END|ROLLBACK|SAVEPOINT|RELEASE|PRAGMA|ATTACH|DETACH|VACUUM)\b/i.test(sql))
+        throw batchCapability(
+          "libSQL batch programs cannot contain transaction or connection control statements",
+        )
+    }
+  }
+
+  async applyBatch({
+    artifact,
+    attemptId,
+    expectedHead,
+    appliedAt,
+  }: MigrationBatch): Promise<void> {
+    this.#open()
+    this.validateBatch(artifact)
+    if (!this.#leased || this.#transaction)
+      throw batchCapability("A batch requires the migration lease and no active transaction")
+    const phase = artifact.program.phases[0]!
+    const beforeSnapshot = artifact.beforeSnapshot.value!
+    // Read the catalog and managed snapshot from one consistent read transaction. The batch
+    // checks the same catalog before DDL so preparation never authorizes a stale schema.
+    const reader = await this.#client.transaction("read")
+    let catalog: string
+    try {
+      catalog = String((await reader.execute(catalogSql)).rows[0]![0])
+      const snapshot = normalizeSnapshot(
+        await (this.#options.readSnapshot ?? readLibsqlMigrationSnapshot)(reader, beforeSnapshot),
+      )
+      const matches = isSha256Digest(snapshot)
+        ? snapshot === artifact.beforeSnapshot.digest
+        : compareManagedSnapshots(beforeSnapshot, snapshot.snapshot).matches
+      if (!matches)
+        throw new MigrationExecutionError(
+          "drift",
+          "Live schema does not match the migration before snapshot",
+          {},
+          { retry: "safe" },
+        )
+    } finally {
+      try {
+        await reader.rollback()
+      } finally {
+        reader.close()
+      }
+    }
+    const guard = `__qubu_migration_guard_${crypto.randomUUID().replaceAll("-", "")}`
+    const statements: InStatement[] = [
+      `CREATE TEMP TABLE ${guard} (ok INTEGER NOT NULL CHECK (ok = 1))`,
+    ]
+    const assertSql = (predicate: string, args: InValue[] = []) => {
+      statements.push({
+        sql: `INSERT INTO ${guard} VALUES (CASE WHEN (${predicate}) THEN 1 ELSE 0 END)`,
+        args,
+      })
+    }
+    assertSql(`EXISTS (SELECT 1 FROM ${leaseTable} WHERE singleton = 1 AND owner = ?)`, [
+      this.#leaseToken,
+    ])
+    assertSql(`EXISTS (SELECT 1 FROM ${metadataTable} WHERE singleton = 1 AND head IS ?)`, [
+      expectedHead,
+    ])
+    assertSql(`EXISTS (SELECT 1 FROM ${attemptsTable} WHERE id = ? AND state = 'running')`, [
+      attemptId,
+    ])
+    assertSql(`(${catalogSql}) = ?`, [catalog])
+    for (const condition of phase.preconditions) {
+      if (isSnapshotCondition(condition)) {
+        if (!snapshotCondition(condition, beforeSnapshot, artifact.beforeSnapshot.digest))
+          throw new MigrationExecutionError(
+            "drift",
+            `Precondition ${condition.id} failed`,
+            {},
+            { retry: "safe" },
+          )
+      } else {
+        const check = conditionSql(condition)
+        assertSql(check.sql, check.args)
+      }
+    }
+    for (const statement of phase.statements)
+      statements.push({ sql: statement.sql, args: statement.parameters.map(decodeParameter) })
+    for (const condition of phase.postconditions) {
+      const check = conditionSql(condition)
+      assertSql(check.sql, check.args)
+    }
+    // migrate() turns FK enforcement off. A failing assertion makes violations roll back
+    // before the journal can claim the migration was applied.
+    assertSql("NOT EXISTS (SELECT 1 FROM pragma_foreign_key_check)")
+    statements.push(
+      {
+        sql: `INSERT INTO ${appliedTable} (artifact_id, sequence, artifact_digest, parent_artifact_digest, kind, attempt_id, applied_at) VALUES (?, ?, ?, ?, 'migration', ?, ?)`,
+        args: [
+          artifact.id,
+          artifact.sequence,
+          artifact.artifactDigest,
+          expectedHead,
+          attemptId,
+          appliedAt,
+        ],
+      },
+      {
+        sql: `UPDATE ${metadataTable} SET head = ? WHERE singleton = 1 AND head IS ?`,
+        args: [artifact.artifactDigest, expectedHead],
+      },
+    )
+    assertSql("changes() = 1")
+    statements.push({
+      sql: `UPDATE ${attemptsTable} SET state = 'applied', updated_at = ? WHERE id = ? AND state = 'running'`,
+      args: [appliedAt, attemptId],
+    })
+    assertSql("changes() = 1")
+    statements.push(
+      {
+        sql: `INSERT INTO ${checkpointsTable} (attempt_id, phase_id, statement_id, status, recorded_at) VALUES (?, ?, NULL, 'completed', ?)`,
+        args: [attemptId, phase.id, appliedAt],
+      },
+      `DROP TABLE ${guard}`,
+    )
+    await this.#client.migrate(statements)
   }
 
   async acquireLease(signal?: AbortSignal): Promise<void> {
@@ -349,6 +509,18 @@ class LibsqlMigrationSession implements MigrationSession {
   }
 
   classifyFailure(error: unknown, boundary: MigrationAwaitBoundary): AdapterFailureClassification {
+    if (boundary === "execute-batch") {
+      if (error instanceof MigrationExecutionError) return "before-execution"
+      const code = failureCode(error)
+      // A batch includes COMMIT. Storage/transport failures may hide its outcome;
+      // only statement/constraint and lock failures prove the batch did not commit.
+      return code === "SQLITE_ERROR" ||
+        code?.startsWith("SQLITE_CONSTRAINT") ||
+        code?.startsWith("SQLITE_BUSY") ||
+        code?.startsWith("SQLITE_LOCKED")
+        ? "definite-failure"
+        : "uncertain"
+    }
     if (boundary === "commit-transaction" || boundary === "rollback-transaction") return "uncertain"
     if (boundary === "execute-statement") {
       const code = failureCode(error)
@@ -608,6 +780,77 @@ async function leaseOwner(client: Client): Promise<string | undefined> {
   return typeof owner === "string" ? owner : undefined
 }
 
+// Include every main-schema definition, including journal definitions. Data is guarded separately.
+const catalogSql =
+  "SELECT json_group_array(json_array(type, name, tbl_name, sql)) FROM (SELECT type, name, tbl_name, sql FROM main.sqlite_schema ORDER BY type, name)"
+
+function batchCapability(message: string): MigrationExecutionError {
+  return new MigrationExecutionError("capability", message, {}, { retry: "safe" })
+}
+
+function isSnapshotCondition(condition: ProgramCondition): boolean {
+  return (
+    condition.type === "snapshot-digest" ||
+    condition.type === "snapshot-fingerprint" ||
+    condition.type === "property-equals" ||
+    (condition.type === "object-present" &&
+      isMigrationPrecondition(condition.value) &&
+      typeof condition.value.fingerprint === "string")
+  )
+}
+
+function snapshotCondition(
+  condition: ProgramCondition,
+  snapshot: SchemaSnapshot,
+  digest: Sha256Digest,
+): boolean {
+  if (condition.type === "snapshot-digest") return condition.value === digest
+  if (condition.type === "snapshot-fingerprint")
+    return (
+      isMigrationPrecondition(condition.value) &&
+      condition.value.fingerprint === completeSchemaSnapshotFingerprint(snapshot)
+    )
+  return evaluateMigrationPrecondition(
+    canonicalizeCompleteSchemaSnapshot(snapshot),
+    condition.value,
+  )
+}
+
+function conditionSql(condition: ProgramCondition): { sql: string; args: InValue[] } {
+  if (condition.type === "statement" && typeof condition.value === "string") {
+    return { sql: `(${condition.value.trim().replace(/;$/, "")}) IS 1`, args: [] }
+  }
+  if (condition.type !== "object-present" && condition.type !== "object-absent")
+    throw batchCapability(`Condition ${condition.type} cannot be evaluated inside a libSQL batch`)
+  const value = condition.value
+  if (
+    !isMigrationPrecondition(value) ||
+    typeof value.physicalName !== "string" ||
+    value.fingerprint !== undefined
+  )
+    throw batchCapability(
+      "Batch object conditions require a physical name and no unresolved fingerprint",
+    )
+  if (value.namespace !== undefined && value.namespace !== "main")
+    throw batchCapability("libSQL batches support only the main database namespace")
+  let query: string
+  let args: InValue[]
+  if (value.kind === "column") {
+    const parent = value.parent as { physicalName?: string } | undefined
+    if (typeof parent?.physicalName !== "string")
+      throw batchCapability("Column conditions require the parent table's physical name")
+    query = "SELECT 1 FROM pragma_table_xinfo(?, 'main') WHERE name = ?"
+    args = [parent.physicalName, value.physicalName]
+  } else {
+    if (!["table", "view", "index", "trigger"].includes(String(value.kind)))
+      throw batchCapability(
+        `Object kind ${String(value.kind)} cannot be checked inside a libSQL batch`,
+      )
+    query = "SELECT 1 FROM main.sqlite_schema WHERE type = ? AND name = ?"
+    args = [value.kind as string, value.physicalName]
+  }
+  return { sql: `${condition.type === "object-absent" ? "NOT " : ""}EXISTS (${query})`, args }
+}
 function decodeParameter(value: TaggedParameterValue): InValue {
   switch (value.type) {
     case "null":
