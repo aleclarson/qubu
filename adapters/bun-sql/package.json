@@ -1,6 +1,6 @@
 {
   "name": "@qubu/adapter-bun-sql",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "repository": {
     "type": "git",
     "url": "https://github.com/aleclarson/qubu",
@@ -32,7 +32,7 @@
     "qubu": "workspace:*"
   },
   "peerDependencies": {
-    "@qubu/migrate": "0.6.1",
-    "qubu": "0.6.1"
+    "@qubu/migrate": "0.6.2",
+    "qubu": "0.6.2"
   }
 }

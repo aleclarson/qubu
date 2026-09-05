@@ -1,6 +1,6 @@
 {
   "name": "@qubu/adapter-neon",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Experimental Qubu adapter for Neon's HTTP PostgreSQL client.",
   "repository": {
     "type": "git",
@@ -32,6 +32,6 @@
   },
   "peerDependencies": {
     "@neondatabase/serverless": ">=1.0.0 <2.0.0",
-    "qubu": "0.6.1"
+    "qubu": "0.6.2"
   }
 }

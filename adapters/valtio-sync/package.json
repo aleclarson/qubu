@@ -1,6 +1,6 @@
 {
   "name": "@qubu/valtio-sync",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "repository": {
     "type": "git",
     "url": "https://github.com/aleclarson/qubu",
@@ -32,7 +32,7 @@
     "zod": "4.4.3"
   },
   "peerDependencies": {
-    "qubu": "0.6.1",
+    "qubu": "0.6.2",
     "valtio-sync": ">=0.3.1 <0.4.0",
     "zod": ">=4.4.3 <5.0.0"
   }
