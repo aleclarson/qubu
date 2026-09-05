@@ -1,6 +1,6 @@
 {
   "name": "@qubu/pgvector",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/aleclarson/qubu",
@@ -32,6 +32,6 @@
     "qubu": "workspace:*"
   },
   "peerDependencies": {
-    "qubu": "0.6.0"
+    "qubu": "0.6.1"
   }
 }
