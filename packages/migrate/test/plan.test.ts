@@ -201,7 +201,7 @@ test("carries destructive property changes through a physical rename", () => {
       property: ["nullable"],
       value: true,
       physicalName: "legacy_name",
-      parent: { kind: "table", id: "accounts", namespace: "public" },
+      parent: { kind: "table", id: "accounts", namespace: "public", physicalName: "accounts" },
     }),
   )
 })
