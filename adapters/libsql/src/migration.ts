@@ -238,7 +238,6 @@ class LibsqlMigrationSession implements MigrationSession {
       } else conditionSql(condition)
     }
     for (const condition of phase.postconditions) conditionSql(condition)
-    for (const statement of phase.statements) validateBatchStatement(statement.sql)
   }
 
   async applyBatch({
@@ -781,111 +780,6 @@ function batchCapability(message: string): MigrationExecutionError {
   return new MigrationExecutionError("capability", message, {}, { retry: "safe" })
 }
 
-/** Inspect executable tokens, leaving SQL syntax validation to SQLite. */
-function validateBatchStatement(sql: string): void {
-  const allowed = new Set([
-    "CREATE",
-    "ALTER",
-    "DROP",
-    "INSERT",
-    "UPDATE",
-    "DELETE",
-    "REPLACE",
-    "SELECT",
-    "WITH",
-    "VALUES",
-    "EXPLAIN",
-    "ANALYZE",
-    "REINDEX",
-  ])
-  let offset = 0
-  let first = ""
-  let finished = false
-  let createModifier = false
-  let trigger = false
-  let triggerBody = false
-  let bodyStatementStart = false
-  let caseDepth = 0
-  if (sql.includes("\0")) throw batchCapability("Batch statements cannot contain NUL characters")
-  while (offset < sql.length) {
-    const character = sql[offset]!
-    if (/\s/.test(character)) {
-      offset++
-      continue
-    }
-    if (sql.startsWith("--", offset)) {
-      const end = sql.indexOf("\n", offset + 2)
-      offset = end === -1 ? sql.length : end + 1
-      continue
-    }
-    if (sql.startsWith("/*", offset)) {
-      const end = sql.indexOf("*/", offset + 2)
-      if (end === -1) throw batchCapability("Batch statements require terminated SQL comments")
-      offset = end + 2
-      continue
-    }
-    if (character === ";") {
-      offset++
-      if (triggerBody) bodyStatementStart = true
-      else if (first) finished = true
-      continue
-    }
-    if (finished)
-      throw batchCapability("Each batch entry must contain exactly one executable SQL statement")
-
-    let word = ""
-    if (character === "'" || character === '"' || character === "`" || character === "[") {
-      const closing = character === "[" ? "]" : character
-      offset++
-      let closed = false
-      while (offset < sql.length) {
-        if (sql[offset++] !== closing) continue
-        if (closing !== "]" && sql[offset] === closing) {
-          offset++
-          continue
-        }
-        closed = true
-        break
-      }
-      if (!closed) throw batchCapability("Batch statements require terminated SQL quotes")
-    } else {
-      const match = /^[A-Za-z_][A-Za-z_0-9$]*/.exec(sql.slice(offset))
-      if (match) {
-        word = match[0].toUpperCase()
-        offset += match[0].length
-      } else offset++
-    }
-    if (!first) {
-      if (!allowed.has(word))
-        throw batchCapability(
-          "libSQL batch programs cannot contain transaction or connection control statements",
-        )
-      first = word
-      createModifier = word === "CREATE"
-      continue
-    }
-    if (createModifier) {
-      if (word === "TEMP" || word === "TEMPORARY") continue
-      trigger = word === "TRIGGER"
-      createModifier = false
-    }
-    // A trigger's BEGIN/END and internal semicolons belong to CREATE TRIGGER,
-    // not to the enclosing migration transaction. CASE END stays in its body statement.
-    if (trigger && !triggerBody && word === "BEGIN") {
-      triggerBody = true
-      bodyStatementStart = true
-      continue
-    }
-    if (triggerBody) {
-      if (bodyStatementStart && word === "END" && caseDepth === 0) triggerBody = false
-      else if (word === "CASE") caseDepth++
-      else if (word === "END" && caseDepth > 0) caseDepth--
-      bodyStatementStart = false
-    }
-  }
-  if (!first) throw batchCapability("Batch entries require an executable SQL statement")
-}
-
 function isSnapshotCondition(condition: ProgramCondition): boolean {
   return (
     condition.type === "snapshot-digest" ||
@@ -916,7 +810,6 @@ function snapshotCondition(
 
 function conditionSql(condition: ProgramCondition): { sql: string; args: InValue[] } {
   if (condition.type === "statement" && typeof condition.value === "string") {
-    validateBatchStatement(condition.value)
     return { sql: `(${condition.value.trim().replace(/;$/, "")}) IS 1`, args: [] }
   }
   if (condition.type !== "object-present" && condition.type !== "object-absent")

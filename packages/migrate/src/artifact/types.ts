@@ -58,6 +58,7 @@ export interface MigrationProgramStatement {
   readonly id: string
   readonly position: number
   readonly operationId: string
+  /** Trusted SQL. Callers must preserve executor-owned transactions and journal state. */
   readonly sql: string
   readonly parameters: readonly TaggedParameterValue[]
   readonly dependsOn: readonly string[]

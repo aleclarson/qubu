@@ -142,8 +142,8 @@ async function executeStatement(
   return connection.execute({
     sql: request.statement.text,
     values: request.statement.parameters.map((value, index) =>
-    encodeParameter(value, encoder, request.statement.parameterSqlTypes?.[index]),
-  ),
+      encodeParameter(value, encoder, request.statement.parameterSqlTypes?.[index]),
+    ),
     rowsAsArray: false,
     nestTables: false,
   })
