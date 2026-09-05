@@ -2,7 +2,7 @@ import type { DatabaseSync } from "node:sqlite"
 
 import type { PGliteInterface } from "@electric-sql/pglite"
 import type { SQL } from "bun"
-import type { ClientBase } from "pg"
+import type { ClientBase, Pool, PoolClient } from "pg"
 import type { Sql } from "postgres"
 import { expectTypeOf } from "vitest"
 
@@ -26,6 +26,8 @@ import { qubu, type QubuExplainableClient } from "../src/index.ts"
 
 declare const nodeSqlite: DatabaseSync
 declare const pg: ClientBase
+declare const pgPool: Pool
+declare const pgPoolClient: PoolClient
 declare const mysql2: Mysql2Connection
 declare const bunSql: BunSqlClient
 declare const bunRuntimeSql: SQL
@@ -43,6 +45,13 @@ qubu(nodeSqliteAdapter(nodeSqlite)).transaction(async (transaction) => {
 qubu(pgAdapter(pg)).transaction(async (transaction) => {
   expectTypeOf(transaction.explain).toBeFunction()
 })
+expectTypeOf(pgAdapter(pgPool).client).toEqualTypeOf<Pool>()
+expectTypeOf(pgAdapter(pgPoolClient).client).toEqualTypeOf<PoolClient>()
+qubu(pgAdapter(pgPool)).transaction(async (transaction) => {
+  expectTypeOf(transaction.explain).toBeFunction()
+})
+// @ts-expect-error A query method alone is not a connected pg client or pool.
+pgAdapter({ query: async () => ({ rows: [] }) })
 qubu(mysql2Adapter(mysql2)).transaction(async (transaction) => {
   expectTypeOf(transaction.explain).toBeFunction()
 })

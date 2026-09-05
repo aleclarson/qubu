@@ -1,4 +1,4 @@
-import type { ClientBase, QueryResultRow } from "pg"
+import type { ClientBase, Pool, QueryResultRow } from "pg"
 import type {
   DriverValueEncoder,
   ExecutionRequest,
@@ -17,16 +17,24 @@ export interface PgAdapterOptions {
 
 export interface PgTransactionAdapter extends ExplainableQueryAdapter<QueryResultRow> {}
 
-export interface PgAdapter
+export interface PgAdapter<TClient extends ClientBase | Pool = ClientBase | Pool>
   extends ExplainableQueryAdapter<QueryResultRow>, TransactionalQueryAdapter<PgTransactionAdapter> {
-  readonly client: ClientBase
+  readonly client: TClient
 }
 
 const identityEncoder: DriverValueEncoder = { encode: (value) => value }
 
-/** Adapt one pinned `pg` client. Pools must acquire a client before adapting. */
-export function pgAdapter(client: ClientBase, options: PgAdapterOptions = {}): PgAdapter {
-  const scoped = executionAdapter(client, options.encoder ?? identityEncoder)
+/**
+ * Adapt an application-owned `pg` pool or connected client. Queries and EXPLAIN use the supplied
+ * connection. Pooled transactions acquire and release one client; failed BEGIN or rollback cleanup
+ * discards that client. The adapter never closes the pool or releases a directly supplied client.
+ */
+export function pgAdapter<TClient extends ClientBase | Pool>(
+  client: TClient,
+  options: PgAdapterOptions = {},
+): PgAdapter<TClient> {
+  const encoder = options.encoder ?? identityEncoder
+  const scoped = executionAdapter(client, encoder)
 
   return {
     ...scoped,
@@ -36,30 +44,75 @@ export function pgAdapter(client: ClientBase, options: PgAdapterOptions = {}): P
       transactionOptions: TransactionOptions = {},
     ): Promise<T> {
       throwIfAborted(transactionOptions.signal)
-      await client.query("BEGIN")
-      try {
-        const result = await callback(scoped)
+      // Pool and Client both expose connect(); pool counts distinguish ownership.
+      const acquired = "totalCount" in client ? await client.connect() : undefined
+      const connection = acquired ?? client
+      let discard = false
+      let failed = false
+      let failure: unknown
+      let result!: T
 
+      try {
         throwIfAborted(transactionOptions.signal)
-        await client.query("COMMIT")
-        return result
-      } catch (error) {
         try {
-          await client.query("ROLLBACK")
-        } catch (rollbackError) {
+          await connection.query("BEGIN")
+        } catch (error) {
+          // A rejected BEGIN may leave the connection state uncertain.
+          discard = true
+          throw error
+        }
+
+        try {
+          result = await callback(executionAdapter(connection, encoder))
+
+          throwIfAborted(transactionOptions.signal)
+          await connection.query("COMMIT")
+        } catch (error) {
+          try {
+            await connection.query("ROLLBACK")
+          } catch (rollbackError) {
+            discard = true
+            throw new AggregateError(
+              [error, rollbackError],
+              "Transaction failed and rollback failed",
+              { cause: error },
+            )
+          }
+
+          throw error
+        }
+      } catch (error) {
+        failed = true
+        failure = error
+      }
+
+      try {
+        acquired?.release(discard)
+      } catch (releaseError) {
+        if (failed) {
           throw new AggregateError(
-            [error, rollbackError],
-            "Transaction failed and rollback failed",
-            { cause: error },
+            [failure, releaseError],
+            "Transaction failed and client release failed",
+            { cause: failure },
           )
         }
-        throw error
+
+        throw releaseError
       }
+
+      if (failed) {
+        throw failure
+      }
+
+      return result
     },
   }
 }
 
-function executionAdapter(client: ClientBase, encoder: DriverValueEncoder): PgTransactionAdapter {
+function executionAdapter(
+  client: ClientBase | Pool,
+  encoder: DriverValueEncoder,
+): PgTransactionAdapter {
   return {
     dialect: postgresDialect(),
     async execute<TRow extends object>(request: ExecutionRequest) {
