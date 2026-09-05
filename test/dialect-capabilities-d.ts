@@ -26,7 +26,10 @@ type Equal<TLeft, TRight> = [TLeft] extends [TRight]
 type Assert<TCondition extends true> = TCondition
 
 export type CapabilityVocabulary = Assert<
-  Equal<DialectCapability, "ilike" | "json" | "on-conflict" | "row-locking" | "update-from">
+  Equal<
+    DialectCapability,
+    "ilike" | "json" | "on-conflict" | "on-duplicate-key-update" | "row-locking" | "update-from"
+  >
 >
 
 export type PostgresQueryRequiresIlike = Assert<

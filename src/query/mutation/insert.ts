@@ -4,6 +4,7 @@ import type {
   RequiresOf,
   RequiresOuterMetadataOf,
 } from "../../core/fragment.ts"
+import { snakeCaseIdentifier } from "../../core/naming.ts"
 import { identifier } from "../../core/primitives/identifier.ts"
 import type { SqlTypeName } from "../../core/sql-types.ts"
 import { isExpression, type ExpressionWithOutput } from "../../expressions/types.ts"
@@ -17,6 +18,7 @@ import type { AnyTable, TableInsertInput } from "../../schema/table.ts"
 import { queryValidationError, type QueryTypeValidation } from "../errors.ts"
 import type { AnyQuery } from "../types.ts"
 import type { InsertClause } from "./on-conflict.ts"
+import { incomingAlias, renderDuplicateKeyUpdate } from "./on-duplicate-key-update.ts"
 import {
   createMutation,
   type MutationQuery,
@@ -223,7 +225,17 @@ export function insertInto<
 >(
   table: TTable,
   source: TSource & ValidInsertSource<TTable, TSource> & InsertValuesScopeValidation<TSource>,
-  ...clauses: TClauses & MutationScopeValidation<TTable, TClauses>
+  ...clauses: TClauses &
+    MutationScopeValidation<TTable, TClauses> &
+    (Extract<TClauses[number], { clauseKind: "on-duplicate-key-update" }> extends never
+      ? unknown
+      : Extract<TClauses[number], { clauseKind: "returning" }> extends never
+        ? unknown
+        : QueryTypeValidation<
+            "invalid-mutation",
+            "insert.duplicate-key",
+            "MySQL duplicate-key updates do not support RETURNING."
+          >)
 ): MutationQuery<{
   readonly row: MutationRow<TClauses>
   readonly kind: "insert"
@@ -233,6 +245,45 @@ export function insertInto<
   validateInsert(table, source)
 
   const insertClauses = clauses as readonly InsertClause[]
+  const duplicate = insertClauses.find((clause) => clause.clauseKind === "on-duplicate-key-update")
+
+  if (duplicate) {
+    if (insertClauses.some((clause) => clause.clauseKind === "returning")) {
+      throw queryValidationError({
+        code: "invalid-mutation",
+        context: "insert.duplicate-key",
+        path: ["returning"],
+        message: "MySQL duplicate-key updates do not support RETURNING",
+        hint: "Read the row in a separate query.",
+      })
+    }
+
+    if (duplicate.table !== table) {
+      throw queryValidationError({
+        code: "invalid-mutation",
+        context: "insert.duplicate-key",
+        path: ["onDuplicateKeyUpdate"],
+        message: "Duplicate-key updates require the same INSERT target table",
+        hint: "Pass the INSERT table to onDuplicateKeyUpdate().",
+      })
+    }
+
+    if (
+      insertClauses.filter(
+        (clause) =>
+          clause.clauseKind === "on-duplicate-key-update" || clause.clauseKind === "on-conflict",
+      ).length !== 1
+    ) {
+      throw queryValidationError({
+        code: "duplicate-clause",
+        context: "insert.duplicate-key",
+        path: ["clauses"],
+        message: "INSERT accepts one conflict clause",
+        hint: "Use one onDuplicateKeyUpdate() clause.",
+      })
+    }
+  }
+
   validateMutationWithClauses("INSERT", insertClauses)
   const withClause = insertClauses.find((clause) => clause.clauseKind === "with")
   const row = insertClauses.find((clause) => clause.clauseKind === "returning")?.row ?? {}
@@ -259,7 +310,11 @@ export function insertInto<
       const columns = [...explicitColumns, ...runtimeDefaultColumns]
 
       if (columns.length === 0) {
-        context.append(" DEFAULT VALUES")
+        context.append(
+          context.dialect.name === "mysql"
+            ? ` () VALUES ${rows.map(() => "()").join(", ")}`
+            : " DEFAULT VALUES",
+        )
       } else {
         renderTargetColumns(context, table, columns)
         context.append(" VALUES ")
@@ -290,7 +345,7 @@ export function insertInto<
       )
 
       if (runtimeDefaults.length === 0) {
-        context.append(" DEFAULT VALUES")
+        context.append(context.dialect.name === "mysql" ? " () VALUES ()" : " DEFAULT VALUES")
       } else {
         renderTargetColumns(
           context,
@@ -314,7 +369,45 @@ export function insertInto<
     } else {
       renderTargetColumns(context, table, source.columns)
       context.append(" ")
-      context.renderRelation(source.query)
+      if (duplicate) {
+        const fields = Object.keys(source.query.row)
+
+        if (fields.length !== source.columns.length) {
+          throw queryValidationError({
+            code: "invalid-insert",
+            context: "insert.select.columns",
+            path: ["insertSelect", "columns"],
+            message: "INSERT SELECT target and projection lengths must match",
+            hint: "Map every projected field to one insert column.",
+          })
+        }
+
+        context.append("SELECT * FROM (SELECT ")
+        fields.forEach((field, index) => {
+          if (index) {
+            context.append(", ")
+          }
+
+          context.render(identifier("__qubu_insert_source"))
+          context.append(".")
+          context.render(identifier(snakeCaseIdentifier(field)))
+          context.append(" AS ")
+          context.render(identifier(table.sqlNames[source.columns[index]] ?? source.columns[index]))
+        })
+        context.append(" FROM (")
+        context.renderRelation(source.query)
+        context.append(") AS ")
+        context.render(identifier("__qubu_insert_source"))
+        context.append(") AS ")
+        context.render(identifier(incomingAlias(table)))
+      } else {
+        context.renderRelation(source.query)
+      }
+    }
+
+    if (duplicate && source.insertKind !== "select") {
+      context.append(" AS ")
+      context.render(identifier(incomingAlias(table)))
     }
 
     for (const clause of insertClauses) {
@@ -323,7 +416,15 @@ export function insertInto<
       }
 
       context.append(" ")
-      context.render(clause)
+      if (clause.clauseKind === "on-duplicate-key-update") {
+        renderDuplicateKeyUpdate(
+          context,
+          clause,
+          source.insertKind === "select" ? source.columns : undefined,
+        )
+      } else {
+        context.render(clause)
+      }
     }
   })
 

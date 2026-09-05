@@ -60,7 +60,7 @@ export function mysqlDialect() {
     pagination: { render: renderPagination },
     rowLocking: mysqlRowLocking,
     json: mysqlJson,
-    capabilities: ["row-locking"],
+    capabilities: ["row-locking", "on-duplicate-key-update"],
     castTypes: {
       integer: "SIGNED",
       text: "CHAR",
@@ -73,3 +73,11 @@ export function mysqlDialect() {
     explain: mysqlExplain,
   })
 }
+
+export {
+  incoming,
+  onDuplicateKeyUpdate,
+  type IncomingColumns,
+  type IncomingIdentity,
+  type OnDuplicateKeyUpdateClause,
+} from "../query/mutation/on-duplicate-key-update.ts"

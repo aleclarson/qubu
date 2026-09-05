@@ -215,7 +215,11 @@ export interface OnConflictClause<TAction extends ConflictAction = ConflictActio
   readonly action: TAction
 }
 
-export type InsertClause = MutationReturningClause | OnConflictClause | MutationWithClause
+export type InsertClause =
+  | MutationReturningClause
+  | OnConflictClause
+  | MutationWithClause
+  | import("./on-duplicate-key-update.ts").OnDuplicateKeyUpdateClause<any, any>
 
 export function onConflict(action: DoNothingAction): OnConflictClause<DoNothingAction>
 export function onConflict<

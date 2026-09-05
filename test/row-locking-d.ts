@@ -25,7 +25,10 @@ type Equal<TLeft, TRight> = [TLeft] extends [TRight]
 type Assert<TCondition extends true> = TCondition
 
 export type RowLockCapabilityIsPartOfTheVocabulary = Assert<
-  Equal<DialectCapability, "ilike" | "json" | "on-conflict" | "row-locking" | "update-from">
+  Equal<
+    DialectCapability,
+    "ilike" | "json" | "on-conflict" | "on-duplicate-key-update" | "row-locking" | "update-from"
+  >
 >
 
 export type RowLockModesAreTyped = Assert<
@@ -85,7 +88,9 @@ render(query, postgresDialect())
 render(select({ id: users.id }, from(users), rowLock("update", "nowait")), mysqlDialect())
 
 expectTypeOf(postgresDialect()).toMatchTypeOf<
-  Dialect<"ilike" | "json" | "on-conflict" | "row-locking" | "update-from">
+  Dialect<
+    "ilike" | "json" | "on-conflict" | "on-duplicate-key-update" | "row-locking" | "update-from"
+  >
 >()
 
 // @ts-expect-error The standard dialect does not advertise row locking.

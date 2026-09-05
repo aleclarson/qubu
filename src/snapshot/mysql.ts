@@ -57,9 +57,8 @@ const mysqlStorageTypes: Readonly<Record<PortableStorageType, string>> = Object.
 })
 
 /** MySQL's query dialect plus its schema metadata behavior. */
-export const mysqlSchemaDialect: SchemaDialect<"json" | "row-locking"> = createSchemaDialect(
-  mysqlDialect(),
-  {
+export const mysqlSchemaDialect: SchemaDialect<"json" | "on-duplicate-key-update" | "row-locking"> =
+  createSchemaDialect(mysqlDialect(), {
     version: schemaSnapshotDialectVersion,
     validate: validateSchema,
     encodeStorage(storage: ColumnStorage, context: SnapshotStorageContext) {
@@ -71,11 +70,12 @@ export const mysqlSchemaDialect: SchemaDialect<"json" | "row-locking"> = createS
     encodeDialectExtension(extension: SchemaDialectExtension, context: SnapshotExtensionContext) {
       return encodeExtension(extension, context.dialect)
     },
-  },
-)
+  })
 
 /** Snapshot adapter retaining the historical adapter-shaped entry point. */
-export const mysqlSnapshotAdapter: SchemaSnapshotAdapter<"json" | "row-locking"> = Object.freeze({
+export const mysqlSnapshotAdapter: SchemaSnapshotAdapter<
+  "json" | "on-duplicate-key-update" | "row-locking"
+> = Object.freeze({
   dialect: mysqlSchemaDialect,
 })
 

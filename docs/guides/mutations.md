@@ -176,6 +176,42 @@ before rendering when every field is omitted. Possible expression branches
 remain source- and capability-aware even when their runtime alternative is
 `omit`.
 
+## Update duplicate keys in MySQL
+
+Use `onDuplicateKeyUpdate()` from `qubu/mysql` to update a row when an insert
+conflicts with any primary or unique key. MySQL chooses the conflicting key;
+this clause has no conflict-target argument or `RETURNING` support.
+
+```ts
+import { insertInto, values } from "qubu"
+import { incoming, onDuplicateKeyUpdate } from "qubu/mysql"
+
+const proposed = incoming(users)
+const query = insertInto(
+  users,
+  values({ name: "Ada", email: "ada@example.com" }),
+  onDuplicateKeyUpdate(users, { name: proposed.name }),
+)
+await db.execute(query)
+```
+
+Declare a unique key on `email` in the database for this example. A duplicate
+email replaces the existing name with the proposed name. Assignments accept
+writable target columns, target-table expressions, `incoming(table)` columns,
+or `omit`. Raw values retain the target column's parameter encoder. At least
+one assignment must remain after omissions.
+
+Incoming references are available only inside the matching table's duplicate-key
+assignments. Qubu renders MySQL row aliases for `values()` and `defaultValues()`.
+For `insertSelect()`, it wraps the query in a derived projection and maps its
+fields positionally to the target-column list. Incoming references then cover
+only that list; referencing an omitted target column fails during rendering.
+This syntax requires MySQL 8.0.19 or later.
+
+The result retains mysql2's `affectedRows`, `changedRows`, and `insertId` metadata
+when supplied by the driver. These facts do not identify which branch ran for
+every row of a batch. Read rows with a separate query when needed.
+
 ## Delete with a predicate
 
 ```ts
