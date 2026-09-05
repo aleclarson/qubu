@@ -782,7 +782,7 @@ export const postgresPartitionsQuery = `
   SELECT child.oid::text AS partition_oid, parent.oid::text AS parent_oid,
          n.nspname AS namespace, child.relname AS physical_name,
          part.partstrat, part.partattrs::text AS key_attributes,
-         pg_get_partkeydef(parent.oid, true) AS key_definition,
+         pg_get_partkeydef(parent.oid) AS key_definition,
          pg_get_expr(child.relpartbound, child.oid, true) AS bound,
          child.relispartition, child.relkind
   FROM pg_catalog.pg_inherits inh

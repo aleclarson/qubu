@@ -81,6 +81,7 @@ test("renders portable filtering, selection, ordering, and pagination", async ()
   expect(fake.requests[0]?.statement).toEqual({
     text: 'SELECT "user"."id" AS "id", "user"."name" AS "name" FROM "user" WHERE LOWER("user"."name") LIKE $1 ESCAPE \'!\' ORDER BY "user"."name" DESC LIMIT $2 OFFSET $3',
     parameters: ["ad%", 2, 3],
+    parameterSqlTypes: [undefined, "integer", "integer"],
   })
 })
 
