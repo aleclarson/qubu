@@ -102,11 +102,17 @@ const handlers = applyOpsWithQubu<SyncContext>({
 export const sync = valtioSync({ schema: { todos }, handlers })
 ```
 
-Authorization, conflict checks, the application mutation, and
-`syncEvents.write()` run in that order inside one Qubu transaction. If any step
-fails, the adapter rolls the transaction back. The event sequence becomes
-`serverVersion` unless the mutation handler returns an explicit version. Read
-handlers pass through unchanged.
+Each mutation runs these steps in one Qubu transaction:
+
+1. Check authorization.
+2. Check conflicts.
+3. Apply the application mutation.
+4. Write the sync event with `syncEvents.write()`.
+
+If any step fails, the adapter rolls the transaction back.
+
+The event sequence becomes `serverVersion` unless the mutation handler returns
+an explicit version. Read handlers pass through unchanged.
 
 The integration does not define persistence tables, import Drizzle, or execute
 driver APIs. The application owns table design, authorization, conflict policy,

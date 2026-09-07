@@ -1,12 +1,16 @@
 # Database introspection
 
-> Read one existing database namespace into explainable catalog data and a canonical Snapshot v1 without giving Qubu ownership of the connection.
+> Read an existing database schema and turn it into a Qubu snapshot.
 
 Database introspection is an optional capability exported from
 `qubu/introspection`. It discovers database facts; it does not recreate the
-original TypeScript declarations. Planning and DDL emission use the separate
+original TypeScript declarations.
+
+Planning and DDL emission use the separate
 `@qubu/migrate/plan` and `@qubu/migrate/ddl` entrypoints, while migration
-execution remains application-owned. The separate
+execution remains application-owned.
+
+The separate
 `qubu/codegen` entrypoint can create a new machine-owned schema module from a
 complete Snapshot v1 result.
 
@@ -32,9 +36,12 @@ continuity, and strict versus lossy output.
 
 ## Supply a connection
 
-Qubu does not open or close a connection, select a driver, manage a pool, retry
-queries, authenticate, or start a transaction. Adapt the driver you already
-use to `CatalogConnection`:
+Adapt your existing driver to `CatalogConnection`. Your application handles:
+
+- Opening and closing connections.
+- Driver selection and connection pools.
+- Authentication.
+- Retries and transactions.
 
 ```ts
 import type { CatalogConnection } from "qubu/introspection"
@@ -127,6 +134,8 @@ generated expressions, checks, predicates, and expression index terms remain
 dialect-tagged SQL. Falsy values such as `0`, `false`, `NULL`, and empty
 strings are preserved.
 
+### References and dialect metadata
+
 References to nested columns, constraints, and indexes include their owning
 table, view, or domain in the complete Snapshot v1 output. References to
 top-level objects remain unscoped, and table-local backing relationships must
@@ -135,21 +144,34 @@ native storage, and typed expressions are checked against the selected
 snapshot dialect; arbitrary catalog `data` and `configuration` JSON remains
 opaque.
 
-PostgreSQL readers expose views, materialized views, sequences, enums, domains,
-collations, routines, triggers, policies, partitions, extensions, comments,
-and ownership as typed complete catalog records. `mapCatalogToCompleteSnapshot`
-retains those records in Snapshot v1. `mapCatalogToSnapshot()` uses the same
-complete mapping and does not fabricate these objects into tables. If a
-PostgreSQL catalog row lacks the evidence needed for
-safe normalization, the reader retains a deferred or opaque record and emits a
-diagnostic.
+## PostgreSQL catalog support
+
+PostgreSQL readers expose typed catalog records for:
+
+- Views and materialized views.
+- Sequences, enums, and domains.
+- Collations.
+- Routines and triggers.
+- Policies and partitions.
+- Extensions.
+- Comments and ownership.
+
+`mapCatalogToCompleteSnapshot()` retains those records in Snapshot v1.
+`mapCatalogToSnapshot()` uses the same complete mapping and keeps each object
+as its own kind.
+
+If a PostgreSQL catalog row lacks the evidence needed for safe normalization,
+the reader retains a deferred or opaque record and emits a diagnostic.
+
+## SQLite catalog support
 
 SQLite readers expose recoverable views and triggers as typed complete records.
 They retain virtual and shadow tables as deferred objects, and keep attached
 databases outside the selected namespace as opaque boundary records. SQLite
 declared types, derived affinity, generated expressions, rowid identity, and
-`AUTOINCREMENT` stay tagged with SQLite dialect metadata. When an attached
-database is selected, table PRAGMAs may be visible but CREATE SQL remains
+`AUTOINCREMENT` stay tagged with SQLite dialect metadata.
+
+When an attached database is selected, table PRAGMAs may be visible but CREATE SQL remains
 limited to the fixed `main` and `temp` catalog statements, so the reader marks
 the catalog visibility as limited instead of combining namespaces.
 
@@ -191,11 +213,15 @@ MySQL families and their opaque or deferred boundaries.
 
 ## Diagnostics and safety
 
-Diagnostics include a severity, stable code, catalog path, physical reference
-when available, and a remediation hint. They distinguish connection/query
-failures, permission limits, unsupported products or versions, unresolved
-references, expression recovery failures, unmodeled objects, and lossy
-mappings.
+Each diagnostic includes:
+
+- Severity and a stable code.
+- A catalog path.
+- A physical reference, when available.
+- A hint for fixing the problem.
+
+Codes distinguish connection failures and permission limits from unsupported
+features or incomplete mappings.
 
 Introspection is read-only from Qubu's perspective. Do not pass credentials or
 DSNs through diagnostic fields. Keep driver-specific error text in the

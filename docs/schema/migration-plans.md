@@ -1,11 +1,16 @@
 # Migration plans
 
-> Describe reviewed snapshot changes as deterministic data before selecting a DDL emitter.
+> Turn a reviewed schema diff into an ordered migration plan.
 
-The `@qubu/migrate/plan` entrypoint consumes a resolved `SnapshotDiff` and
-returns an immutable migration-plan IR. It contains operation IDs, paths,
-logical and physical identity evidence, dependency edges, preconditions, safety,
-lock and transaction requirements, and reversibility markers.
+The `@qubu/migrate/plan` entrypoint takes a resolved `SnapshotDiff` and returns
+an immutable plan. Each operation records:
+
+- Its ID and path.
+- Evidence for logical and physical identities.
+- Dependencies and preconditions.
+- Safety classification.
+- Lock and transaction requirements.
+- Whether the change can be reversed.
 
 ```ts
 import { createMigrationPlan } from "@qubu/migrate/plan"
@@ -16,8 +21,9 @@ if (!result.ok) {
 }
 ```
 
-Creation is pure. The planner does not open a connection, execute a transaction,
-render SQL, or create migration history. A physical rename remains a
+The planner only returns data. It does not access the database or render SQL.
+
+A physical rename remains a
 `physical-rename` operation; it is never represented as custom SQL or silently
 changed into a drop and add.
 
@@ -64,9 +70,11 @@ extracts SQL from opaque catalog payloads.
 
 ## Ordering and validation
 
-Parent creation precedes child creation, while child removal precedes parent
-removal. Reference edges and explicit custom-SQL dependencies are included in
-the stable topological ordering. `encodeMigrationPlan()` emits canonical JSON;
+The planner creates parents before children and removes children before
+parents. It also orders operations by their references and explicit custom-SQL
+dependencies. The same inputs produce the same order.
+
+`encodeMigrationPlan()` emits canonical JSON;
 `decodeMigrationPlan()` and `validateMigrationPlan()` reject unknown fields,
 future versions, malformed operations, missing edges, and dependency cycles.
 

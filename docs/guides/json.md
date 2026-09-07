@@ -2,7 +2,9 @@
 
 > Build inferred nested results, or read scalar values from stored JSON documents.
 
-Use jsonArrayFrom() to nest a query's rows and jsonObjectFrom() for a query
+## Nest query results
+
+Use `jsonArrayFrom()` to nest a query's rows and `jsonObjectFrom()` for a query
 proven to return at most one row. Both preserve filtering, correlation,
 ordering, and pagination:
 
@@ -57,45 +59,63 @@ const query = select(
 //        latestPost: { title: string } | null }
 ```
 
-Execute the query through a Qubu adapter to decode nested results. An empty
-array query returns []; an empty object query returns null. A source-free
-query proven to return exactly one row produces a non-null object type.
-Object queries need Qubu's cardinality proof: an unconditional fetchFirst(1)
-or fetchFirst(0) establishes the bound. A conditional limit does not.
+### Empty results and row limits
 
-The helpers compose inside further select() projections, so nesting can
-continue without result-type assertions. correlate() and the outer query's
-FROM/JOIN scope remain checked at every level.
+Execute the query through a Qubu adapter to decode nested results:
 
-### Preserve ordering and logical values
+- An empty array query returns `[]`.
+- An empty object query returns `null`.
+- A source-free query proven to return exactly one row produces a non-null object.
 
-Nested arrays retain explicit ORDER BY and pagination. Tied sort keys retain
+An object query must be known to return at most one row. An unconditional
+`fetchFirst(1)` or `fetchFirst(0)` proves that limit; a conditional limit does not.
+
+The helpers compose inside further `select()` projections, so nesting can
+continue without result-type assertions. `correlate()` and the outer query's
+`FROM/JOIN` scope remain checked at every level.
+
+### Preserve ordering
+
+Nested arrays retain explicit `ORDER BY` and pagination. Tied sort keys retain
 SQL's unspecified tie order; add a unique tie-breaker when order matters.
-DISTINCT ordering must use the same expressions as the selection. Without an
-ORDER BY, array order is unspecified.
+`DISTINCT` ordering must use the same expressions as the selection. Without an
+`ORDER BY`, array order is unspecified.
+
+### Supported databases
 
 Nested results support PostgreSQL, MySQL 8.0.21+, and SQLite 3.45+. Other
 dialects fail during rendering. SQLite's minimum includes the JSON aggregate
 ordering fix needed to retain object values.
 
+### Decode nested values
+
 Built-in column domains decode to their declared types, including bigint,
-Uint8Array, Date, boolean, and nested JSON. Qubu transports precision-sensitive
+`Uint8Array`, `Date`, boolean, and nested JSON. Qubu transports precision-sensitive
 values as text and rejects numbers that lose significant decimal digits or
 exceed JavaScript's safe integer range. Use bigint columns for exact large
-integers. Unknown or custom SQL domains need a supported explicit cast, for
-example cast(value(7), integer()); declaring a TypeScript result alone does
+integers.
+
+Unknown or custom SQL domains need a supported explicit cast, for
+example `cast(value(7), integer())`; declaring a TypeScript result alone does
 not provide runtime decoding information.
 
-Custom mapResult() and column decoders receive the JSON transport value as
-unknown: bigint and decimal strings, hexadecimal binary strings, serialized
-JSON strings, or ordinary JSON scalar values. They own conversion to their
-advertised application type. Adapter-wide decoders do not run inside nested
-objects. Keep arbitrary stored JSON within JavaScript's numeric precision;
+Custom `mapResult()` and column decoders receive the JSON transport value as
+`unknown`. The value may be:
+
+- A bigint or decimal string.
+- A hexadecimal binary string.
+- A serialized JSON string.
+- An ordinary JSON scalar.
+
+The custom decoder converts it to the declared application type. Adapter-wide
+decoders do not run inside nested objects.
+
+Keep arbitrary stored JSON within JavaScript’s numeric precision;
 unsupported numeric representations fail instead of silently rounding.
 
 ## Read stored JSON scalars
 
-Use a structured jsonPath() when a query needs a scalar or an existence check
+Use a structured `jsonPath()` when a query needs a scalar or an existence check
 inside a JSON document:
 
 ```ts
@@ -135,7 +155,7 @@ interpolating caller-provided SQL.
 ## Understand missing values
 
 Scalar reads return SQL NULL when the path is missing, contains JSON null, or
-resolves to another JSON scalar type. jsonExists() returns true for a present
+resolves to another JSON scalar type. `jsonExists()` returns true for a present
 JSON null, false for a missing path, and false when the document itself is SQL
 NULL.
 
@@ -143,16 +163,21 @@ These rules keep path existence separate from extraction nullability.
 
 ## Check dialect support
 
-The standard dialect emits SQL/JSON JSON_VALUE and JSON_EXISTS syntax.
+The standard dialect emits SQL/JSON `JSON_VALUE` and `JSON_EXISTS` syntax.
 PostgreSQL, MySQL, and SQLite use their native JSON policies. The current
 policies require PostgreSQL 12 or newer, MySQL 8.0.21 or newer, and SQLite JSON
 functions. An application-created dialect must provide a JSON renderer.
 
 ## Know the current limits
 
-JSON paths cover deterministic key and index traversal. Wildcards, filters,
-recursive descent, JSON-returning extraction, document mutation, and row
-expansion remain dialect-specific extensions.
+JSON paths follow explicit keys and indexes. These features require
+dialect-specific extensions:
+
+- Wildcards and filters.
+- Recursive descent.
+- Extraction that returns JSON.
+- Document mutation.
+- Row expansion.
 
 For the SQL domain and nullability rules behind JSON columns, read
 [SQL semantic types](../sql-semantic-types.md).

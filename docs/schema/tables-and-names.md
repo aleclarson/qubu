@@ -1,6 +1,6 @@
 # Tables and names
 
-> Define query-facing tables, keep their TypeScript identities stable, and control how fields become SQL names.
+> Define tables and control how TypeScript field names map to database names.
 
 `table()` definitions describe the columns Qubu can select and write. They are
 not database introspection and they do not create or migrate a database.

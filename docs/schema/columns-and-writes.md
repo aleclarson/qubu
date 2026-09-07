@@ -1,6 +1,6 @@
 # Column behavior and write types
 
-> Separate selected values from insert and update inputs, then record the database rules that make fields optional or generated.
+> Choose the values a column returns and accepts, including defaults and generated values.
 
 ## Give each operation its own type
 
@@ -32,7 +32,7 @@ updates accept number | null.
 
 ## Describe defaults and generated columns
 
-The legacy hasDefault and generated flags describe the write contract. Use
+The `hasDefault` and `generated` flags describe which values writes accept. Use
 complete metadata when schema tooling also needs the database fact:
 
 ```ts
@@ -60,14 +60,17 @@ Primitive values in `default` are canonical literals. Strings are never
 interpreted as SQL, and booleans remain semantic values so each dialect can
 choose its own spelling. Pass a branded deterministic schema expression
 directly when the default is SQL, and use `unsafeSchemaSql()` only for trusted
-syntax Qubu does not model. Generated expressions record stored or virtual
-mode. An identity descriptor stays separate because identity behavior is not
-an ordinary generated expression.
+syntax Qubu does not model.
+
+Generated expressions record stored or virtual mode. An identity descriptor
+stays separate because identity behavior is not an ordinary generated expression.
 
 Complete defaults cannot be combined with generated or identity metadata.
 Contradictory flags fail with a structured `ColumnBehaviorError`. Use
 `externalDefault()` or `externalGeneratedColumn()` when another schema authority
 owns the missing detail.
+
+### Supply defaults at runtime
 
 Use `defaultFn` when Qubu should supply an omitted insert value at runtime:
 
@@ -79,15 +82,22 @@ const sessions = table("sessions", {
 
 Runtime defaults make the insert key optional and run once for each omitted
 row value. They remain live column behavior: snapshots and emitted DDL do not
-record a database default. A column may declare both `default` and `defaultFn`;
+record a database default.
+
+A column may declare both `default` and `defaultFn`;
 Qubu writes use the runtime value while the database default remains available
 to other clients.
 
-Dialect-owned identity details stay on the identity descriptor. SQLite's
-autoIncrement requires an exact INTEGER rowid alias that is the sole column of
-a primary key. MySQL's AUTO_INCREMENT is a column-level identity extension, and
-MySQL's ON UPDATE clause accepts a branded deterministic expression. The
-database-specific restrictions are listed in the
+### Check database-specific rules
+
+Identity details stay on the identity descriptor:
+
+- SQLite `autoIncrement` requires an exact `INTEGER` rowid alias that is the
+  sole column of a primary key.
+- MySQL `AUTO_INCREMENT` is a column-level identity extension.
+- MySQL `ON UPDATE` accepts a branded deterministic expression.
+
+The database-specific restrictions are listed in the
 [snapshot overview](snapshots.md) and its dialect matrices.
 
 ## Narrow an application type

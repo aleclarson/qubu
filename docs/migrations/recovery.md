@@ -1,12 +1,12 @@
 # Recovery and reconciliation
 
-> Stop after an ambiguous attempt, prove the live outcome, and repair journal lineage without replaying SQL.
+> Verify what happened after an uncertain migration and record the outcome before continuing.
 
-The journal has one versioned metadata row with an atomic head, immutable
-applied artifact records, mutable attempts, phase/statement checkpoints, and
-append-only reconciliation records. Adapter implementations store it in the
-same database and reserve `__qubu_migration_`-prefixed objects from managed
-schema inspection.
+The journal records migration progress in the same database as the schema.
+Its head is the digest of the last applied artifact.
+
+Adapters reserve objects prefixed with `__qubu_migration_` and exclude them
+from managed schema inspection. The journal contains these records:
 
 | Record           | Fields and invariant                                                                                           |
 | ---------------- | -------------------------------------------------------------------------------------------------------------- |
@@ -45,13 +45,23 @@ head, or a non-prefix repository fail before any statement executes.
 
 ## Execution and concurrency guarantees
 
-For each invocation, the executor verifies the entire repository, opens one
-migration session, checks capabilities, acquires the migrator lease, validates the
-journal and repository prefix, checks the live before-snapshot digest, then
-applies each pending artifact. Within an artifact it creates an attempt,
-executes ordered phases with preconditions and postconditions, writes durable
-checkpoints, appends immutable history, and compare-and-swaps the head.
-Resources are released in reverse order: DDL lock, migrator lease, then session.
+Before applying migrations, the executor:
+
+1. Verifies the entire artifact repository.
+2. Opens one migration session and checks its capabilities.
+3. Acquires the migrator lease.
+4. Verifies that the journal matches the start of the repository chain.
+5. Checks the live before-snapshot digest.
+
+For each pending artifact, it:
+
+1. Creates an attempt record.
+2. Runs phases in order, checking their preconditions and postconditions.
+3. Writes durable checkpoints.
+4. Appends the applied history and updates the head only if it still matches
+   the expected parent.
+
+Cleanup releases the DDL lock, then the migrator lease, then the session.
 
 An `atomic-batch` profile instead applies one single-phase artifact in one
 database transaction, including its checks and terminal journal writes. It
@@ -76,10 +86,17 @@ must be resolved by the renderer or explicit custom program before sealing.
 Transactions are phase-scoped. Do not infer that an earlier committed phase
 will roll back because a later phase fails.
 
-Errors use stable codes: `validation`, `policy`, `drift`, `concurrency`,
-`capability`, `definite-rollback`, `uncertain-outcome`, `recovery-required`,
-`aborted`, and `adapter`. Context may include artifact, attempt, phase, and
-statement identifiers. Persisted failures omit SQL parameters and credentials.
+### Errors and retries
+
+Errors use stable codes:
+
+- `validation`, `policy`, and `capability`.
+- `drift` and `concurrency`.
+- `definite-rollback`, `uncertain-outcome`, and `recovery-required`.
+- `aborted` and `adapter`.
+
+Error context may identify the artifact, attempt, phase, and statement.
+Persisted failures omit SQL parameters and credentials.
 
 Do not automatically retry after any statement may have taken effect. Only an
 error explicitly marked `retry: "safe"`—normally validation or a failure proven

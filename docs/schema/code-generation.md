@@ -1,6 +1,6 @@
 # Generate a schema from introspection
 
-> Turn one complete, non-lossy Snapshot v1 introspection result into a deterministic, machine-owned TypeScript schema module.
+> Generate a TypeScript schema module from a complete introspection result with no omitted facts.
 
 Source generation is an optional capability exported from `qubu/codegen`. It
 is a pure handoff after introspection: it opens no connection, runs no catalog
@@ -33,12 +33,20 @@ returns data. A successful result contains deterministic `source` and every
 retained diagnostic. A failed result contains diagnostics and no partial
 source.
 
-The module exports one declaration for every ordinary Snapshot v1 table and
-one schema registry. It reconstructs physical names, exact native storage,
-column write behavior, defaults, generated and identity metadata, constraints,
-indexes, opaque predicates and expressions, and dialect extensions. Checks use
-`catalogCheck()`. Foreign keys use lazy `catalogForeignKey()` targets so
-forward declarations and cycles remain valid.
+### What the module contains
+
+The module exports each ordinary Snapshot v1 table and one schema registry. It
+reconstructs:
+
+- Physical names and exact native storage.
+- Column write behavior and defaults.
+- Generated-column and identity metadata.
+- Constraints and indexes.
+- Opaque predicates and expressions.
+- Dialect extensions.
+
+Checks use `catalogCheck()`. Foreign keys use lazy `catalogForeignKey()` targets
+so forward declarations and cycles remain valid.
 
 ## Adopt the generated identity baseline
 
@@ -100,11 +108,15 @@ diagnostics and no source.
 
 ## Diagnostics and source safety
 
-Generation rejects failed or lossy introspection, an altered snapshot that no
-longer matches its catalog, omitted Snapshot v1 facts, unresolved references,
-unsafe names, invalid mapping tokens, and data that cannot be represented
-without source injection. Existing introspection diagnostics stay attached to
-the result.
+Generation fails when the input contains:
+
+- Failed or lossy introspection.
+- An edited snapshot that no longer matches its catalog.
+- Omitted Snapshot v1 facts or unresolved references.
+- Unsafe names or invalid mapping tokens.
+- Data that cannot be printed safely as source.
+
+Existing introspection diagnostics stay attached to the result.
 
 > [!IMPORTANT]
 > A database can allow a foreign key to reference a nullable `UNIQUE`
@@ -126,15 +138,22 @@ result contracts.
 
 ## Snapshot v1 boundary
 
-Generation covers ordinary Snapshot v1 tables in one namespace. Complete
-catalog families outside that model—views, materialized views, sequences,
-enums, domains, routines, triggers, partitions, policies, collations,
-extensions, comments, ownership, and retained opaque or deferred objects—are
-not emitted. Non-empty excluded families produce diagnostics so the generated
-module does not look complete by omission.
+Generation covers ordinary Snapshot v1 tables in one namespace. It does not emit:
 
-The entrypoint does not provide a CLI, filesystem ownership, live driver
-integration, multiple namespaces, runtime schema materialization, migrations,
-DDL, non-table object generation, or hand-edit merging. Use
+- Views and materialized views.
+- Sequences, enums, and domains.
+- Routines and triggers.
+- Partitions and policies.
+- Collations and extensions.
+- Comments and ownership.
+- Retained opaque or deferred objects.
+
+If any excluded family is non-empty, generation reports diagnostics rather than
+presenting the module as complete.
+
+The caller handles file writes and driver integration. Generation does not
+merge hand edits or run migrations.
+
+Use
 [Database introspection](introspection.md) for the catalog boundary and
 [Canonical schema snapshots](snapshots.md) for the identity artifact.

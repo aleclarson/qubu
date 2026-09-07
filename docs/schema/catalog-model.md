@@ -1,5 +1,7 @@
 # Complete catalog model
 
+> Understand the database facts Qubu records before creating a snapshot.
+
 Qubu keeps database discovery in a normalized catalog before producing a
 snapshot. The catalog is a read-only record of observed facts; it does not
 contain a connection, execute catalog SQL, or assign database catalog keys as
@@ -18,13 +20,24 @@ const completeCatalog = createCompleteIntrospectionCatalog(catalog)
 const result = mapCatalogToCompleteSnapshot(completeCatalog)
 ```
 
-Tables, columns, views, materialized views, sequences, enums, domains,
-collations, triggers, routines, partitions, row-level policies, extension
-objects, comments, and ownership metadata have typed records. A reader may
-also retain a deferred or opaque object when it observes a family that Qubu
-cannot yet normalize. Such an object remains visible and can carry opaque
-catalog data, SQL text, provenance, and a dialect extension; it is never
-silently dropped.
+## Recorded objects
+
+The catalog has typed records for:
+
+- Tables and columns.
+- Views and materialized views.
+- Sequences, enums, and domains.
+- Collations.
+- Triggers and routines.
+- Partitions and row-level policies.
+- Extension objects.
+- Comments and ownership metadata.
+
+When a reader cannot fully describe an observed object, it retains a deferred
+or opaque record. The record can keep catalog data and SQL text, along with
+their source and dialect metadata. The object remains visible for review.
+
+## Names and identities
 
 Physical names and references describe the current database. Stable logical
 IDs are evidence selected by the adapter's identity policy. PostgreSQL OIDs,
@@ -49,6 +62,8 @@ strictly validated. Arrays are ordered by logical ID (with ordinal sequences
 and index terms ordered by their semantic position), and the fingerprint is computed
 from the deterministic encoding.
 
+### References to nested objects
+
 Normalized references to nested catalog objects retain their owner scope. A
 table-local index or constraint reference is mapped with
 `owner: { kind: "table", id }`; view columns use the view kind and ID; domain
@@ -56,6 +71,8 @@ constraints use the domain kind and ID. The legacy `tableId` shorthand on
 catalog entity references is converted to that owner form at the Snapshot v1
 boundary. Top-level references have no owner. This scope prevents equal child
 IDs from different tables or object families from overwriting one another.
+
+### Opaque data and validation
 
 Catalog extension payloads and configuration records are opaque JSON. Their
 keys and values are preserved through normalization and canonical encoding;

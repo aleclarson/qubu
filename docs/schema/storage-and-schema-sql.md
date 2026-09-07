@@ -1,11 +1,15 @@
 # Storage and schema SQL
 
-> Keep application types, SQL domains, physical storage, and schema expressions separate so each adapter can make its own rendering decision.
+> Describe database storage types and write expressions for schema definitions.
 
 ## Keep application and SQL types separate
 
-A column can have an application value type, a SQL semantic domain, a physical
-storage descriptor, and a cast target. These facts answer different questions.
+A column can describe four different things:
+
+- Its application value type.
+- Its SQL semantic domain, which controls compatible operations.
+- Its physical database storage type.
+- Its target type when used in a cast.
 
 For example, `numeric()` decodes to a TypeScript number, carries `SqlDecimal`,
 uses portable numeric storage, and has a logical decimal cast target. Read
@@ -45,7 +49,9 @@ const accounts = table("accounts", {
 `nativeStorage()` preserves the declaration text and freezes the descriptor. The
 `ColumnStorageOf`, `ColumnStorageTypeOf`, `ColumnStorageDialectOf`, and
 `ColumnStorageDeclarationOf` helpers read its metadata. Native storage is
-descriptive. The optional `sqlType` field is the runtime semantic domain passed
+descriptive.
+
+The optional `sqlType` field is the runtime semantic domain passed
 to adapters; provide it for custom domains because the compile-time SQL type is
 not available at runtime. It does not change selection, mutation, or query
 rendering.

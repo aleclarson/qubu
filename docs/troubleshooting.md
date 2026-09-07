@@ -1,6 +1,6 @@
 # Troubleshooting
 
-> Start from the observed error or output, verify the boundary that produced it, and apply the smallest fix that changes the result.
+> Find a common error, check its cause, and fix the query.
 
 ## Column is not available in this query scope
 
@@ -73,9 +73,13 @@ driver that expects `?` placeholders.
 ## Read and repair query diagnostics
 
 Type-level query failures carry stable properties in the diagnostic type, and
-runtime authoring failures throw `QueryValidationError`. Read the code, context,
-path, and hint before changing the query. The hint names the repair boundary;
-the path points to the clause or field that needs attention.
+runtime authoring failures throw `QueryValidationError`. Check these fields
+before changing the query:
+
+- `code`: the kind of error.
+- `context`: where the error occurred.
+- `path`: the clause or field that needs attention.
+- `hint`: how to fix it.
 
 ```ts
 import { QueryValidationError, fetchFirst } from "qubu"
@@ -130,8 +134,12 @@ Verify all three opt-ins:
 3. TypeScript includes `qubu/globals` in its `types` list or includes the
    declaration explicitly.
 
-The transform skips non-script files, dependencies under `node_modules`, files
-excluded by filters, and modules that reference no eligible Qubu global.
+The transform skips:
+
+- Non-script files.
+- Dependencies under `node_modules`.
+- Files excluded by filters.
+- Modules that reference no eligible Qubu global.
 
 ## Parameters are in an unexpected order
 

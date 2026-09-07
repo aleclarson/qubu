@@ -1,6 +1,6 @@
 # Getting started
 
-> Define a typed table, build one parameterized query, and inspect the exact SQL before connecting a driver.
+> Define a table and inspect your first query’s SQL and parameters.
 
 ## Install Qubu
 
@@ -13,10 +13,9 @@ pnpm add qubu
 Import query-building functions from the package root. Qubu does not need a
 database connection to construct or render a query.
 
-The examples use the same order as the rendered statement: projection, `FROM`,
-then `WHERE`, ordering, grouping, and pagination. `select()` still accepts
-independent clauses in any order, which lets reusable values be composed, but
-keeping the final call in SQL order makes the query easy to scan and repair.
+The examples write clauses in SQL order so the query is easy to scan.
+`select()` also accepts independent clauses in any order and puts them in SQL
+order when rendering.
 
 ## Define a table
 
@@ -38,10 +37,9 @@ nullable email column is inferred as `string | null` when selected.
 
 ## Build and render a query
 
-Pass a named projection and the final clauses to `select()` in SQL order. Qubu
-also accepts independent clause values in another order when composition needs
-it, then renders the normalized statement in SQL order. The example uses the
-`users` table from the previous section.
+Pass the fields you want to return as a named object, called the projection.
+Then add the clauses. This example uses the `users` table from the previous
+section.
 
 ```ts
 import { eq, from, render, select, where } from "qubu"
@@ -68,6 +66,8 @@ statement.text
 statement.parameters
 // [7]
 ```
+
+### Inspect the result type
 
 The selected row type is available on the query value:
 

@@ -1,6 +1,6 @@
 # Introspection support
 
-> Look up which catalog facts each adapter reads, which versions it accepts, and which database features remain outside Snapshot v1.
+> Check supported database versions, catalog objects, and snapshot-mapping limits.
 
 The optional `qubu/introspection` entrypoint reads one selected database
 namespace through a user-owned `CatalogConnection`. It returns normalized
@@ -67,19 +67,22 @@ table-valued PRAGMAs `database_list`, `table_list`, `table_xinfo`,
 receives bound namespace or object parameters through the caller's
 `CatalogConnection`. The reader does not interpolate a database name into SQL.
 
-SQLite views and triggers become typed complete catalog objects when their
-CREATE SQL has a recoverable definition and target. Their SQL remains tagged
-opaque data with a `sqlite` dialect and a catalog reference. Generated column
-expressions, declared storage types, SQLite affinity, rowid aliases, and
+SQLite views and triggers become typed catalog objects when Qubu can recover
+their definition and target from CREATE SQL. Their SQL remains opaque data,
+tagged with the `sqlite` dialect and a catalog reference.
+
+Generated column expressions, declared storage types, SQLite affinity, rowid aliases, and
 `AUTOINCREMENT` are kept as column or identity dialect extensions. User indexes
-retain ordered column or expression terms and partial predicates. Inline UNIQUE
-constraints are recovered from their internal indexes with deterministic Qubu
+retain ordered column or expression terms and partial predicates.
+
+Inline UNIQUE constraints are recovered from their internal indexes with deterministic Qubu
 names, so SQLite's `sqlite_autoindex_*` names do not become persisted logical
 IDs.
 
 SQLite virtual tables and shadow tables remain typed deferred objects with an
-`unmodeled-object` diagnostic. A selected attached database can expose table
-PRAGMA rows, but its schema SQL is outside the fixed `main` and `temp`
+`unmodeled-object` diagnostic.
+
+A selected attached database can expose table PRAGMA rows, but its schema SQL is outside the fixed `main` and `temp`
 statements. Qubu marks that result as limited and keeps other attached
 databases as opaque boundary records. It never combines attached databases into
 the selected namespace. SQLite does not provide the PostgreSQL object families
@@ -101,13 +104,20 @@ strict Snapshot v1 result through a separate controlled printer.
 
 The MySQL reader accepts MySQL 8.0.16 and later within the MySQL 8 series. It
 rejects MariaDB and older MySQL versions instead of applying MySQL catalog
-rules to a different product or server version. It reads `INFORMATION_SCHEMA`
-rows for one selected database and retains database-provided SQL as tagged,
+rules to a different product or server version.
+
+It reads `INFORMATION_SCHEMA` rows for one selected database and retains database-provided SQL as tagged,
 unevaluated MySQL data.
 
-MySQL has typed complete records for views, routines and their parameters,
-triggers, partitions, collations used by selected tables or columns, and
-comments. View definitions come from `INFORMATION_SCHEMA.VIEWS`; each view's
+MySQL has typed records for:
+
+- Views.
+- Routines and their parameters.
+- Triggers and partitions.
+- Collations used by selected tables or columns.
+- Comments.
+
+View definitions come from `INFORMATION_SCHEMA.VIEWS`; each view's
 columns are joined back to the matching `COLUMNS` rows by physical table name,
 so the complete Snapshot v1 cross-reference points at the view's own column
 IDs. Missing view definitions or unresolved trigger, partition, or other
@@ -154,12 +164,9 @@ canonical content, not an identity or rename marker.
 
 ## Deferred and limited features
 
-The following remain catalog facts or diagnostics rather than fabricated
-Snapshot v1 objects:
+Supported object families become typed Snapshot v1 records, as described in
+the database sections above. Limits still apply to individual features:
 
-- views and materialized views;
-- sequences, enums, domains, routines, triggers, policies, extensions,
-  collations, comments, and partition metadata;
 - PostgreSQL identity sequence options that have no typed field;
 - SQLite virtual/shadow tables, attached namespaces, and unrecoverable
   generated or expression definitions;

@@ -1,6 +1,6 @@
 # Dialects and execution
 
-> Keep portable query construction separate from placeholder, identifier, pagination, cast-target, and driver decisions at the rendering boundary.
+> Choose a SQL dialect and connect Qubu queries to your database driver.
 
 ## Render once, choose a policy at the boundary
 
@@ -77,10 +77,10 @@ Qubu does not open connections or bind values for a particular client. An
 adapter receives an `ExecutionRequest` and returns driver-normalized object
 rows. Qubu then uses the query's result shape and the adapter's decoder policy
 to produce the typed `ExecutionResult`. A `TransactionalQueryAdapter` can also
-pin one driver connection for a callback transaction:
+pin one driver connection for a callback transaction.
 
-When present, `request.statement.parameterSqlTypes` is an optional sidecar
-aligned with `statement.parameters`. Adapters can pass each domain to their
+`request.statement.parameterSqlTypes`, when present, lists SQL domains in
+the same order as `statement.parameters`. Adapters can pass each domain to their
 value encoder or driver binding layer when a client distinguishes values such
 as `DATE`, `TIMESTAMP`, `UUID`, and `DECIMAL`.
 
@@ -143,12 +143,14 @@ per request, binds Qubu's ordered parameters, copies object rows, and finalizes
 the statement in a `finally` block. SQLite's change count and generated row ID
 are returned as mutation metadata when the request is a mutation.
 
-The package does not create or terminate workers. Initialize the official
-SQLite module inside a dedicated worker, construct the adapter around its
-`sqlite3.oo1.DB`, and close the adapter before terminating that worker. The
-browser build must serve the package's `sqlite3.wasm` asset beside the bundled
-worker module; the combo runner's verified browser scenario demonstrates this
-lifecycle.
+Your application manages the worker:
+
+1. Initialize the official SQLite module inside a dedicated worker.
+2. Construct the adapter around its `sqlite3.oo1.DB`.
+3. Close the adapter before terminating the worker.
+
+Serve the package’s `sqlite3.wasm` asset beside the bundled worker module. The
+combo runner’s verified browser scenario demonstrates this setup.
 
 ### Decode schema-aware result values
 
@@ -434,11 +436,15 @@ queries identify their parent transaction operation. Hooks are synchronous,
 and their failures are sent to `onHookError` without changing the database
 operation's result.
 
+### What observations include
+
 Hook metadata accepts only strings, numbers, and booleans. Observations include
 rendered SQL and parameter count, but never parameter values, result rows,
 decoded values, or insert identifiers. Rendered SQL can still contain literals
 introduced by unsafe SQL helpers, so treat it according to the application's
 logging policy.
+
+### Stream observation timing
 
 Streaming adapters are still called eagerly. A consumed stream completes its
 observation when it is exhausted, closed early, or fails. A stream created but
@@ -465,11 +471,16 @@ const result = await transactionalDb.transaction(async (transaction) => {
 })
 ```
 
-The adapter owns the driver lifecycle. It acquires and pins one connection,
-begins the transaction, invokes the callback, commits after it resolves, rolls
-back after it rejects, and releases the connection in every case. Qubu only
-creates the scoped client and passes the callback result through. It never
-emits `BEGIN`, `COMMIT`, or `ROLLBACK` itself.
+The adapter manages the transaction:
+
+1. Acquire and pin one connection.
+2. Begin the transaction.
+3. Run the callback.
+4. Commit if the callback resolves, or roll back if it rejects.
+5. Release the connection in either case.
+
+Qubu creates the scoped client and returns the callback result. The adapter
+emits `BEGIN`, `COMMIT`, and `ROLLBACK`.
 
 A scoped client's methods follow its adapter's capabilities: `execute()` and
 `rows()` are always available; EXPLAIN and streaming require their respective
@@ -503,19 +514,31 @@ failure escape also rolls back the outer transaction. Failed savepoint creation
 or recovery makes the entire transaction unsafe to commit, even if the callback
 catches the error. Primary and cleanup failures are retained in `AggregateError`.
 
+#### Finish work before leaving a scope
+
 Await every query and nested transaction before returning. These three adapters
-reject finished scoped clients, overlapping sibling scopes, a child started
-while its parent has pending queries, and parent queries while a child is active.
-If a callback finishes with work still pending, the adapter waits for that work
-and rolls back instead of committing. Use the active scoped client for all work
-on a directly supplied connection; its root client rejects unrelated operations
-during the transaction. A pg pool still accepts independent queries and
-transactions on other acquired connections. Raw driver calls and separately
-constructed adapters remain the application's responsibility.
+reject:
+
+- Calls on a finished scoped client.
+- Overlapping sibling scopes.
+- A child scope started while its parent has pending queries.
+- Parent queries while a child is active.
+
+If a callback finishes with work pending, the adapter waits for that work and
+rolls back.
+
+Use the active scoped client for all work on a directly supplied connection.
+Its root client rejects unrelated operations during the transaction. A pg pool
+can still run independent queries on other connections.
+
+Your application remains responsible for raw driver calls and separately
+constructed adapters.
 
 EXPLAIN and result decoding remain available at every depth. Nested transaction
 hooks identify their enclosing transaction with `parentId`; queries identify
 their immediate scope. Cancellation does not interrupt savepoint recovery.
+
+## Execute without a bound client
 
 The standalone functions remain useful when the adapter varies by call or a
 small module does not need a bound client:
@@ -526,6 +549,8 @@ import { execute, executeRows } from "qubu"
 const result = await execute(query, adapter)
 const rows = await executeRows(readQuery, adapter)
 ```
+
+### Result fields
 
 | Result field   | Adapter type                         | Contract                                                                              |
 | -------------- | ------------------------------------ | ------------------------------------------------------------------------------------- |
@@ -539,11 +564,15 @@ The last three fields are optional. For example, an adapter can map PostgreSQL
 `changes` and `lastInsertRowid`. Omit a fact that the selected driver cannot
 report accurately. Qubu does not derive mutation metadata from returned rows.
 
+### Dialect overrides and errors
+
 The adapter's `dialect` becomes the default for standalone and bound execution.
 A `dialect` in the execution options overrides that rendering policy. Qubu
 passes `signal`, `queryKind`, and `resultShape` to the adapter without changing
-them. The adapter decides whether and how its driver supports cancellation.
-Driver errors pass through unchanged. Decoder failures become a
+them.
+
+The adapter decides whether and how its driver supports cancellation. Driver
+errors pass through unchanged. Decoder failures become a
 `ResultDecodingError` that identifies the row and field without exposing the
 raw value.
 

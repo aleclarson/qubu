@@ -1,6 +1,6 @@
 # Add typed expressions
 
-> Extend Qubu with expressions that retain source, nullability, result, and SQL-domain metadata.
+> Build custom expressions that preserve result types and query checks.
 
 ## Build expressions from public helpers
 
@@ -47,12 +47,20 @@ const nameAsCitext = cast(users.name, citext)
 ```
 
 The first three `column` type arguments are output, insert, and update values;
-the fourth is the SQL domain. The `text` equality and ordering groups make the
-custom domain compatible with `SqlText`. Use a distinct group when cross-type
-comparison is not portable. `castType` also makes this definition a cast
-target; its SQL text is emitted verbatim, so keep it in trusted extension code.
+the fourth is the SQL domain.
+
+The `text` equality and ordering groups make the custom domain compatible with `SqlText`. Use a distinct group when cross-type
+comparison is not portable.
+
+### Use the definition as a cast target
+
+`castType` also makes this definition a cast target. Its SQL text is emitted
+unchanged, so keep it in trusted extension code.
+
 Definitions with schema flags are not accepted as cast targets because cast
 nullability comes from the operand and write flags have no cast meaning.
+
+### Type individual expressions
 
 Declare result domains at other extension boundaries too:
 
@@ -66,13 +74,17 @@ const rawNameAsText = typedCast<string, SqlText>()(users.name, "TEXT")
 const generated = unsafeExpression<string, SqlText>("custom_text()")
 ```
 
-`typedCall()` preserves source requirements from its arguments. `typedCast()`
-is the fallback when no reusable definition describes the target. It preserves
-operand nullability and source metadata while emitting its supplied type name
-verbatim. `typedValue()` binds a parameter and declares its runtime SQL domain
-for the adapter; it does not select a JavaScript result decoder. Schema columns
-carry result-decoder metadata separately. `unsafeExpression()` emits its string
-unchanged and should remain a last resort.
+Choose the helper for the operation:
+
+- `typedCall()` preserves source requirements from its arguments.
+- `typedCast()` supplies a cast target when no reusable definition describes
+  it. It preserves operand nullability and source metadata, and emits the
+  supplied type name unchanged.
+- `typedValue()` binds a parameter and declares its runtime SQL domain for
+  the adapter. It does not choose a JavaScript result decoder; schema columns
+  carry decoder metadata separately.
+- `unsafeExpression()` emits its string unchanged. Use it only when the other
+  helpers cannot express the syntax.
 
 The lower-level forms also expose the SQL domain in their generic lists:
 `call<Output, Name, Arguments, NullableFrom, SqlType>()` and
@@ -80,7 +92,7 @@ The lower-level forms also expose the SQL domain in their generic lists:
 argument or nullability types in its own generic signature.
 
 Untyped `column()`, `value()`, `call()`, and custom expressions use
-`SqlUnknown`, which stays permissive for backward compatibility. Declaring a
+`SqlUnknown`, which allows composition without SQL-domain checks. Declaring a
 known domain opts the extension into incompatible-operation errors. See
 [SQL semantic types](../../sql-semantic-types.md) for the capability model and
 its limits.

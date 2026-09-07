@@ -1,7 +1,6 @@
 # Add optional conditions
 
-> Keep optional predicates, null checks, and empty-list behavior explicit while
-> the query keeps the same structural shape.
+> Add or omit conditions at runtime, and handle NULL values and empty lists.
 
 The examples use the `users` table from [Build a `SELECT`](overview.md).
 
@@ -65,15 +64,23 @@ Here `omit` affects only whether `email` belongs to the projection. It does
 not make the expression nullable: a non-nullable expression would produce
 `email?: string`, while this nullable column produces `email?: string | null`.
 
-This support is specific to boolean operand lists, query-level ordering terms,
-and the complete clauses named above. Generic `sequence()` and
-`commaSeparated()` collections do not discard `omit`. Clauses that provide
-sources or change structural guarantees cannot be conditional. Pagination is
-the exception: `offset()`, `fetchFirst()`, and `fetchNext()` can be paired
-with `omit`, but a conditional row bound keeps the query's inferred
-cardinality at `many`. Qubu still rejects `omit` branches paired with
-`from()`, joins, `groupBy()`, correlation, CTEs, or custom clauses. Build
-separate queries when those structural parts differ at runtime.
+### Where omission is supported
+
+Use `omit` in the clauses and expression lists shown above. Generic
+`sequence()` and `commaSeparated()` collections do not discard it.
+
+Pagination also supports `omit`: pair it with `offset()`, `fetchFirst()`, or
+`fetchNext()`. A conditional limit keeps the inferred cardinality at `many`
+because the limit may be absent.
+
+Build separate queries when any of these parts differ at runtime. They cannot
+be paired with `omit`:
+
+- `from()` or joins.
+- `groupBy()`.
+- Correlation.
+- CTEs.
+- Custom clauses.
 
 ## Handle `NULL` and empty lists deliberately
 

@@ -1,11 +1,15 @@
 # Snapshot diffing
 
-> Compare canonical Snapshot v1 values and review identity changes before a later planning step.
+> Compare two snapshots and review changes before planning a migration.
 
 The optional `qubu/diff` entrypoint compares immutable snapshot data. It does
-not open a connection, render SQL, execute a change, or infer migration history.
-It keeps the object kind, namespace, logical ID, physical name, dialect, path,
-and catalog evidence on every result object.
+not access a database or execute changes. Each result keeps the information
+needed to review it:
+
+- Object kind and namespace.
+- Logical ID and physical name.
+- Dialect and path.
+- Catalog evidence.
 
 ```ts
 import { diffSnapshots } from "qubu/diff"
@@ -16,6 +20,8 @@ for (const change of result.changes) {
   console.log(change.type, change.kind, change.logicalId)
 }
 ```
+
+## How objects are matched
 
 The matcher first uses an explicit rename hint, then a stable logical ID. A
 physical-name change for a stable match is a `physical-rename` operation. Other
@@ -60,6 +66,8 @@ storage, removing a value, or changing a constraint can also receive that
 classification. Opaque and deferred Snapshot v1 records remain visible as
 `add` or `remove` data and produce `lossy` or `unsupported` diagnostics. They
 cannot be silently promoted to a rename.
+
+### Equality and ordering
 
 `result.equal` means that no diff operation was emitted. A result can therefore
 be equal while still carrying a warning about an unchanged opaque record. The

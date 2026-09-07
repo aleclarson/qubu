@@ -1,6 +1,6 @@
 # Command line operations
 
-> Configure, inspect, baseline, and apply a complete migration chain with stable non-interactive behavior.
+> Configure the CLI, inspect migration status, and apply a migration chain.
 
 Install the CLI, migration library, and one verified migration adapter. For a
 libSQL application:
@@ -9,11 +9,16 @@ libSQL application:
 pnpm add @qubu/cli @qubu/migrate @qubu/adapter-libsql @libsql/client
 ```
 
-The `qubu` binary is implemented with `@alloc/cmd-ts`. It loads
-`qubu.config.js` by default; `--config <path>` selects another application-owned
-module. Every command accepts `--format human|json` (default `human`) and
-`--non-interactive`. Commands do not prompt today; `--non-interactive` records
-the deployment contract and missing explicit input still fails.
+The `qubu` command loads `qubu.config.js` by default. Use `--config <path>` to
+select another configuration module.
+
+Every command accepts:
+
+- `--format human|json`, defaulting to `human`.
+- `--non-interactive`, to state that the command must run without prompts.
+
+Commands currently never prompt. Missing required input fails even without
+`--non-interactive`.
 
 ## Configuration
 
@@ -72,9 +77,13 @@ working directory.
 | `qubu migrate reconcile <attempt-id> --outcome applied\|rolled_back --reason <text>`                | Runs application-owned verification, then records the explicit outcome                                                                      | Requires `verifyReconciliation` in config; no automatic inference                                              |
 | `qubu schema bootstrap [--approve <operation-id=reason>...] [--dry-run]`                            | Plans an empty SQLite or PostgreSQL snapshot through diff/plan/program; executes through the normal executor unless dry-run                 | Rejects other dialects; unsafe or incomplete facts still require exact approvals or custom programs            |
 
-JSON output is stable, newline-terminated, recursively key-sorted, and redacts
-credential-like keys and credentials or secrets embedded in URLs. Human output
-is deliberately terse. Signals propagate through adapters; an abort exits 130.
+## Output and exit codes
+
+JSON output has stable, recursively sorted keys and ends with a newline. It
+redacts credential-like keys and secrets embedded in URLs. Human output is
+brief.
+
+Signals pass through adapters. An abort exits with code 130.
 
 | Exit | Meaning                                                                       |
 | ---: | ----------------------------------------------------------------------------- |
@@ -94,14 +103,19 @@ snapshot. Logical IDs help reporting but do not prove equality. Objects not
 owned by the managed snapshot are returned separately as `unmanagedObjects`;
 Qubu journal objects are excluded by migration snapshot readers.
 
+### Bootstrap a fresh database
+
 `schema bootstrap` is for a fresh SQLite database or a fresh PostgreSQL schema.
 It produces the same reviewed plan, versioned program, sealed artifact, and
-executor path as a migration. A complete PostgreSQL snapshot retains standalone
-enums as authoritative objects; bootstrap creates each enum before a table that
-uses it as a native column type. SQLite inline constraints are compiled into
-table creation, while table rebuilds are explicit phases with copy/postcondition
-checks. Session settings such as SQLite PRAGMAs remain in the application or
-adapter setup.
+execution path as a migration.
+
+Database-specific behavior:
+
+- PostgreSQL bootstrap creates standalone enums before tables that use them
+  as native column types. The complete target snapshot defines those enums.
+- SQLite inline constraints are included in table creation. Table rebuilds
+  use explicit phases with data-copy and postcondition checks.
+- Session settings, such as SQLite PRAGMAs, stay in application or adapter setup.
 
 Use the reviewed complete snapshot directly as the PostgreSQL target:
 

@@ -1,11 +1,17 @@
 # Qubu
 
-> Build parameterized SQL from typed tables, expressions, and clauses.
+> Build SQL queries from typed tables and reusable values.
 
-Qubu builds SQL from values. Tables, expressions, clauses, and complete queries
-compose without a mutable query builder. TypeScript tracks selected row shapes,
-source scope, and nullability, while rendering returns SQL text and ordered
-parameters.
+Qubu builds SQL from reusable values. You can combine query parts without
+changing a shared query-builder object.
+
+TypeScript checks:
+
+- Which fields the query returns and their types.
+- Whether each column belongs to a source in the query.
+- Whether a result can be `null`.
+
+Render a query to inspect its SQL text and ordered parameters.
 
 The preferred source style names each projected field and writes the final
 `select()` clauses in SQL order. Clause values remain order-independent at
@@ -17,7 +23,7 @@ and placed in that final call where it reads best.
 If this is your first query, follow [Getting started](getting-started.md) to
 define a table, build a `SELECT`, and inspect its SQL and parameters.
 
-## Choose a task
+## Build and run queries
 
 - [Build a `SELECT`](guides/select/overview.md) with projections, joins,
   predicates, ordering, and grouping.
@@ -36,18 +42,18 @@ define a table, build a `SELECT`, and inspect its SQL and parameters.
 - [Query nested JSON](guides/json.md) or read scalars from structured paths.
 - [Enable the Vite compiler hint](guides/vite-plugin.md) when query modules
   should opt into named imports through a directive.
-- [Inspect an existing database](schema/introspection.md) through the optional
-  user-owned catalog boundary.
-- [Generate a schema module](schema/code-generation.md) from one complete,
-  non-lossy Snapshot v1 introspection result.
+
+## Work with schemas and migrations
+
+- [Inspect an existing database](schema/introspection.md) using a connection you provide.
+- [Generate a schema module](schema/code-generation.md) from an introspection result without losing schema facts.
 - [Compare snapshots](schema/diff.md) with explicit rename hints and reviewable
   safety diagnostics.
 - [Build migration plans](schema/migration-plans.md) as reviewed, deterministic
   data before DDL emission.
 - [Emit DDL](schema/ddl-emission.md) from an approved migration plan without
   handing Qubu a database connection.
-- [Operate migrations](migrations/index.md) with versioned artifacts, verified
-  adapter profiles, baselines, a portable executor, and explicit recovery.
+- [Operate migrations](migrations/index.md) with reviewed migration files and a verified adapter.
 
 ## The query pipeline
 
@@ -106,8 +112,9 @@ render(query)
 The inferred row is `{ id: number; name: string }`. The value `7` stays out
 of the SQL text and appears in the `parameters` array in placeholder order.
 
-The [supported features](reference/supported-surface.md) page is the canonical
-package-entrypoint and ownership map. Applications may use Qubu's portable
-migration executor while retaining credentials, approval policy, custom SQL,
-and deployment lifecycle ownership. [Troubleshooting](troubleshooting.md)
-starts from common errors and points to the concept page behind each one.
+## Find support details
+
+- [Supported features](reference/supported-surface.md) lists package imports and
+  explains which responsibilities stay with your application.
+- [Troubleshooting](troubleshooting.md) starts from common errors and explains
+  how to fix them.

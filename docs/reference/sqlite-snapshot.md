@@ -1,6 +1,6 @@
 # SQLite snapshot support
 
-> Use this matrix to decide which SQLite schema facts Qubu v1 can serialize and which combinations must be diagnosed before a snapshot is written.
+> Check which SQLite schema features the Snapshot v1 adapter can save.
 
 Import the adapter from the SQLite snapshot subpath:
 
@@ -20,7 +20,7 @@ to distinguish it from the query renderer. A dialect-tagged
 
 | Schema fact         | SQLite v1 behavior                                                                                                                                                                                                                            |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Portable storage    | Maps `integer`, `boolean`, and `bigint` to `INTEGER`; `text`, `date`, `timestamp`, `uuid`, and `json` to `TEXT`; `numeric` to `NUMERIC`; and `binary` to `BLOB`. The snapshot also records SQLite's derived affinity.                         |
+| Portable storage    | Uses the mappings below. SQLite affinity is also recorded.                                                                                                                                                                                    |
 | Native storage      | Preserves a non-empty declaration tagged `sqlite` exactly and records its affinity using SQLite's ordered declared-type rules. Other dialect tags fail.                                                                                       |
 | Literals            | Encodes `NULL`, finite numbers, strings, `bigint`, and booleans as parameter-free SQL. Boolean literals use `1` and `0`; strings retain SQL escaping.                                                                                         |
 | Defaults            | Canonical literals, branded deterministic expressions, and explicit external behavior are retained. Default expressions cannot reference columns or parameters.                                                                               |
@@ -31,6 +31,23 @@ to distinguish it from the query renderer. A dialect-tagged
 | Nullable uniqueness | `nulls: 'distinct'` is supported. `nulls: 'not-distinct'` is diagnosed because SQLite's ordinary UNIQUE semantics distinguish NULLs.                                                                                                          |
 | Indexes             | Ordered terms, expressions, uniqueness, predicates for partial indexes, and candidate-key evidence are retained. Included columns are diagnosed as unsupported. The typed SQLite index extension is encoded under `dialect`.                  |
 | Namespaces          | An optional unqualified namespace is retained; Qubu does not attach or inspect SQLite databases.                                                                                                                                              |
+
+## Portable storage types
+
+| Qubu storage | Database declaration |
+| ------------ | -------------------- |
+| `integer`    | `INTEGER`            |
+| `numeric`    | `NUMERIC`            |
+| `text`       | `TEXT`               |
+| `boolean`    | `INTEGER`            |
+| `date`       | `TEXT`               |
+| `timestamp`  | `TEXT`               |
+| `uuid`       | `TEXT`               |
+| `json`       | `TEXT`               |
+| `bigint`     | `INTEGER`            |
+| `binary`     | `BLOB`               |
+
+## Diagnostics
 
 Capability checks run before common traversal. Use the non-throwing form when a
 schema may include a feature that depends on a SQLite version or table shape:

@@ -1,6 +1,6 @@
 # Fragments and metadata
 
-> Build custom SQL from values while preserving the source, result, grouping, and capability facts that later composition checks.
+> Understand how SQL fragments carry the type information Qubu needs to check a query.
 
 ## A fragment has a renderer and metadata
 
@@ -39,9 +39,12 @@ Composition helpers keep the facts that their children already carry:
 | `groupBy()`                                                     | Record grouping expressions and the column dependencies they make available.                     |
 | `leftJoin()`                                                    | Add `NullableSourceMeta` for the joined source.                                                  |
 
-The type-level contract stays small. `OutputOf<T>` describes a result,
-`SqlTypeOf<T>` its SQL domain, `RequiresOf<T>` its required sources, and
-`NullabilityOf<T>` the sources that can make it null after an outer join.
+Use these types to read a fragment’s metadata:
+
+- `OutputOf<T>`: the result type.
+- `SqlTypeOf<T>`: the SQL domain.
+- `RequiresOf<T>`: the sources it requires.
+- `NullabilityOf<T>`: the sources that can make it null after an outer join.
 
 Qubu does not infer every SQL rule. Grouping checks use declared dependencies,
 and functional dependencies from database keys are handled where the source
@@ -73,7 +76,10 @@ render(query)
 // parameters: [7, '%Ada%']
 ```
 
-The optional domain metadata stays in a sidecar aligned with `parameters`:
+### Give parameters a SQL domain
+
+Optional SQL domains are stored in `parameterSqlTypes`. Each entry matches
+the parameter at the same position:
 
 ```ts
 import { typedValue } from "qubu/core"
@@ -95,6 +101,8 @@ rather than text.
 The parameter array follows the placeholders in the rendered text. `select()`
 normalizes independent clause values, but keep the final call in SQL order in
 new code so source scope and repair hints are visible at a glance.
+
+### Compose SQL templates
 
 The public [`sql` template tag](../guides/sql-templates.md) uses the same
 renderer. Ordinary substitutions call `context.parameter()`, while expression,

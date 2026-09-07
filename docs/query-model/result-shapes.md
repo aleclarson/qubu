@@ -1,6 +1,6 @@
 # Result shapes and cardinality
 
-> Choose a projection, understand how joins change its nullability, and check when a nested query can return no row.
+> Choose result fields and understand when a join or subquery can make them null.
 
 ## Name the selected row
 
@@ -27,7 +27,7 @@ type Row = typeof query.row
 ```
 
 The projection key also names the SQL output column. Use explicit fields for a
-shaped result. Reserve `all(source)` for a whole-source result contract. It
+shaped result. Use `all(source)` when you want every source column. It
 expands to named columns, so the SQL columns and inferred row keys stay aligned:
 
 ```ts

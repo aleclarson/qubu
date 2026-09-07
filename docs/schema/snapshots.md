@@ -1,6 +1,6 @@
 # Canonical schema snapshots
 
-> Serialize schema metadata into strict, deterministic data and keep serialization separate from diffing, planning, and DDL emission.
+> Save a schema as versioned data that you can compare and check into source control.
 
 Qubu's schema tooling lives behind the `qubu/snapshot` entrypoint. It converts
 an immutable `schema()` registry into versioned data that can be inspected,
@@ -14,20 +14,32 @@ const snapshot = createSchemaSnapshot(appSchema)
 const json = encodeSchemaSnapshot(snapshot)
 ```
 
-The Snapshot v1 envelope contains a format version, an independently versioned
-dialect extension, a versioned naming-policy description, a namespace,
-capability facts, and arrays for every supported object family. Tables,
-columns, constraints, and indexes are sorted by stable logical ID. Physical
+## What a snapshot contains
+
+The Snapshot v1 envelope contains:
+
+- A format version.
+- An independently versioned dialect extension.
+- A versioned naming-policy description.
+- A namespace.
+- Supported-capability facts.
+- Arrays for each supported object family.
+
+Tables, columns, constraints, and indexes are sorted by stable logical ID. Physical
 names are values in the snapshot, not identities:
 changing a physical name does not change the TypeScript field or metadata key.
 
-Snapshot data is deliberately not executable Qubu state. Expressions are
-parameter-free data records, and decoding never creates tables, column
-references, or render closures. The neutral fallback renders branded built-in
-expressions through the standard schema context; a dialect adapter may replace
+Snapshot expressions are data records without parameters. Decoding does not
+create executable table or column objects, or rendering functions.
+
+The neutral fallback renders branded built-in expressions through the standard schema context; a dialect adapter may replace
 that hook with its own literal and expression policy. An explicitly unsafe
 expression retains its dialect tag and is rejected when it does not match the
 selected snapshot dialect.
+
+## Decode and validate a snapshot
+
+Use `decodeSchemaSnapshot()` to read saved JSON and inspect validation failures:
 
 ```ts
 import { decodeSchemaSnapshot } from "qubu/snapshot"
@@ -46,6 +58,8 @@ dialect metadata, and broken foreign-key or column references as structured
 diagnostics. It does not call `process.exit()` and has no runtime validation
 library dependency.
 
+### References and ownership
+
 References to nested columns, constraints, and indexes carry an explicit
 `owner: { kind, id }` scope. Table columns, constraints, and indexes are owned
 by their table; view columns are owned by their view; and domain constraints
@@ -54,6 +68,8 @@ and the decoder validates each nested scope independently. Dialect metadata is
 checked only in typed snapshot fields. Extension `data`, `configuration`, and
 other opaque JSON payloads are retained as data and are not interpreted as
 typed metadata.
+
+### Content fingerprints
 
 `schemaSnapshotFingerprint()` computes a deterministic content fingerprint from canonical
 JSON. The fingerprint is useful for cache keys and fixture assertions only. It is not
@@ -69,15 +85,23 @@ and advertised capabilities while adding schema encoders and validation under
 second query dialect. The schema snapshot format version remains independent
 from the dialect identity.
 
-The common traversal owns logical IDs, fixed property order, canonical sorting,
-portable constraints, cross-reference checks, and the immutable snapshot
-envelope. A dialect adapter owns physical storage mapping, SQL literal and
-expression encoding, dialect extensions, capability checks, and any dialect
-naming policy. PostgreSQL, SQLite, and MySQL adapters can implement
-`SchemaSnapshotAdapter` without duplicating traversal or decoder rules.
-The neutral API stays at `qubu/snapshot`; built-in dialect adapters have
-dedicated subpaths so importing neutral snapshot utilities does not widen that
-API:
+The shared serializer handles:
+
+- Logical IDs and fixed property order.
+- Canonical sorting and portable constraints.
+- Cross-reference checks.
+- The immutable snapshot envelope.
+
+A dialect adapter handles:
+
+- Physical storage mapping.
+- SQL literal and expression encoding.
+- Dialect extensions and capability checks.
+- Any dialect-specific naming policy.
+
+PostgreSQL, SQLite, and MySQL adapters can implement `SchemaSnapshotAdapter`
+without duplicating traversal or decoder rules. Import built-in adapters from
+their dedicated subpaths:
 
 ```ts
 import { createSchemaSnapshot } from "qubu/snapshot"
@@ -97,17 +121,21 @@ matrix](../reference/mysql-snapshot.md). Its query and snapshot dialects both
 use `mysql`, while MySQL-only `ON UPDATE` and `AUTO_INCREMENT` details remain
 inside the column and identity metadata they describe.
 
-Snapshot serialization remains separate from database introspection,
-comparison, rename resolution, migration planning, and DDL emission. The
-optional `qubu/introspection` entrypoint can produce the same canonical
-Snapshot v1 data from a user-owned catalog connection. The complete normalized
-catalog can also be encoded with the explicit complete-snapshot APIs described
-in [the catalog model](catalog-model.md).
-Readers and connection lifecycle do not belong to this pure serialization
-layer. Diffing consumes Snapshot v1. Resolved diffs feed
-migration plans, and approved plans feed DDL emission. The package-wide
-[ownership map](../reference/supported-surface.md#ownership-boundary) keeps
-those pure steps separate from application-owned database execution.
+## Use a snapshot in later steps
+
+The optional `qubu/introspection` entrypoint can produce Snapshot v1 data from
+a catalog connection you provide. The [catalog model](catalog-model.md)
+describes the complete-snapshot APIs.
+
+A snapshot then passes through separate steps:
+
+1. Diffing compares Snapshot v1 values.
+2. Migration planning uses the resolved diff.
+3. DDL emission renders an approved plan.
+
+These steps return data without accessing the database. The
+[ownership map](../reference/supported-surface.md#ownership-boundary) explains
+how they connect to application-owned execution.
 
 The optional [schema source generator](code-generation.md) consumes a complete,
 non-lossy introspection result and makes its generated schema the next identity

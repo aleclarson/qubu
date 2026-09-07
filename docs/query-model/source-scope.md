@@ -1,6 +1,6 @@
 # Source scope
 
-> Keep each column tied to the table, alias, CTE, or derived source that provides it; use this page to fix scope errors and intentional correlations.
+> Learn why a column must belong to a source in the query, and how to refer to an enclosing query.
 
 A column carries the identity of the source that provides it. Qubu checks that
 identity when you assemble a query. The source must appear in `FROM` or a join
@@ -118,7 +118,9 @@ const query = select({ value: entries.value }, from(entries), where(eq(entries.k
 ```
 
 `identity` is the type-level source key. `reference` is the SQL qualifier used
-by the generated columns. The nullable `value` column stays nullable, and a
+by the generated columns.
+
+The nullable `value` column stays nullable, and a
 `leftJoin()` adds outer-join nullability to every selected column from
 `entries`.
 
@@ -128,7 +130,7 @@ keeps those values in placeholder order.
 ## Correlate an inner query
 
 Use `correlate()` when an inner query intentionally reads a source from its
-enclosing query. The provision changes type checking but emits no SQL:
+enclosing query. `correlate()` changes type checking but emits no SQL:
 
 ```ts
 import { correlate, crossJoin, eq, from, integer, lateral, select, table, where } from "qubu"

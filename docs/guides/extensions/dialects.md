@@ -1,6 +1,6 @@
 # Add a dialect policy
 
-> Change identifiers, placeholders, pagination, or cast targets at the rendering boundary without changing portable query construction.
+> Customize how Qubu renders SQL for your driver.
 
 Use `createDialect()` when the query is portable but the driver changes
 identifiers, placeholders, or pagination:

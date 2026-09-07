@@ -1,8 +1,6 @@
 # MySQL snapshot support
 
-> Use this matrix before selecting `mysqlSnapshotAdapter`; it records the
-> MySQL facts Qubu v1 can encode and the combinations that need a later server
-> version or engine policy.
+> Check which MySQL schema features the Snapshot v1 adapter can save.
 
 Import the adapter from the MySQL snapshot subpath:
 
@@ -21,7 +19,7 @@ to this adapter.
 
 | Schema fact         | MySQL v1 behavior                                                                                                                                                                                                                                   |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Portable storage    | Maps `integer` to `INT`, `numeric` to `DECIMAL`, `text` to `TEXT`, `boolean` to `BOOLEAN`, `date` to `DATE`, `timestamp` to `DATETIME`, `uuid` to `CHAR(36)`, `json` to `JSON`, `bigint` to `BIGINT`, and `binary` to `VARBINARY`.                  |
+| Portable storage    | Uses the mappings below.                                                                                                                                                                                                                            |
 | Native storage      | Preserves a non-empty declaration tagged `mysql` exactly. Native declarations owned by another dialect fail.                                                                                                                                        |
 | Literals            | Encodes `NULL`, finite numbers, strings, booleans, and `bigint` without query parameters. Strings use SQL quote doubling.                                                                                                                           |
 | Defaults            | Canonical literals, branded deterministic expressions, and explicit external behavior are retained. Default expressions cannot reference columns or parameters.                                                                                     |
@@ -33,6 +31,23 @@ to this adapter.
 | Nullable uniqueness | `nulls: 'distinct'` is supported. `nulls: 'not-distinct'` is diagnosed because ordinary MySQL `UNIQUE` constraints allow multiple `NULL` values.                                                                                                    |
 | Indexes             | Ordered terms, expressions, uniqueness, and candidate-key evidence are retained. Partial predicates, included columns, and `NULLS FIRST/LAST` are diagnosed. Algorithm, locking, access method, parser, and key-block options live under `dialect`. |
 | Names               | Table, column, constraint, and index names are checked against MySQL's 64-character identifier limit. Table names are database-scoped; index names are table-scoped.                                                                                |
+
+## Portable storage types
+
+| Qubu storage | Database declaration |
+| ------------ | -------------------- |
+| `integer`    | `INT`                |
+| `numeric`    | `DECIMAL`            |
+| `text`       | `TEXT`               |
+| `boolean`    | `BOOLEAN`            |
+| `date`       | `DATE`               |
+| `timestamp`  | `DATETIME`           |
+| `uuid`       | `CHAR(36)`           |
+| `json`       | `JSON`               |
+| `bigint`     | `BIGINT`             |
+| `binary`     | `VARBINARY`          |
+
+## Diagnostics
 
 Capability checks run before common traversal. Use the non-throwing form when
 a schema may include a MySQL engine or version-specific feature:

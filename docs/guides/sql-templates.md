@@ -1,6 +1,6 @@
 # Compose SQL templates
 
-> Use trusted SQL syntax with bound runtime values while retaining the Qubu metadata carried by interpolated expressions, fragments, and queries.
+> Write SQL templates that bind values safely and preserve type information from Qubu expressions.
 
 ## Bind every runtime value
 
@@ -108,10 +108,16 @@ reaches `unsafeExpression()`.
 
 ## Preserve metadata through interpolated fragments
 
-The tag inherits source dependencies, conservative outer-join nullability,
-grouping facts, aggregate and window state, subquery state, and dialect
-capability requirements from Qubu fragment substitutions. It does not infer
-those facts from unchecked template text.
+Qubu fragment substitutions pass these facts to the template:
+
+- Required sources.
+- Possible nulls from outer joins.
+- Grouping dependencies.
+- Aggregate and window state.
+- Subquery state.
+- Required dialect capabilities.
+
+Qubu does not infer these facts from template text.
 
 Use a built-in expression as the substitution when its semantics matter:
 

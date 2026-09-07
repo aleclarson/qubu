@@ -1,6 +1,6 @@
 # Vite compiler hint
 
-> Opt a JavaScript or TypeScript module into Qubu's ambient query API while keeping the transform limited to explicit directive-bearing files.
+> Use a "use qubu" directive to add the Qubu imports a module needs.
 
 The optional Vite plugin recognizes the `"use qubu"` directive and injects only
 the referenced named imports from the configured module.
@@ -33,7 +33,7 @@ ambient value and type declarations for the TypeScript compiler.
 
 ## Mark a module explicitly
 
-Put the directive in the module's initial directive prologue:
+Put the directive at the start of the module, alongside any other directives:
 
 ```ts
 "use qubu"

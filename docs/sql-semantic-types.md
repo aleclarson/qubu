@@ -1,6 +1,6 @@
 # SQL semantic types
 
-> Use SQL domains to constrain valid query composition without conflating database semantics with driver-decoded application values.
+> Understand which SQL operations a column supports, even when its JavaScript type looks the same as another column’s.
 
 Qubu tracks four independent facts for a field or result expression:
 
@@ -11,7 +11,7 @@ Qubu tracks four independent facts for a field or result expression:
 | Nullability     | Can the selected value be `null`?                         | `false`                   |
 | SQL domain      | Which portable SQL operations may consume the expression? | `SqlText` or `SqlUuid`    |
 
-The axes are deliberately separate. Both `text()` and `uuid()` decode to a
+These facts are separate. Both `text()` and `uuid()` decode to a
 JavaScript `string`, but their SQL behavior differs. Likewise, two
 `timestamp()` definitions may share `SqlTimestamp` while a custom column uses
 different JavaScript output and write types for its driver.
@@ -111,12 +111,15 @@ target is vendor-specific.
 
 ## Known incompatibility is rejected
 
-Qubu checks capabilities and compatibility when it knows both SQL domains.
-Arithmetic and `SUM`/`AVG` require numeric-like expressions; text functions,
-concatenation, `LIKE`, and PostgreSQL `ILIKE` require text-like expressions;
-ordering and range comparisons require compatible ordering groups; and
-equality, `IN`, `CASE`, `COALESCE`, and set-operation fields require compatible
-equality groups. Boolean clauses require a boolean SQL domain.
+When Qubu knows both SQL domains, it checks these rules:
+
+- Arithmetic and `SUM`/`AVG` require numeric-like expressions.
+- Text functions, concatenation, and pattern matching (`LIKE` or `ILIKE`)
+  require text-like expressions.
+- Ordering and range comparisons require compatible ordering groups.
+- Equality comparisons and `IN` require compatible equality groups. The same
+  rule applies to `CASE`, `COALESCE`, and set-operation fields.
+- Boolean clauses require a boolean SQL domain.
 
 These checks model portable capability and group relationships, not every
 database's implicit casts. An expression accepted by one database after an

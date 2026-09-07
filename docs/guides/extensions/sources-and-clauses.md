@@ -1,6 +1,6 @@
 # Add sources and clauses
 
-> Publish a custom SQL clause or relation while preserving parameter order and source-scope checks.
+> Add a SQL clause or table-like source that works with Qubu’s query checks.
 
 ## Add a custom clause
 
@@ -67,9 +67,13 @@ render(query)
 ```
 
 `identity` is the source-scope key; `reference` is the SQL qualifier used by
-the generated columns. A nullable column remains nullable intrinsically, and a
+the generated columns.
+
+A nullable column remains nullable, and a
 `leftJoin(rows, ...)` adds outer-join nullability to every selected row
-column. Render the complete relation in the producer and bind values with
+column.
+
+Render the complete relation in the producer and bind values with
 `context.parameter()`; the normal renderer preserves parameter order.
 
 ## Read next

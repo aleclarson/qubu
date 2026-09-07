@@ -1,6 +1,6 @@
 # Write mutations
 
-> Build typed `INSERT`, `UPDATE`, and `DELETE` statements from the same table metadata while keeping destructive operations explicit.
+> Insert, update, and delete rows with typed inputs and explicit safeguards.
 
 ## Define write-time rules
 
@@ -121,6 +121,8 @@ const query = update(
 The assignment expression is source-aware, so a column from an unrelated table
 cannot silently enter the update.
 
+### Update from another source
+
 PostgreSQL updates can introduce one or more typed sources with `updateFrom()`.
 Those sources are available to assignments, the predicate, and `RETURNING`:
 
@@ -153,6 +155,8 @@ with the default, SQLite, or MySQL dialect is rejected. Qubu still requires a
 predicate or an explicit `allowAll()` marker; introducing a source does not
 authorize an unrestricted update.
 
+### Omit an assignment at runtime
+
 Use `omit` for a runtime-conditional assignment. Qubu removes omitted fields
 before validating and rendering the effective assignment set:
 
@@ -171,7 +175,9 @@ const query = update(
 
 `omit` means that the column is absent from `SET`. It is distinct from `null`
 and explicit `undefined`, which remain bound assignment values, and it does not
-emit SQL `DEFAULT`. At least one assignment must remain; `update()` throws
+emit SQL `DEFAULT`.
+
+At least one assignment must remain; `update()` throws
 before rendering when every field is omitted. Possible expression branches
 remain source- and capability-aware even when their runtime alternative is
 `omit`.
@@ -237,11 +243,14 @@ unrestricted operation is intended.
 
 ## Return typed rows
 
-`returning()` uses the same named object projection as `SELECT`. Reserve
-`{ ...all(table) }` for the intentional contract of returning every table
-column. When present, the mutation's `row` type is inferred from that projection, so
+`returning()` uses the same named object projection as `SELECT`. Use
+`{ ...all(table) }` when you want every table column.
+
+The mutation’s `row` type is inferred from that projection, so
 `(await db.execute(query)).rows` has the same shape as a read query when `db`
-comes from `qubu(adapter)`. The projection's SQL semantic domains are
+comes from `qubu(adapter)`.
+
+The projection’s SQL semantic domains are
 retained too, so a returned query used by typed composition does not collapse
 UUID, text, numeric, or other known fields to their JavaScript types alone.
 

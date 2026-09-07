@@ -1,6 +1,6 @@
 # Order and paginate
 
-> Choose a stable order and apply optional row limits while keeping SQL clause order and query cardinality visible.
+> Sort results and limit the rows a query returns.
 
 The examples use the `users` table from [Build a `SELECT`](overview.md).
 
@@ -34,9 +34,11 @@ const page = select(
 )
 ```
 
-The rendered clause order is still `FROM`, `WHERE`, `ORDER BY`, and
-pagination. The active dialect decides whether pagination uses standard
+The rendered clauses follow SQL order: `FROM` comes before `WHERE`, followed
+by `ORDER BY` and pagination. The active dialect decides whether pagination uses standard
 `FETCH` syntax or a driver-specific `LIMIT` form.
+
+### Make the limit optional
 
 Pair a pagination clause with `omit` when the row bound is optional at runtime:
 

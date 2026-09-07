@@ -1,8 +1,6 @@
 # PostgreSQL snapshot support
 
-> Use this matrix before selecting `postgresSnapshotAdapter`; it records the
-> PostgreSQL facts Qubu v1 can encode and the cases that need a later server
-> version policy.
+> Check which PostgreSQL schema features the Snapshot v1 adapter can save.
 
 Import the adapter from the PostgreSQL snapshot subpath:
 
@@ -24,7 +22,7 @@ snapshot metadata and `unsafeSchemaSql()` use `postgresql` consistently.
 
 | Schema fact         | PostgreSQL v1 behavior                                                                                                                                                                                                       |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Portable storage    | Emits PostgreSQL declarations: `INTEGER`, `NUMERIC`, `TEXT`, `BOOLEAN`, `DATE`, `TIMESTAMP`, `UUID`, `JSONB`, `BIGINT`, and `BYTEA`.                                                                                         |
+| Portable storage    | Uses the mappings below.                                                                                                                                                                                                     |
 | Native storage      | Preserves a non-empty declaration tagged `postgresql` exactly. Other dialect tags fail.                                                                                                                                      |
 | Literals            | Encodes finite numbers, strings, booleans, `bigint`, and `NULL` without query parameters.                                                                                                                                    |
 | Defaults            | Canonical literals, branded deterministic expressions, and explicit external behavior are retained. Column references in defaults fail.                                                                                      |
@@ -40,6 +38,21 @@ The adapter does not connect to PostgreSQL or emit DDL. It produces
 deterministic data for the `qubu/snapshot` decoder. The package-wide
 [ownership map](supported-surface.md#ownership-boundary) shows the separate
 schema and application boundaries.
+
+## Portable storage types
+
+| Qubu storage | Database declaration |
+| ------------ | -------------------- |
+| `integer`    | `INTEGER`            |
+| `numeric`    | `NUMERIC`            |
+| `text`       | `TEXT`               |
+| `boolean`    | `BOOLEAN`            |
+| `date`       | `DATE`               |
+| `timestamp`  | `TIMESTAMP`          |
+| `uuid`       | `UUID`               |
+| `json`       | `JSONB`              |
+| `bigint`     | `BIGINT`             |
+| `binary`     | `BYTEA`              |
 
 ## Diagnostics
 

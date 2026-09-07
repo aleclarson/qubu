@@ -1,6 +1,6 @@
 # Extend Qubu
 
-> Choose an extension boundary when the built-in API does not cover a driver-specific or uncommon SQL feature.
+> Add SQL features that Qubu’s built-in helpers do not cover.
 
 Qubu extensions are values that render SQL and carry the metadata later
 composition needs. Choose the page that matches the thing you are adding:

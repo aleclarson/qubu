@@ -60,9 +60,11 @@ each item a stable application name in the constraints or indexes record. The
 record key becomes `constraint.id` or `index.id`. Qubu resolves `physicalName` from
 the explicit option or the version-one snake_case policy.
 
-Index terms may use `asc()` or `desc()`. Set `unique: true` for a unique index,
-`where` for a partial index, and `include` for columns stored in the index payload but not
-used as key terms.
+Index terms may use `asc()` or `desc()`. Set these options as needed:
+
+- `unique: true` creates a unique index.
+- `where` supplies a partial-index predicate.
+- `include` lists columns stored in the index payload but not used as key terms.
 
 ## Distinguish candidate keys from unique constraints
 
@@ -100,8 +102,11 @@ same length and matching known `SqlSemanticType` identities. `SqlUnknown` cannot
 prove a foreign-key match.
 
 The target tuple must exactly match a primary key, unique() constraint, or
-eligible unique index. Options such as onUpdate, onDelete, match, deferrable,
-and initially remain metadata:
+eligible unique index. These options record database behavior as metadata:
+
+- `onUpdate` and `onDelete`.
+- `match`.
+- `deferrable` and `initially`.
 
 ```ts
 const memberships = table("memberships", { accountId: integer() }, (memberships) => ({
@@ -117,6 +122,8 @@ const memberships = table("memberships", { accountId: integer() }, (memberships)
 
 Use the preliminary callback table for direct self-references. Wrap the target
 in a function when two modules import each other's tables.
+
+### Restrictions on schema expressions
 
 Checks, index expressions, and partial-index predicates may read only columns
 from their callback table. They cannot contain aggregates, window functions, or

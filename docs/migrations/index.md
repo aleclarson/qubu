@@ -1,8 +1,8 @@
 # Migration operations
 
-> Choose the package entrypoint that owns each migration concern without pulling database or Node.js behavior into pure schema code.
+> Find the packages and guides for planning, running, and recovering migrations.
 
-Qubu migrations are split across explicit ownership boundaries:
+These packages handle different parts of a migration:
 
 | Owner           | Imports                                                                                                                     | Responsibility                                                                                                               |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
@@ -20,6 +20,8 @@ import { createMigrationPlan } from "@qubu/migrate/plan"
 import { emitMigrationPlan } from "@qubu/migrate/ddl"
 import { compileMigrationProgram, sealExecutableArtifact } from "@qubu/migrate/artifact"
 ```
+
+## Choose an import
 
 The `@qubu/migrate` root intentionally exports only format/version constants
 and the central plan and artifact types. Import behavior from its focused
@@ -46,12 +48,17 @@ entrypoint:
 | `@qubu/migrate/bootstrap/sqlite`   | Plan a fresh SQLite schema through the normal compiler                                                                        |
 | `@qubu/migrate/testing`            | Test adapter capabilities and deterministic failure boundaries                                                                |
 
-Start with [Artifacts and approval policy](artifacts-and-policy.md) when
-reviewing a migration format. Check [Adapter capability
-profiles](adapters.md), use [Command line operations](operations.md) to
-configure an application, then keep [Recovery and reconciliation](recovery.md)
-with the deployment runbook. [Lotta Games adoption](lotta-adoption.md) records
-the downstream cutover boundary and current combo-matrix blocker.
+## Choose a guide
+
+- [Artifacts and approval policy](artifacts-and-policy.md): review migration
+  files and approve operations.
+- [Adapter capability profiles](adapters.md): choose a supported driver.
+- [Command line operations](operations.md): configure and use the CLI.
+- [Recovery and reconciliation](recovery.md): handle interrupted migrations.
+- [Lotta Games adoption](lotta-adoption.md): review the downstream cutover
+  plan and combo-matrix release blocker.
+
+## Select a built-in dialect
 
 Choose the dialect-specific bootstrap entrypoint when using a built-in dialect:
 

@@ -123,9 +123,14 @@ override.
 ## Runtime metadata
 
 Each dialect adapter maps Qubu storage descriptors to its own Drizzle builders.
-It also transfers concrete defaults, generated expressions, common primary and
-unique constraints, checks, foreign keys, and indexes. Native storage must
-belong to the selected dialect:
+It also transfers:
+
+- Concrete defaults and generated expressions.
+- Common primary and unique constraints.
+- Checks and foreign keys.
+- Indexes.
+
+Native storage must belong to the selected dialect:
 
 ```ts
 import { nativeColumn, schema, table } from "qubu"

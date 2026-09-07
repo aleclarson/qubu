@@ -1,6 +1,6 @@
 # Adapter capability profiles
 
-> Select a migration adapter from capabilities proven by its driver and environment, not from dialect name alone.
+> Choose a migration adapter based on what its driver and environment have been tested to support.
 
 Every executable migration adapter opens a migration session and
 advertises the exact behavior the executor may use:
@@ -25,12 +25,12 @@ executor never treats one as proof of the other.
 
 ## Trusted migration SQL
 
-Migration SQL, including SQL conditions, is trusted across all adapters. Qubu
-validates program structure and adapter capabilities, but does not parse SQL
-to enforce safety. Callers must preserve executor-owned transactions, connection
-settings, and migration journal state. For example, an explicit `COMMIT` can
-leave schema changes applied without their journal record; atomicity and recovery
-guarantees depend on respecting this contract.
+Qubu validates program structure and adapter capabilities. It trusts the SQL
+you supply, including SQL conditions, and does not parse it for safety.
+
+Migration SQL must preserve the executor’s transactions, connection settings,
+and journal state. For example, an explicit `COMMIT` can apply schema changes
+without their journal record, breaking the executor’s recovery guarantees.
 
 ## Current profiles
 
@@ -44,11 +44,24 @@ The following stable profiles have live conformance coverage in this checkout:
 | `@qubu/adapter-postgresjs/migration`  | PostgreSQL | required, optional, forbidden | none, exclusive | checkpointed     | Reserves and releases one connection                   |
 | `@qubu/adapter-pglite/migration`      | PostgreSQL | required, optional, forbidden | none, exclusive | checkpointed     | Uses the database query queue as the pinned session    |
 
-All five support every current tagged parameter kind (`null`, `boolean`,
-`string`, `number`, `bigint`, `bytes`, and `json`), a database journal and
-lease, atomic applied-record/head advancement, and recovery-required commit
-ambiguity classification. Support still depends on the artifact's server,
-feature, transaction, and lock constraints.
+All five support:
+
+- Every current tagged parameter kind.
+- A journal and migrator lease stored in the database.
+- An atomic update of the applied record and journal head.
+- A recovery-required result when a commit’s outcome is uncertain.
+
+Parameter kinds are:
+
+- `null` and `boolean`.
+- `string` and `number`.
+- `bigint` and `bytes`.
+- `json`.
+
+The artifact’s server, feature, transaction, and lock requirements must still
+match the adapter.
+
+### Unavailable profiles
 
 These exported profiles are unavailable and must not be passed to the
 executor:
@@ -61,6 +74,8 @@ executor:
 
 Unavailable profiles expose `reason` and `missingCapabilities`; they do not
 fall back to a generic executor.
+
+### Configure libSQL inspection
 
 For libSQL, let the migration entrypoint exclude all reserved journal objects
 during strict inspection:
@@ -84,7 +99,9 @@ Each executable artifact must contain exactly one phase and an embedded before
 snapshot. The adapter submits its statements, SQL assertions, applied-history
 record, head update, and terminal attempt state in one `client.migrate()` call.
 For example, creating a table and recording that migration either both commit
-or both roll back. Multiple artifacts are separate batches; earlier successful
+or both roll back.
+
+Multiple artifacts are separate batches; earlier successful
 artifacts remain applied if a later one fails.
 
 Preparation reads the schema in a read transaction. The submitted batch checks
@@ -92,13 +109,24 @@ that the catalog still matches that inspection, the lease is still owned, and
 the head still equals the expected parent. Foreign-key validation runs before
 commit because libSQL temporarily disables enforcement during `migrate()`.
 
+### Supported conditions
+
 Schema fingerprint and property preconditions are checked against the embedded
-before snapshot, whose physical facts are verified during preparation and
-guarded by the in-batch catalog assertion. Object-presence and scalar SQL checks
-run inside the batch. Postconditions must be object-presence/absence checks
-without fingerprints, or scalar SQL checks returning `1`. Unsupported conditions
-and multiple phases are rejected. SQL content is passed to the driver without
-safety validation; each program entry must follow the driver's statement contract.
+before snapshot. Preparation verifies its physical facts, and the batch
+asserts that the catalog still matches.
+
+Object-presence and scalar SQL checks run inside the batch. Postconditions
+must use either:
+
+- Object-presence or absence checks without fingerprints.
+- Scalar SQL checks returning `1`.
+
+Unsupported conditions and multiple phases are rejected.
+
+SQL is passed to the driver without safety validation. Each program entry
+must follow the driver’s statement contract.
+
+### Crashes and uncertain outcomes
 
 The database-row lease has no expiry or heartbeat. A process crash can leave
 it held; ownership must be resolved before another runner can proceed. A lost

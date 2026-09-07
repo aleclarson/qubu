@@ -1,6 +1,8 @@
 # Better Auth
 
-> Derive Qubu-owned auth tables and run Better Auth through a transactional Qubu client.
+> Define auth tables with Qubu and connect Better Auth to a transactional Qubu client.
+
+## Install the integration
 
 Install the integration next to Qubu and Better Auth:
 
@@ -8,10 +10,15 @@ Install the integration next to Qubu and Better Auth:
 pnpm add qubu @qubu/better-auth better-auth
 ```
 
-Define the Better Auth options once. The schema derivation reads Better Auth's
-resolved public metadata, so core tables, renamed models and fields, additional
-fields, plugin tables, references, unique constraints, and compound indexes all
-participate.
+## Define the auth schema
+
+Define the Better Auth options once. Qubu derives its schema from Better Auth’s
+resolved public metadata, including:
+
+- Core tables and renamed models or fields.
+- Additional fields and plugin tables.
+- References and unique constraints.
+- Compound indexes.
 
 ```ts
 import { betterAuth } from "better-auth"
@@ -44,12 +51,16 @@ export const auth = betterAuth({
 migration-plan, and DDL workflows. The adapter's Better Auth `createSchema`
 hook emits a TypeScript module that reconstructs the same Qubu-owned metadata.
 
+## Database requirements
+
 The package never imports PostgreSQL, MySQL, or SQLite drivers. It executes
 through Qubu's query and transaction boundaries. PostgreSQL and SQLite use one
 limited mutation statement for atomic consume and guarded increment operations;
 MySQL locks one selected row inside the Qubu-owned transaction. A client without
 transaction support, or a dialect other than PostgreSQL, MySQL, or SQLite, is
 rejected during adapter construction.
+
+## Enum limitation
 
 Better Auth enum metadata is currently rejected because Qubu cannot preserve
 the closed value set as a portable column without adding a database constraint.

@@ -1,6 +1,6 @@
 # Compose queries
 
-> Reuse a query's inferred row shape as a typed source for CTEs, derived tables, subqueries, and set operations.
+> Reuse a query as a CTE, a derived table, or a subquery, and combine query results.
 
 ## Turn a query into a CTE
 
@@ -27,6 +27,8 @@ const report = select({ displayName: activeUsers.name }, withCte(activeUsers), f
 The rendered statement includes the `WITH` clause before `SELECT`. Selected
 camelCase keys use snake_case while they belong to the CTE relation; the outer
 result projection aliases them back to camelCase for the returned row.
+
+### Use a CTE in a mutation
 
 Attach the same clause to an insert, update, or delete when the mutation reads
 through the CTE. For example, an insert can consume a filtered CTE through
@@ -66,11 +68,20 @@ const numbers = recursiveCte("numbers", select({ value: cast(value(1), integer()
 const query = select({ value: numbers.value }, withCte(numbers), from(numbers))
 ```
 
-The anchor names the fields, application types, nullability, and SQL domains
-that the returned source exposes. The member must project those same fields
-with compatible types. Give bound anchor values an explicit SQL type with
+The anchor defines the fields the CTE returns:
+
+- Field names.
+- Application types.
+- Nullability.
+- SQL domains.
+
+The recursive member must select the same fields with compatible types.
+
+Give bound anchor values an explicit SQL type with
 `cast()` when the database cannot infer it from surrounding columns; PostgreSQL
-requires this for recursive CTE anchors. Qubu renders `WITH RECURSIVE`, an
+requires this for recursive CTE anchors.
+
+Qubu renders `WITH RECURSIVE`, an
 explicit relation column list, and `anchor UNION ALL member`; ordinary and
 recursive CTEs can share one `withCte()` clause.
 
@@ -117,7 +128,9 @@ const query = select(
 `scalar()` throws at runtime when the query selects more than one field. Its
 type is the selected field's value type, widened with `null` when the query may
 return no rows. An ordinary select and `fetchFirst(1)` are both nullable: the
-limit proves at most one row, not that a row exists. A source-free select such
+limit proves at most one row, not that a row exists.
+
+A source-free select such
 as `select({ value: value(42) })` is known to produce exactly one row.
 
 Qubu does not treat an arbitrary predicate as proof of exactness. Use
@@ -163,9 +176,8 @@ code.
 ## Constrain a reusable fragment by required fields
 
 Use `TableLike` when a fragment requires a physical table and `SourceLike`
-when aliases, CTEs, derived tables, or custom sources are also valid. Both are
-lower-bound constraints: the source may contain additional fields, and the
-generic function retains its exact source identity.
+when aliases, CTEs, derived tables, or custom sources are also valid. Both allow the source to contain additional fields. The generic function
+retains the source’s exact identity.
 
 For an application-level requirement, describe the required JavaScript row:
 

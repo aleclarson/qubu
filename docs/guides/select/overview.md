@@ -1,6 +1,6 @@
 # Build a `SELECT`
 
-> Build a `SELECT` from typed tables, then inspect its sources, projection, joins, and result row.
+> Choose fields, add a source, and join tables to build a typed SELECT query.
 
 ## Start with a projection and a source
 
@@ -24,8 +24,7 @@ render(query).text
 ```
 
 An object projection uses its keys as result names. Name the fields you intend
-to return in the usual case. Reserve `all(source)` for a result contract that
-intentionally returns every source column. It returns the source's columns as a
+to return in the usual case. Use `all(source)` when you want every source column. It returns the source's columns as a
 named projection object, so it can still be spread alongside computed
 expressions:
 
@@ -79,6 +78,8 @@ Use `innerJoin`, `leftJoin`, `rightJoin`, or `fullJoin` with an `ON`
 condition. `crossJoin` and `naturalJoin` add a source without a condition;
 use them only when that SQL behavior is intentional.
 
+### Handle missing joined rows
+
 `leftJoin()` also carries nullability into the selected row. A column from the
 joined source is nullable because the row may be missing, while an expression
 with a deliberately non-nullable result such as `count()` remains non-null:
@@ -97,6 +98,8 @@ const summary = select(
 // typeof summary.row:
 // { userName: string; postTitle: string | null; postCount: number }
 ```
+
+### Add conditions
 
 Compose boolean expressions explicitly:
 

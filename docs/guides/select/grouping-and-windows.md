@@ -1,6 +1,6 @@
 # Group and rank rows
 
-> Use aggregates, grouping, and window expressions while preserving the dependencies and result types that make each expression valid.
+> Summarize rows with aggregates and rank them with window functions.
 
 The examples use the `users` and `posts` tables from [Build a
 `SELECT`](overview.md).
@@ -28,6 +28,7 @@ const counts = select(
 
 `users.name` is grouped, while `posts.id` is consumed by `COUNT()`. The
 same dependency rule applies to `HAVING` and grouped `ORDER BY` expressions.
+
 A projection such as `{ email: users.email, postCount: count(posts.id) }` is
 rejected unless `users.email` is grouped or is functionally determined by a
 grouped primary or unique key declared in the table schema. Qubu uses only
@@ -58,7 +59,9 @@ const rankedUsers = select(
 Window expressions remain ordinary expressions. They can be projected, aliased,
 and passed to `orderBy()`. Their source requirements and result types are
 retained through `over()`, and values rendered inside the window
-specification remain parameters. Named windows and frame clauses are outside
+specification remain parameters.
+
+Named windows and frame clauses are outside
 the initial inline scope.
 
 ## Read next

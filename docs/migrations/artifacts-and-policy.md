@@ -1,10 +1,12 @@
 # Artifacts and approval policy
 
-> Review exactly what is authenticated and executable before an artifact enters a repository.
+> Review migration files and approve the exact operations they will run.
 
-Qubu has two strict artifact kinds. An executable migration contains a reviewed
-plan and authoritative program. A verified baseline records an observed schema
-without pretending that historical SQL ran.
+An artifact is a versioned migration file. Qubu supports two kinds:
+
+- An **executable migration** contains a reviewed plan and the program to run.
+- A **verified baseline** records the observed schema as a starting point. It
+  does not claim that historical SQL ran through Qubu.
 
 ## Published formats
 
@@ -38,18 +40,30 @@ An executable artifact records:
 - operation-scoped approvals and custom-program provenance;
 - artifact provenance and `artifactDigest`.
 
-The program—not `emitMigrationPlan(...).sql` and not joined statement text—is
-the execution authority. Each phase declares its position, dependencies,
-transaction and lock requirements, preconditions, postconditions, and ordered
-statements. Each statement declares its operation ID, dependencies, SQL, and
-tagged parameters.
+The executor runs the program stored in the artifact. The SQL preview from
+`emitMigrationPlan(...).sql` is not an executable artifact.
+
+Each phase declares:
+
+- Its position and dependencies.
+- Transaction and lock requirements.
+- Preconditions and postconditions.
+- Ordered statements.
+
+Each statement declares its operation ID, dependencies, SQL, and tagged parameters.
 
 ### Baseline artifact schema
 
-A baseline records `id`, sequence and parent lineage, encoding descriptors,
-dialect and optional constraints, one verified snapshot descriptor,
-`verifiedAt`, provenance, optional operator metadata, and `artifactDigest`. It
-has no migration plan, program, or SQL digest.
+A baseline records:
+
+- `id`, sequence, and parent lineage.
+- Encoding descriptors.
+- Dialect and optional constraints.
+- One verified snapshot descriptor and `verifiedAt`.
+- Provenance and optional operator metadata.
+- `artifactDigest`.
+
+It has no migration plan, program, or SQL digest.
 
 Artifact IDs are stable identities, not repository order. Sequence and parent
 digest establish the linear chain. Renumbering therefore changes lineage and
@@ -57,20 +71,35 @@ the artifact digest.
 
 ## Canonical bytes and digest domains
 
-`encodeCanonical()` sorts object keys by Unicode code-point order, preserves
-array order, emits compact JSON as UTF-8, normalizes `-0` to `0`, rejects
-non-finite numbers, and adds one LF at EOF. `digestCanonical()` prefixes those
-bytes with the UTF-8 bytes for:
+`encodeCanonical()` produces a repeatable byte representation:
+
+- Sort object keys by Unicode code-point order.
+- Preserve array order.
+- Emit compact UTF-8 JSON.
+- Normalize `-0` to `0` and reject non-finite numbers.
+- End the file with one line feed.
+
+`digestCanonical()` prefixes those bytes with the UTF-8 bytes for:
 
 ```text
 qubu:migrate:v1:<domain>\0
 ```
 
-The five domains are `artifact`, `baseline`, `migration-plan`,
-`migration-program`, and `schema-snapshot`. Domain separation prevents equal
-JSON values used for different purposes from sharing an integrity identity.
+The digest identifies its purpose through one of five domains:
+
+- `artifact`.
+- `baseline`.
+- `migration-plan`.
+- `migration-program`.
+- `schema-snapshot`.
+
+The prefix ensures that identical JSON used for different purposes gets
+different digests.
+
 Operational digests have the form `sha256:` plus 64 lowercase hexadecimal
 digits and are recomputed while sealing or decoding.
+
+### Fingerprints and integrity digests
 
 Snapshot and plan `fingerprint` APIs are deterministic FNV-1a64 change
 detectors. They remain useful for caches and fixture assertions, but they are

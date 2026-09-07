@@ -14,12 +14,16 @@ const query = select({
 })
 ```
 
-Keep raw identifiers and values out of the string. Prefer a typed custom
-fragment when the syntax will be reused. Use the [`sql` template
-tag](../sql-templates.md) when fixed trusted syntax needs bound runtime values
-or existing Qubu fragments. Keep dynamic SQL text on `unsafeExpression()` and
-runtime identifiers on `identifier()` or `qualifiedIdentifier()` from
-`qubu/core`.
+## Choose the right helper
+
+Keep raw identifiers and values out of the string:
+
+- Use a typed custom fragment for syntax you will reuse.
+- Use the [`sql` template tag](../sql-templates.md) for fixed trusted syntax
+  with bound values or existing Qubu fragments.
+- Use `unsafeExpression()` for trusted dynamic SQL text.
+- Use `identifier()` or `qualifiedIdentifier()` from `qubu/core` for runtime
+  identifiers.
 
 Read [Dialects and execution](../../dialects-and-execution.md) for the boundary
 between rendering and driver behavior. Read [Add typed

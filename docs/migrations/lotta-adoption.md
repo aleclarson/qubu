@@ -1,10 +1,12 @@
 # Lotta Games adoption
 
-> Replace Lotta's provisional runner with Qubu while preserving product-owned deployment policy and historical truth.
+> Move Lotta to Qubu migrations while keeping deployment decisions in Lotta.
 
 Adopt the released `@qubu/migrate`, `@qubu/cli`, and libSQL migration entrypoint
 as a hard cutover. Do not add an upstream decoder for Lotta's provisional JSON,
 FNV artifact digests, journal, or broad unsafe flags.
+
+## Establish the starting state
 
 Before changing downstream state, inspect every environment for a provisional
 journal or baseline row. Regenerate unreleased migrations in the Qubu artifact
@@ -12,6 +14,8 @@ format. For an existing database, create one standard baseline only after strict
 live introspection matches the intended Qubu snapshot. That baseline records a
 verified starting state; it does not claim that old migrations ran through
 Qubu.
+
+## Keep deployment policy in Lotta
 
 Keep these concerns in Lotta:
 
@@ -30,10 +34,17 @@ databases with `schema bootstrap`; keep connection PRAGMAs in the test harness.
 > Drizzle history. A verified baseline is the handoff from historical state to
 > Qubu lineage.
 
-The downstream verification set should cover a fresh bootstrap, an already
-baselined database, a no-op deploy, pending migrations in both deployment
-timing modes, drift refusal, concurrent invocation, rollback, and explicit
-recovery.
+## Verify the cutover
+
+Cover these scenarios downstream:
+
+- A fresh bootstrap.
+- An already baselined database.
+- A deploy with no pending migrations.
+- Pending migrations in both deployment timing modes.
+- Refusal when the schema has drifted.
+- Concurrent migration attempts.
+- Rollback and explicit recovery.
 
 ## Combo-matrix release blocker
 
