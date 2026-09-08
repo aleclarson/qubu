@@ -1,5 +1,10 @@
 import type { SchemaDialect } from "qubu/schema"
-import type { SnapshotExpression } from "qubu/snapshot"
+import {
+  assertSchemaSnapshot,
+  fingerprintSchemaSnapshot,
+  type SchemaSnapshot,
+  type SnapshotExpression,
+} from "qubu/snapshot"
 
 import { assertMigrationPlan, type MigrationOperation, type MigrationPlan } from "../plan/index.ts"
 import { alignColumns, columnOrderError, type ColumnOrder } from "./column-order.ts"
@@ -16,6 +21,7 @@ type JsonRecord = Record<string, unknown>
 export interface DdlFeatures {
   readonly dialect: "postgresql" | "sqlite" | "mysql"
   readonly columnOrder?: ColumnOrder
+  readonly afterSnapshot?: SchemaSnapshot
   readonly supports: ReadonlySet<string>
 }
 
@@ -89,6 +95,7 @@ export function createDdlEmitter(features: DdlFeatures): DdlEmitter {
           const sql = renderOperation(operation, validated.operations, schemaDialect, {
             ...features,
             columnOrder: options.columnOrder,
+            afterSnapshot: options.afterSnapshot,
           })
 
           if (sql === undefined || sql.length === 0) {
@@ -127,6 +134,7 @@ export function createDdlEmitter(features: DdlFeatures): DdlEmitter {
       return renderOperation(operation, operations, schemaDialect, {
         ...features,
         columnOrder: options.columnOrder,
+        afterSnapshot: options.afterSnapshot,
       })
     },
   }
@@ -227,6 +235,21 @@ function preflight(
     }
 
     return sortDiagnostics(diagnostics)
+  }
+
+  if (options.afterSnapshot !== undefined) {
+    try {
+      assertSchemaSnapshot(options.afterSnapshot)
+      if (fingerprintSchemaSnapshot(options.afterSnapshot) !== plan.afterFingerprint)
+        throw new TypeError("DDL afterSnapshot must match the reviewed plan fingerprint")
+    } catch (error) {
+      diagnostics.push({
+        code: "invalid-plan",
+        severity: "error",
+        message: String(error),
+        path: ["afterSnapshot"],
+      })
+    }
   }
 
   if (plan.dialect.name !== features.dialect) {
@@ -1318,10 +1341,7 @@ function renderCreateTable(
     ),
   )
   const columnNames = new Map(
-    columns.map((column) => [
-      stringValue(column.id),
-      stringValue(column.physicalName) ?? stringValue(column.id),
-    ]),
+    columns.map((column) => [stringValue(column.id), stringValue(column.physicalName)]),
   )
   if (features.dialect === "sqlite") {
     for (const constraint of constraints) {
@@ -1330,7 +1350,7 @@ function renderCreateTable(
         if (ids.length === 1 && identityColumns.has(ids[0]!)) continue
       }
       definitions.push(
-        renderInlineConstraint(constraint, operations, columnNames, dialect, features),
+        renderInlineConstraint(constraint, operation, operations, columnNames, dialect, features),
       )
     }
   }
@@ -1341,6 +1361,7 @@ function renderCreateTable(
 
 function renderInlineConstraint(
   value: JsonRecord,
+  operation: MigrationOperation,
   operations: readonly MigrationOperation[],
   columnNames: ReadonlyMap<string | undefined, string | undefined>,
   dialect: SchemaDialect,
@@ -1348,7 +1369,7 @@ function renderInlineConstraint(
 ): string {
   const name = requiredValueName(value)
   const kind = stringValue(value.kind)
-  const columns = stringArray(value.columns).map((id) => columnNames.get(id) ?? id)
+  const columns = stringArray(value.columns).map((id) => requireColumnName(columnNames, id))
   const terms = columns.map((column) => dialect.quoteIdentifier(column)).join(", ")
   let body: string
   if (kind === "primary-key") body = `PRIMARY KEY (${terms})`
@@ -1360,26 +1381,24 @@ function renderInlineConstraint(
   } else if (kind === "foreign-key") {
     const target = recordValue(value.target)
     const targetTable = target === undefined ? undefined : recordValue(target.table)
-    const targetId =
-      targetTable === undefined
-        ? undefined
-        : (stringValue(targetTable.id) ?? stringValue(targetTable.physicalName))
-    const targetOperation = operations.find(
-      (item) => item.kind === "table" && item.logicalId === targetId && item.type === "add",
-    )
-    const targetValue = targetOperation?.origin?.after?.value
-    const targetName = targetValue ? requiredValueName(targetValue) : targetId
-    if (!targetName || target === undefined || targetTable === undefined)
+    if (target === undefined || targetTable === undefined)
       throw new TypeError("Foreign-key constraint is missing target identity")
-    const targetColumns = stringArray(target.columns)
-    const targetColumnValues = isRecord(targetValue) ? arrayOfRecords(targetValue.columns) : []
-    const targetNames = new Map(
-      targetColumnValues.map((column) => [
-        stringValue(column.id),
-        stringValue(column.physicalName),
-      ]),
+    const targetNamespace = stringValue(targetTable.namespace)
+    if (targetNamespace !== undefined && targetNamespace !== operation.namespace)
+      throw new TypeError("SQLite foreign keys cannot reference another database namespace")
+    const targetValue = resolveSqliteTable(
+      stringValue(targetTable.id),
+      operation,
+      operations,
+      features,
     )
-    body = `FOREIGN KEY (${terms}) REFERENCES ${dialect.quoteIdentifier(targetName)} (${targetColumns.map((id) => dialect.quoteIdentifier(targetNames.get(id) ?? id)).join(", ")})`
+    const targetName = sqliteTableName(targetValue)
+    const targetNames = physicalColumnNames(targetValue)
+    body = `FOREIGN KEY (${terms}) REFERENCES ${dialect.quoteIdentifier(targetName)} (${stringArray(
+      target.columns,
+    )
+      .map((id) => dialect.quoteIdentifier(requireColumnName(targetNames, id)))
+      .join(", ")})`
     const onDelete = stringValue(value.onDelete)
     const onUpdate = stringValue(value.onUpdate)
     if (onDelete && onDelete !== "no-action") body += ` ON DELETE ${sqlAction(onDelete)}`
@@ -1762,6 +1781,61 @@ function renderDropConstraint(
   throw new TypeError("SQLite cannot drop table constraints without rebuilding the table")
 }
 
+function sqliteTableName(table: JsonRecord): string {
+  const name = stringValue(table.physicalName)
+  if (!name) {
+    throw new TypeError(`Cannot resolve physical name for table "${String(table.id)}"`)
+  }
+  return name
+}
+
+function physicalColumnNames(
+  table: JsonRecord,
+): ReadonlyMap<string | undefined, string | undefined> {
+  return new Map(
+    arrayOfRecords(table.columns).map((column) => [
+      stringValue(column.id),
+      stringValue(column.physicalName),
+    ]),
+  )
+}
+
+function requireColumnName(
+  names: ReadonlyMap<string | undefined, string | undefined>,
+  id: string,
+): string {
+  const name = names.get(id)
+  if (!name) throw new TypeError(`Cannot resolve physical name for column "${id}"`)
+  return name
+}
+
+function resolveSqliteTable(
+  id: string | undefined,
+  operation: MigrationOperation,
+  operations: readonly MigrationOperation[],
+  features: DdlFeatures,
+): JsonRecord {
+  const snapshot = features.afterSnapshot
+  const table =
+    snapshot !== undefined && snapshot.namespace.name === operation.namespace
+      ? snapshot.tables.find((item) => item.id === id)
+      : undefined
+  if (table) return table as unknown as JsonRecord
+  const candidate = operations.find(
+    (item) =>
+      item.kind === "table" &&
+      item.type === "add" &&
+      item.status !== "skipped" &&
+      item.logicalId === id &&
+      item.namespace === operation.namespace,
+  )
+  const value = candidate?.origin?.after?.value
+  if (isRecord(value)) return value
+  throw new TypeError(
+    `Cannot resolve physical table and column names for "${String(id)}"; provide the reviewed afterSnapshot`,
+  )
+}
+
 function renderCreateIndex(
   operation: MigrationOperation,
   value: JsonRecord,
@@ -1770,16 +1844,25 @@ function renderCreateIndex(
   features: DdlFeatures,
 ): string | undefined {
   const name = requiredName(operation, value)
+  const parent = operation.origin?.after?.parent ?? operation.origin?.before?.parent
+  const tableValue =
+    features.dialect === "sqlite"
+      ? resolveSqliteTable(parent?.id, operation, operations, features)
+      : undefined
+  const columnNames = tableValue === undefined ? undefined : physicalColumnNames(tableValue)
   const terms = arrayOfRecords(value.terms)
     .sort((left, right) => numberValue(left.position) - numberValue(right.position))
-    .map((term) => renderIndexTerm(term, dialect))
+    .map((term) => renderIndexTerm(term, dialect, columnNames))
     .join(", ")
 
   if (terms.length === 0) {
     throw new TypeError("Index must contain at least one term")
   }
 
-  const table = parentTable(operation, operations, dialect)
+  const table =
+    tableValue === undefined
+      ? parentTable(operation, operations, dialect)
+      : dialect.quoteIdentifier(sqliteTableName(tableValue))
   let sql = `CREATE ${value.unique === true ? "UNIQUE " : ""}INDEX ${qualifiedName(operation, name, dialect)} ON ${table}`
   const method = recordValue(value.dialect)?.method
 
@@ -1803,7 +1886,11 @@ function renderCreateIndex(
   return sql
 }
 
-function renderIndexTerm(value: JsonRecord, dialect: SchemaDialect): string {
+function renderIndexTerm(
+  value: JsonRecord,
+  dialect: SchemaDialect,
+  columnNames?: ReadonlyMap<string | undefined, string | undefined>,
+): string {
   const kind = stringValue(value.kind)
   let sql: string
 
@@ -1814,7 +1901,9 @@ function renderIndexTerm(value: JsonRecord, dialect: SchemaDialect): string {
       throw new TypeError("Index column term is missing its column")
     }
 
-    sql = dialect.quoteIdentifier(column)
+    sql = dialect.quoteIdentifier(
+      columnNames === undefined ? column : requireColumnName(columnNames, column),
+    )
   } else if (kind === "expression") {
     const expression = expressionValue(value.expression)
 

@@ -3,6 +3,7 @@ import type { ColumnOrder } from "./column-order.ts"
 export type { ColumnOrder } from "./column-order.ts"
 
 import type { SchemaDialect } from "qubu/schema"
+import type { SchemaSnapshot } from "qubu/snapshot"
 
 import type {
   MigrationLockRequirement,
@@ -61,6 +62,8 @@ export interface DdlStatement {
 
 /** Policy and execution-context facts used by DDL preflight. */
 export interface DdlEmissionOptions {
+  /** Authoritative target metadata for references to unchanged tables and columns. */
+  readonly afterSnapshot?: SchemaSnapshot
   /** New-table order; defaults to declaration. Alignment is PostgreSQL-only. */
   readonly columnOrder?: ColumnOrder
   /** Permit a plan whose own `ready` flag is false after reviewing diagnostics. */

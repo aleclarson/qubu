@@ -30,3 +30,10 @@ postgresDdl.emitMigrationPlan(plan, {
   // @ts-expect-error column order is an explicit policy
   columnOrder: "size",
 })
+
+declare const afterSnapshot: import("qubu/snapshot").SchemaSnapshot
+sqliteDdl.emitMigrationPlan(plan, { afterSnapshot })
+sqliteDdl.emitMigrationPlan(plan, {
+  // @ts-expect-error reference metadata must be a schema snapshot
+  afterSnapshot: { tables: [] },
+})

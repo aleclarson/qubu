@@ -1,11 +1,12 @@
 import { diffSnapshots } from "qubu/diff"
-import type { SchemaSnapshot } from "qubu/snapshot"
+import { canonicalizeSchemaSnapshot, type SchemaSnapshot } from "qubu/snapshot"
 import { mysqlSchemaDialect } from "qubu/snapshot/mysql"
 import { postgresSchemaDialect } from "qubu/snapshot/postgres"
 import { sqliteSchemaDialect } from "qubu/snapshot/sqlite"
 import { expect, test } from "vitest"
 
 import { compileMigrationProgram } from "../src/artifact/program.ts"
+import { compileMigrationProgram as compileSqliteProgram } from "../src/artifact/sqlite.ts"
 import { physicalSnapshot } from "../src/ddl/column-order.ts"
 import { emitMigrationPlan } from "../src/ddl/index.ts"
 import * as mysqlDdl from "../src/ddl/mysql.ts"
@@ -688,3 +689,164 @@ test("retains physical order and dialect-specific ordinal gaps after dropping a 
     ])
   }
 })
+
+function physicalSqliteTables(): SchemaSnapshot["tables"] {
+  return [
+    {
+      ...table("parent", [{ ...column("id"), physicalName: "parent_key" }]),
+      physicalName: "parent_records",
+    },
+    {
+      ...table("child", [{ ...column("parentId"), physicalName: "parent_id" }]),
+      physicalName: "child_records",
+      constraints: [
+        {
+          id: "fk",
+          physicalName: "child_parent_fk",
+          kind: "foreign-key",
+          columns: ["parentId"],
+          target: { table: { kind: "table", id: "parent" }, columns: ["id"] },
+        },
+      ],
+      indexes: [
+        {
+          id: "lookup",
+          kind: "index",
+          candidateKey: false,
+          physicalName: "child_lookup",
+          unique: false,
+          terms: [{ kind: "column", column: "parentId", position: 1, direction: "DESC" }],
+        },
+      ],
+    },
+  ]
+}
+
+test.each([false, true])(
+  "resolves SQLite physical references with unchanged target %s",
+  (unchanged) => {
+    const dialect = { name: "sqlite", version: 1 } as const
+    const tables = physicalSqliteTables()
+    const before = canonicalSnapshot(dialect, unchanged ? [tables[0]!] : [])
+    const after = canonicalSnapshot(dialect, tables)
+    const planned = createMigrationPlan(diffSnapshots(before, after))
+    expect(planned.ok).toBe(true)
+    if (!planned.ok) return
+    const options = unchanged ? { afterSnapshot: after } : {}
+    const emitted = sqliteDdl.emitMigrationPlan(planned.plan, options)
+    expect(emitted.ok, JSON.stringify(emitted.diagnostics)).toBe(true)
+    expect(emitted.sql).toContain(
+      'FOREIGN KEY ("parent_id") REFERENCES "parent_records" ("parent_key")',
+    )
+    expect(emitted.sql).toContain(
+      'CREATE INDEX "main"."child_lookup" ON "child_records" ("parent_id" DESC)',
+    )
+    const compiled = compileSqliteProgram(planned.plan, options)
+    expect(compiled.ok).toBe(true)
+    if (unchanged) {
+      expect(sqliteDdl.emitMigrationPlan(planned.plan)).toMatchObject({
+        ok: false,
+        diagnostics: [expect.objectContaining({ code: "malformed-operation" })],
+      })
+      expect(compileSqliteProgram(planned.plan, { afterSnapshot: before })).toMatchObject({
+        ok: false,
+        diagnostics: [expect.objectContaining({ code: "invalid-plan", path: ["afterSnapshot"] })],
+      })
+    }
+  },
+)
+
+test("resolves SQLite indexes on unchanged tables and rejects unresolved columns", () => {
+  const dialect = { name: "sqlite", version: 1 } as const
+  const tables = physicalSqliteTables()
+  const after = canonicalSnapshot(dialect, tables)
+  const before = canonicalSnapshot(
+    dialect,
+    tables.map((item) => ({ ...item, indexes: [] })),
+  )
+  const planned = createMigrationPlan(diffSnapshots(before, after))
+  expect(planned.ok).toBe(true)
+  if (!planned.ok) return
+  const emitted = sqliteDdl.emitMigrationPlan(planned.plan, { afterSnapshot: after })
+  expect(emitted.ok, JSON.stringify(emitted.diagnostics)).toBe(true)
+  expect(emitted.sql).toBe(
+    'CREATE INDEX "main"."child_lookup" ON "child_records" ("parent_id" DESC);',
+  )
+  expect(compileSqliteProgram(planned.plan, { afterSnapshot: after }).ok).toBe(true)
+  expect(sqliteDdl.emitMigrationPlan(planned.plan).ok).toBe(false)
+  const operation = planned.plan.operations.find((item) => item.kind === "index")!
+  expect(() =>
+    sqliteDdl.sqliteDdlEmitter.renderOperation(
+      {
+        ...operation,
+        origin: {
+          ...operation.origin!,
+          after: {
+            ...operation.origin!.after!,
+            value: {
+              ...operation.origin!.after!.value,
+              terms: [{ kind: "column", column: "missing", position: 1 }],
+            },
+          },
+        },
+      },
+      planned.plan.operations,
+      sqliteSchemaDialect,
+      { afterSnapshot: after },
+    ),
+  ).toThrow('Cannot resolve physical name for column "missing"')
+})
+
+test("recreates physical SQLite indexes and unchanged foreign-key targets after a rebuild", () => {
+  const dialect = { name: "sqlite", version: 1 } as const
+  const tables = physicalSqliteTables()
+  const before = canonicalSnapshot(dialect, tables)
+  const after = canonicalSnapshot(
+    dialect,
+    tables.map((item) =>
+      item.id === "child"
+        ? { ...item, columns: item.columns.map((column) => ({ ...column, nullable: true })) }
+        : item,
+    ),
+  )
+  const planned = createMigrationPlan(diffSnapshots(before, after), {
+    allowUnsupported: true,
+    allowReviewRequired: true,
+    allowDestructive: true,
+  })
+  expect(planned.ok).toBe(true)
+  if (!planned.ok) return
+  const result = compileSqliteProgram(planned.plan, {
+    beforeSnapshot: before,
+    afterSnapshot: after,
+    approvals: planned.plan.operations
+      .filter((operation) => operation.safety !== "safe")
+      .map((operation) => ({
+        operationId: operation.id,
+        decision: "approve",
+        safety: operation.safety,
+        findings: planned.plan.diagnostics
+          .filter((finding) => finding.operationId === operation.id)
+          .map((finding) => finding.code)
+          .sort(),
+        reason: "Reviewed rebuild",
+      })),
+  })
+  expect(result.ok, JSON.stringify(result)).toBe(true)
+  if (!result.ok) return
+  const sql = result.program.phases.flatMap((phase) => phase.statements.map((item) => item.sql))
+  expect(sql[0]).toContain('REFERENCES "parent_records" ("parent_key")')
+  expect(sql).toContain('CREATE INDEX "main"."child_lookup" ON "child_records" ("parent_id" DESC)')
+})
+
+function canonicalSnapshot(
+  dialect: SchemaSnapshot["dialect"],
+  tables: SchemaSnapshot["tables"],
+): SchemaSnapshot {
+  return canonicalizeSchemaSnapshot(
+    snapshot(
+      dialect,
+      [...tables].sort((a, b) => a.id.localeCompare(b.id)),
+    ),
+  )
+}

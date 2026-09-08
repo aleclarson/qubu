@@ -1,5 +1,5 @@
 import type { SchemaDialect } from "qubu/schema"
-import type { SnapshotJsonValue } from "qubu/snapshot"
+import type { SchemaSnapshot, SnapshotJsonValue } from "qubu/snapshot"
 
 import { columnOrderError, type ColumnOrder } from "../ddl/column-order.ts"
 import { ddlEmitterForDialect } from "../ddl/index.ts"
@@ -25,6 +25,8 @@ import {
 import { compilationFailure as failure, deepFreeze } from "./utils.ts"
 
 export interface CompileMigrationProgramOptions {
+  /** Authoritative target metadata for references to unchanged tables and columns. */
+  readonly afterSnapshot?: SchemaSnapshot
   /** New-table order; defaults to declaration. Alignment is PostgreSQL-only. */
   readonly columnOrder?: ColumnOrder
   readonly approvals?: readonly OperationApproval[]
@@ -128,7 +130,10 @@ export function compileMigrationProgram(
   const renderDiagnostics = emitter.diagnose(plan, dialect, {
     serverVersion: options.serverVersion,
     columnOrder: options.columnOrder,
+    afterSnapshot: options.afterSnapshot,
   })
+  const metadataError = renderDiagnostics.find((finding) => finding.path[0] === "afterSnapshot")
+  if (metadataError) return failure("invalid-plan", metadataError.message, metadataError.path)
   const phases: MigrationProgramPhase[] = []
   const provenance: CustomProgramProvenance[] = []
 
@@ -280,6 +285,7 @@ export function compileMigrationProgram(
       try {
         sql = emitter.renderOperation(operation, operations, dialect, {
           columnOrder: options.columnOrder,
+          afterSnapshot: options.afterSnapshot,
         })
       } catch (error) {
         diagnostics.push(issue("render-failed", String(error), ["operations"], operation.id))

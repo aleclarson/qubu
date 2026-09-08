@@ -507,6 +507,7 @@ export function createCli(runtime: CliRuntime = {}) {
 
       const approvals = await approvalsFor(planned.plan, args.approvals, undefined, context.config)
       const compiled = compileMigrationProgram(planned.plan, schemaDialectFor(target), {
+        afterSnapshot: target,
         approvals,
         customPrograms: context.config.customPrograms,
         serverVersion: context.config.serverVersion,
@@ -701,6 +702,7 @@ async function createMigration(
     context.config,
   )
   const compiled = compileMigrationProgram(planned.plan, schemaDialectFor(target), {
+    afterSnapshot: target,
     approvals,
     customPrograms: context.config.customPrograms,
     serverVersion: context.config.serverVersion,

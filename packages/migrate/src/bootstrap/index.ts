@@ -62,7 +62,10 @@ export function planSchemaBootstrap(
 ): BootstrapPlanResult {
   const prepared = prepareSchemaBootstrap(targetSnapshot)
   if (!prepared.ok) return prepared
-  const compiled = compileMigrationProgram(prepared.plan, schemaDialect, options)
+  const compiled = compileMigrationProgram(prepared.plan, schemaDialect, {
+    ...options,
+    afterSnapshot: prepared.targetSnapshot,
+  })
   if (!compiled.ok) return compiled
   return Object.freeze({
     ...prepared,

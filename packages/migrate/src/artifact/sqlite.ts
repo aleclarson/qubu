@@ -19,8 +19,6 @@ import { compilationFailure as failure } from "./utils.ts"
 export interface CompileSqliteMigrationProgramOptions extends CompileMigrationProgramOptions {
   /** Required when SQLite must rebuild an existing table. */
   readonly beforeSnapshot?: SchemaSnapshot
-  /** Required when SQLite must rebuild an existing table. */
-  readonly afterSnapshot?: SchemaSnapshot
 }
 
 /** Compile a reviewed migration plan with SQLite's schema dialect and rebuild support. */
@@ -198,6 +196,7 @@ function createStatements(
       "tables",
     ]) as Extract<MigrationProgramCompilationResult, { readonly ok: false }>
   const compiled = compileGenericMigrationProgram(planned.plan, sqliteSchemaDialect, {
+    afterSnapshot: snapshot,
     columnOrder: options.columnOrder,
     serverVersion: options.serverVersion,
   })
@@ -220,7 +219,7 @@ function createStatements(
     indexes: statements.filter(
       (statement) =>
         /^CREATE (?:UNIQUE )?INDEX\b/u.test(statement) &&
-        statement.includes(` ON ${qualifiedTable} `),
+        statement.includes(` ON ${quote(table.physicalName)} `),
     ),
   }
 }

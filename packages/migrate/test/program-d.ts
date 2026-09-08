@@ -60,3 +60,10 @@ compileMigrationProgram(plan, {
   // @ts-expect-error only the declared ordering policies are accepted
   columnOrder: "size",
 })
+
+declare const afterSnapshot: import("qubu/snapshot").SchemaSnapshot
+compileMigrationProgram(plan, { afterSnapshot })
+compileMigrationProgram(plan, {
+  // @ts-expect-error reference metadata must be a schema snapshot
+  afterSnapshot: { tables: [] },
+})
