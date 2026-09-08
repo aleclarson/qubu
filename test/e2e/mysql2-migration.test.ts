@@ -130,8 +130,8 @@ describe.skipIf(process.env.QUBU_E2E_DIALECT !== "mysql")("mysql2 SQL migrations
                 dialect: "mysql",
                 type: "json",
               },
-            },
-          ],
+            } satisfies (typeof game.columns)[number],
+          ].sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0)),
         },
       ],
     })
