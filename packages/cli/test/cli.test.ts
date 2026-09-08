@@ -7,7 +7,7 @@ import {
   sealExecutableArtifact,
   type ExecutableMigrationArtifact,
 } from "@qubu/migrate/artifact"
-import { createBaseline, type BaselineConfirmation } from "@qubu/migrate/baseline"
+import { createBaseline, fromMigrationAdapter, type BaselineConfirmation } from "@qubu/migrate/baseline"
 import type { MigrationAdapter } from "@qubu/migrate/executor"
 import { createMigrationPlan } from "@qubu/migrate/plan"
 import { DeterministicFakeMigrationAdapter } from "@qubu/migrate/testing"
@@ -422,7 +422,7 @@ test("enforces acceptance acknowledgments for untyped migration API callers", as
 
   await expect(
     createBaseline({
-      adapter: fake,
+      adapter: fromMigrationAdapter(fake),
       scope,
       candidate: scope,
       repository: [],

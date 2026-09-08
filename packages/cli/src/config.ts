@@ -6,6 +6,7 @@ import type {
   OperationApproval,
   RendererDescriptor,
 } from "@qubu/migrate/artifact"
+import { fromMigrationAdapter, type BaselineAdapter } from "@qubu/migrate/baseline"
 import type { MigrationAdapter } from "@qubu/migrate/executor"
 import type { Schema } from "qubu/schema"
 import type { SchemaSnapshot, SnapshotJsonValue } from "qubu/snapshot"
@@ -28,7 +29,11 @@ export interface QubuCliConfig {
   readonly snapshot?: ConfigSnapshot
   readonly snapshotFromSchema?: (schema: Schema<any>) => SchemaSnapshot | Promise<SchemaSnapshot>
   readonly artifacts: string
-  readonly adapter?: () => MigrationAdapter | Promise<MigrationAdapter>
+  /** Adoption may use a baseline-only adapter; execution commands require a migration adapter. */
+  readonly adapter?: () =>
+    | MigrationAdapter
+    | BaselineAdapter
+    | Promise<MigrationAdapter | BaselineAdapter>
   readonly approvals?: (
     context: MigrationApprovalContext,
   ) => OperationApproval | undefined | Promise<OperationApproval | undefined>
@@ -70,5 +75,24 @@ export async function resolveAdapter(config: QubuCliConfig): Promise<MigrationAd
     throw new Error("This command requires config.adapter")
   }
 
-  return config.adapter()
+  const adapter = await config.adapter()
+
+  if (!("openMigrationSession" in adapter)) {
+    throw new Error(
+      "This command requires migration execution; config.adapter supports only schema adoption",
+    )
+  }
+
+  return adapter
+}
+
+/** Resolve adoption independently of the migration executor's capabilities. */
+export async function resolveBaselineAdapter(config: QubuCliConfig): Promise<BaselineAdapter> {
+  if (!config.adapter) {
+    throw new Error("This command requires config.adapter")
+  }
+
+  const adapter = await config.adapter()
+
+  return "openBaselineSession" in adapter ? adapter : fromMigrationAdapter(adapter)
 }

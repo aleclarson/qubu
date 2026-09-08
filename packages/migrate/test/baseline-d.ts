@@ -5,10 +5,10 @@ import {
   createBaseline,
   preflightBaseline,
   type BaselineConfirmation,
+  type BaselineAdapter,
 } from "../src/baseline/index.ts"
-import type { MigrationAdapter } from "../src/executor/index.ts"
 
-declare const adapter: MigrationAdapter
+declare const adapter: BaselineAdapter
 declare const scope: SchemaSnapshot
 declare const candidate: SchemaSnapshot
 declare const confirmation: BaselineConfirmation

@@ -51,19 +51,19 @@ approvals, custom programs, renderer/server constraints, baseline operator
 metadata, and reconciliation proof. `artifacts` is resolved from the CLI
 working directory.
 
-| Field                                      | Required            | Meaning                                                                                      |
-| ------------------------------------------ | ------------------- | -------------------------------------------------------------------------------------------- |
-| `artifacts`                                | yes                 | Artifact directory, relative to the command working directory unless absolute                |
-| `snapshot`                                 | one snapshot source | Snapshot value or sync/async factory                                                         |
-| `schema` + `snapshotFromSchema`            | one snapshot source | Application-owned conversion when the source is a Qubu `Schema`                              |
-| `adapter`                                  | database commands   | Sync/async factory returning a migration adapter                                             |
-| `approvals`                                | no                  | Sync/async operation policy; receives the operation, finding codes, and requested CLI reason |
-| `customPrograms`                           | no                  | Exact operation substitutions with execution requirements and provenance                     |
-| `renderer`, `serverVersion`, `constraints` | no                  | Renderer identity and target compatibility constraints                                       |
-| `provenance`                               | no                  | Artifact source/revision/actor/metadata; defaults to `{ source: "@qubu/cli" }`               |
-| `environment`                              | no                  | `development`, `test`, `staging`, or `production`; context only                              |
-| `baselineOperator`                         | no                  | JSON-safe operator metadata stored in a baseline                                             |
-| `verifyReconciliation`                     | reconcile only      | Application-owned proof of the selected live outcome                                         |
+| Field                                      | Required            | Meaning                                                                                             |
+| ------------------------------------------ | ------------------- | --------------------------------------------------------------------------------------------------- |
+| `artifacts`                                | yes                 | Artifact directory, relative to the command working directory unless absolute                       |
+| `snapshot`                                 | one snapshot source | Snapshot value or sync/async factory                                                                |
+| `schema` + `snapshotFromSchema`            | one snapshot source | Application-owned conversion when the source is a Qubu `Schema`                                     |
+| `adapter`                                  | database commands   | Sync/async factory returning a migration adapter, or an adoption-only adapter for baseline commands |
+| `approvals`                                | no                  | Sync/async operation policy; receives the operation, finding codes, and requested CLI reason        |
+| `customPrograms`                           | no                  | Exact operation substitutions with execution requirements and provenance                            |
+| `renderer`, `serverVersion`, `constraints` | no                  | Renderer identity and target compatibility constraints                                              |
+| `provenance`                               | no                  | Artifact source/revision/actor/metadata; defaults to `{ source: "@qubu/cli" }`                      |
+| `environment`                              | no                  | `development`, `test`, `staging`, or `production`; context only                                     |
+| `baselineOperator`                         | no                  | JSON-safe operator metadata stored in a baseline                                                    |
+| `verifyReconciliation`                     | reconcile only      | Application-owned proof of the selected live outcome                                                |
 
 ## Commands
 
@@ -74,7 +74,7 @@ working directory.
 | `qubu migrate status`                                                                               | Opens a session and lease; reports managed drift, unmanaged objects, pending artifacts, interrupted attempts, and incompatible requirements | Recovery, validation, drift, and capability policy are distinct failures                                                   |
 | `qubu migrate apply [--dry-run]`                                                                    | Applies the complete verified pending chain; dry-run performs status/preflight only                                                         | It never limits discovery to Git-added or branch-diff files                                                                |
 | `qubu migrate baseline-capture --out <path>`                                                        | Strictly reads live managed schema and writes a new candidate snapshot outside the artifact repository                                      | Strict inspection failures block capture; existing candidate files are not overwritten                                     |
-| `qubu migrate baseline <id> --candidate <path> [--confirm <fact>...] [--dry-run]`                   | Reinspects the reviewed candidate; acceptance records baseline then writes its artifact                                                     | Empty repository and journal history required; acceptance requires seven confirmations; dry-run inspects without recording |
+| `qubu migrate baseline <id> --candidate <path> [--confirm <fact>...] [--dry-run]`                   | Reinspects the reviewed candidate; acceptance records baseline then writes its artifact                                                     | Empty repository and adapter history required; acceptance requires seven confirmations; dry-run inspects without recording |
 | `qubu migrate reconcile <attempt-id> --outcome applied\|rolled_back --reason <text>`                | Runs application-owned verification, then records the explicit outcome                                                                      | Requires `verifyReconciliation` in config; no automatic inference                                                          |
 | `qubu schema bootstrap [--approve <operation-id=reason>...] [--dry-run]`                            | Plans an empty SQLite or PostgreSQL snapshot through diff/plan/program; executes through the normal executor unless dry-run                 | Rejects other dialects; unsafe or incomplete facts still require exact approvals or custom programs                        |
 

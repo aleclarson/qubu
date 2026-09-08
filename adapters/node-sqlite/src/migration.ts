@@ -1,5 +1,6 @@
 import type { DatabaseSync, SQLInputValue } from "node:sqlite"
 
+import { fromMigrationAdapter, type BaselineAdapter } from "@qubu/migrate/baseline"
 import { canonicalText, digestCanonical, isSha256Digest } from "@qubu/migrate/artifact"
 import type { ProgramCondition, Sha256Digest, TaggedParameterValue } from "@qubu/migrate/artifact"
 import type {
@@ -596,4 +597,12 @@ function delay(milliseconds: number, signal?: AbortSignal): Promise<void> {
     }, milliseconds)
     signal?.addEventListener("abort", onAbort, { once: true })
   })
+}
+
+/** Use this adapter's strict inspection, lease, and journal through the shared adoption API. */
+export function baselineAdapter(
+  database: DatabaseSync,
+  options: NodeSqliteMigrationAdapterOptions,
+): BaselineAdapter {
+  return fromMigrationAdapter(migrationAdapter(database, options))
 }

@@ -1,4 +1,5 @@
 import type { Sha256Digest } from "@qubu/migrate/artifact"
+import { fromMigrationAdapter, type BaselineAdapter } from "@qubu/migrate/baseline"
 import {
   type MigrationAdapter,
   type MigrationSnapshot,
@@ -44,4 +45,12 @@ export function migrationAdapter(
     readSnapshot: (_connection, expected) =>
       (options.readSnapshot ?? readMigrationSnapshot)(client, expected),
   })
+}
+
+/** Use this adapter's strict inspection, lease, and journal through the shared adoption API. */
+export function baselineAdapter(
+  client: ClientBase,
+  options: PgMigrationAdapterOptions = {},
+): BaselineAdapter {
+  return fromMigrationAdapter(migrationAdapter(client, options))
 }

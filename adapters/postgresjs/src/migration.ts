@@ -1,4 +1,5 @@
 import type { Sha256Digest } from "@qubu/migrate/artifact"
+import { fromMigrationAdapter, type BaselineAdapter } from "@qubu/migrate/baseline"
 import {
   type MigrationAdapter,
   type MigrationSnapshot,
@@ -51,7 +52,16 @@ export function migrationAdapter(
       if (!reserved) {
         throw new Error("Postgres.js migration connection is not reserved")
       }
+
       return options.readSnapshot(reserved, expected)
     },
   })
+}
+
+/** Use this adapter's strict inspection, lease, and journal through the shared adoption API. */
+export function baselineAdapter(
+  sql: Sql,
+  options: PostgresJsMigrationAdapterOptions,
+): BaselineAdapter {
+  return fromMigrationAdapter(migrationAdapter(sql, options))
 }

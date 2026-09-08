@@ -3,12 +3,15 @@ import { canonicalizeCompleteSchemaSnapshot, type SchemaSnapshot } from "qubu/sn
 import { afterEach, beforeEach, describe, expect, test } from "vitest"
 
 import {
-  captureBaseline,
-  createBaseline,
+  baselineAdapter,
   migrate,
-  preflightBaseline,
   readMigrationSnapshot,
 } from "../../adapters/mysql2/src/migration.ts"
+import {
+  captureBaseline,
+  createBaseline,
+  preflightBaseline,
+} from "../../packages/migrate/src/baseline/index.ts"
 
 describe.skipIf(process.env.QUBU_E2E_DIALECT !== "mysql")("mysql2 SQL migrations", () => {
   let connection: Connection
@@ -132,7 +135,10 @@ describe.skipIf(process.env.QUBU_E2E_DIALECT !== "mysql")("mysql2 SQL migrations
         },
       ],
     })
-    const { snapshot: candidate, unmanagedObjects } = await captureBaseline(connection, { scope })
+    const { snapshot: candidate, unmanagedObjects } = await captureBaseline({
+      adapter: baselineAdapter(connection),
+      scope,
+    })
 
     expect(candidate.tables[0]!.columns.map((column) => column.physicalName)).toEqual([
       "id",
@@ -147,14 +153,23 @@ describe.skipIf(process.env.QUBU_E2E_DIALECT !== "mysql")("mysql2 SQL migrations
     const input = {
       scope,
       candidate,
-      migrations: [],
+      repository: [],
     }
 
-    await preflightBaseline(connection, input)
+    await preflightBaseline({
+      adapter: baselineAdapter(connection),
+      ...input,
+    })
     await connection.query("ALTER TABLE game ADD changed INT")
-    await expect(preflightBaseline(connection, input)).rejects.toMatchObject({ code: "drift" })
+    await expect(
+      preflightBaseline({
+        adapter: baselineAdapter(connection),
+        ...input,
+      }),
+    ).rejects.toMatchObject({ code: "drift" })
     await connection.query("ALTER TABLE game DROP changed")
-    const { artifact } = await createBaseline(connection, {
+    const { artifact } = await createBaseline({
+      adapter: baselineAdapter(connection),
       ...input,
       id: "initial",
       provenance: { source: "mysql-adoption-test" },

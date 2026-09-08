@@ -10,15 +10,18 @@ separate reviewed migration reconciles the schema.
 
 ## Choose an adapter
 
-| Database and adapter    | Adoption interface                          | Empty state required                                      | Coordination                                         |
-| ----------------------- | ------------------------------------------- | --------------------------------------------------------- | ---------------------------------------------------- |
-| SQLite through `libsql` | [Shared CLI or API](#sqlite-and-postgresql) | Artifact repository and migration journal                 | Adapter lease coordinates participating Qubu runners |
-| PostgreSQL through `pg` | [Shared CLI or API](#sqlite-and-postgresql) | Artifact repository and migration journal                 | Pinned client and advisory lease                     |
-| MySQL through `mysql2`  | [Basic adapter API](#mysql)                 | SQL migration list and `__qubu_mysql2_migrations` history | Caller serializes runners; no database lease         |
+All supported adoption adapters use the same [CLI](#shared-cli) and
+[API](#shared-api). Each checks an empty artifact repository and its own history.
 
-MySQL's basic profile does not support the shared artifact executor or
-`qubu migrate baseline` CLI. Its accepted baseline is stored in its own history
-table. See [adapter profiles](adapters.md) for the execution contracts.
+| Database and adapter    | History storage            | Coordination                                         |
+| ----------------------- | -------------------------- | ---------------------------------------------------- |
+| SQLite through `libsql` | Migration journal          | Adapter lease coordinates participating Qubu runners |
+| PostgreSQL through `pg` | Migration journal          | Pinned client and advisory lease                     |
+| MySQL through `mysql2`  | `__qubu_mysql2_migrations` | Caller serializes runners; no database lease         |
+
+Adoption does not require migration execution capabilities. MySQL supports the
+shared adoption commands while retaining its basic SQL runner for subsequent
+migrations. See [adapter profiles](adapters.md) for execution contracts.
 
 Configure the desired application Snapshot v1 as the managed `scope`
 (`config.snapshot` for the CLI). Preserve the same database, namespace, adapter,
@@ -86,13 +89,15 @@ code remains stopped; it does not assert that desired code is already compatible
 | `incompatible-application-prevented` | Incompatible code will remain stopped until reconciliation is complete             |
 | `legacy-history-cutover`             | The team accepts this baseline as the new lineage start                            |
 
-## SQLite and PostgreSQL
+## Shared CLI
 
 Install `@qubu/cli`, `@qubu/migrate`, and the selected adapter and driver.
 Configure the [CLI](operations.md#configuration) with the existing database,
 desired application snapshot, and an empty artifact directory. Standard `libsql`
 and `pg` migration adapters provide strict inspection; intentional `readSnapshot`
-overrides remain caller-owned.
+overrides remain caller-owned. The CLI accepts either a migration adapter or an
+adoption-only `baselineAdapter` in `config.adapter`. See the connection examples
+for [PostgreSQL](#postgresql-configuration) and [MySQL](#mysql).
 
 Capture and review:
 
@@ -127,25 +132,62 @@ qubu migrate baseline initial --candidate ./baseline-candidate.json \
 
 ### Shared API
 
-The same flow is available from `@qubu/migrate/baseline`. Call
-`captureBaseline({ adapter, scope })`, serialize its snapshot with
-`encodeSchemaSnapshot`, and reload the reviewed file for verification:
+Import adoption operations from `@qubu/migrate/baseline` and `baselineAdapter`
+from the selected driver's `/migration` entry point. For example, with a
+dedicated MySQL connection:
 
 ```ts
-import { preflightBaseline } from "@qubu/migrate/baseline"
-import { assertSchemaSnapshot } from "qubu/snapshot"
+import { baselineAdapter } from "@qubu/adapter-mysql2/migration"
+import { captureBaseline } from "@qubu/migrate/baseline"
+import { encodeSchemaSnapshot } from "qubu/snapshot"
+import { writeFile } from "node:fs/promises"
 
-await preflightBaseline({
-  adapter,
-  scope: desiredSnapshot,
-  candidate: assertSchemaSnapshot(reviewedCandidateText),
-  repository,
+const adapter = baselineAdapter(connection)
+const inspection = await captureBaseline({ adapter, scope: desiredSnapshot })
+await writeFile("baseline-candidate.json", encodeSchemaSnapshot(inspection.snapshot), {
+  flag: "wx",
 })
 ```
 
-`createBaseline` takes those inputs plus `id`, `provenance`, and the seven
-`BaselineConfirmation` fields shown in the [MySQL acceptance example](#mysql).
-It returns the artifact for the caller to persist.
+Review the candidate before continuing. Reuse the same database and original
+scope, and reload the reviewed file for preflight and acceptance:
+
+```ts
+import { readFile, writeFile } from "node:fs/promises"
+import { preflightBaseline, createBaseline } from "@qubu/migrate/baseline"
+import { encodeBaselineArtifact } from "@qubu/migrate/artifact"
+import { assertSchemaSnapshot } from "qubu/snapshot"
+
+const candidate = assertSchemaSnapshot(await readFile("baseline-candidate.json", "utf8"))
+const input = { adapter, scope: desiredSnapshot, candidate, repository: [] }
+await preflightBaseline(input)
+
+const { artifact } = await createBaseline({
+  ...input,
+  id: "initial",
+  provenance: { source: "my-service" },
+  confirmation: {
+    databaseTargetVerified: true,
+    snapshotSourceVerified: true,
+    zeroManagedDriftVerified: true,
+    backupRestoreReady: true,
+    otherMigratorsStopped: true,
+    incompatibleApplicationPrevented: true,
+    legacyHistoryCutoverAccepted: true,
+  },
+})
+await writeFile("baseline-accepted.json", encodeBaselineArtifact(artifact), { flag: "wx" })
+```
+
+Supply the real artifact repository when one exists; `[]` represents an empty
+repository. The adapter separately verifies its database history. The caller
+owns connection cleanup, including after failed capture or acceptance.
+
+Existing custom migration adapters can use `fromMigrationAdapter(adapter)` from
+`@qubu/migrate/baseline`. It reuses their strict reader, lease, and journal. A
+custom adoption-only adapter implements `openBaselineSession`; its session
+provides schema inspection, empty-history verification, baseline recording,
+and cleanup. It does not need SQL execution or migration recovery methods.
 
 ### PostgreSQL configuration
 
@@ -201,64 +243,53 @@ export default defineConfig({
 
 ## MySQL
 
-Use one dedicated `mysql2/promise` connection with no active transaction and
-autocommit enabled. Start with an empty SQL migration list and empty Qubu MySQL
-history. Capture to a new file, then stop to review it:
+Use a dedicated `mysql2/promise` connection with autocommit enabled and no active
+transaction. This configuration opens a connection per adoption session and
+ends it after cleanup. Run the [shared CLI commands](#shared-cli) with this config:
 
 ```ts
+import { defineConfig } from "@qubu/cli/config"
+import { baselineAdapter } from "@qubu/adapter-mysql2/migration"
 import mysql from "mysql2/promise"
-import { writeFile } from "node:fs/promises"
-import { captureBaseline } from "@qubu/adapter-mysql2/migration"
-import { encodeSchemaSnapshot } from "qubu/snapshot"
-import scope from "./schema.snapshot.js"
+import snapshot from "./schema.snapshot.js"
 
-const connection = await mysql.createConnection(process.env.DATABASE_URL!)
-try {
-  const inspection = await captureBaseline(connection, { scope })
-  await writeFile("baseline-candidate.json", encodeSchemaSnapshot(inspection.snapshot), {
-    flag: "wx",
-  })
-  console.log(inspection.unmanagedObjects)
-} finally {
-  await connection.end()
-}
-```
-
-For preflight and acceptance, open a dedicated connection to the same database,
-reuse the original `scope`, and close the connection in `finally` as above.
-Reload the explicitly reviewed file. Only accept after verifying every
-[acknowledgment](#acceptance-acknowledgments):
-
-```ts
-import { readFile, writeFile } from "node:fs/promises"
-import { preflightBaseline, createBaseline } from "@qubu/adapter-mysql2/migration"
-import { encodeBaselineArtifact } from "@qubu/migrate/artifact"
-import { assertSchemaSnapshot } from "qubu/snapshot"
-
-const candidate = assertSchemaSnapshot(await readFile("baseline-candidate.json", "utf8"))
-const input = { scope, candidate, migrations: [] }
-await preflightBaseline(connection, input)
-
-const { artifact } = await createBaseline(connection, {
-  ...input,
-  id: "initial",
+export default defineConfig({
+  artifacts: "./migrations",
+  snapshot,
+  environment: "production",
   provenance: { source: "my-service" },
-  confirmation: {
-    databaseTargetVerified: true,
-    snapshotSourceVerified: true,
-    zeroManagedDriftVerified: true,
-    backupRestoreReady: true,
-    otherMigratorsStopped: true,
-    incompatibleApplicationPrevented: true,
-    legacyHistoryCutoverAccepted: true,
-  },
+  adapter: () => ({
+    async openBaselineSession(scope, signal) {
+      const connection = await mysql.createConnection(process.env.DATABASE_URL!)
+      try {
+        const session = await baselineAdapter(connection).openBaselineSession(scope, signal)
+        return {
+          ...session,
+          async close() {
+            try {
+              await session.close()
+            } finally {
+              await connection.end()
+            }
+          },
+        }
+      } catch (error) {
+        await connection.end()
+        throw error
+      }
+    },
+  }),
 })
-await writeFile("baseline-accepted.json", encodeBaselineArtifact(artifact), { flag: "wx" })
 ```
 
 Acceptance inserts one baseline record in `__qubu_mysql2_migrations`. Its
 `baseline` column contains the full sealed artifact, including the reviewed
-snapshot, provenance, and acknowledgments.
+snapshot, provenance, and acknowledgments. The CLI also writes that artifact to
+the configured repository.
+
+This adoption-only configuration cannot run `migrate apply`, `status`, or
+`reconcile`, which require the shared migration executor. Use the basic MySQL
+runner for subsequent SQL migrations as shown below.
 
 ## After acceptance
 

@@ -6,7 +6,7 @@ import type {
   Sha256Digest,
   TaggedParameterValue,
 } from "@qubu/migrate/artifact"
-import { compareManagedSnapshots } from "@qubu/migrate/baseline"
+import { compareManagedSnapshots, fromMigrationAdapter, type BaselineAdapter } from "@qubu/migrate/baseline"
 import { MigrationExecutionError } from "@qubu/migrate/executor"
 import type {
   AdapterFailureClassification,
@@ -952,4 +952,12 @@ function delay(milliseconds: number, signal?: AbortSignal): Promise<void> {
     }, milliseconds)
     signal?.addEventListener("abort", onAbort, { once: true })
   })
+}
+
+/** Use this adapter's strict inspection, lease, and journal through the shared adoption API. */
+export function baselineAdapter(
+  client: Client,
+  options: LibsqlMigrationAdapterOptions = {},
+): BaselineAdapter {
+  return fromMigrationAdapter(migrationAdapter(client, options))
 }

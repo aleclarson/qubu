@@ -1,5 +1,6 @@
 import type { PGliteInterface, Row } from "@electric-sql/pglite"
 import type { Sha256Digest } from "@qubu/migrate/artifact"
+import { fromMigrationAdapter, type BaselineAdapter } from "@qubu/migrate/baseline"
 import {
   type MigrationAdapter,
   type MigrationSnapshot,
@@ -40,4 +41,12 @@ export function migrationAdapter(
     },
     readSnapshot: (_connection, expected) => options.readSnapshot(database, expected),
   })
+}
+
+/** Use this adapter's strict inspection, lease, and journal through the shared adoption API. */
+export function baselineAdapter(
+  database: PGliteInterface,
+  options: PgliteMigrationAdapterOptions,
+): BaselineAdapter {
+  return fromMigrationAdapter(migrationAdapter(database, options))
 }

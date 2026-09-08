@@ -4,14 +4,7 @@ import type { Mysql2Connection } from "./index.ts"
 import { initializeHistory, readCompletedIds, validateMigrationId } from "./migration-history.ts"
 
 export { readMigrationSnapshot } from "./migration-snapshot.ts"
-export {
-  captureBaseline,
-  preflightBaseline,
-  createBaseline,
-  type CaptureBaselineInput,
-  type VerifyBaselineInput,
-  type CreateBaselineInput,
-} from "./migration-baseline.ts"
+export { baselineAdapter } from "./migration-baseline.ts"
 
 /** An append-only SQL migration for the basic MySQL runner. */
 export interface Mysql2Migration {

@@ -3,14 +3,17 @@ import { expect, test, vi } from "vitest"
 
 import type { Mysql2Connection } from "../adapters/mysql2/src/index.ts"
 import {
-  captureBaseline,
-  createBaseline,
+  baselineAdapter,
   migrate,
-  preflightBaseline,
   readMigrationSnapshot,
-  type CreateBaselineInput,
 } from "../adapters/mysql2/src/migration.ts"
 import { decodeBaselineArtifact } from "../packages/migrate/src/artifact/index.ts"
+import {
+  captureBaseline,
+  createBaseline,
+  preflightBaseline,
+  type CreateBaselineInput,
+} from "../packages/migrate/src/baseline/index.ts"
 import {
   mysqlColumnsQuery,
   mysqlKeyUsageQuery,
@@ -138,7 +141,10 @@ test("captures live MySQL facts without filling desired columns or missing table
       },
     ],
   }
-  const captured = await captureBaseline(connection, { scope: desired })
+  const captured = await captureBaseline({
+    adapter: baselineAdapter(connection),
+    scope: desired,
+  })
 
   expect(captured.snapshot.tables.map((table) => table.id)).toEqual(["games"])
   expect(captured.snapshot.tables[0]!.columns.map((column) => column.id)).toEqual(["identifier"])
@@ -165,16 +171,23 @@ test("captures live MySQL facts without filling desired columns or missing table
 test("rechecks reviewed candidates without writing history and records an accepted baseline before later SQL migrations", async () => {
   const f = fixture()
   const scope = await f.scope()
-  const { snapshot: candidate } = await captureBaseline(f.connection, { scope })
+  const { snapshot: candidate } = await captureBaseline({
+    adapter: baselineAdapter(f.connection),
+    scope,
+  })
   const input = {
     scope,
     candidate,
-    migrations: [],
+    repository: [],
   }
 
-  await preflightBaseline(f.connection, input)
+  await preflightBaseline({
+    adapter: baselineAdapter(f.connection),
+    ...input,
+  })
   expect(f.history).toEqual([])
-  const result = await createBaseline(f.connection, {
+  const result = await createBaseline({
+    adapter: baselineAdapter(f.connection),
     ...input,
     id: "initial",
     confirmation,
@@ -212,7 +225,8 @@ test("rechecks reviewed candidates without writing history and records an accept
   expect(await migrate(f.connection, sql)).toEqual({ applied: [] })
   expect(f.history.map(([id]) => id)).toEqual(["initial", "add-manifest"])
   await expect(
-    createBaseline(f.connection, {
+    createBaseline({
+      adapter: baselineAdapter(f.connection),
       ...input,
       id: "again",
       confirmation,
@@ -235,21 +249,34 @@ test("rejects changed live facts, changed metadata, and newly appeared managed t
       },
     ],
   }
-  const { snapshot: candidate } = await captureBaseline(f.connection, { scope })
+  const { snapshot: candidate } = await captureBaseline({
+    adapter: baselineAdapter(f.connection),
+    scope,
+  })
   const input = {
     scope,
     candidate,
-    migrations: [],
+    repository: [],
   }
 
   f.rows[mysqlColumnsQuery]![0]!.is_nullable = "YES"
-  await expect(preflightBaseline(f.connection, input)).rejects.toMatchObject({
+  await expect(
+    preflightBaseline({
+      adapter: baselineAdapter(f.connection),
+      ...input,
+    }),
+  ).rejects.toMatchObject({
     code: "drift",
     details: { actualSnapshot: expect.any(Object) },
   })
   f.rows[mysqlColumnsQuery]![0]!.is_nullable = "NO"
   f.rows[mysqlTablesQuery]![0]!.table_comment = "edited"
-  await expect(preflightBaseline(f.connection, input)).rejects.toMatchObject({ code: "drift" })
+  await expect(
+    preflightBaseline({
+      adapter: baselineAdapter(f.connection),
+      ...input,
+    }),
+  ).rejects.toMatchObject({ code: "drift" })
   f.rows[mysqlTablesQuery]![0]!.table_comment = "table comment"
   f.rows[mysqlTablesQuery]!.push({
     ...f.rows[mysqlTablesQuery]![0],
@@ -259,44 +286,52 @@ test("rejects changed live facts, changed metadata, and newly appeared managed t
     ...f.rows[mysqlColumnsQuery]![0],
     table_name: "missing",
   })
-  await expect(preflightBaseline(f.connection, input)).rejects.toMatchObject({ code: "drift" })
+  await expect(
+    preflightBaseline({
+      adapter: baselineAdapter(f.connection),
+      ...input,
+    }),
+  ).rejects.toMatchObject({ code: "drift" })
   expect(f.history).toEqual([])
 })
 
-test("rejects pending SQL, nonempty history, and candidates outside the original scope", async () => {
+test("rejects invalid repositories, nonempty history, and candidates outside the original scope", async () => {
   const f = fixture()
   const scope = await f.scope()
-  const candidate = (await captureBaseline(f.connection, { scope })).snapshot
+  const candidate = (
+    await captureBaseline({
+      adapter: baselineAdapter(f.connection),
+      scope,
+    })
+  ).snapshot
 
   await expect(
-    preflightBaseline(f.connection, {
+    preflightBaseline({
+      adapter: baselineAdapter(f.connection),
       scope,
       candidate,
-      migrations: [
+      repository: [
         {
           id: "pending",
           sql: [],
         },
       ],
     }),
-  ).rejects.toMatchObject({ code: "policy" })
+  ).rejects.toMatchObject({ code: "validation" })
   await expect(
-    preflightBaseline(f.connection, {
+    preflightBaseline({
+      adapter: baselineAdapter(f.connection),
       scope: {
         ...scope,
         tables: [],
       },
       candidate,
-      migrations: [],
+      repository: [],
     }),
   ).rejects.toMatchObject({ code: "policy" })
   f.history.push(["old"])
   await expect(
-    preflightBaseline(f.connection, {
-      scope,
-      candidate,
-      migrations: [],
-    }),
+    preflightBaseline({ adapter: baselineAdapter(f.connection), scope, candidate, repository: [] }),
   ).rejects.toMatchObject({ code: "policy" })
 })
 
@@ -306,7 +341,7 @@ test("requires every acknowledgment before accepting", async () => {
   const input = {
     scope,
     candidate: scope,
-    migrations: [],
+    repository: [],
     id: "initial",
     provenance: { source: "test" },
   }
@@ -314,7 +349,8 @@ test("requires every acknowledgment before accepting", async () => {
   f.execute.mockClear()
   for (const key of Object.keys(confirmation)) {
     await expect(
-      createBaseline(f.connection, {
+      createBaseline({
+        adapter: baselineAdapter(f.connection),
         ...input,
         confirmation: {
           ...confirmation,
@@ -333,7 +369,8 @@ test("fails before journal writes for a mismatched database or dialect", async (
 
   f.execute.mockClear()
   await expect(
-    captureBaseline(f.connection, {
+    captureBaseline({
+      adapter: baselineAdapter(f.connection),
       scope: {
         ...scope,
         namespace: {
@@ -345,7 +382,8 @@ test("fails before journal writes for a mismatched database or dialect", async (
   ).rejects.toMatchObject({ code: "policy" })
   expect(f.execute.mock.calls.some(([{ sql }]) => sql.startsWith("CREATE"))).toBe(false)
   await expect(
-    captureBaseline(f.connection, {
+    captureBaseline({
+      adapter: baselineAdapter(f.connection),
       scope: {
         ...scope,
         dialect: {
@@ -369,7 +407,12 @@ test("preserves strict catalog errors and rejects unresolved managed references"
 
     return original(options)
   })
-  await expect(captureBaseline(f.connection, { scope })).rejects.toMatchObject({
+  await expect(
+    captureBaseline({
+      adapter: baselineAdapter(f.connection),
+      scope,
+    }),
+  ).rejects.toMatchObject({
     code: "validation",
     message: "Strict MySQL introspection failed",
   })
@@ -388,7 +431,12 @@ test("preserves strict catalog errors and rejects unresolved managed references"
       match_option: "NONE",
     },
   ]
-  await expect(captureBaseline(f.connection, { scope })).rejects.toMatchObject({
+  await expect(
+    captureBaseline({
+      adapter: baselineAdapter(f.connection),
+      scope,
+    }),
+  ).rejects.toMatchObject({
     code: "validation",
   })
 })
@@ -410,7 +458,10 @@ test("excludes unmanaged table triggers and their comments", async () => {
     },
   ]
   const scope = await f.scope()
-  const { snapshot } = await captureBaseline(f.connection, { scope })
+  const { snapshot } = await captureBaseline({
+    adapter: baselineAdapter(f.connection),
+    scope,
+  })
 
   expect(snapshot.triggers).toEqual([])
   expect(snapshot.comments.some((item) => item.object.owner?.id === "external")).toBe(false)
@@ -419,7 +470,12 @@ test("excludes unmanaged table triggers and their comments", async () => {
 test("propagates a lost baseline insert response without claiming rollback or retrying", async () => {
   const f = fixture()
   const scope = await f.scope()
-  const candidate = (await captureBaseline(f.connection, { scope })).snapshot
+  const candidate = (
+    await captureBaseline({
+      adapter: baselineAdapter(f.connection),
+      scope,
+    })
+  ).snapshot
   const original = f.execute.getMockImplementation()!
 
   f.execute.mockImplementation(async (options) => {
@@ -432,10 +488,11 @@ test("propagates a lost baseline insert response without claiming rollback or re
     return result
   })
   await expect(
-    createBaseline(f.connection, {
+    createBaseline({
+      adapter: baselineAdapter(f.connection),
       scope,
       candidate,
-      migrations: [],
+      repository: [],
       id: "initial",
       provenance: { source: "test" },
       confirmation,

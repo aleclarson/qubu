@@ -12,6 +12,7 @@ import { expect, test } from "vitest"
 import { migrationAdapter, readMigrationSnapshot } from "../../adapters/pg/src/migration.ts"
 import { sealExecutableArtifact } from "../../packages/migrate/src/artifact/index.ts"
 import { compileMigrationProgram } from "../../packages/migrate/src/artifact/postgres.ts"
+import { fromMigrationAdapter } from "../../packages/migrate/src/baseline/index.ts"
 import {
   captureBaseline,
   createBaseline,
@@ -80,7 +81,7 @@ test.runIf(postgres)(
       })
       const adapter = migrationAdapter(client)
       const capture = await captureBaseline({
-        adapter,
+        adapter: fromMigrationAdapter(adapter),
         scope,
       })
 
@@ -103,14 +104,14 @@ test.runIf(postgres)(
         encodeSchemaSnapshot(
           (
             await captureBaseline({
-              adapter,
+              adapter: fromMigrationAdapter(adapter),
               scope,
             })
           ).snapshot,
         ),
       ).toBe(encodeSchemaSnapshot(capture.snapshot))
       await preflightBaseline({
-        adapter,
+        adapter: fromMigrationAdapter(adapter),
         scope,
         candidate: capture.snapshot,
         repository: [],
@@ -118,7 +119,7 @@ test.runIf(postgres)(
       await client.query("ALTER TABLE game ADD COLUMN changed boolean")
       await expect(
         preflightBaseline({
-          adapter,
+          adapter: fromMigrationAdapter(adapter),
           scope,
           candidate: capture.snapshot,
           repository: [],
@@ -126,7 +127,7 @@ test.runIf(postgres)(
       ).rejects.toThrow()
       await client.query("ALTER TABLE game DROP COLUMN changed")
       const accepted = await createBaseline({
-        adapter,
+        adapter: fromMigrationAdapter(adapter),
         scope,
         candidate: capture.snapshot,
         repository: [],

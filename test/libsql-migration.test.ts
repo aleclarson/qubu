@@ -8,7 +8,11 @@ import type { SchemaSnapshot } from "qubu/snapshot"
 import { completeSchemaSnapshotFingerprint } from "qubu/snapshot"
 import { afterEach, expect, test, vi } from "vitest"
 
-import { migrationAdapter, readMigrationSnapshot } from "../adapters/libsql/src/migration.ts"
+import {
+  baselineAdapter,
+  migrationAdapter,
+  readMigrationSnapshot,
+} from "../adapters/libsql/src/migration.ts"
 import {
   sealExecutableArtifact,
   type ExecutableMigrationArtifact,
@@ -693,10 +697,14 @@ test("records a verified baseline atomically and reports unmanaged tables separa
   await database.execute("CREATE TABLE accounts (value TEXT NOT NULL)")
   const target = snapshot(["accounts"])
   const result = await createBaseline({
-    adapter: migrationAdapter(database),
+    adapter: baselineAdapter(database),
     id: "existing-production",
-    candidate: (await captureBaseline({ adapter: migrationAdapter(database), scope: target }))
-      .snapshot,
+    candidate: (
+      await captureBaseline({
+        adapter: baselineAdapter(database),
+        scope: target,
+      })
+    ).snapshot,
     scope: target,
     repository: [],
     provenance: { source: "schema.ts", revision: "reviewed" },
@@ -731,7 +739,7 @@ test("refuses a baseline when logical IDs agree but physical facts differ", asyn
 
   await expect(
     createBaseline({
-      adapter: migrationAdapter(database),
+      adapter: baselineAdapter(database),
       id: "mismatch",
       candidate: snapshot(["accounts"]),
       scope: snapshot(["accounts"]),

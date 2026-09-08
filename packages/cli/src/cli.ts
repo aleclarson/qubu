@@ -49,6 +49,7 @@ import { sqliteSchemaDialect } from "qubu/snapshot/sqlite"
 
 import {
   resolveAdapter,
+  resolveBaselineAdapter,
   resolveConfigSnapshot,
   type ConfigSnapshotValue,
   type QubuCliConfig,
@@ -288,7 +289,7 @@ export function createCli(runtime: CliRuntime = {}) {
       const path = candidatePath(args.out, context)
       const scope = await resolveConfigSnapshot(context.config)
       const result = await captureBaseline({
-        adapter: await resolveAdapter(context.config),
+        adapter: await resolveBaselineAdapter(context.config),
         scope,
         signal: context.signal,
       })
@@ -356,7 +357,7 @@ export function createCli(runtime: CliRuntime = {}) {
 
       const scope = await resolveConfigSnapshot(context.config)
       const input = {
-        adapter: await resolveAdapter(context.config),
+        adapter: await resolveBaselineAdapter(context.config),
         repository: context.repository,
         candidate: decoded.value,
         scope,

@@ -1,3 +1,6 @@
+export type { BaselineAdapter, BaselineSession } from "./adapter.ts"
+export { fromMigrationAdapter } from "./migration-adapter.ts"
+
 import { diffSnapshots, type SnapshotDiffDiagnostic, type SnapshotDiffOperation } from "qubu/diff"
 import {
   assertSchemaSnapshot,
@@ -13,14 +16,9 @@ import {
   type VerifiedBaselineArtifact,
 } from "../artifact/index.ts"
 import { MigrationExecutionError } from "../executor/errors.ts"
-import type {
-  MigrationAdapter,
-  MigrationSession,
-  MigrationSnapshot,
-  MigrationSnapshotInspection,
-} from "../executor/types.ts"
-import { validateJournalState } from "../journal/index.ts"
+import type { MigrationSnapshot, MigrationSnapshotInspection } from "../executor/types.ts"
 import { verifyArtifactChain, type ArtifactRepository } from "../repository/index.ts"
+import type { BaselineAdapter, BaselineSession } from "./adapter.ts"
 
 /** Operator acknowledgments for adopting the reviewed live schema. */
 export interface BaselineConfirmation {
@@ -35,7 +33,7 @@ export interface BaselineConfirmation {
 
 /** Strict inspection using the original configured managed scope, including currently absent tables. */
 export interface CaptureBaselineInput {
-  readonly adapter: MigrationAdapter
+  readonly adapter: BaselineAdapter
   readonly scope: MigrationSnapshot
   readonly signal?: AbortSignal
 }
@@ -74,7 +72,7 @@ export interface BaselineResult {
 export async function captureBaseline(
   input: CaptureBaselineInput,
 ): Promise<MigrationSnapshotInspection> {
-  return withBaselineSession(input, (session) => session.readSnapshot!(input.scope))
+  return withBaselineSession(input, (session) => session.readSnapshot(input.scope))
 }
 
 /**
@@ -90,16 +88,16 @@ export async function preflightBaseline(
 
 async function withBaselineSession<T>(
   input: CaptureBaselineInput,
-  action: (session: MigrationSession) => Promise<T>,
+  action: (session: BaselineSession) => Promise<T>,
 ): Promise<T> {
   input.signal?.throwIfAborted()
   assertSchemaSnapshot(input.scope)
-  let session: MigrationSession | undefined
-  let leased = false
+  let session: BaselineSession | undefined
 
   try {
-    session = await input.adapter.openMigrationSession(input.signal)
-    if (session.capabilities.dialect !== input.scope.dialect.name) {
+    session = await input.adapter.openBaselineSession(input.scope, input.signal)
+    input.signal?.throwIfAborted()
+    if (session.dialect !== input.scope.dialect.name) {
       throw new MigrationExecutionError(
         "capability",
         "Baseline dialect is incompatible",
@@ -108,31 +106,18 @@ async function withBaselineSession<T>(
       )
     }
 
-    if (!session.readSnapshot) {
-      throw new MigrationExecutionError(
-        "capability",
-        "Adapter does not support strict snapshot inspection",
-        {},
-        { retry: "safe" },
-      )
-    }
-
-    await session.acquireLease(input.signal)
-    leased = true
     return await action(session)
+  } catch (error) {
+    await session?.close().catch(() => undefined)
+    session = undefined
+    throw error
   } finally {
-    if (session && leased) {
-      await session.releaseLease()
-    }
-
-    if (session) {
-      await session.close()
-    }
+    await session?.close()
   }
 }
 
 async function verifyBaseline(
-  session: MigrationSession,
+  session: BaselineSession,
   input: VerifyBaselineInput,
 ): Promise<MigrationSnapshotInspection> {
   assertSchemaSnapshot(input.candidate)
@@ -176,28 +161,11 @@ async function verifyBaseline(
     )
   }
 
-  const [metadata, applied, attempts] = await Promise.all([
-    session.journal.readMetadata(),
-    session.journal.listApplied(),
-    session.journal.listAttempts(),
-  ])
-
-  if (
-    validateJournalState(metadata, applied, attempts).length ||
-    applied.length ||
-    attempts.length ||
-    metadata.head
-  ) {
-    throw new MigrationExecutionError(
-      "policy",
-      "A baseline requires an empty migration journal",
-      {},
-      { retry: "safe" },
-    )
-  }
+  await session.assertEmptyHistory()
+  input.signal?.throwIfAborted()
 
   // Use the capture scope, not the candidate's present tables: absent tables may have appeared.
-  const inspection = await session.readSnapshot!(input.scope)
+  const inspection = await session.readSnapshot(input.scope)
   const comparison = compareManagedSnapshots(input.candidate, inspection.snapshot)
 
   // Adoption compares captured evidence exactly, including dialect facts ignored by ordinary drift checks.
@@ -220,10 +188,7 @@ async function verifyBaseline(
   return inspection
 }
 
-/**
- * Repeat preflight under the migrator lease, then atomically record the first non-executable
- * baseline.
- */
+/** Repeat preflight, then ask the adapter to durably record the first non-executable baseline. */
 export async function createBaseline(input: CreateBaselineInput): Promise<BaselineResult> {
   const facts: readonly (keyof BaselineConfirmation)[] = [
     "databaseTargetVerified",
@@ -271,47 +236,9 @@ export async function createBaseline(input: CreateBaselineInput): Promise<Baseli
         ...(input.operator === undefined ? {} : { metadata: input.operator }),
       },
     })
-    const attemptId = input.attemptId ?? `baseline-${crypto.randomUUID()}`
 
-    await session.journal.createAttempt({
-      id: attemptId,
-      artifactId: artifact.id,
-      artifactDigest: artifact.artifactDigest,
-      expectedHead: null,
-      state: "started",
-      startedAt: verifiedAt,
-      updatedAt: verifiedAt,
-    })
-    await session.beginTransaction()
-    try {
-      await session.journal.transitionAttempt(attemptId, "running")
-      const advanced = await session.journal.appendAppliedAndAdvanceHead(
-        {
-          artifactId: artifact.id,
-          sequence: 0,
-          artifactDigest: artifact.artifactDigest,
-          parentArtifactDigest: null,
-          kind: "baseline",
-          attemptId,
-          appliedAt: verifiedAt,
-        },
-        null,
-      )
-
-      if (!advanced) {
-        throw new Error("Migration journal head changed during baseline creation")
-      }
-
-      await session.journal.transitionAttempt(attemptId, "applied")
-      await session.commitTransaction()
-    } catch (error) {
-      await session.rollbackTransaction().catch(() => undefined)
-      await session.journal.transitionAttempt(attemptId, "rolled_back", {
-        code: "baseline-failed",
-        message: error instanceof Error ? error.message : "Baseline transaction failed",
-      })
-      throw error
-    }
+    input.signal?.throwIfAborted()
+    await session.recordBaseline(artifact, input.attemptId ?? `baseline-${crypto.randomUUID()}`)
 
     return Object.freeze({
       artifact,
