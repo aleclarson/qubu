@@ -1076,3 +1076,75 @@ test("reports unsupported versions, dialect mismatches, and query diagnostics", 
   )
   expect(JSON.stringify(failingCatalog.diagnostics)).not.toContain("secret")
 })
+
+test("recovers observed constraint names by their columns, targets, and actions", async () => {
+  const database = new DatabaseSync(":memory:")
+
+  try {
+    database.exec(`
+      CREATE TABLE parent (id INTEGER PRIMARY KEY, other INTEGER UNIQUE);
+      CREATE TABLE child (
+        id INTEGER CONSTRAINT "child primary" PRIMARY KEY AUTOINCREMENT,
+        source INTEGER,
+        second INTEGER CONSTRAINT "inline reference" REFERENCES parent(other),
+        label TEXT CONSTRAINT "label unique" UNIQUE,
+        CONSTRAINT "first reference" FOREIGN KEY (source) REFERENCES parent(id) ON DELETE CASCADE,
+        CONSTRAINT "second reference" FOREIGN KEY (source) REFERENCES parent(other) ON DELETE SET NULL,
+        CONSTRAINT "third reference" FOREIGN KEY (source) REFERENCES parent(id) ON DELETE RESTRICT,
+        CONSTRAINT "pair unique" UNIQUE (source, second)
+      );
+      CREATE TABLE ambiguous (
+        source INTEGER,
+        CONSTRAINT one FOREIGN KEY (source) REFERENCES parent(id),
+        FOREIGN KEY (source) REFERENCES parent(id)
+      );
+    `)
+    const catalog = await readCatalog(databaseConnection(database), options())
+    const child = catalog.tables.find((table) => table.physicalName === "child")!
+
+    expect(child.constraints.map((constraint) => constraint.physicalName).sort()).toEqual([
+      "child primary",
+      "first reference",
+      "inline reference",
+      "label unique",
+      "pair unique",
+      "second reference",
+      "third reference",
+    ])
+    expect(child.constraints).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "foreign-key",
+          physicalName: "first reference",
+          onDelete: "cascade",
+          target: {
+            table: "parent",
+            columns: ["id"],
+          },
+        }),
+        expect.objectContaining({
+          kind: "foreign-key",
+          physicalName: "second reference",
+          onDelete: "set-null",
+          target: {
+            table: "parent",
+            columns: ["other"],
+          },
+        }),
+        expect.objectContaining({
+          kind: "foreign-key",
+          physicalName: "third reference",
+          onDelete: "restrict",
+        }),
+      ]),
+    )
+    const ambiguous = catalog.tables.find((table) => table.physicalName === "ambiguous")!
+
+    expect(ambiguous.constraints.map((constraint) => constraint.physicalName).sort()).toEqual([
+      "foreign_key_ambiguous_0",
+      "foreign_key_ambiguous_1",
+    ])
+  } finally {
+    database.close()
+  }
+})

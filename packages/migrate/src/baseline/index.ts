@@ -1,7 +1,12 @@
 export type { BaselineAdapter, BaselineSession } from "./adapter.ts"
 export { fromMigrationAdapter } from "./migration-adapter.ts"
 
-import { diffSnapshots, type SnapshotDiffDiagnostic, type SnapshotDiffOperation } from "qubu/diff"
+import {
+  diffSnapshots,
+  type SnapshotDiffDiagnostic,
+  type SnapshotDiffObject,
+  type SnapshotDiffOperation,
+} from "qubu/diff"
 import {
   assertSchemaSnapshot,
   encodeSchemaSnapshot,
@@ -253,24 +258,182 @@ export interface ManagedSnapshotComparison {
   readonly diagnostics: readonly SnapshotDiffDiagnostic[]
 }
 
-/** Compare snapshots by managed physical facts while retaining logical diff details for callers. */
+/** Compare snapshots and report changes using the same managed physical facts. */
 export function compareManagedSnapshots(
   expected: MigrationSnapshot,
   actual: MigrationSnapshot,
 ): ManagedSnapshotComparison {
-  const result = diffSnapshots(expected, actual)
-  const expectedPhysical = physicalProjection(expected)
-  const actualPhysical = physicalProjection(actual)
-  const matches =
-    !result.diagnostics.some(
+  const raw = diffSnapshots(expected, actual)
+
+  if (
+    raw.diagnostics.some(
       (diagnostic) =>
         diagnostic.code === "invalid-snapshot" || diagnostic.code === "dialect-mismatch",
-    ) && JSON.stringify(expectedPhysical) === JSON.stringify(actualPhysical)
+    )
+  ) {
+    return Object.freeze({
+      matches: false,
+      operations: raw.operations,
+      diagnostics: raw.diagnostics,
+    })
+  }
+
+  const withoutCreateSql = (snapshot: SchemaSnapshot): SchemaSnapshot => ({
+    ...snapshot,
+    opaqueObjects: snapshot.opaqueObjects.filter((object) => !isCreateSqlMetadata(record(object))),
+  })
+  const result = diffSnapshots(withoutCreateSql(expected), withoutCreateSql(actual))
+  const expectedPhysical = physicalProjection(expected)
+  const actualPhysical = physicalProjection(actual)
+  const matches = JSON.stringify(expectedPhysical) === JSON.stringify(actualPhysical)
+  const operations = Object.freeze(
+    result.operations.flatMap((operation) => {
+      const before = operation.before
+      const after = operation.after
+      const left = before === undefined ? undefined : projectDiffObject(before, expected)
+      const right = after === undefined ? undefined : projectDiffObject(after, actual)
+
+      if (before && after) {
+        if (JSON.stringify(left) === JSON.stringify(right)) {
+          return []
+        }
+        const changedProperties = [...new Set([...Object.keys(left!), ...Object.keys(right!)])]
+          .sort()
+          .filter((key) => JSON.stringify(left![key]) !== JSON.stringify(right![key]))
+          .map((key) => ({
+            path: [key],
+            ...(left![key] === undefined ? {} : { before: left![key] as SnapshotJsonValue }),
+            ...(right![key] === undefined ? {} : { after: right![key] as SnapshotJsonValue }),
+          }))
+
+        return [
+          Object.freeze({
+            ...operation,
+            changedProperties: Object.freeze(changedProperties),
+          }),
+        ]
+      }
+
+      const object = before ?? after
+
+      if (!object) {
+        return [operation]
+      }
+      const other = physicalCounterpart(object, before ? actual : expected)
+
+      if (
+        other &&
+        JSON.stringify(before ? left : right) ===
+          JSON.stringify(projectDiffObject(other, before ? actual : expected))
+      ) {
+        return []
+      }
+      return [operation]
+    }),
+  )
+  const diagnostics = result.diagnostics.filter((diagnostic) => {
+    if (diagnostic.code === "invalid-snapshot" || diagnostic.code === "dialect-mismatch") {
+      return true
+    }
+    if (diagnostic.code !== "destructive") {
+      return true
+    }
+    return operations.some(
+      (operation) =>
+        operation.kind === diagnostic.kind &&
+        (operation.before?.id === diagnostic.logicalId ||
+          operation.after?.id === diagnostic.logicalId) &&
+        JSON.stringify(operation.path) === JSON.stringify(diagnostic.path),
+    )
+  })
+
   return Object.freeze({
     matches,
-    operations: result.operations,
-    diagnostics: result.diagnostics,
+    operations,
+    diagnostics: Object.freeze(diagnostics),
   })
+}
+
+function isCreateSqlMetadata(value: Readonly<Record<string, unknown>> | undefined): boolean {
+  return (
+    value?.kind === "opaque-object" &&
+    value.objectKind === "unknown-field" &&
+    isRecord(value.data) &&
+    value.data.field === "createSql" &&
+    value.data.ownerKind === "table" &&
+    typeof value.data.value === "string"
+  )
+}
+
+function projectDiffObject(
+  object: SnapshotDiffObject,
+  snapshot: SchemaSnapshot,
+): Record<string, unknown> {
+  const projected = projectObject(record(object.value), physicalNames(snapshot), {
+    tableId: object.parent?.id,
+  })
+
+  // Child records have their own diff operations.
+  if (object.kind === "table" || object.kind === "view" || object.kind === "materialized-view") {
+    delete projected.columns
+    delete projected.constraints
+    delete projected.indexes
+  } else if (object.kind === "domain") {
+    delete projected.constraints
+  }
+  return projected
+}
+
+function physicalCounterpart(
+  object: SnapshotDiffObject,
+  snapshot: SchemaSnapshot,
+): SnapshotDiffObject | undefined {
+  const group = object.path[0]
+
+  if (typeof group !== "string") {
+    return undefined
+  }
+  if (group === "namespace") {
+    return { ...object, value: record(snapshot.namespace) as SnapshotDiffObject["value"] }
+  }
+  const collection = record(snapshot)[group]
+
+  if (!Array.isArray(collection)) {
+    return undefined
+  }
+  let values = collection
+  let parent = object.parent
+
+  if (parent) {
+    const owner = collection.find((value) => value.physicalName === parent!.physicalName)
+    const childGroup = object.path[2]
+
+    if (!owner || typeof childGroup !== "string" || !Array.isArray(owner[childGroup])) {
+      return undefined
+    }
+    values = owner[childGroup]
+    parent = {
+      ...parent,
+      id: owner.id,
+    }
+  }
+
+  const candidates = values.filter(
+    (value) =>
+      value.physicalName === object.physicalName &&
+      value.kind === object.value.kind &&
+      (object.observedKind === undefined || value.objectKind === object.observedKind),
+  )
+
+  if (candidates.length !== 1) {
+    return undefined
+  }
+  return {
+    ...object,
+    id: candidates[0].id,
+    value: candidates[0],
+    parent,
+  }
 }
 
 function physicalProjection(snapshot: SchemaSnapshot): unknown {
@@ -333,7 +496,7 @@ function physicalProjection(snapshot: SchemaSnapshot): unknown {
     ),
     opaqueObjects: sortProjected(
       snapshot.opaqueObjects
-        .filter((object) => object.objectKind !== "unknown-field")
+        .filter((object) => !isCreateSqlMetadata(record(object)))
         .map((object) => projectObject(record(object), names, {})),
     ),
     comments: sortProjected(
@@ -458,7 +621,7 @@ function projectObject(
     projected.match ??= "simple"
   }
 
-  return projected
+  return projectNested(projected) as Record<string, unknown>
 }
 
 function projectProperty(

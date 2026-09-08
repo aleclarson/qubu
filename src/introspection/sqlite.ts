@@ -359,6 +359,7 @@ export async function readCatalog(
     for (const value of foreignKeys(
       currentTable,
       foreignRows,
+      sqlText,
       tableByName,
       options.namespace,
       diagnostics,
@@ -1743,28 +1744,215 @@ function mapIndex(
   }
 }
 
+// Tokenize observed DDL so quoted identifiers, literals, and comments cannot be
+// mistaken for constraint clauses. Names are recovered only from matching facts.
+function constraintDefinitions(sqlText: string | undefined): string[][] {
+  if (!sqlText) {
+    return []
+  }
+  const tokens =
+    sqlText.match(
+      /--[^\n]*(?:\n|$)|\/\*[\s\S]*?\*\/|'(?:[^']|'')*'|"(?:[^"]|"")*"|`(?:[^`]|``)*`|\[[^\]]*\]|[A-Za-z_][A-Za-z0-9_$]*|[^\s]/g,
+    ) ?? []
+  const definitions: string[][] = []
+  let depth = 0
+  let current: string[] = []
+
+  for (const token of tokens) {
+    if (token.startsWith("--") || token.startsWith("/*")) {
+      continue
+    }
+    if (token === "(") {
+      if (depth++ === 0) {
+        continue
+      }
+    } else if (token === ")") {
+      if (--depth === 0) {
+        definitions.push(current)
+        break
+      }
+    }
+
+    if (depth === 1 && token === ",") {
+      definitions.push(current)
+      current = []
+    } else if (depth > 0) {
+      current.push(token)
+    }
+  }
+
+  return definitions
+}
+
+function constraintColumns(tokens: readonly string[], start: number): string[] | undefined {
+  if (tokens[start] !== "(") {
+    return undefined
+  }
+  const columns: string[] = []
+
+  for (let index = start + 1; index < tokens.length; index += 2) {
+    const name = unquoteIdentifier(tokens[index])
+
+    if (name === undefined) {
+      return undefined
+    }
+    columns.push(name)
+    if (tokens[index + 1] === ")") {
+      return columns
+    }
+    if (tokens[index + 1] !== ",") {
+      return undefined
+    }
+  }
+
+  return undefined
+}
+
+function sameColumns(
+  left: readonly string[] | undefined,
+  right: readonly (string | undefined)[],
+): boolean {
+  return (
+    left !== undefined &&
+    left.length === right.length &&
+    left.every((name, index) => name === right[index])
+  )
+}
+
 function declaredConstraintName(
   sqlText: string | undefined,
   keyword: string,
   columns: readonly string[],
 ): string | undefined {
-  if (!sqlText) return undefined
-  const identifier = '("(?:[^"]|"")*"|`[^`]*`|\\[[^\\]]*\\]|[A-Za-z_][A-Za-z0-9_$]*)'
-  const pattern = new RegExp(`CONSTRAINT\\s+${identifier}\\s+${keyword}\\s*\\(([^)]*)\\)`, "gi")
-  for (const match of sqlText.matchAll(pattern)) {
-    const found = (match[2] ?? "")
-      .split(",")
-      .map((value) => unquoteIdentifier(value.trim()))
-      .filter((value): value is string => value !== undefined)
-    if (found.length === columns.length && found.every((value, index) => value === columns[index]))
-      return unquoteIdentifier(match[1])
+  const words = keyword === "UNIQUE" ? ["UNIQUE"] : ["PRIMARY", "KEY"]
+  const names: string[] = []
+
+  for (const tokens of constraintDefinitions(sqlText)) {
+    for (let index = 0; index < tokens.length; index++) {
+      if (
+        tokens[index]?.toUpperCase() !== "CONSTRAINT" ||
+        !words.every((word, offset) => tokens[index + 2 + offset]?.toUpperCase() === word)
+      ) {
+        continue
+      }
+      const start = index + 2 + words.length
+      const found =
+        tokens[start] === "("
+          ? constraintColumns(tokens, start)
+          : index > 0
+            ? [unquoteIdentifier(tokens[0])].filter((name): name is string => name !== undefined)
+            : undefined
+      const name = unquoteIdentifier(tokens[index + 1])
+
+      if (name !== undefined && sameColumns(found, columns)) {
+        names.push(name)
+      }
+    }
   }
-  return undefined
+
+  return names.length === 1 ? names[0] : undefined
+}
+
+function declaredForeignKeyName(
+  sqlText: string | undefined,
+  rows: readonly SqliteForeignKeyRow[],
+): string | undefined {
+  const names: (string | undefined)[] = []
+  const first = rows[0]!
+
+  for (const tokens of constraintDefinitions(sqlText)) {
+    for (let index = 0; index < tokens.length; index++) {
+      const named = tokens[index]?.toUpperCase() === "CONSTRAINT"
+      const unnamedTable = index === 0 && tokens[index]?.toUpperCase() === "FOREIGN"
+      const unnamedColumn =
+        index > 0 &&
+        tokens[index]?.toUpperCase() === "REFERENCES" &&
+        tokens[index - 2]?.toUpperCase() !== "CONSTRAINT"
+
+      if (!named && !unnamedTable && !unnamedColumn) {
+        continue
+      }
+      const name = named ? unquoteIdentifier(tokens[index + 1]) : undefined
+      let cursor = named ? index + 2 : index
+      let source: string[] | undefined
+
+      if (
+        tokens[cursor]?.toUpperCase() === "FOREIGN" &&
+        tokens[cursor + 1]?.toUpperCase() === "KEY"
+      ) {
+        source = constraintColumns(tokens, cursor + 2)
+        if (!source) {
+          continue
+        }
+        cursor += 3 + source.length * 2
+      } else if (index > 0) {
+        const column = unquoteIdentifier(tokens[0])
+
+        source = column === undefined ? undefined : [column]
+      }
+
+      if (
+        tokens[cursor]?.toUpperCase() !== "REFERENCES" ||
+        !sameColumns(
+          source,
+          rows.map((row) => text(row.source_column)),
+        ) ||
+        unquoteIdentifier(tokens[cursor + 1]) !== text(first.target_table)
+      ) {
+        continue
+      }
+      cursor += 2
+      const target = constraintColumns(tokens, cursor)
+
+      if (target) {
+        cursor += 1 + target.length * 2
+      }
+      if (
+        target
+          ? !sameColumns(
+              target,
+              rows.map((row) => text(row.target_column)),
+            )
+          : rows.some((row) => text(row.target_column) !== undefined)
+      ) {
+        continue
+      }
+      let onUpdate = "no-action"
+      let onDelete = "no-action"
+
+      for (; cursor < tokens.length; cursor++) {
+        if (tokens[cursor]?.toUpperCase() !== "ON") {
+          continue
+        }
+        const clause = tokens[cursor + 1]?.toUpperCase()
+        const verb = tokens[cursor + 2]?.toUpperCase()
+        const value = verb === "NO" || verb === "SET" ? `${verb} ${tokens[cursor + 3]}` : verb
+
+        if (clause === "UPDATE") {
+          onUpdate = action(value) ?? "no-action"
+        }
+        if (clause === "DELETE") {
+          onDelete = action(value) ?? "no-action"
+        }
+      }
+
+      if (
+        onUpdate === (action(first.on_update) ?? "no-action") &&
+        onDelete === (action(first.on_delete) ?? "no-action")
+      ) {
+        names.push(name)
+      }
+    }
+  }
+
+  // PRAGMA does not identify duplicate equivalent declarations by name.
+  return names.length === 1 ? names[0] : undefined
 }
 
 function foreignKeys(
   table: CatalogTable,
   rows: readonly SqliteForeignKeyRow[],
+  sqlText: string | undefined,
   tables: ReadonlyMap<string, CatalogTable>,
   namespace: string,
   diagnostics: IntrospectionCatalog["diagnostics"][number][],
@@ -1784,7 +1972,8 @@ function foreignKeys(
       (left, right) => (number(left.seq) ?? 0) - (number(right.seq) ?? 0),
     )
     const first = ordered[0]
-    const physicalName = `foreign_key_${table.physicalName}_${key}`
+    const declaredName = declaredForeignKeyName(sqlText, ordered)
+    const physicalName = declaredName ?? `foreign_key_${table.physicalName}_${key}`
     const targetTableName = text(first.target_table)
     const targetTable = targetTableName === undefined ? undefined : tables.get(targetTableName)
     const targetColumns = ordered.map((row) => text(row.target_column))
@@ -1862,7 +2051,7 @@ function foreignKeys(
     return {
       kind: "foreign-key",
       id: stableId(physicalName),
-      identitySource: "deterministic-fallback",
+      identitySource: declaredName ? "physical-name" : "deterministic-fallback",
       physicalName,
       columns: sourceColumns as string[],
       target: {

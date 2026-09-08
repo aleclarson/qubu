@@ -1338,6 +1338,14 @@ function renderCreateTable(
       features.dialect === "sqlite" &&
         column.identity !== undefined &&
         identityColumns.has(stringValue(column.id) ?? ""),
+      stringValue(
+        constraints.find(
+          (constraint) =>
+            constraint.kind === "primary-key" &&
+            stringArray(constraint.columns).length === 1 &&
+            stringArray(constraint.columns)[0] === stringValue(column.id),
+        )?.physicalName,
+      ),
     ),
   )
   const columnNames = new Map(
@@ -1420,6 +1428,7 @@ function renderColumn(
   dialect: SchemaDialect,
   features: DdlFeatures,
   sqliteIdentityPrimary = false,
+  sqlitePrimaryName?: string,
 ): string {
   const name = stringValue(value.physicalName) ?? stringValue(value.id)
 
@@ -1469,6 +1478,9 @@ function renderColumn(
     } else if (features.dialect === "mysql") {
       parts.push("AUTO_INCREMENT")
     } else if (sqliteIdentityPrimary) {
+      if (sqlitePrimaryName !== undefined) {
+        parts.push(`CONSTRAINT ${dialect.quoteIdentifier(sqlitePrimaryName)}`)
+      }
       parts.push("PRIMARY KEY")
       const extension = recordValue(identity.dialect)
       const data = extension && recordValue(extension.data)

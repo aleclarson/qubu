@@ -579,119 +579,168 @@ test("strict snapshot reading excludes every migration journal object", async ()
   await session.close()
 })
 
-test("bootstraps inline SQLite constraints and round trips through strict introspection", async () => {
-  const database = client()
-  const target: SchemaSnapshot = {
-    format: "qubu-schema",
-    version: 1,
-    dialect,
-    namingPolicy: { name: "fixture", version: 1 },
-    namespace: { kind: "sqlite-database", name: "main" },
-    capabilities: {
-      generatedColumns: true,
-      identityMetadata: true,
-      checkConstraints: true,
-      checkConstraintEnforcement: "enforced",
-      expressionDecompilation: true,
-      indexExpressions: true,
-      indexPredicates: true,
-      indexIncludedColumns: true,
-      namespaces: true,
-      visibility: "complete",
-    },
-    tables: [
-      {
-        kind: "table",
-        id: "accountsLogical",
-        physicalName: "accounts",
-        columns: [
-          {
-            kind: "column",
-            id: "emailLogical",
-            physicalName: "email_address",
-            ordinalPosition: 1,
-            nullable: false,
-            hasDefault: false,
-            generated: false,
-            storage: { kind: "native", dialect: "sqlite", type: "TEXT", affinity: "text" },
-          },
-          {
-            kind: "column",
-            id: "idLogical",
-            physicalName: "account_id",
-            ordinalPosition: 2,
-            nullable: false,
-            hasDefault: false,
-            generated: true,
-            storage: { kind: "native", dialect: "sqlite", type: "INTEGER", affinity: "integer" },
-            identity: {
-              kind: "identity",
-              generation: "by-default",
-              options: {},
-              dialect: { dialect: "sqlite", version: 1, data: { autoIncrement: false } },
-            },
-          },
-        ],
-        constraints: [
-          {
-            id: "emailUniqueLogical",
-            kind: "unique",
-            physicalName: "accounts_email_unique",
-            columns: ["emailLogical"],
-          },
-          {
-            id: "pkLogical",
-            kind: "primary-key",
-            physicalName: "accounts_pk",
-            columns: ["idLogical"],
-          },
-        ],
-        indexes: [],
+test.each([false, true])(
+  "round trips named SQLite constraints with autoIncrement=%s",
+  async (autoIncrement) => {
+    const database = client()
+    const definition: SchemaSnapshot = {
+      format: "qubu-schema",
+      version: 1,
+      dialect,
+      namingPolicy: {
+        name: "fixture",
+        version: 1,
       },
-    ],
-    views: [],
-    sequences: [],
-    enums: [],
-    domains: [],
-    collations: [],
-    triggers: [],
-    routines: [],
-    partitions: [],
-    policies: [],
-    extensions: [],
-    deferredObjects: [],
-    opaqueObjects: [],
-    comments: [],
-    ownership: [],
-  }
-  const bootstrap = planSchemaBootstrap(target)
-  expect(bootstrap.ok, JSON.stringify(bootstrap)).toBe(true)
-  if (!bootstrap.ok) return
-  const migration = await sealExecutableArtifact({
-    format: "qubu-executable-migration",
-    version: 1,
-    id: "bootstrap",
-    sequence: 0,
-    parentArtifactDigest: null,
-    dialect,
-    plan: bootstrap.plan,
-    renderer: { id: "qubu-sqlite", version: 1, dialect },
-    program: bootstrap.program,
-    beforeSnapshot: { value: bootstrap.beforeSnapshot },
-    afterSnapshot: { value: target },
-    approvals: [],
-    provenance: { source: "bootstrap-test" },
-  })
+      namespace: {
+        kind: "sqlite-database",
+        name: "main",
+      },
+      capabilities: {
+        generatedColumns: true,
+        identityMetadata: true,
+        checkConstraints: true,
+        checkConstraintEnforcement: "enforced",
+        expressionDecompilation: true,
+        indexExpressions: true,
+        indexPredicates: true,
+        indexIncludedColumns: true,
+        namespaces: true,
+        visibility: "complete",
+      },
+      tables: [
+        {
+          kind: "table",
+          id: "accountsLogical",
+          physicalName: "accounts",
+          columns: [
+            {
+              kind: "column",
+              id: "emailLogical",
+              physicalName: "email_address",
+              ordinalPosition: 1,
+              nullable: false,
+              hasDefault: false,
+              generated: false,
+              storage: {
+                kind: "native",
+                dialect: "sqlite",
+                type: "TEXT",
+                affinity: "text",
+              },
+            },
+            {
+              kind: "column",
+              id: "idLogical",
+              physicalName: "account_id",
+              ordinalPosition: 2,
+              nullable: false,
+              hasDefault: false,
+              generated: true,
+              storage: {
+                kind: "native",
+                dialect: "sqlite",
+                type: "INTEGER",
+                affinity: "integer",
+              },
+              identity: {
+                kind: "identity",
+                generation: "by-default",
+                options: {},
+                dialect: {
+                  dialect: "sqlite",
+                  version: 1,
+                  data: { autoIncrement },
+                },
+              },
+            },
+          ],
+          constraints: [
+            {
+              id: "emailUniqueLogical",
+              kind: "unique",
+              physicalName: "accounts_email_unique",
+              columns: ["emailLogical"],
+            },
+            {
+              id: "pkLogical",
+              kind: "primary-key",
+              physicalName: "accounts_pk",
+              columns: ["idLogical"],
+            },
+            {
+              id: "zParentReferenceLogical",
+              kind: "foreign-key",
+              physicalName: "accounts_parent_fk",
+              columns: ["idLogical"],
+              target: {
+                table: {
+                  kind: "table",
+                  id: "parentLogical",
+                },
+                columns: ["idLogical"],
+              },
+            },
+          ],
+          indexes: [],
+        },
+      ],
+      views: [],
+      sequences: [],
+      enums: [],
+      domains: [],
+      collations: [],
+      triggers: [],
+      routines: [],
+      partitions: [],
+      policies: [],
+      extensions: [],
+      deferredObjects: [],
+      opaqueObjects: [],
+      comments: [],
+      ownership: [],
+    }
+    const target: SchemaSnapshot = {
+      ...definition,
+      tables: [
+        {
+          ...definition.tables[0]!,
+          id: "parentLogical",
+          physicalName: "parents",
+          constraints: definition.tables[0]!.constraints.filter(
+            (constraint) => constraint.kind !== "foreign-key",
+          ).map((constraint) => ({
+            ...constraint,
+            physicalName: `parent_${constraint.physicalName}`,
+          })),
+        },
+        ...definition.tables,
+      ].sort((left, right) => left.id.localeCompare(right.id)),
+    }
+    const bootstrap = planSchemaBootstrap(target)
 
-  await executeMigrations({ repository: [migration], adapter: migrationAdapter(database) })
-  const inspection = await readMigrationSnapshot(database, target)
+    expect(bootstrap.ok, JSON.stringify(bootstrap)).toBe(true)
+    if (!bootstrap.ok) {
+      return
+    }
+    for (const phase of bootstrap.program.phases) {
+      for (const statement of phase.statements) {
+        await database.execute(statement.sql)
+      }
+    }
 
-  if (inspection.snapshot.version !== 1) throw new Error("Expected a version 1 SQLite snapshot")
+    const inspection = await readMigrationSnapshot(database, target)
 
-  const comparison = compareManagedSnapshots(target, inspection.snapshot)
-  expect(comparison.matches, JSON.stringify(comparison)).toBe(true)
-  expect(inspection.unmanagedObjects).toEqual([])
-})
+    if (inspection.snapshot.version !== 1) {
+      throw new Error("Expected a version 1 SQLite snapshot")
+    }
+
+    const comparison = compareManagedSnapshots(target, inspection.snapshot)
+
+    expect(comparison.matches, JSON.stringify(comparison)).toBe(true)
+    expect(comparison.operations).toEqual([])
+    expect(inspection.unmanagedObjects).toEqual([])
+  },
+)
 
 test("records a verified baseline atomically and reports unmanaged tables separately", async () => {
   const database = client()
