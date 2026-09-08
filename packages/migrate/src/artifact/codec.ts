@@ -448,9 +448,11 @@ function program(value: unknown, out: ArtifactDiagnostic[]): value is MigrationP
         "statements",
         "preconditions",
         "postconditions",
+        "absorbedOperationIds",
       ],
       out,
       path,
+      ["absorbedOperationIds"],
     )
     id(phase.id, out, [...path, "id"])
     position(phase.position, index, out, [...path, "position"])
@@ -465,6 +467,8 @@ function program(value: unknown, out: ArtifactDiagnostic[]): value is MigrationP
       )
     }
 
+    if (phase.absorbedOperationIds !== undefined)
+      strings(phase.absorbedOperationIds, out, [...path, "absorbedOperationIds"])
     conditions(phase.preconditions, out, [...path, "preconditions"])
     conditions(phase.postconditions, out, [...path, "postconditions"])
   })
@@ -791,57 +795,88 @@ function validateProgramAgainstPlan(
     return
   }
 
-  const operationIds = new Set(
+  const operations = new Map(
     rawPlan.operations
       .filter(record)
       .filter((operation) => operation.status !== "skipped")
-      .map((operation) => operation.id),
+      .map((operation) => [operation.id, operation]),
   )
-  const statementOperationIds = new Set<string>()
-
+  const covered = new Map<unknown, number>()
+  const tableIdentity = (operation: RecordValue): unknown => {
+    if (["table", "view", "materialized-view"].includes(operation.kind)) return operation.logicalId
+    const origin = record(operation.origin) ? operation.origin : {}
+    const object = record(origin.after) ? origin.after : record(origin.before) ? origin.before : {}
+    return record(object.parent) ? object.parent.id : undefined
+  }
   rawProgram.phases.forEach((phase: unknown, phaseIndex: number) => {
-    if (!record(phase)) {
-      return
-    }
-
-    if (Array.isArray(phase.statements)) {
-      phase.statements.forEach((statement: unknown, statementIndex: number) => {
-        if (!record(statement)) {
-          return
-        }
-
-        if (!operationIds.has(statement.operationId)) {
+    if (!record(phase) || !Array.isArray(phase.statements)) return
+    const direct = new Set(
+      phase.statements.filter(record).map((statement) => statement.operationId),
+    )
+    const absorbed = Array.isArray(phase.absorbedOperationIds) ? phase.absorbedOperationIds : []
+    for (const operationId of [...direct, ...absorbed]) {
+      const operation = operations.get(operationId)
+      if (!operation) {
+        out.push(
+          diag(
+            "invalid-value",
+            ["program", "phases", phaseIndex],
+            `Program targets unknown or skipped operation ${String(operationId)}`,
+          ),
+        )
+        continue
+      }
+      if (covered.has(operationId))
+        out.push(
+          diag(
+            "duplicate",
+            ["program", "phases", phaseIndex],
+            `Operation ${String(operationId)} is represented more than once`,
+          ),
+        )
+      covered.set(operationId, phaseIndex)
+      if (absorbed.includes(operationId)) {
+        const container = direct.size === 1 ? operations.get([...direct][0]) : undefined
+        if (
+          !container ||
+          !tableIdentity(operation) ||
+          tableIdentity(operation) !== tableIdentity(container) ||
+          operation.namespace !== container.namespace ||
+          operation.type === "custom-sql" ||
+          ["unknown", "unsupported"].includes(operation.safety)
+        )
           out.push(
             diag(
               "invalid-value",
-              ["program", "phases", phaseIndex, "statements", statementIndex, "operationId"],
-              `Statement targets unknown or skipped operation ${String(statement.operationId)}`,
+              ["program", "phases", phaseIndex, "absorbedOperationIds"],
+              `Operation ${String(operationId)} has no valid containing table operation`,
             ),
           )
-        }
-
-        if (typeof statement.operationId === "string") {
-          statementOperationIds.add(statement.operationId)
-        }
-      })
+      }
     }
   })
-
-  for (const operation of rawPlan.operations.filter(record)) {
-    if (
-      operation.status !== "skipped" &&
-      (operation.type === "custom-sql" ||
-        operation.safety === "unknown" ||
-        operation.safety === "unsupported") &&
-      !statementOperationIds.has(operation.id)
-    ) {
+  for (const operation of operations.values()) {
+    const position = covered.get(operation.id)
+    if (position === undefined) {
       out.push(
         diag(
           "invalid-value",
           ["program", "phases"],
-          `Custom program for ${String(operation.id)} must contain an executable statement`,
+          `Active operation ${String(operation.id)} must be emitted or explicitly absorbed`,
         ),
       )
+      continue
+    }
+    for (const dependency of Array.isArray(operation.dependsOn) ? operation.dependsOn : []) {
+      const prior = covered.get(dependency)
+      if (prior === undefined || prior > position)
+        out.push(
+          diag(
+            "invalid-value",
+            ["program", "phases", position],
+            `Operation dependency ${String(dependency)} is not represented before ${String(operation.id)}`,
+          ),
+        )
     }
   }
 }

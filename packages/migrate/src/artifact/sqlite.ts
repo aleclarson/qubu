@@ -1,5 +1,10 @@
 import { diffSnapshots } from "qubu/diff"
-import type { SchemaSnapshot, SnapshotTable } from "qubu/snapshot"
+import {
+  assertSchemaSnapshot,
+  fingerprintSchemaSnapshot,
+  type SchemaSnapshot,
+  type SnapshotTable,
+} from "qubu/snapshot"
 import { sqliteSchemaDialect } from "qubu/snapshot/sqlite"
 
 import { createMigrationPlan, type MigrationPlan } from "../plan/index.ts"
@@ -7,13 +12,9 @@ import {
   compileMigrationProgram as compileGenericMigrationProgram,
   type CompileMigrationProgramOptions,
 } from "./program.ts"
-import {
-  migrationProgramFormat,
-  migrationProgramVersion,
-  type MigrationProgramCompilationResult,
-  type MigrationProgramPhase,
-} from "./types.ts"
-import { compilationFailure as failure, deepFreeze } from "./utils.ts"
+import type { OperationGroup } from "./program.ts"
+import type { MigrationProgramCompilationResult } from "./types.ts"
+import { compilationFailure as failure } from "./utils.ts"
 
 export interface CompileSqliteMigrationProgramOptions extends CompileMigrationProgramOptions {
   /** Required when SQLite must rebuild an existing table. */
@@ -27,74 +28,69 @@ export function compileMigrationProgram(
   plan: MigrationPlan,
   options: CompileSqliteMigrationProgramOptions = {},
 ): MigrationProgramCompilationResult {
-  const rebuildTables = rebuildTableIds(plan)
-  if (rebuildTables.length > 0) {
-    if (!options.beforeSnapshot || !options.afterSnapshot)
-      return failure(
-        "unsupported",
-        "SQLite table rebuild compilation requires exact beforeSnapshot and afterSnapshot values",
-        ["afterSnapshot"],
-      )
-    return compileRebuildProgram(plan, rebuildTables, options)
-  }
-  return compileGenericMigrationProgram(plan, sqliteSchemaDialect, options)
+  return compileGenericMigrationProgram(plan, sqliteSchemaDialect, options, (validated) =>
+    prepareRebuilds(validated, options),
+  )
 }
 
-function rebuildTableIds(plan: MigrationPlan): readonly string[] {
-  const addedTables = new Set(
-    plan.operations
+function prepareRebuilds(
+  plan: MigrationPlan,
+  options: CompileSqliteMigrationProgramOptions,
+):
+  | { readonly ok: true; readonly groups: readonly OperationGroup[] }
+  | Extract<MigrationProgramCompilationResult, { readonly ok: false }> {
+  const active = plan.operations.filter((operation) => operation.status !== "skipped")
+  const added = new Set(
+    active
       .filter((operation) => operation.type === "add" && operation.kind === "table")
       .map((operation) => operation.logicalId),
   )
-  return [
+  const removed = new Set(
+    active
+      .filter((operation) => operation.type === "remove" && operation.kind === "table")
+      .map((operation) => operation.logicalId),
+  )
+  const tableIds = [
     ...new Set(
-      plan.operations.flatMap((operation) => {
+      active.flatMap((operation) => {
         const parent = operation.origin?.after?.parent ?? operation.origin?.before?.parent
-        if (
-          !parent ||
-          addedTables.has(parent.id) ||
-          !["column", "constraint"].includes(operation.kind) ||
-          (operation.type === "add" && operation.kind === "column")
-        )
-          return []
-        return [parent.id]
+        return parent &&
+          !added.has(parent.id) &&
+          !removed.has(parent.id) &&
+          ["column", "constraint"].includes(operation.kind) &&
+          !(operation.type === "add" && operation.kind === "column")
+          ? [parent.id]
+          : []
       }),
     ),
-  ].sort()
-}
-
-function compileRebuildProgram(
-  plan: MigrationPlan,
-  tableIds: readonly string[],
-  options: CompileSqliteMigrationProgramOptions,
-): MigrationProgramCompilationResult {
-  const before = options.beforeSnapshot!
-  const after = options.afterSnapshot!
-  const approvals = new Map(
-    (options.approvals ?? []).map((approval) => [approval.operationId, approval]),
-  )
-  for (const operation of plan.operations) {
-    const parent = operation.origin?.after?.parent ?? operation.origin?.before?.parent
-    if (!parent || !tableIds.includes(parent.id) || operation.safety === "safe") continue
-    const approval = approvals.get(operation.id)
-    const findings = plan.diagnostics
-      .filter((finding) => finding.operationId === operation.id)
-      .map((finding) => finding.code)
-      .sort()
+  ]
+  if (!tableIds.length) return { ok: true, groups: [] }
+  const before = options.beforeSnapshot
+  const after = options.afterSnapshot
+  if (!before || !after)
+    return failure(
+      "unsupported",
+      "SQLite table rebuild compilation requires exact beforeSnapshot and afterSnapshot values",
+      ["afterSnapshot"],
+    )
+  try {
+    assertSchemaSnapshot(before)
+    assertSchemaSnapshot(after)
     if (
-      approval?.decision !== "approve" ||
-      approval.safety !== operation.safety ||
-      approval.reason.trim().length === 0 ||
-      approval.findings.join("\0") !== findings.join("\0")
+      fingerprintSchemaSnapshot(before) !== plan.beforeFingerprint ||
+      fingerprintSchemaSnapshot(after) !== plan.afterFingerprint
     )
       return failure(
-        "approval-required",
-        `SQLite rebuild operation ${operation.id} requires exact approval`,
-        ["approvals"],
+        "unsupported",
+        "SQLite rebuild snapshots must match the reviewed plan fingerprints",
+        ["afterSnapshot"],
       )
+  } catch {
+    return failure("unsupported", "SQLite rebuild snapshots must be valid schema snapshots", [
+      "afterSnapshot",
+    ])
   }
-
-  const phases: MigrationProgramPhase[] = []
+  const groups: OperationGroup[] = []
   for (const tableId of tableIds) {
     const source = before.tables.find((table) => table.id === tableId)
     const target = after.tables.find((table) => table.id === tableId)
@@ -103,63 +99,71 @@ function compileRebuildProgram(
         "afterSnapshot",
         "tables",
       ])
-    const rendered = createStatements(after, target)
+    const members = plan.operations.filter((operation) => {
+      const parent = operation.origin?.after?.parent ?? operation.origin?.before?.parent
+      return (
+        (parent?.id === tableId && ["column", "constraint", "index"].includes(operation.kind)) ||
+        (operation.kind === "table" && operation.logicalId === tableId)
+      )
+    })
+    if (members.some((operation) => operation.status === "skipped"))
+      return failure(
+        "unsupported",
+        "A SQLite rebuild cannot use a target containing skipped table changes",
+        ["afterSnapshot", "tables"],
+      )
+    if (
+      source.physicalName !== target.physicalName ||
+      before.namespace.name !== after.namespace.name
+    )
+      return failure(
+        "unsupported",
+        "SQLite rebuild combined with a table or namespace rename requires an explicit program",
+        ["afterSnapshot", "tables"],
+      )
+    if ([...before.triggers, ...after.triggers].some((trigger) => trigger.table.id === tableId))
+      return failure(
+        "unsupported",
+        "SQLite rebuilds of tables with triggers require an explicit program",
+        ["afterSnapshot", "triggers"],
+      )
+    const rendered = createStatements(after, target, options)
     if (!rendered.ok) return rendered
     const temporaryName = `__qubu_rebuild_${target.physicalName}`
+    if (
+      before.tables.some((table) => table.physicalName === temporaryName) ||
+      after.tables.some((table) => table.physicalName === temporaryName)
+    )
+      return failure("unsupported", "SQLite rebuild temporary table name is already in use", [
+        "afterSnapshot",
+        "tables",
+      ])
     const targetQualified = qualify(after.namespace.name, target.physicalName)
     const temporaryQualified = qualify(after.namespace.name, temporaryName)
     const common = target.columns.flatMap((column) => {
       const old = source.columns.find((candidate) => candidate.id === column.id)
       return old ? [{ old: old.physicalName, next: column.physicalName }] : []
     })
-    const operationId =
-      plan.operations.find((operation) => {
-        const parent = operation.origin?.after?.parent ?? operation.origin?.before?.parent
-        return parent?.id === tableId
-      })?.id ?? `sqlite-rebuild-${tableId}`
-    const sql = [
-      rendered.create.replace(targetQualified, temporaryQualified),
-      ...(common.length === 0
-        ? []
-        : [
-            `INSERT INTO ${temporaryQualified} (${common.map((item) => quote(item.next)).join(", ")}) SELECT ${common.map((item) => quote(item.old)).join(", ")} FROM ${targetQualified}`,
-          ]),
-      `DROP TABLE ${targetQualified}`,
-      `ALTER TABLE ${temporaryQualified} RENAME TO ${quote(target.physicalName)}`,
-      ...rendered.indexes,
-    ]
-    const phasePosition = phases.length
-    phases.push({
-      id: `sqlite-rebuild-${tableId}`,
-      position: phasePosition,
+    if (!common.length)
+      return failure(
+        "unsupported",
+        "SQLite rebuild requires shared source and target column identities to preserve rows",
+        ["afterSnapshot", "tables"],
+      )
+    groups.push({
+      operationIds: members.map((operation) => operation.id),
+      statements: [
+        rendered.create.replace(targetQualified, temporaryQualified),
+        `INSERT INTO ${temporaryQualified} (${common.map((item) => quote(item.next)).join(", ")}) SELECT ${common.map((item) => quote(item.old)).join(", ")} FROM ${targetQualified}`,
+        `DROP TABLE ${targetQualified}`,
+        `ALTER TABLE ${temporaryQualified} RENAME TO ${quote(target.physicalName)}`,
+        ...rendered.indexes,
+      ],
       transaction: "required",
       lock: "exclusive",
-      dependsOn: phasePosition === 0 ? [] : [phases[phasePosition - 1]!.id],
-      statements: sql.map((statement, position) => ({
-        id: `sqlite-rebuild-${tableId}-${position}`,
-        position,
-        operationId,
-        sql: statement,
-        parameters: [],
-        dependsOn: position === 0 ? [] : [`sqlite-rebuild-${tableId}-${position - 1}`],
-      })),
-      preconditions: [
-        {
-          id: `${tableId}-source-present`,
-          type: "object-present",
-          value: {
-            type: "object-present",
-            path: ["tables"],
-            kind: "table",
-            namespace: before.namespace.name,
-            logicalId: source.id,
-            physicalName: source.physicalName,
-          },
-        },
-      ],
       postconditions: [
         {
-          id: `${tableId}-target-present`,
+          id: `condition-rebuild-${groups.length}-post`,
           type: "object-present",
           value: {
             type: "object-present",
@@ -173,31 +177,30 @@ function compileRebuildProgram(
       ],
     })
   }
-  return {
-    ok: true,
-    program: deepFreeze({
-      format: migrationProgramFormat,
-      version: migrationProgramVersion,
-      phases,
-    }),
-    customPrograms: [],
-  }
+  return { ok: true, groups }
 }
 
 function createStatements(
   snapshot: SchemaSnapshot,
   table: SnapshotTable,
+  options: CompileMigrationProgramOptions,
 ):
   | { readonly ok: true; readonly create: string; readonly indexes: readonly string[] }
   | Extract<MigrationProgramCompilationResult, { readonly ok: false }> {
-  const empty: SchemaSnapshot = { ...snapshot, tables: [] }
+  const empty: SchemaSnapshot = {
+    ...snapshot,
+    tables: snapshot.tables.filter((candidate) => candidate.id !== table.id),
+  }
   const planned = createMigrationPlan(diffSnapshots(empty, snapshot))
   if (!planned.ok)
     return failure("unsupported", `Could not plan SQLite rebuild table ${table.id}`, [
       "afterSnapshot",
       "tables",
     ]) as Extract<MigrationProgramCompilationResult, { readonly ok: false }>
-  const compiled = compileGenericMigrationProgram(planned.plan, sqliteSchemaDialect)
+  const compiled = compileGenericMigrationProgram(planned.plan, sqliteSchemaDialect, {
+    columnOrder: options.columnOrder,
+    serverVersion: options.serverVersion,
+  })
   if (!compiled.ok) return compiled
   const statements = compiled.program.phases.flatMap((phase) =>
     phase.statements.map((item) => item.sql),

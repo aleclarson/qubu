@@ -430,6 +430,7 @@ test("rejects multiple phases before creating an attempt", async () => {
         position: 1,
         dependsOn: [program.phases[0]!.id],
         statements: [],
+        absorbedOperationIds: [],
         preconditions: [],
         postconditions: [],
       },

@@ -4,6 +4,7 @@ import type { SnapshotJsonValue } from "qubu/snapshot"
 import { columnOrderError, type ColumnOrder } from "../ddl/column-order.ts"
 import { ddlEmitterForDialect } from "../ddl/index.ts"
 import { assertMigrationPlan, type MigrationOperation, type MigrationPlan } from "../plan/index.ts"
+import { canonicalText } from "./canonical.ts"
 import { validateMigrationProgram } from "./codec.ts"
 import {
   migrationProgramFormat,
@@ -31,6 +32,21 @@ export interface CompileMigrationProgramOptions {
   readonly serverVersion?: string | number
 }
 
+/** Compiler-owned lowering of operations represented by one atomic table replacement. */
+export interface OperationGroup {
+  readonly operationIds: readonly string[]
+  readonly statements?: readonly string[]
+  readonly transaction?: ProgramTransactionRequirement
+  readonly lock?: ProgramLockRequirement
+  readonly postconditions?: readonly ProgramCondition[]
+}
+
+type PrepareGroups = (
+  plan: MigrationPlan,
+) =>
+  | { readonly ok: true; readonly groups: readonly OperationGroup[] }
+  | Extract<MigrationProgramCompilationResult, { readonly ok: false }>
+
 const lockRank = { none: 0, shared: 1, exclusive: 2 } as const
 
 /**
@@ -41,6 +57,7 @@ export function compileMigrationProgram(
   input: MigrationPlan,
   dialect: SchemaDialect,
   options: CompileMigrationProgramOptions = {},
+  prepareGroups?: PrepareGroups,
 ): MigrationProgramCompilationResult {
   const orderingError = columnOrderError(options.columnOrder, dialect.name)
 
@@ -65,21 +82,40 @@ export function compileMigrationProgram(
     )
   }
 
-  const operations = plan.operations.filter(
-    (operation) =>
-      operation.status !== "skipped" &&
-      !(
-        operation.type === "add" &&
-        (operation.kind === "column" ||
-          (dialect.name === "sqlite" && operation.kind === "constraint")) &&
-        plan.operations.some(
-          (candidate) =>
-            candidate.type === "add" &&
-            candidate.kind === "table" &&
-            candidate.logicalId === operation.origin?.after?.parent?.id,
-        )
-      ),
-  )
+  const prepared = prepareGroups?.(plan)
+  if (prepared && !prepared.ok) return prepared
+  const operations = plan.operations.filter((operation) => operation.status !== "skipped")
+  const groups: OperationGroup[] = [...(prepared?.groups ?? [])]
+  for (const parent of operations) {
+    if (
+      !["table", "view", "materialized-view"].includes(parent.kind) ||
+      !["add", "remove"].includes(parent.type)
+    )
+      continue
+    const children = plan.operations.filter(
+      (operation) =>
+        operation.origin?.[parent.type === "add" ? "after" : "before"]?.parent?.id ===
+          parent.logicalId &&
+        operation.namespace === parent.namespace &&
+        operation.type === parent.type &&
+        (parent.type === "remove" ||
+          operation.kind === "column" ||
+          (dialect.name === "sqlite" && operation.kind === "constraint")),
+    )
+    if (children.some((child) => child.status === "skipped"))
+      return failure("unsupported", "A containing operation cannot apply skipped child changes", [
+        "operations",
+      ])
+    if (children.length)
+      groups.push({ operationIds: [parent.id, ...children.map((child) => child.id)] })
+  }
+  const groupFor = new Map<string, OperationGroup>()
+  for (const group of groups)
+    for (const id of group.operationIds) {
+      if (groupFor.has(id))
+        return failure("unsupported", "Overlapping containing operations", ["operations"])
+      groupFor.set(id, group)
+    }
   const operationIds = new Set(operations.map((operation) => operation.id))
   const approvals = indexExact(options.approvals ?? [], "approvals", operationIds, diagnostics)
   const customPrograms = indexExact(
@@ -97,6 +133,8 @@ export function compileMigrationProgram(
   const provenance: CustomProgramProvenance[] = []
 
   for (const operation of operations) {
+    const group = groupFor.get(operation.id)
+    const lowered = group?.statements !== undefined
     const approval = approvals.get(operation.id)
     const custom = customPrograms.get(operation.id) as CustomProgramSubstitution | undefined
     const findings = plan.diagnostics
@@ -112,9 +150,10 @@ export function compileMigrationProgram(
       operation.safety === "unsupported" ||
       operation.transaction === "unknown" ||
       operation.lock === "unknown" ||
-      operationRenderDiagnostics.some((finding) =>
-        ["unknown", "unsupported"].includes(finding.code),
-      )
+      (!group &&
+        operationRenderDiagnostics.some((finding) =>
+          ["unknown", "unsupported"].includes(finding.code),
+        ))
     const needsApproval = operation.safety !== "safe" || operation.type === "custom-sql"
 
     validateApproval(operation, approval, findings, needsCustom, needsApproval, diagnostics)
@@ -159,6 +198,30 @@ export function compileMigrationProgram(
       )
       continue
     }
+
+    if (group && (needsCustom || custom)) {
+      diagnostics.push(
+        issue(
+          "unsupported",
+          "A containing table operation cannot absorb a custom program",
+          ["operations"],
+          operation.id,
+        ),
+      )
+      continue
+    }
+    if (group && operation.transaction === "forbidden" && group.transaction === "required") {
+      diagnostics.push(
+        issue(
+          "transaction-conflict",
+          "Table rebuild requires a transaction",
+          ["operations"],
+          operation.id,
+        ),
+      )
+      continue
+    }
+    if (group && group.operationIds[0] !== operation.id) continue
 
     let statements: readonly {
       readonly sql: string
@@ -205,19 +268,59 @@ export function compileMigrationProgram(
         reason: custom.reason,
         ...(custom.revision === undefined ? {} : { revision: custom.revision }),
       })
+    } else if (lowered) {
+      transaction = group.transaction!
+      lock = group.lock!
+      statements = group.statements!.map((sql) => ({ sql, parameters: [] }))
     } else {
       if (operation.transaction === "unknown" || operation.lock === "unknown") continue
       transaction = operation.transaction
       lock = operation.lock
-      const sql = emitter.renderOperation(operation, plan.operations, dialect, {
-        columnOrder: options.columnOrder,
-      })
+      let sql: string | undefined
+      try {
+        sql = emitter.renderOperation(operation, operations, dialect, {
+          columnOrder: options.columnOrder,
+        })
+      } catch (error) {
+        diagnostics.push(issue("render-failed", String(error), ["operations"], operation.id))
+        continue
+      }
 
       if (sql === undefined || sql.trim().length === 0) {
-        // Child facts may already be represented by a parent CREATE/DROP statement.
+        diagnostics.push(
+          issue(
+            "render-failed",
+            "Active operation produced no SQL or containing operation",
+            ["operations"],
+            operation.id,
+          ),
+        )
         continue
       }
       statements = [{ sql, parameters: [] }]
+    }
+
+    if (group) {
+      const members = operations.filter((member) => group.operationIds.includes(member.id))
+      const requirements = new Set([transaction, ...members.map((member) => member.transaction)])
+      if (requirements.has("required") && requirements.has("forbidden")) {
+        diagnostics.push(
+          issue(
+            "transaction-conflict",
+            "Containing operations have incompatible transaction requirements",
+            ["operations"],
+            operation.id,
+          ),
+        )
+        continue
+      }
+      transaction = requirements.has("required")
+        ? "required"
+        : requirements.has("forbidden")
+          ? "forbidden"
+          : "optional"
+      for (const member of members)
+        if (member.lock !== "unknown" && lockRank[member.lock] > lockRank[lock]) lock = member.lock
     }
 
     const phasePosition = phases.length
@@ -237,8 +340,11 @@ export function compileMigrationProgram(
       lock,
       dependsOn: phasePosition === 0 ? [] : [`phase-${phasePosition - 1}`],
       statements: compiledStatements,
-      preconditions: custom?.preconditions ?? conditionsFor(operation),
-      postconditions: custom?.postconditions ?? [],
+      ...(group ? { absorbedOperationIds: group.operationIds.slice(1) } : {}),
+      preconditions:
+        custom?.preconditions ??
+        (group ? groupConditions(group, operations) : conditionsFor(operation)),
+      postconditions: custom?.postconditions ?? group?.postconditions ?? [],
     })
   }
 
@@ -246,11 +352,54 @@ export function compileMigrationProgram(
     return { ok: false, diagnostics: Object.freeze(diagnostics) }
   }
 
+  const phaseFor = new Map(
+    phases.flatMap((phase) =>
+      [
+        ...new Set([
+          ...phase.statements.map((statement) => statement.operationId),
+          ...(phase.absorbedOperationIds ?? []),
+        ]),
+      ].map((id) => [id, phase] as const),
+    ),
+  )
+  const ordered: MigrationProgramPhase[] = []
+  const pending = new Set(phases)
+  while (pending.size) {
+    const next = [...pending].find((phase) =>
+      operations
+        .filter((operation) => phaseFor.get(operation.id) === phase)
+        .every((operation) =>
+          operation.dependsOn.every((id) => {
+            const dependency = phaseFor.get(id)
+            return dependency === phase || (dependency !== undefined && !pending.has(dependency))
+          }),
+        ),
+    )
+    if (!next)
+      return failure("unsupported", "Containing operations cannot preserve plan dependency order", [
+        "dependencies",
+      ])
+    pending.delete(next)
+    const position = ordered.length
+    ordered.push({
+      ...next,
+      id: `phase-${position}`,
+      position,
+      dependsOn: position ? [`phase-${position - 1}`] : [],
+      statements: next.statements.map((statement, index) => ({
+        ...statement,
+        id: `statement-${position}-${index}`,
+        position: index,
+        dependsOn: index ? [`statement-${position}-${index - 1}`] : [],
+      })),
+    })
+  }
+
   const program: MigrationProgram = {
     format: migrationProgramFormat,
     version: migrationProgramVersion,
     ...(options.columnOrder === undefined ? {} : { columnOrder: options.columnOrder }),
-    phases,
+    phases: ordered,
   }
   const programDiagnostics = validateMigrationProgram(program, plan)
   if (programDiagnostics.length > 0) {
@@ -343,9 +492,45 @@ function resolveRequirements(
   return { transaction, lock }
 }
 
+function groupConditions(
+  group: OperationGroup,
+  operations: readonly MigrationOperation[],
+): readonly ProgramCondition[] {
+  const parent = operations.find((operation) => operation.id === group.operationIds[0])!
+  const parentAbsent =
+    parent.kind === "table" &&
+    parent.type === "add" &&
+    parent.preconditions.some(
+      (condition) =>
+        condition.type === "object-absent" &&
+        condition.kind === "table" &&
+        condition.logicalId === parent.logicalId,
+    )
+  const conditions = group.operationIds.flatMap((id) => {
+    const operation = operations.find((item) => item.id === id)!
+    return conditionsFor(operation).filter(
+      (condition) =>
+        !(
+          parentAbsent &&
+          operation !== parent &&
+          condition.type === "object-absent" &&
+          typeof condition.value === "object" &&
+          condition.value !== null &&
+          !Array.isArray(condition.value) &&
+          "logicalId" in condition.value &&
+          condition.value.logicalId === operation.logicalId &&
+          operation.origin?.after?.parent?.id === parent.logicalId
+        ),
+    )
+  })
+  return [
+    ...new Map(conditions.map((condition) => [canonicalText(condition.value), condition])).values(),
+  ]
+}
+
 function conditionsFor(operation: MigrationOperation): readonly ProgramCondition[] {
   return operation.preconditions.map((condition, index) => ({
-    id: `${operation.id}-precondition-${index}`,
+    id: `condition-${operation.position}-pre-${index}`,
     type: condition.type,
     value: condition as unknown as SnapshotJsonValue,
   }))

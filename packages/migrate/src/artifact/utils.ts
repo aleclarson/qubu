@@ -4,7 +4,7 @@ export function compilationFailure(
   code: ProgramCompilationDiagnostic["code"],
   message: string,
   path: readonly (string | number)[],
-): MigrationProgramCompilationResult {
+): Extract<MigrationProgramCompilationResult, { readonly ok: false }> {
   return {
     ok: false,
     diagnostics: Object.freeze([{ code, message, path }]),

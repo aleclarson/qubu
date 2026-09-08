@@ -70,6 +70,8 @@ export interface MigrationProgramPhase {
   readonly transaction: ProgramTransactionRequirement
   readonly lock: ProgramLockRequirement
   readonly dependsOn: readonly string[]
+  /** Active child changes represented by this phase’s containing table operation. */
+  readonly absorbedOperationIds?: readonly string[]
   readonly statements: readonly MigrationProgramStatement[]
   readonly preconditions: readonly ProgramCondition[]
   readonly postconditions: readonly ProgramCondition[]
