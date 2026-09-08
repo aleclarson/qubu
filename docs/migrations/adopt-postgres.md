@@ -10,7 +10,7 @@ An intentional `readSnapshot` override remains available.
 
 ## Configure a pinned connection
 
-`pgMigrationAdapter(client)` requires a connected `Client` or an acquired
+`migrationAdapter(client)` requires a connected `Client` or an acquired
 `PoolClient`. The caller owns connecting, releasing, and ending it. Keep that
 connection exclusively available to the migration session until it closes.
 Qubu closes its session and releases its locks; it never ends or releases the
@@ -24,7 +24,7 @@ The schema must already exist.
 
 ```ts
 import { defineConfig } from "@qubu/cli/config"
-import { pgMigrationAdapter } from "@qubu/adapter-pg/migration"
+import { migrationAdapter } from "@qubu/adapter-pg/migration"
 import { Client } from "pg"
 import snapshot from "./schema.snapshot.js"
 
@@ -42,7 +42,7 @@ export default defineConfig({
         await client.connect()
         const namespace = '"' + snapshot.namespace.name.replaceAll('"', '""') + '"'
         await client.query("SELECT set_config('search_path', $1, false)", [namespace])
-        const session = await pgMigrationAdapter(client).openMigrationSession(signal)
+        const session = await migrationAdapter(client).openMigrationSession(signal)
         const close = session.close.bind(session)
         let closed = false
         session.close = async () => {
@@ -83,7 +83,7 @@ and their attached metadata are excluded. Strict catalog failures remain errors,
 even outside selected tables. A managed reference to an excluded object can
 therefore require a broader managed scope before capture succeeds.
 
-`readPgMigrationSnapshot(client, expected)` also exposes this reader directly.
+`readMigrationSnapshot(client, expected)` also exposes this reader directly.
 Without `expected`, it inspects all non-journal objects in `public`.
 
 ## Capture, preflight, and accept

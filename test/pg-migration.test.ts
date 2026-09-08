@@ -2,7 +2,7 @@ import type { ClientBase } from "pg"
 import { encodeSchemaSnapshot, type SchemaSnapshot } from "qubu/snapshot"
 import { expect, test, vi } from "vitest"
 
-import { pgMigrationAdapter, readPgMigrationSnapshot } from "../adapters/pg/src/migration.ts"
+import { migrationAdapter, readMigrationSnapshot } from "../adapters/pg/src/migration.ts"
 import {
   postgresColumnsQuery,
   postgresConstraintsQuery,
@@ -118,7 +118,7 @@ function fixture() {
 
 test("captures managed pg facts while excluding journal and unmanaged table metadata", async () => {
   const { client, query } = fixture()
-  const all = await readPgMigrationSnapshot(client)
+  const all = await readMigrationSnapshot(client)
   const table = all.snapshot.tables[0]!
   const scope: SchemaSnapshot = {
     ...all.snapshot,
@@ -137,7 +137,7 @@ test("captures managed pg facts while excluding journal and unmanaged table meta
       },
     ],
   }
-  const result = await readPgMigrationSnapshot(client, scope)
+  const result = await readMigrationSnapshot(client, scope)
 
   expect(result.snapshot.tables.map((table) => table.physicalName)).toEqual(["accounts"])
   expect(result.snapshot.tables[0]!.columns.map((column) => column.physicalName)).toEqual(["id"])
@@ -162,7 +162,7 @@ test("captures managed pg facts while excluding journal and unmanaged table meta
 
 test("preserves metadata identities for same-named constraints, indexes, and table columns", async () => {
   const { client } = fixture()
-  const first = await readPgMigrationSnapshot(client)
+  const first = await readMigrationSnapshot(client)
   const previous: SchemaSnapshot = {
     ...first.snapshot,
     comments: first.snapshot.comments.map((item, i) => ({
@@ -174,7 +174,7 @@ test("preserves metadata identities for same-named constraints, indexes, and tab
       id: `ownership${i}`,
     })),
   }
-  const reread = await readPgMigrationSnapshot(client, previous)
+  const reread = await readMigrationSnapshot(client, previous)
 
   expect(reread.snapshot.comments).toEqual(previous.comments)
   expect(reread.snapshot.ownership).toEqual(previous.ownership)
@@ -191,13 +191,13 @@ test("preserves metadata identities for same-named constraints, indexes, and tab
       .sort(),
   ).toEqual(["accounts", "external"])
   expect(
-    encodeSchemaSnapshot((await readPgMigrationSnapshot(client, reread.snapshot)).snapshot),
+    encodeSchemaSnapshot((await readMigrationSnapshot(client, reread.snapshot)).snapshot),
   ).toBe(encodeSchemaSnapshot(reread.snapshot))
 })
 
 test("preserves table and column logical IDs without supplying absent managed tables", async () => {
   const { client } = fixture()
-  const first = await readPgMigrationSnapshot(client)
+  const first = await readMigrationSnapshot(client)
   const accounts = first.snapshot.tables[0]!
   // Select identities without prior metadata so all returned metadata must follow the new graph.
   const scope: SchemaSnapshot = {
@@ -222,7 +222,7 @@ test("preserves table and column logical IDs without supplying absent managed ta
       },
     ],
   }
-  const result = await readPgMigrationSnapshot(client, scope)
+  const result = await readMigrationSnapshot(client, scope)
 
   expect(result.snapshot.tables.map((table) => table.id)).toEqual(["customers"])
   expect(result.snapshot.tables[0]!.columns[0]!.id).toBe("identifier")
@@ -240,7 +240,7 @@ test("rejects strict pg catalog failures and unresolved managed relationships", 
   const failed = fixture()
 
   failed.query.mockRejectedValueOnce(new Error("catalog denied"))
-  await expect(readPgMigrationSnapshot(failed.client)).rejects.toThrow(
+  await expect(readMigrationSnapshot(failed.client)).rejects.toThrow(
     "Strict PostgreSQL introspection failed",
   )
 
@@ -256,10 +256,10 @@ test("rejects strict pg catalog failures and unresolved managed relationships", 
     confkey: [1],
     convalidated: true,
   })
-  const all = await readPgMigrationSnapshot(foreignKey.client)
+  const all = await readMigrationSnapshot(foreignKey.client)
 
   await expect(
-    readPgMigrationSnapshot(foreignKey.client, {
+    readMigrationSnapshot(foreignKey.client, {
       ...all.snapshot,
       tables: [all.snapshot.tables[0]!],
     }),
@@ -271,9 +271,9 @@ test("uses caller inspection overrides and leaves pinned pg client shutdown to i
   const end = vi.fn()
 
   Object.assign(client, { end })
-  const inspection = await readPgMigrationSnapshot(client)
+  const inspection = await readMigrationSnapshot(client)
   const readSnapshot = vi.fn(async () => inspection)
-  const session = await pgMigrationAdapter(client, { readSnapshot }).openMigrationSession()
+  const session = await migrationAdapter(client, { readSnapshot }).openMigrationSession()
 
   expect(await session.readSnapshot!(inspection.snapshot)).toBe(inspection)
   expect(readSnapshot).toHaveBeenCalledWith(client, inspection.snapshot)

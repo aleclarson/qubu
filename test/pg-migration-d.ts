@@ -1,7 +1,7 @@
 import type { Client, Pool, PoolClient } from "pg"
 import { expectTypeOf } from "vitest"
 
-import { pgMigrationAdapter, readPgMigrationSnapshot } from "../adapters/pg/src/migration.ts"
+import { migrationAdapter, readMigrationSnapshot } from "../adapters/pg/src/migration.ts"
 import type {
   MigrationAdapter,
   MigrationSnapshotInspection,
@@ -11,11 +11,11 @@ declare const client: Client
 declare const pinned: PoolClient
 declare const pool: Pool
 
-expectTypeOf(pgMigrationAdapter(client)).toMatchTypeOf<MigrationAdapter>()
-expectTypeOf(pgMigrationAdapter(pinned, {})).toMatchTypeOf<MigrationAdapter>()
-expectTypeOf(readPgMigrationSnapshot(client)).toEqualTypeOf<Promise<MigrationSnapshotInspection>>()
-pgMigrationAdapter(client, {
-  readSnapshot: (connection, expected) => readPgMigrationSnapshot(connection, expected),
+expectTypeOf(migrationAdapter(client)).toMatchTypeOf<MigrationAdapter>()
+expectTypeOf(migrationAdapter(pinned, {})).toMatchTypeOf<MigrationAdapter>()
+expectTypeOf(readMigrationSnapshot(client)).toEqualTypeOf<Promise<MigrationSnapshotInspection>>()
+migrationAdapter(client, {
+  readSnapshot: (connection, expected) => readMigrationSnapshot(connection, expected),
 })
 // @ts-expect-error Migration sessions require an already-pinned connection.
-pgMigrationAdapter(pool)
+migrationAdapter(pool)

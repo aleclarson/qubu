@@ -6,10 +6,10 @@ import {
 } from "@qubu/migrate/executor"
 import type { ClientBase, QueryResultRow } from "pg"
 
-import { readPgMigrationSnapshot } from "./migration-snapshot.ts"
+import { readMigrationSnapshot } from "./migration-snapshot.ts"
 import { postgresMigrationAdapter } from "./migration-support.ts"
 
-export { readPgMigrationSnapshot } from "./migration-snapshot.ts"
+export { readMigrationSnapshot } from "./migration-snapshot.ts"
 
 /** Inspection and session settings for one caller-owned pinned PostgreSQL client. */
 export interface PgMigrationAdapterOptions {
@@ -42,6 +42,6 @@ export function migrationAdapter(
       }
     },
     readSnapshot: (_connection, expected) =>
-      (options.readSnapshot ?? readPgMigrationSnapshot)(client, expected),
+      (options.readSnapshot ?? readMigrationSnapshot)(client, expected),
   })
 }

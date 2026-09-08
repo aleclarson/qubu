@@ -1,7 +1,7 @@
 import { createClient } from "@libsql/client"
 import { expect, test } from "vitest"
 
-import { readLibsqlMigrationSnapshot } from "../../adapters/libsql/src/migration.ts"
+import { readMigrationSnapshot } from "../../adapters/libsql/src/migration.ts"
 import type { SchemaSnapshot } from "../../src/snapshot/index.ts"
 
 const sqlite = process.env.QUBU_E2E_DIALECT === "sqlite"
@@ -16,7 +16,7 @@ test.runIf(sqlite)(
         "CREATE TABLE qubu_baseline_game (id INTEGER PRIMARY KEY, title TEXT NOT NULL DEFAULT 'untitled')",
       )
       await database.execute("CREATE TABLE qubu_baseline_external (value TEXT)")
-      const catalog = await readLibsqlMigrationSnapshot(database)
+      const catalog = await readMigrationSnapshot(database)
       const game = catalog.snapshot.tables.find(
         (table) => table.physicalName === "qubu_baseline_game",
       )!
@@ -37,7 +37,7 @@ test.runIf(sqlite)(
           },
         ],
       }
-      const captured = await readLibsqlMigrationSnapshot(database, scope)
+      const captured = await readMigrationSnapshot(database, scope)
 
       expect(captured.snapshot.tables).toHaveLength(1)
       expect(captured.snapshot.tables[0]!.columns.map((column) => column.physicalName)).toEqual([

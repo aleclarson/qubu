@@ -695,7 +695,7 @@ test("records a verified baseline atomically and reports unmanaged tables separa
   const result = await createBaseline({
     adapter: migrationAdapter(database),
     id: "existing-production",
-    candidate: (await captureBaseline({ adapter: libsqlMigrationAdapter(database), scope: target }))
+    candidate: (await captureBaseline({ adapter: migrationAdapter(database), scope: target }))
       .snapshot,
     scope: target,
     repository: [],

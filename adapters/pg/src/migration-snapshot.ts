@@ -11,7 +11,7 @@ import { readCatalog } from "qubu/introspection/postgres"
  * and reserved __qubu_migration_ objects are removed with their metadata. Unresolved relationships
  * and strict catalog failures throw.
  */
-export async function readPgMigrationSnapshot(
+export async function readMigrationSnapshot(
   client: ClientBase,
   expected?: MigrationSnapshot,
 ): Promise<MigrationSnapshotInspection> {

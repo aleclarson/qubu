@@ -9,7 +9,7 @@ import {
 import { createSchemaSnapshot } from "qubu/snapshot/postgres"
 import { expect, test } from "vitest"
 
-import { pgMigrationAdapter, readPgMigrationSnapshot } from "../../adapters/pg/src/migration.ts"
+import { migrationAdapter, readMigrationSnapshot } from "../../adapters/pg/src/migration.ts"
 import { sealExecutableArtifact } from "../../packages/migrate/src/artifact/index.ts"
 import { compileMigrationProgram } from "../../packages/migrate/src/artifact/postgres.ts"
 import {
@@ -50,7 +50,7 @@ test.runIf(postgres)(
           name: namespace,
         },
       }
-      const all = await readPgMigrationSnapshot(client, selection)
+      const all = await readMigrationSnapshot(client, selection)
       const game = all.snapshot.tables[0]!
       const scope: SchemaSnapshot = canonicalizeCompleteSchemaSnapshot({
         ...all.snapshot,
@@ -78,7 +78,7 @@ test.runIf(postgres)(
           },
         ],
       })
-      const adapter = pgMigrationAdapter(client)
+      const adapter = migrationAdapter(client)
       const capture = await captureBaseline({
         adapter,
         scope,
