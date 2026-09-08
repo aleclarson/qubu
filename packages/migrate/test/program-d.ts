@@ -52,4 +52,11 @@ const propertyCondition: ProgramCondition = {
     value: false,
   },
 }
+
 void propertyCondition
+
+compileMigrationProgram(plan, { columnOrder: "declaration" })
+compileMigrationProgram(plan, {
+  // @ts-expect-error only the declared ordering policies are accepted
+  columnOrder: "size",
+})

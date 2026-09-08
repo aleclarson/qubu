@@ -24,3 +24,9 @@ void statements
 void postgresEmission
 void sqliteEmission
 void mysqlEmission
+
+postgresDdl.emitMigrationPlan(plan, { columnOrder: "alignment" })
+postgresDdl.emitMigrationPlan(plan, {
+  // @ts-expect-error column order is an explicit policy
+  columnOrder: "size",
+})

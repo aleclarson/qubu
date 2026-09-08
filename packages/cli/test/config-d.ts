@@ -24,3 +24,13 @@ defineConfig({
   // @ts-expect-error environment names are explicit application policy
   environment: "preview",
 })
+
+defineConfig({
+  artifacts: "migrations",
+  columnOrder: "alignment",
+})
+defineConfig({
+  artifacts: "migrations",
+  // @ts-expect-error column order is an explicit policy
+  columnOrder: "size",
+})

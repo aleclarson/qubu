@@ -77,6 +77,8 @@ export interface MigrationProgramPhase {
 
 /** Versioned authoritative executable representation. SQL summaries are deliberately absent. */
 export interface MigrationProgram {
+  /** Creation-time ordering used by first-party SQL and sealed snapshot metadata. */
+  readonly columnOrder?: "declaration" | "alignment"
   readonly format: typeof migrationProgramFormat
   readonly version: typeof migrationProgramVersion
   readonly phases: readonly MigrationProgramPhase[]

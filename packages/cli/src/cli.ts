@@ -85,6 +85,11 @@ const format = option({
   defaultValue: () => "human" as const,
   defaultValueIsSerializable: true,
 })
+const columnOrder = option({
+  long: "column-order",
+  type: optional(oneOf(["declaration", "alignment"] as const)),
+  description: "New-table column order (alignment is PostgreSQL-only)",
+})
 const configPath = option({
   long: "config",
   type: string,
@@ -254,6 +259,7 @@ export function createCli(runtime: CliRuntime = {}) {
     name: "create",
     description: "Create and seal a migration artifact",
     args: {
+      columnOrder,
       id: positional({ displayName: "id" }),
       config: configPath,
       format,
@@ -481,6 +487,7 @@ export function createCli(runtime: CliRuntime = {}) {
     name: "bootstrap",
     description: "Plan or execute a fresh schema through the migration executor",
     args: {
+      columnOrder,
       config: configPath,
       format,
       nonInteractive,
@@ -503,6 +510,7 @@ export function createCli(runtime: CliRuntime = {}) {
         approvals,
         customPrograms: context.config.customPrograms,
         serverVersion: context.config.serverVersion,
+        columnOrder: resolveColumnOrder(args.columnOrder, context.config),
       })
 
       if (!compiled.ok) {
@@ -644,6 +652,7 @@ async function loadContext(configPath: string, runtime: CliRuntime): Promise<Con
 async function createMigration(
   args: {
     id: string
+    columnOrder?: "declaration" | "alignment"
     approvals: string[]
     approvedBy?: string
     dryRun: boolean
@@ -690,6 +699,7 @@ async function createMigration(
     approvals,
     customPrograms: context.config.customPrograms,
     serverVersion: context.config.serverVersion,
+    columnOrder: resolveColumnOrder(args.columnOrder, context.config),
   })
 
   if (!compiled.ok) {
@@ -1016,4 +1026,14 @@ export function stableJson(value: unknown): string {
         )
       : child,
   )}\n`
+}
+
+function resolveColumnOrder(value: unknown, config: QubuCliConfig): QubuCliConfig["columnOrder"] {
+  if (value === undefined) {
+    return config.columnOrder
+  }
+  if (value === "declaration" || value === "alignment") {
+    return value
+  }
+  throw new CliFailure("usage", "Column order must be declaration or alignment")
 }

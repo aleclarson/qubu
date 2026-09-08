@@ -1,6 +1,7 @@
 import type { SchemaDialect } from "qubu/schema"
 import type { SnapshotJsonValue } from "qubu/snapshot"
 
+import { columnOrderError, type ColumnOrder } from "../ddl/column-order.ts"
 import { ddlEmitterForDialect } from "../ddl/index.ts"
 import { assertMigrationPlan, type MigrationOperation, type MigrationPlan } from "../plan/index.ts"
 import { validateMigrationProgram } from "./codec.ts"
@@ -23,6 +24,8 @@ import {
 import { compilationFailure as failure, deepFreeze } from "./utils.ts"
 
 export interface CompileMigrationProgramOptions {
+  /** New-table order; defaults to declaration. Alignment is PostgreSQL-only. */
+  readonly columnOrder?: ColumnOrder
   readonly approvals?: readonly OperationApproval[]
   readonly customPrograms?: readonly CustomProgramSubstitution[]
   readonly serverVersion?: string | number
@@ -39,6 +42,12 @@ export function compileMigrationProgram(
   dialect: SchemaDialect,
   options: CompileMigrationProgramOptions = {},
 ): MigrationProgramCompilationResult {
+  const orderingError = columnOrderError(options.columnOrder, dialect.name)
+
+  if (orderingError) {
+    return failure("unsupported", orderingError, ["columnOrder"])
+  }
+
   const diagnostics: ProgramCompilationDiagnostic[] = []
   let plan: MigrationPlan
 
@@ -82,6 +91,7 @@ export function compileMigrationProgram(
   const emitter = ddlEmitterForDialect(dialect)
   const renderDiagnostics = emitter.diagnose(plan, dialect, {
     serverVersion: options.serverVersion,
+    columnOrder: options.columnOrder,
   })
   const phases: MigrationProgramPhase[] = []
   const provenance: CustomProgramProvenance[] = []
@@ -199,7 +209,10 @@ export function compileMigrationProgram(
       if (operation.transaction === "unknown" || operation.lock === "unknown") continue
       transaction = operation.transaction
       lock = operation.lock
-      const sql = emitter.renderOperation(operation, plan.operations, dialect)
+      const sql = emitter.renderOperation(operation, plan.operations, dialect, {
+        columnOrder: options.columnOrder,
+      })
+
       if (sql === undefined || sql.trim().length === 0) {
         // Child facts may already be represented by a parent CREATE/DROP statement.
         continue
@@ -236,6 +249,7 @@ export function compileMigrationProgram(
   const program: MigrationProgram = {
     format: migrationProgramFormat,
     version: migrationProgramVersion,
+    ...(options.columnOrder === undefined ? {} : { columnOrder: options.columnOrder }),
     phases,
   }
   const programDiagnostics = validateMigrationProgram(program, plan)

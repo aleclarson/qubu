@@ -1001,7 +1001,15 @@ function operationForMatch(
 ): SnapshotDiffOperation | undefined {
   const before = match.before.object
   const after = match.after.object
-  const changedProperties = propertyChangesBetween(before.value, after.value)
+  // Physical column order is creation-time policy, never an existing-table change.
+  const changedProperties = propertyChangesBetween(before.value, after.value).filter(
+    (change) =>
+      !(
+        before.kind === "column" &&
+        change.path.length === 1 &&
+        change.path[0] === "ordinalPosition"
+      ),
+  )
   const physicalRename =
     before.physicalName !== undefined &&
     after.physicalName !== undefined &&

@@ -2,6 +2,7 @@ import type { SchemaDialect } from "qubu/schema"
 import type { SnapshotExpression } from "qubu/snapshot"
 
 import { assertMigrationPlan, type MigrationOperation, type MigrationPlan } from "../plan/index.ts"
+import { alignColumns, columnOrderError, type ColumnOrder } from "./column-order.ts"
 import type {
   DdlDiagnostic,
   DdlEmission,
@@ -14,6 +15,7 @@ type JsonRecord = Record<string, unknown>
 
 export interface DdlFeatures {
   readonly dialect: "postgresql" | "sqlite" | "mysql"
+  readonly columnOrder?: ColumnOrder
   readonly supports: ReadonlySet<string>
 }
 
@@ -84,7 +86,10 @@ export function createDdlEmitter(features: DdlFeatures): DdlEmitter {
             continue
           }
 
-          const sql = renderOperation(operation, validated.operations, schemaDialect, features)
+          const sql = renderOperation(operation, validated.operations, schemaDialect, {
+            ...features,
+            columnOrder: options.columnOrder,
+          })
 
           if (sql === undefined || sql.length === 0) {
             continue
@@ -112,8 +117,17 @@ export function createDdlEmitter(features: DdlFeatures): DdlEmitter {
 
       return emission(true, schemaDialect.name, statements, diagnostics)
     },
-    renderOperation(operation, operations, schemaDialect) {
-      return renderOperation(operation, operations, schemaDialect, features)
+    renderOperation(operation, operations, schemaDialect, options = {}) {
+      const error = columnOrderError(options.columnOrder, schemaDialect.name)
+
+      if (error) {
+        throw new TypeError(error)
+      }
+
+      return renderOperation(operation, operations, schemaDialect, {
+        ...features,
+        columnOrder: options.columnOrder,
+      })
     },
   }
 
@@ -127,6 +141,19 @@ function preflight(
   features: DdlFeatures,
 ): readonly DdlDiagnostic[] {
   const diagnostics: DdlDiagnostic[] = []
+  const orderingError = columnOrderError(options.columnOrder, schemaDialect.name)
+
+  if (orderingError) {
+    return [
+      {
+        code: "unsupported",
+        severity: "error",
+        message: orderingError,
+        path: ["columnOrder"],
+      },
+    ]
+  }
+
   let plan: MigrationPlan
 
   try {
@@ -1260,9 +1287,14 @@ function renderCreateTable(
   dialect: SchemaDialect,
   features: DdlFeatures,
 ): string {
-  const columns = arrayOfRecords(value.columns).sort(
+  let columns = arrayOfRecords(value.columns).sort(
     (left, right) => numberValue(left.ordinalPosition) - numberValue(right.ordinalPosition),
   )
+
+  if (features.columnOrder === "alignment") {
+    columns = alignColumns(columns)
+  }
+
   const constraints = arrayOfRecords(value.constraints)
   const identityColumns = new Set(
     columns

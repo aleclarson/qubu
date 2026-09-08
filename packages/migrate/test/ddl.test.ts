@@ -1,8 +1,12 @@
 import { diffSnapshots } from "qubu/diff"
 import type { SchemaSnapshot } from "qubu/snapshot"
+import { mysqlSchemaDialect } from "qubu/snapshot/mysql"
 import { postgresSchemaDialect } from "qubu/snapshot/postgres"
+import { sqliteSchemaDialect } from "qubu/snapshot/sqlite"
 import { expect, test } from "vitest"
 
+import { compileMigrationProgram } from "../src/artifact/program.ts"
+import { physicalSnapshot } from "../src/ddl/column-order.ts"
 import { emitMigrationPlan } from "../src/ddl/index.ts"
 import * as mysqlDdl from "../src/ddl/mysql.ts"
 import * as postgresDdl from "../src/ddl/postgres.ts"
@@ -522,5 +526,165 @@ test("creates columns in ordinal order across dialects without mutating snapshot
     expect(result.ok).toBe(true)
     expect(result.sql.indexOf("zulu")).toBeLessThan(result.sql.indexOf("alpha"))
     expect(target.tables[0]!.columns.map((column) => column.id)).toEqual(["alpha", "zulu"])
+  }
+})
+
+test("packs known PostgreSQL fields stably and keeps variable or unknown types conservative", () => {
+  const dialect = {
+    name: "postgresql",
+    version: 1,
+  }
+  const columns = [
+    {
+      ...column("flag"),
+      storage: {
+        kind: "portable" as const,
+        type: "boolean",
+      },
+    },
+    {
+      ...column("label"),
+      storage: {
+        kind: "portable" as const,
+        type: "text",
+      },
+    },
+    {
+      ...column("count"),
+      storage: {
+        kind: "portable" as const,
+        type: "integer",
+      },
+    },
+    {
+      ...column("created"),
+      storage: {
+        kind: "portable" as const,
+        type: "timestamp",
+      },
+    },
+    {
+      ...column("updated"),
+      storage: {
+        kind: "portable" as const,
+        type: "timestamp",
+      },
+    },
+    {
+      ...column("custom"),
+      storage: {
+        kind: "native" as const,
+        dialect: "postgresql",
+        type: "custom_type",
+      },
+    },
+  ]
+  const target = snapshot(dialect, [table("packed", columns)])
+  const planned = createMigrationPlan(diffSnapshots(snapshot(dialect, []), target))
+
+  if (!planned.ok) {
+    throw new Error("Expected plan")
+  }
+  const packed = postgresDdl.emitMigrationPlan(planned.plan, { columnOrder: "alignment" })
+
+  expect(packed.ok).toBe(true)
+  const expected = ["created", "updated", "count", "flag", "label", "custom"]
+
+  expect(packed.sql.match(/"(?:created|updated|count|flag|label|custom)"/g)).toEqual(
+    expected.map((name) => `"${name}"`),
+  )
+  const compiled = compileMigrationProgram(planned.plan, postgresSchemaDialect, {
+    columnOrder: "alignment",
+  })
+
+  if (!compiled.ok) {
+    throw new Error(JSON.stringify(compiled.diagnostics))
+  }
+  expect(
+    compiled.program.phases
+      .flatMap((phase) => phase.statements)
+      .map((statement) => statement.sql)
+      .join("\n"),
+  ).toBe(packed.sql.replace(/;$/, ""))
+  expect(compiled.program.columnOrder).toBe("alignment")
+  const observed = physicalSnapshot(undefined, target, "alignment")
+
+  expect(
+    [...observed.tables[0]!.columns]
+      .sort((a, b) => a.ordinalPosition - b.ordinalPosition)
+      .map((column) => column.id),
+  ).toEqual(expected)
+  expect(diffSnapshots(observed, target).operations).toEqual([])
+  expect(physicalSnapshot(observed, target, "declaration")).toEqual(observed)
+  expect(postgresDdl.emitMigrationPlan(planned.plan).sql).not.toBe(packed.sql)
+  const expanded = snapshot(dialect, [
+    {
+      ...target.tables[0]!,
+      columns: [
+        {
+          ...column("added"),
+          ordinalPosition: 1,
+          nullable: true,
+        },
+        ...target.tables[0]!.columns.map((column) => ({
+          ...column,
+          ordinalPosition: column.ordinalPosition + 1,
+        })),
+      ],
+    },
+  ])
+  const alteration = createMigrationPlan(diffSnapshots(observed, expanded))
+
+  if (!alteration.ok) {
+    throw new Error(JSON.stringify(alteration.diagnostics))
+  }
+  const altered = physicalSnapshot(observed, expanded, "alignment", alteration.plan)
+
+  expect(altered.tables[0]!.columns.find((column) => column.id === "added")!.ordinalPosition).toBe(
+    7,
+  )
+  expect(
+    altered.tables[0]!.columns.find((column) => column.id === "created")!.ordinalPosition,
+  ).toBe(1)
+  expect(postgresDdl.emitMigrationPlan(alteration.plan, { columnOrder: "alignment" }).sql).toBe(
+    'ALTER TABLE "public"."packed" ADD COLUMN "added" TEXT;',
+  )
+})
+
+test("rejects alignment for MySQL and SQLite even with unsafe rendering allowed", () => {
+  for (const name of ["mysql", "sqlite"] as const) {
+    const plan = planFor({
+      name,
+      version: 1,
+    })
+    const emitter = name === "mysql" ? mysqlDdl : sqliteDdl
+    const result = emitter.emitMigrationPlan(plan, {
+      columnOrder: "alignment",
+      allowUnsafe: true,
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.statements).toEqual([])
+    expect(result.diagnostics[0]?.path).toEqual(["columnOrder"])
+    expect(
+      compileMigrationProgram(plan, name === "mysql" ? mysqlSchemaDialect : sqliteSchemaDialect, {
+        columnOrder: "alignment",
+      }).ok,
+    ).toBe(false)
+  }
+})
+
+test("retains physical order and dialect-specific ordinal gaps after dropping a column", () => {
+  for (const name of ["postgresql", "mysql", "sqlite"] as const) {
+    const dialect = { name, version: 1 }
+    const before = snapshot(dialect, [
+      table("ordered", [column("first"), column("removed"), column("last")]),
+    ])
+    const after = snapshot(dialect, [table("ordered", [column("last"), column("first")])])
+    const actual = physicalSnapshot(before, after)
+    expect(actual.tables[0]!.columns.map((column) => [column.id, column.ordinalPosition])).toEqual([
+      ["last", name === "postgresql" ? 3 : 2],
+      ["first", 1],
+    ])
   }
 })

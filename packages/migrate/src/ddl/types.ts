@@ -1,3 +1,7 @@
+import type { ColumnOrder } from "./column-order.ts"
+
+export type { ColumnOrder } from "./column-order.ts"
+
 import type { SchemaDialect } from "qubu/schema"
 
 import type {
@@ -57,6 +61,8 @@ export interface DdlStatement {
 
 /** Policy and execution-context facts used by DDL preflight. */
 export interface DdlEmissionOptions {
+  /** New-table order; defaults to declaration. Alignment is PostgreSQL-only. */
+  readonly columnOrder?: ColumnOrder
   /** Permit a plan whose own `ready` flag is false after reviewing diagnostics. */
   readonly allowBlocked?: boolean
   /** Alias for callers that intentionally permit all review gates. */
@@ -104,5 +110,6 @@ export interface DdlEmitter {
     operation: MigrationOperation,
     operations: readonly MigrationOperation[],
     schemaDialect: SchemaDialect,
+    options?: DdlEmissionOptions,
   ): string | undefined
 }

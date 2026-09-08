@@ -94,3 +94,18 @@ CREATE TABLE statements follow column `ordinalPosition` values, preserving schem
 declaration order across PostgreSQL, MySQL, and SQLite. Snapshot arrays remain
 sorted by ID for deterministic serialization; array order does not determine DDL
 column order.
+
+For new PostgreSQL tables, opt in to alignment ordering:
+
+```ts
+import { emitMigrationPlan } from "@qubu/migrate/ddl/postgres"
+
+const preview = emitMigrationPlan(plan, { columnOrder: "alignment" })
+```
+
+The default is `"declaration"`. Alignment ordering places known fixed-width types
+first, in descending alignment order, preserving declaration order for ties.
+Variable-length and unknown types retain their relative order after that group.
+This is a conservative heuristic: nulls and variable-length values affect actual
+savings. It does not rebuild or reorder existing tables or change index key order.
+MySQL and SQLite reject `"alignment"`.

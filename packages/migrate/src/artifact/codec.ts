@@ -1,5 +1,6 @@
 import { decodeSchemaSnapshot, type SnapshotJsonValue } from "qubu/snapshot"
 
+import { columnOrderError, physicalSnapshot } from "../ddl/column-order.ts"
 import { assertMigrationPlan, isMigrationPrecondition } from "../plan/index.ts"
 import {
   canonicalText,
@@ -47,8 +48,32 @@ export async function sealExecutableArtifact(
     throw new ArtifactValidationError(diagnostics)
   }
 
+  const orderingError = columnOrderError(input.program.columnOrder, input.dialect.name)
+
+  if (orderingError) {
+    throw new ArtifactValidationError([
+      diag("invalid-value", ["program", "columnOrder"], orderingError),
+    ])
+  }
+
   const beforeSnapshot = await sealSnapshot(input.beforeSnapshot, ["beforeSnapshot"])
-  const afterSnapshot = await sealSnapshot(input.afterSnapshot, ["afterSnapshot"])
+  const target = input.afterSnapshot.value
+  const before = input.beforeSnapshot.value
+  const afterSnapshot = await sealSnapshot(
+    target?.format === "qubu-schema"
+      ? {
+          ...input.afterSnapshot,
+          value: physicalSnapshot(
+            before?.format === "qubu-schema" ? before : undefined,
+            target,
+            input.program.columnOrder,
+            input.plan,
+            input.customPrograms?.map((item) => item.operationId),
+          ),
+        }
+      : input.afterSnapshot,
+    ["afterSnapshot"],
+  )
   const source = {
     ...input,
     canonicalization: canonicalizationDescriptor,
@@ -387,7 +412,11 @@ function program(value: unknown, out: ArtifactDiagnostic[]): value is MigrationP
     return false
   }
 
-  keys(value, ["format", "version", "phases"], out, ["program"])
+  keys(value, ["format", "version", "phases", "columnOrder"], out, ["program"], ["columnOrder"])
+  if (value.columnOrder !== undefined) {
+    oneOf(value.columnOrder, ["declaration", "alignment"], out, ["program", "columnOrder"])
+  }
+
   literal(value.format, migrationProgramFormat, out, ["program", "format"])
   literal(
     value.version,

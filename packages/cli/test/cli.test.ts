@@ -7,7 +7,11 @@ import {
   sealExecutableArtifact,
   type ExecutableMigrationArtifact,
 } from "@qubu/migrate/artifact"
-import { createBaseline, fromMigrationAdapter, type BaselineConfirmation } from "@qubu/migrate/baseline"
+import {
+  createBaseline,
+  fromMigrationAdapter,
+  type BaselineConfirmation,
+} from "@qubu/migrate/baseline"
 import type { MigrationAdapter } from "@qubu/migrate/executor"
 import { createMigrationPlan } from "@qubu/migrate/plan"
 import { DeterministicFakeMigrationAdapter } from "@qubu/migrate/testing"
@@ -657,3 +661,122 @@ async function noOpChain(count: number): Promise<ExecutableMigrationArtifact[]> 
 
   return result
 }
+
+test("uses configured column order and lets CLI flags override it for creation and bootstrap", async () => {
+  const source = postgresSnapshot()
+  const template = source.tables[0]!.columns[0]!
+  const target: SchemaSnapshot = {
+    ...source,
+    enums: [],
+    tables: [
+      {
+        ...source.tables[0]!,
+        columns: [
+          {
+            ...template,
+            id: "flag",
+            physicalName: "flag",
+            ordinalPosition: 1,
+            storage: {
+              kind: "portable",
+              type: "boolean",
+            },
+          },
+          {
+            ...template,
+            id: "count",
+            physicalName: "count",
+            ordinalPosition: 2,
+            storage: {
+              kind: "portable",
+              type: "integer",
+            },
+          },
+        ],
+      },
+    ],
+  }
+  const decoded = decodeSchemaSnapshot(
+    JSON.stringify({
+      ...target,
+      tables: target.tables.map((table) => ({
+        ...table,
+        columns: [...table.columns].sort((a, b) => a.id.localeCompare(b.id)),
+      })),
+    }),
+  )
+
+  if (!decoded.ok) {
+    throw new Error(JSON.stringify(decoded.diagnostics))
+  }
+  for (const override of [undefined, "declaration"] as const) {
+    const cwd = await temporaryDirectory()
+    const config: QubuCliConfig = {
+      artifacts: "migrations",
+      snapshot: decoded.value,
+      columnOrder: "alignment",
+    }
+    const flags = override ? ["--column-order", override] : []
+    const output: string[] = []
+    const errors: string[] = []
+    const runtime = {
+      cwd,
+      loadConfig: async () => config,
+      stdout: (text: string) => output.push(text),
+      stderr: (text: string) => errors.push(text),
+    }
+
+    expect(
+      await runCli(["schema", "bootstrap", "--dry-run", "--format", "json", ...flags], runtime),
+      errors.join(""),
+    ).toBe(0)
+    const sql = JSON.parse(output.join("")).phases[0].statements[0].sql as string
+
+    expect(sql.indexOf('"count"') < sql.indexOf('"flag"')).toBe(!override)
+    output.length = 0
+    expect(
+      await runCli(["migrate", "create", "ordered", "--format", "json", ...flags], runtime),
+      errors.join(""),
+    ).toBe(0)
+    const repository = new FileArtifactRepository("migrations", cwd)
+    const artifacts = await repository.list()
+
+    expect(artifacts).toHaveLength(1)
+    const artifact = JSON.parse(artifacts[0]!)
+
+    expect(artifact.program.phases[0].statements[0].sql).toBe(sql)
+    const columns = artifact.afterSnapshot.value.tables[0].columns as {
+      id: string
+      ordinalPosition: number
+    }[]
+
+    expect(columns.find((column) => column.id === "count")!.ordinalPosition).toBe(override ? 2 : 1)
+    output.length = 0
+    expect(
+      await runCli(
+        ["migrate", "create", "repeat", "--format", "json", "--column-order", "declaration"],
+        runtime,
+      ),
+      errors.join(""),
+    ).toBe(0)
+    const repeated = JSON.parse((await repository.list())[1]!)
+
+    expect(repeated.program.phases).toEqual([])
+    expect(repeated.afterSnapshot.digest).toBe(artifact.afterSnapshot.digest)
+  }
+})
+
+test("rejects alignment configuration for SQLite bootstrap", async () => {
+  const errors: string[] = []
+  const exit = await runCli(["schema", "bootstrap", "--dry-run", "--format", "json"], {
+    loadConfig: async () => ({
+      artifacts: "migrations",
+      snapshot: snapshot(),
+      columnOrder: "alignment",
+    }),
+    stderr: (text) => errors.push(text),
+  })
+
+  expect(exit).not.toBe(0)
+  expect(errors.join("")).toContain("only for PostgreSQL")
+})

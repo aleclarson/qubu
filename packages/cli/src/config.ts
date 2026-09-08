@@ -23,6 +23,8 @@ export interface MigrationApprovalContext {
 }
 
 export interface QubuCliConfig {
+  /** New-table order for generation; alignment is PostgreSQL-only. Defaults to declaration. */
+  readonly columnOrder?: "declaration" | "alignment"
   /** Application schema, retained for ownership and custom snapshot conversion. */
   readonly schema?: Schema<any>
   /** Canonical target snapshot, or application-owned conversion of `schema`. */

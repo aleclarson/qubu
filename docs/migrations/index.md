@@ -91,3 +91,34 @@ import { emitMigrationPlan } from "@qubu/migrate/ddl/postgres"
 
 const preview = emitMigrationPlan(plan)
 ```
+
+## Column order
+
+Migration generation defaults to declaration order. PostgreSQL can opt in to
+alignment ordering for new tables:
+
+```ts
+import { compileMigrationProgram } from "@qubu/migrate/artifact/postgres"
+
+const compiled = compileMigrationProgram(plan, { columnOrder: "alignment" })
+```
+
+For the CLI, add `columnOrder: "alignment"` to your existing `qubu.config.js`.
+Both generation commands also accept an override:
+
+```sh
+qubu migrate create add-users --column-order alignment
+qubu schema bootstrap --column-order alignment --dry-run
+```
+
+The flag overrides configuration; omitting both selects `"declaration"`. Use
+`--column-order declaration` to override an alignment setting. MySQL and SQLite
+reject alignment ordering. `qubu migrate apply` executes the sealed program;
+changing configuration does not change an existing artifact.
+
+Alignment ordering is a conservative PostgreSQL storage heuristic, not a guarantee
+of smaller rows. Known fixed-width columns come first, sorted by descending
+alignment with stable ties. Variable-length and unknown types follow in declaration
+order. Existing tables are never automatically repacked, and column-order-only
+snapshot differences do not generate migrations. Sealing retains existing physical
+column ordinals and records the selected order for new tables.
