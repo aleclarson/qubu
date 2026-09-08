@@ -5,6 +5,18 @@ import { queryValidationError } from "./query/errors.ts"
 import type { AnyQuery, QueryKind, QueryWithRow } from "./query/types.ts"
 import { decodeResultRow, type ResultDecoders, type ResultShape } from "./result.ts"
 
+// Keep the public cancellation type available without requiring Node or DOM types.
+declare global {
+  interface AbortSignal {
+    readonly aborted: boolean
+    readonly reason: any
+    throwIfAborted(): void
+  }
+}
+
+// Module-scoped so this does not redeclare the platform's global variable.
+declare const performance: { now(): number }
+
 export type StreamableQuery<TRow extends object = Record<string, unknown>> = QueryWithRow<TRow> & {
   readonly queryKind: "select" | "set"
 }
