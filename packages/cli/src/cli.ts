@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs"
 import { readFile, writeFile } from "node:fs/promises"
 import { resolve } from "node:path"
 import { pathToFileURL } from "node:url"
@@ -92,9 +93,8 @@ const columnOrder = option({
 })
 const configPath = option({
   long: "config",
-  type: string,
-  defaultValue: () => "qubu.config.js",
-  defaultValueIsSerializable: true,
+  type: optional(string),
+  description: "Config module path (defaults to qubu.config.js, then qubu.config.ts)",
 })
 const nonInteractive = flag({
   long: "non-interactive",
@@ -107,7 +107,7 @@ export function createCli(runtime: CliRuntime = {}) {
     async (
       args: T & {
         format: "human" | "json"
-        config: string
+        config: string | undefined
       },
     ): Promise<CommandResult> => {
       try {
@@ -612,9 +612,14 @@ interface Context {
   readonly signal: AbortSignal
 }
 
-async function loadContext(configPath: string, runtime: CliRuntime): Promise<Context> {
+async function loadContext(configPath: string | undefined, runtime: CliRuntime): Promise<Context> {
   const cwd = runtime.cwd ?? process.cwd()
-  const path = resolve(cwd, configPath)
+  const path = resolve(
+    cwd,
+    configPath ??
+      ["qubu.config.js", "qubu.config.ts"].find((name) => existsSync(resolve(cwd, name))) ??
+      "qubu.config.js",
+  )
   const config = runtime.loadConfig
     ? await runtime.loadConfig(path)
     : await import(pathToFileURL(path).href).then((module) => module.default as QubuCliConfig)

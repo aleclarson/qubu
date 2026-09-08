@@ -41,6 +41,63 @@ test("rejects missing command arguments with the usage exit code", async () => {
   expect(errors.join("")).toContain("id")
 })
 
+test.each([
+  {
+    files: ["qubu.config.js"],
+    args: [],
+    selected: "qubu.config.js",
+  },
+  {
+    files: ["qubu.config.ts"],
+    args: [],
+    selected: "qubu.config.ts",
+  },
+  {
+    files: ["qubu.config.js", "qubu.config.ts"],
+    args: [],
+    selected: "qubu.config.js",
+  },
+  {
+    files: ["qubu.config.js", "qubu.config.ts"],
+    args: ["--config", "qubu.config.ts"],
+    selected: "qubu.config.ts",
+  },
+  {
+    files: ["qubu.config.ts"],
+    args: ["--config", "qubu.config.js"],
+    selected: "qubu.config.js",
+  },
+  {
+    files: ["qubu.config.js", "qubu.config.ts", "custom.config.js"],
+    args: ["--config", "custom.config.js"],
+    selected: "custom.config.js",
+  },
+  {
+    files: [],
+    args: [],
+    selected: "qubu.config.js",
+  },
+])("selects $selected with files $files and arguments $args", async ({ files, args, selected }) => {
+  const cwd = await temporaryDirectory()
+
+  for (const file of files) {
+    await writeFile(join(cwd, file), "")
+  }
+
+  const loaded: string[] = []
+  const exit = await runCli(["migrate", "verify", ...args], {
+    cwd,
+    loadConfig: async (path) => {
+      loaded.push(path)
+      return { artifacts: "migrations" }
+    },
+    stdout: () => {},
+  })
+
+  expect(exit).toBe(0)
+  expect(loaded).toEqual([join(cwd, selected)])
+})
+
 test("validates application configuration before accessing artifacts", async () => {
   const errors: string[] = []
   const exit = await runCli(["migrate", "verify", "--format", "json"], {

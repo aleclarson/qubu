@@ -9,8 +9,10 @@ libSQL application:
 pnpm add @qubu/cli @qubu/migrate @qubu/adapter-libsql @libsql/client
 ```
 
-The `qubu` command loads `qubu.config.js` by default. Use `--config <path>` to
-select another configuration module.
+The `qubu` command looks for `qubu.config.js`, then `qubu.config.ts`, in the
+current working directory. If both exist, `.js` takes precedence. Use
+`--config <path>` to select a configuration module explicitly. TypeScript
+configs require a runtime that can import TypeScript; Qubu does not transpile them.
 
 Every command accepts:
 
