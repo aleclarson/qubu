@@ -25,7 +25,7 @@ export interface Mysql2MigrationResult {
  * before retrying. There are no leases, statement checkpoints, schema checks, or automatic
  * recovery.
  */
-export async function migrateMysql2(
+export async function migrate(
   connection: Pick<Mysql2Connection, "execute">,
   migrations: readonly Mysql2Migration[],
 ): Promise<Mysql2MigrationResult> {
@@ -123,7 +123,7 @@ export async function migrateMysql2(
   return { applied }
 }
 
-/** The shared executor profile remains unavailable. Use migrateMysql2 for basic SQL migrations. */
+/** The shared executor profile remains unavailable. Use migrate for basic SQL migrations. */
 export const mysql2MigrationProfile = Object.freeze({
   status: "not-yet-written",
   reason: "MySQL DDL implicit commits need live-proven lease, checkpoint, and recovery semantics.",

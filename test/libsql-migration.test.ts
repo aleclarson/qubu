@@ -8,10 +8,7 @@ import type { SchemaSnapshot } from "qubu/snapshot"
 import { completeSchemaSnapshotFingerprint } from "qubu/snapshot"
 import { afterEach, expect, test, vi } from "vitest"
 
-import {
-  libsqlMigrationAdapter,
-  readLibsqlMigrationSnapshot,
-} from "../adapters/libsql/src/migration.ts"
+import { migrationAdapter, readMigrationSnapshot } from "../adapters/libsql/src/migration.ts"
 import {
   sealExecutableArtifact,
   type ExecutableMigrationArtifact,
@@ -145,7 +142,7 @@ async function artifact(
 }
 
 function adapter(database: Client) {
-  return libsqlMigrationAdapter(database, {
+  return migrationAdapter(database, {
     async readSnapshot(executor) {
       const result = await executor.execute(
         "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE '__qubu_%' ORDER BY name",
@@ -566,8 +563,8 @@ test("refuses transaction-forbidden phases and unsupported DDL locks before jour
 
 test("strict snapshot reading excludes every migration journal object", async () => {
   const database = client()
-  const migrationAdapter = libsqlMigrationAdapter(database)
-  const session = await migrationAdapter.openMigrationSession()
+  const adapter = migrationAdapter(database)
+  const session = await adapter.openMigrationSession()
   await database.execute("CREATE TABLE user_data (value TEXT NOT NULL)")
   await database.execute("CREATE TABLE __qubu_migration_future (value TEXT)")
 
@@ -681,8 +678,8 @@ test("bootstraps inline SQLite constraints and round trips through strict intros
     provenance: { source: "bootstrap-test" },
   })
 
-  await executeMigrations({ repository: [migration], adapter: libsqlMigrationAdapter(database) })
-  const inspection = await readLibsqlMigrationSnapshot(database, target)
+  await executeMigrations({ repository: [migration], adapter: migrationAdapter(database) })
+  const inspection = await readMigrationSnapshot(database, target)
 
   if (inspection.snapshot.version !== 1) throw new Error("Expected a version 1 SQLite snapshot")
 
@@ -696,7 +693,7 @@ test("records a verified baseline atomically and reports unmanaged tables separa
   await database.execute("CREATE TABLE accounts (value TEXT NOT NULL)")
   const target = snapshot(["accounts"])
   const result = await createBaseline({
-    adapter: libsqlMigrationAdapter(database),
+    adapter: migrationAdapter(database),
     id: "existing-production",
     candidate: (await captureBaseline({ adapter: libsqlMigrationAdapter(database), scope: target }))
       .snapshot,
@@ -719,7 +716,7 @@ test("records a verified baseline atomically and reports unmanaged tables separa
 
   const status = await readMigrationStatus({
     repository: [result.artifact],
-    adapter: libsqlMigrationAdapter(database),
+    adapter: migrationAdapter(database),
   })
 
   expect(result.artifact).not.toHaveProperty("plan")
@@ -734,7 +731,7 @@ test("refuses a baseline when logical IDs agree but physical facts differ", asyn
 
   await expect(
     createBaseline({
-      adapter: libsqlMigrationAdapter(database),
+      adapter: migrationAdapter(database),
       id: "mismatch",
       candidate: snapshot(["accounts"]),
       scope: snapshot(["accounts"]),
@@ -822,7 +819,7 @@ test("rolls back an explicit SQLite rebuild when data-copy validation fails", as
   await expect(
     executeMigrations({
       repository: [migration],
-      adapter: libsqlMigrationAdapter(database, {
+      adapter: migrationAdapter(database, {
         async readSnapshot() {
           return before
         },

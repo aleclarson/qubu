@@ -72,7 +72,7 @@ export interface LibsqlMigrationAdapter extends MigrationAdapter {
 }
 
 /** Execute single-phase migrations through the application-owned client's atomic migrate API. */
-export function libsqlMigrationAdapter(
+export function migrationAdapter(
   client: Client,
   options: LibsqlMigrationAdapterOptions = {},
 ): LibsqlMigrationAdapter {
@@ -96,7 +96,7 @@ export function libsqlMigrationAdapter(
  * Read SQLite's physical catalog in strict mode. Every Qubu migration object is removed before
  * mapping, including future journal objects that use the reserved prefix.
  */
-export async function readLibsqlMigrationSnapshot(
+export async function readMigrationSnapshot(
   executor: Executor,
   expected?: SchemaSnapshot,
 ): Promise<MigrationSnapshotInspection> {
@@ -259,7 +259,7 @@ class LibsqlMigrationSession implements MigrationSession {
     try {
       catalog = String((await reader.execute(catalogSql)).rows[0]![0])
       const snapshot = normalizeSnapshot(
-        await (this.#options.readSnapshot ?? readLibsqlMigrationSnapshot)(reader, beforeSnapshot),
+        await (this.#options.readSnapshot ?? readMigrationSnapshot)(reader, beforeSnapshot),
       )
       const matches = isSha256Digest(snapshot)
         ? snapshot === artifact.beforeSnapshot.digest
@@ -458,7 +458,7 @@ class LibsqlMigrationSession implements MigrationSession {
   async readSnapshot(expected?: SchemaSnapshot): Promise<MigrationSnapshotInspection> {
     this.#open()
     const snapshot = normalizeSnapshot(
-      await (this.#options.readSnapshot ?? readLibsqlMigrationSnapshot)(this.#executor(), expected),
+      await (this.#options.readSnapshot ?? readMigrationSnapshot)(this.#executor(), expected),
     )
     if (isSha256Digest(snapshot)) {
       throw new TypeError("The configured snapshot reader returned only a digest")
@@ -470,7 +470,7 @@ class LibsqlMigrationSession implements MigrationSession {
     this.#open()
     if (expected !== undefined) this.#expectedSnapshot = expected
     const snapshot = normalizeSnapshot(
-      await (this.#options.readSnapshot ?? readLibsqlMigrationSnapshot)(this.#executor(), expected),
+      await (this.#options.readSnapshot ?? readMigrationSnapshot)(this.#executor(), expected),
     )
     if (isSha256Digest(snapshot)) return snapshot
     const value = snapshot.snapshot

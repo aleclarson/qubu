@@ -1,7 +1,7 @@
 import mysql, { type Connection } from "mysql2/promise"
 import { afterEach, beforeEach, describe, expect, test } from "vitest"
 
-import { migrateMysql2 } from "../../adapters/mysql2/src/migration.ts"
+import { migrate } from "../../adapters/mysql2/src/migration.ts"
 
 describe.skipIf(process.env.QUBU_E2E_DIALECT !== "mysql")("mysql2 SQL migrations", () => {
   let connection: Connection
@@ -39,7 +39,7 @@ describe.skipIf(process.env.QUBU_E2E_DIALECT !== "mysql")("mysql2 SQL migrations
       sql: ["CREATE TABLE accounts (id INT PRIMARY KEY)", "INSERT INTO accounts VALUES (1)"],
     }
 
-    expect(await migrateMysql2(connection, [initial])).toEqual({ applied: [initial.id] })
+    expect(await migrate(connection, [initial])).toEqual({ applied: [initial.id] })
     const migrations = [
       initial,
       {
@@ -48,8 +48,8 @@ describe.skipIf(process.env.QUBU_E2E_DIALECT !== "mysql")("mysql2 SQL migrations
       },
     ]
 
-    expect(await migrateMysql2(connection, migrations)).toEqual({ applied: ["002-name"] })
-    expect(await migrateMysql2(connection, migrations)).toEqual({ applied: [] })
+    expect(await migrate(connection, migrations)).toEqual({ applied: ["002-name"] })
+    expect(await migrate(connection, migrations)).toEqual({ applied: [] })
     const [rows] = await connection.query("SELECT * FROM accounts")
 
     expect(rows).toEqual([
@@ -65,7 +65,7 @@ describe.skipIf(process.env.QUBU_E2E_DIALECT !== "mysql")("mysql2 SQL migrations
 
   test("leaves partial DDL unrecorded and stops before subsequent migrations", async () => {
     await expect(
-      migrateMysql2(connection, [
+      migrate(connection, [
         {
           id: "partial",
           sql: [

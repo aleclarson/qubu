@@ -1,7 +1,7 @@
 import { expect, test, vi } from "vitest"
 
 import type { Mysql2Connection } from "../adapters/mysql2/src/index.ts"
-import { migrateMysql2 } from "../adapters/mysql2/src/migration.ts"
+import { migrate } from "../adapters/mysql2/src/migration.ts"
 
 function fixture() {
   const history: unknown[][] = []
@@ -48,16 +48,16 @@ test("runs migrations in supplied order and skips completed IDs on subsequent ru
     },
   ]
 
-  expect(await migrateMysql2(connection, migrations)).toEqual({ applied: ["z-first", "a-second"] })
+  expect(await migrate(connection, migrations)).toEqual({ applied: ["z-first", "a-second"] })
   expect(statements).toEqual(migrations.flatMap((migration) => migration.sql))
   expect(history).toEqual([
     ["z-first", expect.stringMatching(/^[a-f0-9]{64}$/), expect.any(Number)],
     ["a-second", expect.stringMatching(/^[a-f0-9]{64}$/), expect.any(Number)],
   ])
-  expect(await migrateMysql2(connection, migrations)).toEqual({ applied: [] })
+  expect(await migrate(connection, migrations)).toEqual({ applied: [] })
   expect(statements).toHaveLength(3)
   expect(
-    await migrateMysql2(connection, [
+    await migrate(connection, [
       ...migrations,
       {
         id: "third",
@@ -73,7 +73,7 @@ test("stops on SQL failure without recording the partial migration or running la
 
   failAt("FAIL")
   await expect(
-    migrateMysql2(connection, [
+    migrate(connection, [
       {
         id: "completed",
         sql: ["SELECT 1"],
@@ -97,7 +97,7 @@ test("stops on a history write failure even when migration SQL succeeded", async
 
   failAt("INSERT INTO __qubu_mysql2_migrations (id, hash, created_at) VALUES (?, ?, ?)")
   await expect(
-    migrateMysql2(connection, [
+    migrate(connection, [
       {
         id: "unrecorded",
         sql: ["CREATE TABLE accounts (id INT)"],
@@ -150,7 +150,7 @@ test.each([
 ])("rejects invalid migrations before making database calls: %j", async (...migrations) => {
   const { connection } = fixture()
 
-  await expect(migrateMysql2(connection, migrations)).rejects.toThrow(TypeError)
+  await expect(migrate(connection, migrations)).rejects.toThrow(TypeError)
   expect(connection.execute).not.toHaveBeenCalled()
 })
 
@@ -159,7 +159,7 @@ test("binds migration IDs as values and records an empty migration", async () =>
   const id = "it's an empty migration"
 
   expect(
-    await migrateMysql2(connection, [
+    await migrate(connection, [
       {
         id,
         sql: [],
@@ -177,7 +177,7 @@ test("rejects malformed history instead of treating migrations as pending", asyn
     .mockResolvedValueOnce([[{ id: 1 }], []])
 
   await expect(
-    migrateMysql2({ execute }, [
+    migrate({ execute }, [
       {
         id: "first",
         sql: ["SELECT 1"],

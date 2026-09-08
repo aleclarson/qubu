@@ -47,7 +47,7 @@ export interface NodeSqliteMigrationAdapter extends MigrationAdapter {
 }
 
 /** Adapt one application-owned, pinned `node:sqlite` connection for migrations. */
-export function nodeSqliteMigrationAdapter(
+export function migrationAdapter(
   database: DatabaseSync,
   options: NodeSqliteMigrationAdapterOptions,
 ): NodeSqliteMigrationAdapter {

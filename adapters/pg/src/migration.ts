@@ -23,7 +23,7 @@ export interface PgMigrationAdapterOptions {
 }
 
 /** Adapt one already-pinned `pg` client. Pools must acquire and release the client themselves. */
-export function pgMigrationAdapter(
+export function migrationAdapter(
   client: ClientBase,
   options: PgMigrationAdapterOptions = {},
 ): MigrationAdapter {

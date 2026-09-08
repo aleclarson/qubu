@@ -3,7 +3,7 @@ import type { SchemaSnapshot } from "qubu/snapshot"
 import { afterEach, expect, test, vi } from "vitest"
 
 import { postgresMigrationAdapter } from "../adapters/pg/src/migration-support.ts"
-import { pgliteMigrationAdapter } from "../adapters/pglite/src/migration.ts"
+import { migrationAdapter } from "../adapters/pglite/src/migration.ts"
 import { verifyMigrationAdapterConformance } from "../packages/migrate/src/testing/index.ts"
 
 const databases: PGlite[] = []
@@ -60,7 +60,7 @@ test("runs the shared conformance probe against a pinned PGlite session", async 
 
   databases.push(database)
   await verifyMigrationAdapterConformance({
-    adapter: pgliteMigrationAdapter(database, {
+    adapter: migrationAdapter(database, {
       async readSnapshot() {
         return snapshot()
       },

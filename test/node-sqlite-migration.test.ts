@@ -4,7 +4,7 @@ import { diffSnapshots } from "qubu/diff"
 import type { SchemaSnapshot } from "qubu/snapshot"
 import { afterEach, expect, test } from "vitest"
 
-import { nodeSqliteMigrationAdapter } from "../adapters/node-sqlite/src/migration.ts"
+import { migrationAdapter } from "../adapters/node-sqlite/src/migration.ts"
 import {
   sealExecutableArtifact,
   type Sha256Digest,
@@ -95,7 +95,7 @@ function snapshot(names: readonly string[]): SchemaSnapshot {
 }
 
 function adapter(value: DatabaseSync) {
-  return nodeSqliteMigrationAdapter(value, {
+  return migrationAdapter(value, {
     async readSnapshot(connection) {
       const rows = connection
         .prepare(
@@ -288,7 +288,7 @@ test("retries rollback cleanup when a failed rollback leaves the driver transact
       }
     },
   } as unknown as DatabaseSync
-  const session = await nodeSqliteMigrationAdapter(value, {
+  const session = await migrationAdapter(value, {
     async readSnapshot() {
       return snapshot([])
     },

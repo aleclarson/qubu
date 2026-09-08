@@ -26,7 +26,7 @@ Export a typed config and keep credentials inside the adapter factory:
 
 ```ts
 import { createClient } from "@libsql/client"
-import { libsqlMigrationAdapter, readLibsqlMigrationSnapshot } from "@qubu/adapter-libsql/migration"
+import { migrationAdapter, readMigrationSnapshot } from "@qubu/adapter-libsql/migration"
 import { defineConfig } from "@qubu/cli/config"
 import snapshot from "./schema.snapshot.js"
 
@@ -38,8 +38,8 @@ export default defineConfig({
   snapshot,
   environment: "production",
   adapter: () =>
-    libsqlMigrationAdapter(createClient({ url }), {
-      readSnapshot: readLibsqlMigrationSnapshot,
+    migrationAdapter(createClient({ url }), {
+      readSnapshot: readMigrationSnapshot,
     }),
   provenance: { source: "my-service" },
 })

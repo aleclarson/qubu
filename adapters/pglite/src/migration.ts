@@ -18,7 +18,7 @@ export interface PgliteMigrationAdapterOptions {
 }
 
 /** Adapt one application-owned PGlite database, whose query queue is the pinned session. */
-export function pgliteMigrationAdapter(
+export function migrationAdapter(
   database: PGliteInterface,
   options: PgliteMigrationAdapterOptions,
 ): MigrationAdapter {

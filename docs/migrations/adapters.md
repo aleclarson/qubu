@@ -64,7 +64,7 @@ match the adapter.
 ### Unavailable profiles
 
 MySQL has a [basic SQL migration runner](../../adapters/mysql2/README.md#run-sql-migrations),
-`migrateMysql2`, which executes pending statements and records completed
+`migrate`, which executes pending statements and records completed
 migrations. It runs independently of the shared executor and its stronger
 capability contract. The MySQL profile below remains unavailable; possible
 improvements are tracked in [issue #1](https://github.com/aleclarson/qubu/issues/1).
@@ -88,11 +88,11 @@ during strict inspection:
 
 ```ts
 import { createClient } from "@libsql/client"
-import { libsqlMigrationAdapter, readLibsqlMigrationSnapshot } from "@qubu/adapter-libsql/migration"
+import { migrationAdapter, readMigrationSnapshot } from "@qubu/adapter-libsql/migration"
 
 const client = createClient({ url: process.env.DATABASE_URL! })
-const adapter = libsqlMigrationAdapter(client, {
-  readSnapshot: readLibsqlMigrationSnapshot,
+const adapter = migrationAdapter(client, {
+  readSnapshot: readMigrationSnapshot,
 })
 ```
 

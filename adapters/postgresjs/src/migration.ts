@@ -18,7 +18,7 @@ export interface PostgresJsMigrationAdapterOptions {
 }
 
 /** Reserve one postgres.js connection for the complete migration lifecycle. */
-export function postgresJsMigrationAdapter(
+export function migrationAdapter(
   sql: Sql,
   options: PostgresJsMigrationAdapterOptions,
 ): MigrationAdapter {
