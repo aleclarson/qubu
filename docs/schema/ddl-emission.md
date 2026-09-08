@@ -89,3 +89,8 @@ For execution, compile the plan with `compileMigrationProgram()` from
 `@qubu/migrate/artifact`. The versioned program—not the aggregate `sql`
 string—is authoritative. See [Artifacts and approval
 policy](../migrations/artifacts-and-policy.md).
+
+CREATE TABLE statements follow column `ordinalPosition` values, preserving schema
+declaration order across PostgreSQL, MySQL, and SQLite. Snapshot arrays remain
+sorted by ID for deterministic serialization; array order does not determine DDL
+column order.

@@ -1260,7 +1260,9 @@ function renderCreateTable(
   dialect: SchemaDialect,
   features: DdlFeatures,
 ): string {
-  const columns = arrayOfRecords(value.columns)
+  const columns = arrayOfRecords(value.columns).sort(
+    (left, right) => numberValue(left.ordinalPosition) - numberValue(right.ordinalPosition),
+  )
   const constraints = arrayOfRecords(value.constraints)
   const identityColumns = new Set(
     columns

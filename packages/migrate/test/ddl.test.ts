@@ -501,3 +501,26 @@ test("reports malformed plans and unsupported dialect capabilities before SQL", 
   expect(emission.statements).toEqual([])
   expect(emission.diagnostics.some((item) => item.code === "unsupported")).toBe(true)
 })
+
+test("creates columns in ordinal order across dialects without mutating snapshots", () => {
+  for (const name of ["postgresql", "mysql", "sqlite"] as const) {
+    const dialect = { name, version: 1 }
+    const target = snapshot(dialect, [
+      {
+        ...table("ordered"),
+        columns: [
+          { ...column("alpha"), ordinalPosition: 2 },
+          { ...column("zulu"), ordinalPosition: 1 },
+        ],
+      },
+    ])
+    const planned = createMigrationPlan(diffSnapshots(snapshot(dialect, []), target))
+    expect(planned.ok).toBe(true)
+    if (!planned.ok) throw new Error("Expected plan")
+    const emitter = name === "postgresql" ? postgresDdl : name === "mysql" ? mysqlDdl : sqliteDdl
+    const result = emitter.emitMigrationPlan(planned.plan)
+    expect(result.ok).toBe(true)
+    expect(result.sql.indexOf("zulu")).toBeLessThan(result.sql.indexOf("alpha"))
+    expect(target.tables[0]!.columns.map((column) => column.id)).toEqual(["alpha", "zulu"])
+  }
+})
