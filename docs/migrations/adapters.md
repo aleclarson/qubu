@@ -63,6 +63,12 @@ match the adapter.
 
 ### Unavailable profiles
 
+MySQL has a [basic SQL migration runner](../../adapters/mysql2/README.md#run-sql-migrations),
+`migrateMysql2`, which executes pending statements and records completed
+migrations. It runs independently of the shared executor and its stronger
+capability contract. The MySQL profile below remains unavailable; possible
+improvements are tracked in [issue #1](https://github.com/aleclarson/qubu/issues/1).
+
 These exported profiles are unavailable and must not be passed to the
 executor:
 
