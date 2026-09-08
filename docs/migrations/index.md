@@ -41,7 +41,7 @@ entrypoint:
 | `@qubu/migrate/repository`         | Verify a complete artifact chain and its journal prefix                                                                       |
 | `@qubu/migrate/journal`            | Implement or inspect the storage-neutral journal contract                                                                     |
 | `@qubu/migrate/executor`           | Apply artifacts and reconcile uncertain attempts                                                                              |
-| `@qubu/migrate/baseline`           | Verify and record the initial non-executable baseline                                                                         |
+| `@qubu/migrate/baseline`           | Capture, preflight, and accept a reviewed live schema as the initial non-executable baseline                                  |
 | `@qubu/migrate/status`             | Inspect pending work, drift, requirements, and interrupted attempts                                                           |
 | `@qubu/migrate/bootstrap`          | Prepare a fresh schema diff and expose shared bootstrap types; accepts a caller-supplied `SchemaDialect` for generic planning |
 | `@qubu/migrate/bootstrap/postgres` | Plan a fresh PostgreSQL schema through the normal compiler                                                                    |
@@ -54,6 +54,8 @@ entrypoint:
   files and approve operations.
 - [Adapter capability profiles](adapters.md): choose a supported driver.
 - [Command line operations](operations.md): configure and use the CLI.
+- [Adopt an existing SQLite database](adopt-sqlite.md): capture, review, and accept
+  the live starting schema before planning reconciliation.
 - [Recovery and reconciliation](recovery.md): handle interrupted migrations.
 - [Lotta Games adoption](lotta-adoption.md): review the downstream cutover
   plan and combo-matrix release blocker.

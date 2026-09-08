@@ -21,15 +21,22 @@ export interface MigrationErrorContext {
 export class MigrationExecutionError extends Error {
   readonly name = "MigrationExecutionError"
   readonly retry: "safe" | "never"
+  /** Structured, credential-free diagnostic evidence when available. */
+  readonly details?: unknown
 
   constructor(
     readonly code: MigrationErrorCode,
     message: string,
     readonly context: MigrationErrorContext = {},
-    options: { readonly cause?: unknown; readonly retry?: "safe" | "never" } = {},
+    options: {
+      readonly cause?: unknown
+      readonly retry?: "safe" | "never"
+      readonly details?: unknown
+    } = {},
   ) {
     super(message, { cause: redactCause(options.cause) })
     this.retry = options.retry ?? "never"
+    this.details = options.details
   }
 }
 

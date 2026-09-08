@@ -1,3 +1,4 @@
+import { readFile, writeFile } from "node:fs/promises"
 import { resolve } from "node:path"
 import { pathToFileURL } from "node:url"
 
@@ -20,7 +21,12 @@ import {
   type MigrationArtifact,
   type OperationApproval,
 } from "@qubu/migrate/artifact"
-import { createBaseline, type BaselineConfirmation } from "@qubu/migrate/baseline"
+import {
+  captureBaseline,
+  createBaseline,
+  preflightBaseline,
+  type BaselineConfirmation,
+} from "@qubu/migrate/baseline"
 import { prepareSchemaBootstrap } from "@qubu/migrate/bootstrap"
 import {
   executeMigrations,
@@ -31,7 +37,12 @@ import { createMigrationPlan } from "@qubu/migrate/plan"
 import { verifyArtifactChain } from "@qubu/migrate/repository"
 import { readMigrationStatus } from "@qubu/migrate/status"
 import { diffSnapshots } from "qubu/diff"
-import type { SchemaDialect, SchemaSnapshot } from "qubu/snapshot"
+import {
+  decodeSchemaSnapshot,
+  encodeSchemaSnapshot,
+  type SchemaDialect,
+  type SchemaSnapshot,
+} from "qubu/snapshot"
 import { mysqlSchemaDialect } from "qubu/snapshot/mysql"
 import { postgresSchemaDialect } from "qubu/snapshot/postgres"
 import { sqliteSchemaDialect } from "qubu/snapshot/sqlite"
@@ -109,7 +120,7 @@ export function createCli(runtime: CliRuntime = {}) {
                 ok: false,
                 error: failure,
               })
-            : `Error [${failure.code}]: ${failure.message}\n`,
+            : `Error [${failure.code}]: ${failure.message}\n${failure.details === undefined ? "" : JSON.stringify(failure.details, null, 2) + "\n"}`,
           "stderr",
         )
         return { exitCode: failure.exitCode }
@@ -260,20 +271,59 @@ export function createCli(runtime: CliRuntime = {}) {
     handler: invoke(async (args, context) => createMigration(args, context)),
   })
 
+  const baselineCapture = command({
+    name: "baseline-capture",
+    description:
+      "Capture actual managed schema into a reviewable snapshot outside migration history",
+    args: {
+      config: configPath,
+      format,
+      nonInteractive,
+      out: option({
+        long: "out",
+        type: string,
+      }),
+    },
+    handler: invoke(async (args, context) => {
+      const path = candidatePath(args.out, context)
+      const scope = await resolveConfigSnapshot(context.config)
+      const result = await captureBaseline({
+        adapter: await resolveAdapter(context.config),
+        scope,
+        signal: context.signal,
+      })
+
+      await writeFile(path, encodeSchemaSnapshot(result.snapshot), {
+        encoding: "utf8",
+        flag: "wx",
+      })
+      return {
+        ok: true,
+        command: "migrate baseline-capture",
+        path,
+        ...baselineReview(context, scope, result.snapshot, result.unmanagedObjects),
+      }
+    }),
+  })
+
   const confirmationNames = [
     "database-target",
     "snapshot-source",
     "zero-managed-drift",
     "backup-restore-ready",
     "other-migrators-stopped",
-    "application-compatible",
+    "incompatible-application-prevented",
     "legacy-history-cutover",
   ] as const
   const baseline = command({
     name: "baseline",
-    description: "Verify live schema and record an explicit baseline",
+    description: "Verify a reviewed live candidate and record an explicit baseline",
     args: {
       id: positional({ displayName: "id" }),
+      candidate: option({
+        long: "candidate",
+        type: string,
+      }),
       config: configPath,
       format,
       nonInteractive,
@@ -289,7 +339,7 @@ export function createCli(runtime: CliRuntime = {}) {
       const missing = confirmationNames.filter((name) => !supplied.has(name))
       const unknown = args.confirmations.filter((name) => !confirmationNames.includes(name as any))
 
-      if (missing.length || unknown.length) {
+      if ((!args.dryRun && missing.length) || unknown.length) {
         throw new CliFailure("policy", "Baseline requires all seven exact confirmation facts", {
           missing,
           unknown,
@@ -297,40 +347,41 @@ export function createCli(runtime: CliRuntime = {}) {
         })
       }
 
-      const chain = await verifyArtifactChain(context.repository)
+      const pathToCandidate = candidatePath(args.candidate, context)
+      const decoded = decodeSchemaSnapshot(await readFile(pathToCandidate, "utf8"))
 
-      if (!chain.ok) {
-        throw new CliFailure(
-          "validation",
-          "Artifact repository validation failed",
-          chain.diagnostics,
-        )
+      if (!decoded.ok) {
+        throw new CliFailure("validation", "Invalid baseline candidate", decoded.diagnostics)
       }
 
-      if (chain.artifacts.length) {
-        throw new CliFailure("policy", "A baseline requires an empty artifact repository")
+      const scope = await resolveConfigSnapshot(context.config)
+      const input = {
+        adapter: await resolveAdapter(context.config),
+        repository: context.repository,
+        candidate: decoded.value,
+        scope,
+        signal: context.signal,
       }
-
-      const snapshot = await resolveConfigSnapshot(context.config)
 
       if (args.dryRun) {
+        const inspection = await preflightBaseline(input)
+
         return {
           ok: true,
           command: "migrate baseline",
           dryRun: true,
-          confirmations: [...confirmationNames],
+          candidate: pathToCandidate,
+          ...baselineReview(context, scope, decoded.value, inspection.unmanagedObjects),
         }
       }
 
       const result = await createBaseline({
-        adapter: await resolveAdapter(context.config),
+        ...input,
         id: args.id,
-        snapshot,
         provenance: provenance(context.config),
         confirmation: baselineConfirmation(),
         constraints: context.config.constraints,
         operator: context.config.baselineOperator,
-        signal: context.signal,
       })
       const path = await context.repository.write(result.artifact)
 
@@ -339,7 +390,8 @@ export function createCli(runtime: CliRuntime = {}) {
         command: "migrate baseline",
         artifact: summary(result.artifact),
         path,
-        unmanagedObjects: result.unmanagedObjects,
+        candidate: pathToCandidate,
+        ...baselineReview(context, scope, decoded.value, result.unmanagedObjects),
       }
     }),
   })
@@ -511,6 +563,7 @@ export function createCli(runtime: CliRuntime = {}) {
           verify,
           status,
           apply,
+          "baseline-capture": baselineCapture,
           baseline,
           reconcile,
         },
@@ -543,6 +596,8 @@ export async function runCli(args: readonly string[], runtime: CliRuntime = {}):
 }
 
 interface Context {
+  readonly cwd: string
+  readonly configPath: string
   readonly config: QubuCliConfig
   readonly repository: FileArtifactRepository
   readonly signal: AbortSignal
@@ -577,6 +632,8 @@ async function loadContext(configPath: string, runtime: CliRuntime): Promise<Con
   }
 
   return {
+    cwd,
+    configPath: path,
     config,
     repository: new FileArtifactRepository(config.artifacts, cwd),
     signal: controller.signal,
@@ -649,7 +706,9 @@ async function createMigration(
     sequence: chain.artifacts.length,
     parentArtifactDigest: chain.head,
     dialect: target.dialect,
-    constraints: context.config.constraints,
+    ...(context.config.constraints === undefined
+      ? {}
+      : { constraints: context.config.constraints }),
     plan: planned.plan,
     renderer: renderer(context.config, target),
     program: compiled.program,
@@ -794,6 +853,39 @@ function emptySnapshot(target: SchemaSnapshot): SchemaSnapshot {
   }
 }
 
+function candidatePath(value: string, context: Context): string {
+  const path = resolve(context.cwd, value)
+  const directory = context.repository.directory
+
+  if (path === directory || path.startsWith(`${directory}/`)) {
+    throw new CliFailure("policy", "Keep baseline candidates outside the artifact repository")
+  }
+
+  return path
+}
+
+function baselineReview(
+  context: Context,
+  scope: SchemaSnapshot,
+  candidate: SchemaSnapshot,
+  unmanagedObjects: readonly {
+    readonly kind: string
+    readonly physicalName: string
+  }[],
+) {
+  return {
+    connectionSelector: {
+      config: context.configPath,
+      environment: context.config.environment ?? "development",
+      dialect: scope.dialect.name,
+      namespace: scope.namespace.name,
+    },
+    managedTables: scope.tables.map((table) => table.physicalName),
+    includedTables: candidate.tables.map((table) => table.physicalName),
+    unmanagedObjects,
+  }
+}
+
 function baselineConfirmation(): BaselineConfirmation {
   return {
     databaseTargetVerified: true,
@@ -801,7 +893,7 @@ function baselineConfirmation(): BaselineConfirmation {
     zeroManagedDriftVerified: true,
     backupRestoreReady: true,
     otherMigratorsStopped: true,
-    applicationCompatible: true,
+    incompatibleApplicationPrevented: true,
     legacyHistoryCutoverAccepted: true,
   }
 }
@@ -821,6 +913,10 @@ function renderSuccess(value: unknown, format: "human" | "json") {
 }
 
 function human(value: any): string {
+  if (value?.connectionSelector) {
+    return `${value.command}: ok\n${JSON.stringify(redact(value), null, 2)}`
+  }
+
   if (value?.command) {
     const count = value.applied?.length ?? value.pending?.length ?? value.artifacts
 
@@ -875,7 +971,8 @@ function safeError(error: unknown, aborted = false) {
   return redact({
     code,
     message: error instanceof Error ? error.message : "Command failed",
-    ...(error instanceof CliFailure && error.details !== undefined
+    ...((error instanceof CliFailure || error instanceof MigrationExecutionError) &&
+    error.details !== undefined
       ? { details: error.details }
       : {}),
     exitCode,

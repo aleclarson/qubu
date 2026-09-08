@@ -1,5 +1,10 @@
 import { diffSnapshots, type SnapshotDiffDiagnostic, type SnapshotDiffOperation } from "qubu/diff"
-import type { SchemaSnapshot, SnapshotJsonValue } from "qubu/snapshot"
+import {
+  assertSchemaSnapshot,
+  encodeSchemaSnapshot,
+  type SchemaSnapshot,
+  type SnapshotJsonValue,
+} from "qubu/snapshot"
 
 import {
   sealBaselineArtifact,
@@ -8,88 +13,239 @@ import {
   type VerifiedBaselineArtifact,
 } from "../artifact/index.ts"
 import { MigrationExecutionError } from "../executor/errors.ts"
-import type { MigrationAdapter, MigrationSession, MigrationSnapshot } from "../executor/types.ts"
+import type {
+  MigrationAdapter,
+  MigrationSession,
+  MigrationSnapshot,
+  MigrationSnapshotInspection,
+} from "../executor/types.ts"
 import { validateJournalState } from "../journal/index.ts"
+import { verifyArtifactChain, type ArtifactRepository } from "../repository/index.ts"
 
+/** Operator acknowledgments for adopting the reviewed live schema. */
 export interface BaselineConfirmation {
   readonly databaseTargetVerified: true
   readonly snapshotSourceVerified: true
   readonly zeroManagedDriftVerified: true
   readonly backupRestoreReady: true
   readonly otherMigratorsStopped: true
-  readonly applicationCompatible: true
+  readonly incompatibleApplicationPrevented: true
   readonly legacyHistoryCutoverAccepted: true
 }
 
-export interface CreateBaselineInput {
+/** Strict inspection using the original configured managed scope, including currently absent tables. */
+export interface CaptureBaselineInput {
   readonly adapter: MigrationAdapter
+  readonly scope: MigrationSnapshot
+  readonly signal?: AbortSignal
+}
+
+/** A reviewed snapshot and the unchanged scope used to capture it. */
+export interface VerifyBaselineInput extends CaptureBaselineInput {
+  readonly candidate: MigrationSnapshot
+  readonly repository: ArtifactRepository | readonly (string | unknown)[]
+}
+
+/** Inputs for recording a reviewed candidate as the first baseline. */
+export interface CreateBaselineInput extends VerifyBaselineInput {
   readonly id: string
-  readonly snapshot: MigrationSnapshot
   readonly provenance: ArtifactProvenance
   readonly confirmation: BaselineConfirmation
   readonly operator?: SnapshotJsonValue
   readonly constraints?: ArtifactConstraints
   readonly verifiedAt?: string
   readonly attemptId?: string
-  readonly signal?: AbortSignal
 }
 
+/** Recorded baseline and live objects outside the managed selection. */
 export interface BaselineResult {
   readonly artifact: VerifiedBaselineArtifact
-  readonly unmanagedObjects: readonly { readonly kind: string; readonly physicalName: string }[]
+  readonly unmanagedObjects: readonly {
+    readonly kind: string
+    readonly physicalName: string
+  }[]
 }
 
-/** Verify and atomically record the first, non-executable artifact in an empty journal. */
-export async function createBaseline(input: CreateBaselineInput): Promise<BaselineResult> {
+/**
+ * Capture actual managed catalog facts without recording migration history. Session setup and lease
+ * bookkeeping may write adapter-owned journal objects. Preserve the original scope for later
+ * preflight and acceptance.
+ */
+export async function captureBaseline(
+  input: CaptureBaselineInput,
+): Promise<MigrationSnapshotInspection> {
+  return withBaselineSession(input, (session) => session.readSnapshot!(input.scope))
+}
+
+/**
+ * Reinspect and reject any canonical snapshot difference or nonempty history without recording.
+ * Metadata differences also require recapture; this does not perform SQL equivalence detection.
+ * Session setup and lease bookkeeping may write adapter-owned journal objects.
+ */
+export async function preflightBaseline(
+  input: VerifyBaselineInput,
+): Promise<MigrationSnapshotInspection> {
+  return withBaselineSession(input, (session) => verifyBaseline(session, input))
+}
+
+async function withBaselineSession<T>(
+  input: CaptureBaselineInput,
+  action: (session: MigrationSession) => Promise<T>,
+): Promise<T> {
   input.signal?.throwIfAborted()
+  assertSchemaSnapshot(input.scope)
   let session: MigrationSession | undefined
   let leased = false
+
   try {
     session = await input.adapter.openMigrationSession(input.signal)
-    if (session.capabilities.dialect !== input.snapshot.dialect.name)
+    if (session.capabilities.dialect !== input.scope.dialect.name) {
       throw new MigrationExecutionError(
         "capability",
         "Baseline dialect is incompatible",
         {},
         { retry: "safe" },
       )
-    if (!session.readSnapshot)
+    }
+
+    if (!session.readSnapshot) {
       throw new MigrationExecutionError(
         "capability",
         "Adapter does not support strict snapshot inspection",
         {},
         { retry: "safe" },
       )
+    }
+
     await session.acquireLease(input.signal)
     leased = true
-    const [metadata, applied, attempts] = await Promise.all([
-      session.journal.readMetadata(),
-      session.journal.listApplied(),
-      session.journal.listAttempts(),
-    ])
-    if (
-      validateJournalState(metadata, applied, attempts).length ||
-      applied.length ||
-      attempts.length ||
-      metadata.head
+    return await action(session)
+  } finally {
+    if (session && leased) {
+      await session.releaseLease()
+    }
+
+    if (session) {
+      await session.close()
+    }
+  }
+}
+
+async function verifyBaseline(
+  session: MigrationSession,
+  input: VerifyBaselineInput,
+): Promise<MigrationSnapshotInspection> {
+  assertSchemaSnapshot(input.candidate)
+  const managedNames = new Set(input.scope.tables.map((table) => table.physicalName))
+  const outsideScope = input.candidate.tables.filter(
+    (table) => !managedNames.has(table.physicalName),
+  )
+
+  if (outsideScope.length) {
+    throw new MigrationExecutionError(
+      "policy",
+      "Candidate contains tables outside the configured managed scope",
+      {},
+      {
+        retry: "safe",
+        details: { tables: outsideScope.map((table) => table.physicalName) },
+      },
     )
-      throw new MigrationExecutionError(
-        "policy",
-        "A baseline requires an empty migration journal",
-        {},
-        { retry: "safe" },
-      )
+  }
 
-    const inspection = await session.readSnapshot(input.snapshot)
-    const comparison = compareManagedSnapshots(input.snapshot, inspection.snapshot)
-    if (!comparison.matches)
-      throw new MigrationExecutionError(
-        "drift",
-        "Live managed schema does not match the baseline snapshot",
-        {},
-        { retry: "safe" },
-      )
+  const chain = await verifyArtifactChain(input.repository)
 
+  if (!chain.ok) {
+    throw new MigrationExecutionError(
+      "validation",
+      "Artifact repository validation failed",
+      {},
+      {
+        retry: "safe",
+        details: chain.diagnostics,
+      },
+    )
+  }
+
+  if (chain.artifacts.length) {
+    throw new MigrationExecutionError(
+      "policy",
+      "A baseline requires an empty artifact repository",
+      {},
+      { retry: "safe" },
+    )
+  }
+
+  const [metadata, applied, attempts] = await Promise.all([
+    session.journal.readMetadata(),
+    session.journal.listApplied(),
+    session.journal.listAttempts(),
+  ])
+
+  if (
+    validateJournalState(metadata, applied, attempts).length ||
+    applied.length ||
+    attempts.length ||
+    metadata.head
+  ) {
+    throw new MigrationExecutionError(
+      "policy",
+      "A baseline requires an empty migration journal",
+      {},
+      { retry: "safe" },
+    )
+  }
+
+  // Use the capture scope, not the candidate's present tables: absent tables may have appeared.
+  const inspection = await session.readSnapshot!(input.scope)
+  const comparison = compareManagedSnapshots(input.candidate, inspection.snapshot)
+
+  // Adoption compares captured evidence exactly, including dialect facts ignored by ordinary drift checks.
+  if (encodeSchemaSnapshot(input.candidate) !== encodeSchemaSnapshot(inspection.snapshot)) {
+    throw new MigrationExecutionError(
+      "drift",
+      "Live managed schema differs from the reviewed candidate; recapture and review before accepting",
+      {},
+      {
+        retry: "safe",
+        details: {
+          comparison,
+          actualSnapshot: inspection.snapshot,
+          unmanagedObjects: inspection.unmanagedObjects,
+        },
+      },
+    )
+  }
+
+  return inspection
+}
+
+/**
+ * Repeat preflight under the migrator lease, then atomically record the first non-executable
+ * baseline.
+ */
+export async function createBaseline(input: CreateBaselineInput): Promise<BaselineResult> {
+  const facts: readonly (keyof BaselineConfirmation)[] = [
+    "databaseTargetVerified",
+    "snapshotSourceVerified",
+    "zeroManagedDriftVerified",
+    "backupRestoreReady",
+    "otherMigratorsStopped",
+    "incompatibleApplicationPrevented",
+    "legacyHistoryCutoverAccepted",
+  ]
+
+  if (facts.some((fact) => input.confirmation?.[fact] !== true)) {
+    throw new MigrationExecutionError(
+      "policy",
+      "Baseline requires all seven exact confirmation facts",
+      {},
+      { retry: "safe" },
+    )
+  }
+
+  return withBaselineSession(input, async (session) => {
+    const inspection = await verifyBaseline(session, input)
     const verifiedAt = input.verifiedAt ?? new Date().toISOString()
     const artifact = await sealBaselineArtifact({
       format: "qubu-verified-baseline",
@@ -97,9 +253,9 @@ export async function createBaseline(input: CreateBaselineInput): Promise<Baseli
       id: input.id,
       sequence: 0,
       parentArtifactDigest: null,
-      dialect: input.snapshot.dialect,
+      dialect: input.candidate.dialect,
       ...(input.constraints === undefined ? {} : { constraints: input.constraints }),
-      snapshot: { value: input.snapshot },
+      snapshot: { value: input.candidate },
       verifiedAt,
       provenance: input.provenance,
       operator: {
@@ -109,13 +265,14 @@ export async function createBaseline(input: CreateBaselineInput): Promise<Baseli
           zeroManagedDriftVerified: input.confirmation.zeroManagedDriftVerified,
           backupRestoreReady: input.confirmation.backupRestoreReady,
           otherMigratorsStopped: input.confirmation.otherMigratorsStopped,
-          applicationCompatible: input.confirmation.applicationCompatible,
+          incompatibleApplicationPrevented: input.confirmation.incompatibleApplicationPrevented,
           legacyHistoryCutoverAccepted: input.confirmation.legacyHistoryCutoverAccepted,
         },
         ...(input.operator === undefined ? {} : { metadata: input.operator }),
       },
     })
     const attemptId = input.attemptId ?? `baseline-${crypto.randomUUID()}`
+
     await session.journal.createAttempt({
       id: attemptId,
       artifactId: artifact.id,
@@ -140,7 +297,11 @@ export async function createBaseline(input: CreateBaselineInput): Promise<Baseli
         },
         null,
       )
-      if (!advanced) throw new Error("Migration journal head changed during baseline creation")
+
+      if (!advanced) {
+        throw new Error("Migration journal head changed during baseline creation")
+      }
+
       await session.journal.transitionAttempt(attemptId, "applied")
       await session.commitTransaction()
     } catch (error) {
@@ -151,11 +312,12 @@ export async function createBaseline(input: CreateBaselineInput): Promise<Baseli
       })
       throw error
     }
-    return Object.freeze({ artifact, unmanagedObjects: inspection.unmanagedObjects })
-  } finally {
-    if (session && leased) await session.releaseLease()
-    if (session) await session.close()
-  }
+
+    return Object.freeze({
+      artifact,
+      unmanagedObjects: inspection.unmanagedObjects,
+    })
+  })
 }
 
 export interface ManagedSnapshotComparison {

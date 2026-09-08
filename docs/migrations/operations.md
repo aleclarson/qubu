@@ -67,15 +67,16 @@ working directory.
 
 ## Commands
 
-| Syntax                                                                                              | Reads or writes                                                                                                                             | Important failure behavior                                                                                     |
-| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `qubu migrate create <id> [--approve <operation-id=reason>...] [--approved-by <actor>] [--dry-run]` | Verifies the full repository, plans from its embedded final snapshot, seals, then writes one canonical artifact unless dry-run              | Unknown operation IDs or missing exact approvals fail policy                                                   |
-| `qubu migrate verify`                                                                               | Strictly decodes and verifies every artifact and the complete chain                                                                         | Any malformed, tampered, forked, gapped, or mismatched artifact fails validation                               |
-| `qubu migrate status`                                                                               | Opens a session and lease; reports managed drift, unmanaged objects, pending artifacts, interrupted attempts, and incompatible requirements | Recovery, validation, drift, and capability policy are distinct failures                                       |
-| `qubu migrate apply [--dry-run]`                                                                    | Applies the complete verified pending chain; dry-run performs status/preflight only                                                         | It never limits discovery to Git-added or branch-diff files                                                    |
-| `qubu migrate baseline <id> --confirm <fact>... [--dry-run]`                                        | Without dry-run, strictly compares the live managed schema, initializes an empty journal, records baseline, then writes the artifact        | Requires an empty artifact repository and all seven exact confirmations; dry-run does not inspect the database |
-| `qubu migrate reconcile <attempt-id> --outcome applied\|rolled_back --reason <text>`                | Runs application-owned verification, then records the explicit outcome                                                                      | Requires `verifyReconciliation` in config; no automatic inference                                              |
-| `qubu schema bootstrap [--approve <operation-id=reason>...] [--dry-run]`                            | Plans an empty SQLite or PostgreSQL snapshot through diff/plan/program; executes through the normal executor unless dry-run                 | Rejects other dialects; unsafe or incomplete facts still require exact approvals or custom programs            |
+| Syntax                                                                                              | Reads or writes                                                                                                                             | Important failure behavior                                                                                                 |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `qubu migrate create <id> [--approve <operation-id=reason>...] [--approved-by <actor>] [--dry-run]` | Verifies the full repository, plans from its embedded final snapshot, seals, then writes one canonical artifact unless dry-run              | Unknown operation IDs or missing exact approvals fail policy                                                               |
+| `qubu migrate verify`                                                                               | Strictly decodes and verifies every artifact and the complete chain                                                                         | Any malformed, tampered, forked, gapped, or mismatched artifact fails validation                                           |
+| `qubu migrate status`                                                                               | Opens a session and lease; reports managed drift, unmanaged objects, pending artifacts, interrupted attempts, and incompatible requirements | Recovery, validation, drift, and capability policy are distinct failures                                                   |
+| `qubu migrate apply [--dry-run]`                                                                    | Applies the complete verified pending chain; dry-run performs status/preflight only                                                         | It never limits discovery to Git-added or branch-diff files                                                                |
+| `qubu migrate baseline-capture --out <path>`                                                        | Strictly reads live managed schema and writes a new candidate snapshot outside the artifact repository                                      | Strict inspection failures block capture; existing candidate files are not overwritten                                     |
+| `qubu migrate baseline <id> --candidate <path> [--confirm <fact>...] [--dry-run]`                   | Reinspects the reviewed candidate; acceptance records baseline then writes its artifact                                                     | Empty repository and journal history required; acceptance requires seven confirmations; dry-run inspects without recording |
+| `qubu migrate reconcile <attempt-id> --outcome applied\|rolled_back --reason <text>`                | Runs application-owned verification, then records the explicit outcome                                                                      | Requires `verifyReconciliation` in config; no automatic inference                                                          |
+| `qubu schema bootstrap [--approve <operation-id=reason>...] [--dry-run]`                            | Plans an empty SQLite or PostgreSQL snapshot through diff/plan/program; executes through the normal executor unless dry-run                 | Rejects other dialects; unsafe or incomplete facts still require exact approvals or custom programs                        |
 
 ## Output and exit codes
 
@@ -128,34 +129,9 @@ The dry run prints the ordered phases without opening the adapter. Remove
 an application-owned custom program. Bootstrap does not import or replay
 Drizzle migration history.
 
-## Baseline and cutover checklist
+## Adopt an existing database
 
-A baseline is a statement about the live database now, not a replay of its
-history. Before supplying all seven confirmations, the operator must verify:
-
-- `database-target`: the connection names the intended environment;
-- `snapshot-source`: the reviewed snapshot is the intended source of truth;
-- `zero-managed-drift`: strict inspection reports no managed mismatch;
-- `backup-restore-ready`: backup and restore procedures are ready;
-- `other-migrators-stopped`: no other migration runner can race the cutover;
-- `application-compatible`: deployed code is compatible with the live schema;
-- `legacy-history-cutover`: the team accepts the new baseline as the lineage start.
-
-For example, repeat `--confirm` once per exact value. The CLI rejects missing
-or unknown confirmation names even outside production; `environment` is
-reported as context rather than used to weaken the policy.
-
-```bash
-qubu migrate baseline lotta-cutover \
-  --confirm database-target \
-  --confirm snapshot-source \
-  --confirm zero-managed-drift \
-  --confirm backup-restore-ready \
-  --confirm other-migrators-stopped \
-  --confirm application-compatible \
-  --confirm legacy-history-cutover \
-  --format json --non-interactive
-```
-
-After success, preserve the written baseline artifact with the repository. Its
-sequence is zero, its parent is null, and later migrations extend its digest.
+Follow [Adopt an existing SQLite database](adopt-sqlite.md) to capture a live
+candidate, review its scope and facts, run preflight, and explicitly accept it.
+Keep the configured application snapshot as the desired schema for subsequent
+migration planning. Baseline acceptance does not certify application compatibility.

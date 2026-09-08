@@ -45,7 +45,7 @@
 | `@qubu/migrate/repository`         | Runtime         | Strict full-chain and journal-prefix verification                                                                |
 | `@qubu/migrate/journal`            | Runtime         | Storage-neutral journal records, transitions, validation, and reference storage                                  |
 | `@qubu/migrate/executor`           | Runtime         | Portable execution, structured errors, checkpointing, and explicit reconciliation                                |
-| `@qubu/migrate/baseline`           | Runtime         | Strict live baseline verification and physical managed-schema comparison                                         |
+| `@qubu/migrate/baseline`           | Runtime         | Live candidate capture, exact baseline verification, and physical managed-schema comparison                      |
 | `@qubu/migrate/status`             | Runtime         | Pending chain, managed drift, unmanaged objects, interrupted attempts, and incompatible requirements             |
 | `@qubu/migrate/bootstrap`          | Runtime         | Shared bootstrap preparation, result types, and generic planning with a caller-supplied schema dialect           |
 | `@qubu/migrate/bootstrap/postgres` | Runtime         | Fresh PostgreSQL schema planning through the normal diff, plan, and program compiler                             |

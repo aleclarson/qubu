@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -7,11 +7,12 @@ import {
   sealExecutableArtifact,
   type ExecutableMigrationArtifact,
 } from "@qubu/migrate/artifact"
+import { createBaseline, type BaselineConfirmation } from "@qubu/migrate/baseline"
 import type { MigrationAdapter } from "@qubu/migrate/executor"
 import { createMigrationPlan } from "@qubu/migrate/plan"
 import { DeterministicFakeMigrationAdapter } from "@qubu/migrate/testing"
 import { diffSnapshots } from "qubu/diff"
-import type { SchemaSnapshot } from "qubu/snapshot"
+import { decodeSchemaSnapshot, encodeSchemaSnapshot, type SchemaSnapshot } from "qubu/snapshot"
 import type { CompleteSchemaSnapshot } from "qubu/snapshot"
 import { sqliteSchemaDialect } from "qubu/snapshot/sqlite"
 import { afterEach, expect, test } from "vitest"
@@ -115,7 +116,16 @@ test("requires all seven baseline facts without prompting", async () => {
   const cwd = await temporaryDirectory()
   const errors: string[] = []
   const exit = await runCli(
-    ["migrate", "baseline", "initial", "--non-interactive", "--confirm", "database-target"],
+    [
+      "migrate",
+      "baseline",
+      "initial",
+      "--candidate",
+      "candidate.json",
+      "--non-interactive",
+      "--confirm",
+      "database-target",
+    ],
     {
       cwd,
       loadConfig: async () => ({ artifacts: "migrations" }),
@@ -171,6 +181,313 @@ test("redacts credentials from failures and returns an adapter exit code", async
   expect(errors.join("")).not.toContain("alice")
   expect(errors.join("")).not.toContain("visible")
   expect(errors.join("")).toContain("[REDACTED]")
+})
+
+const baselineFacts = [
+  "database-target",
+  "snapshot-source",
+  "zero-managed-drift",
+  "backup-restore-ready",
+  "other-migrators-stopped",
+  "incompatible-application-prevented",
+  "legacy-history-cutover",
+].flatMap((fact) => ["--confirm", fact])
+
+async function baselineFixture() {
+  const cwd = await temporaryDirectory()
+  const live = snapshot(["game"])
+  const scope: SchemaSnapshot = {
+    ...live,
+    tables: live.tables.map((table) => ({
+      ...table,
+      columns: [
+        {
+          kind: "column",
+          id: "manifest",
+          physicalName: "manifest",
+          ordinalPosition: 1,
+          nullable: true,
+          hasDefault: false,
+          generated: false,
+          storage: {
+            kind: "native",
+            dialect: "sqlite",
+            type: "TEXT",
+          },
+        },
+      ],
+    })),
+  }
+  const fake = new DeterministicFakeMigrationAdapter({ snapshotDigest: `sha256:${"0".repeat(64)}` })
+  const state = {
+    live,
+    failInspection: false,
+    reads: [] as (SchemaSnapshot | undefined)[],
+  }
+  const config: QubuCliConfig = {
+    artifacts: "migrations",
+    snapshot: scope,
+    environment: "test",
+    adapter: () => ({
+      async openMigrationSession() {
+        return {
+          ...(await fake.openMigrationSession()),
+          async readSnapshot(expected) {
+            state.reads.push(expected)
+            if (state.failInspection) {
+              throw new Error("Strict SQLite introspection failed: unsupported column fact")
+            }
+
+            return {
+              snapshot: state.live,
+              unmanagedObjects: [
+                {
+                  kind: "table",
+                  physicalName: "external",
+                },
+              ],
+            }
+          },
+        }
+      },
+    }),
+  }
+  const run = async (args: string[]) => {
+    const output: string[] = []
+    const errors: string[] = []
+    const exit = await runCli(["migrate", ...args, "--format", "json"], {
+      cwd,
+      loadConfig: async () => config,
+      stdout: (text) => output.push(text),
+      stderr: (text) => errors.push(text),
+    })
+
+    return {
+      exit,
+      result: JSON.parse((exit ? errors : output).join("")),
+    }
+  }
+
+  return {
+    cwd,
+    scope,
+    fake,
+    state,
+    run,
+    repository: new FileArtifactRepository("migrations", cwd),
+  }
+}
+
+test("captures live facts and exclusions without copying a missing desired column", async () => {
+  const { cwd, scope, fake, state, run, repository } = await baselineFixture()
+  const result = await run(["baseline-capture", "--out", "candidate.json"])
+
+  expect(result.exit).toBe(0)
+  expect(result.result).toMatchObject({
+    includedTables: ["game"],
+    managedTables: ["game"],
+    unmanagedObjects: [
+      {
+        kind: "table",
+        physicalName: "external",
+      },
+    ],
+    connectionSelector: {
+      environment: "test",
+      dialect: "sqlite",
+      namespace: "main",
+    },
+  })
+  const candidate = decodeSchemaSnapshot(await readFile(join(cwd, "candidate.json"), "utf8"))
+
+  expect(candidate.ok && candidate.value.tables[0]!.columns).toEqual([])
+  expect(state.reads).toEqual([scope])
+  expect(await repository.list()).toEqual([])
+  expect(await fake.journal.listAttempts()).toEqual([])
+  expect(fake.executions).toEqual([])
+  expect((await run(["baseline-capture", "--out", "candidate.json"])).exit).not.toBe(0)
+  expect((await run(["baseline-capture", "--out", "migrations/candidate.json"])).exit).toBe(
+    cliExitCodes.policy,
+  )
+})
+
+test("preflights and accepts a candidate while leaving desired differences for the next migration", async () => {
+  const { cwd, scope, fake, state, run, repository } = await baselineFixture()
+
+  await run(["baseline-capture", "--out", "candidate.json"])
+  expect(
+    (await run(["baseline", "initial", "--candidate", "candidate.json", "--dry-run"])).exit,
+  ).toBe(0)
+  expect(await repository.list()).toEqual([])
+  expect(await fake.journal.listApplied()).toEqual([])
+  expect(await fake.journal.listAttempts()).toEqual([])
+  expect(
+    (await run(["baseline", "initial", "--candidate", "candidate.json", ...baselineFacts])).exit,
+  ).toBe(0)
+  expect(state.reads).toEqual([scope, scope, scope])
+  const [baseline] = (await repository.list()).map((value) => JSON.parse(value))
+
+  expect(baseline.snapshot.value.tables[0].columns).toEqual([])
+  expect(baseline).not.toHaveProperty("program")
+  expect((await fake.journal.listApplied())[0]?.kind).toBe("baseline")
+  const next = await run(["create", "add-manifest"])
+
+  expect(next.exit, JSON.stringify(next.result)).toBe(0)
+  const artifacts = (await repository.list()).map((value) => JSON.parse(value))
+
+  expect(artifacts[1].beforeSnapshot.value.tables[0].columns).toEqual([])
+  expect(artifacts[1].afterSnapshot.value.tables[0].columns[0].physicalName).toBe("manifest")
+  expect(await readFile(join(cwd, "candidate.json"), "utf8")).toBe(encodeSchemaSnapshot(state.live))
+})
+
+test("rejects changed live schema in both preflight and acceptance with comparison evidence", async () => {
+  const { scope, fake, state, run, repository } = await baselineFixture()
+
+  await run(["baseline-capture", "--out", "candidate.json"])
+  state.live = scope
+  for (const flags of [["--dry-run"], baselineFacts]) {
+    const result = await run(["baseline", "initial", "--candidate", "candidate.json", ...flags])
+
+    expect(result.exit).toBe(cliExitCodes.drift)
+    expect(result.result.error.details.comparison.operations.length).toBeGreaterThan(0)
+    expect(result.result.error.details.actualSnapshot.tables[0].columns[0].physicalName).toBe(
+      "manifest",
+    )
+  }
+
+  expect(await repository.list()).toEqual([])
+  expect(await fake.journal.listAttempts()).toEqual([])
+})
+
+test("rereads the original scope when a previously absent managed table appears", async () => {
+  const { fake, state, scope, run } = await baselineFixture()
+
+  state.live = snapshot()
+  await run(["baseline-capture", "--out", "candidate.json"])
+  state.live = scope
+  const result = await run([
+    "baseline",
+    "initial",
+    "--candidate",
+    "candidate.json",
+    ...baselineFacts,
+  ])
+
+  expect(result.exit).toBe(cliExitCodes.drift)
+  expect(state.reads).toEqual([scope, scope])
+  expect(await fake.journal.listAttempts()).toEqual([])
+})
+
+test("rejects changed SQLite dialect facts even when managed comparison reports a match", async () => {
+  const { fake, state, run } = await baselineFixture()
+
+  await run(["baseline-capture", "--out", "candidate.json"])
+  state.live = {
+    ...state.live,
+    tables: state.live.tables.map((table) => ({
+      ...table,
+      dialect: {
+        dialect: "sqlite",
+        version: 1,
+        data: { strict: true },
+      },
+    })),
+  }
+  const result = await run([
+    "baseline",
+    "initial",
+    "--candidate",
+    "candidate.json",
+    ...baselineFacts,
+  ])
+
+  expect(result.exit).toBe(cliExitCodes.drift)
+  expect(result.result.error.details.actualSnapshot.tables[0].dialect.data.strict).toBe(true)
+  expect(await fake.journal.listAttempts()).toEqual([])
+})
+
+test("rejects candidates containing tables outside the supplied scope", async () => {
+  const { cwd, fake, run } = await baselineFixture()
+
+  await writeFile(join(cwd, "candidate.json"), encodeSchemaSnapshot(snapshot(["outside"])))
+  const result = await run(["baseline", "initial", "--candidate", "candidate.json", "--dry-run"])
+
+  expect(result.exit).toBe(cliExitCodes.policy)
+  expect(result.result.error.details.tables).toEqual(["outside"])
+  expect(await fake.journal.listAttempts()).toEqual([])
+})
+
+test("enforces acceptance acknowledgments for untyped migration API callers", async () => {
+  const { scope, fake } = await baselineFixture()
+
+  await expect(
+    createBaseline({
+      adapter: fake,
+      scope,
+      candidate: scope,
+      repository: [],
+      id: "initial",
+      provenance: { source: "reviewed" },
+      confirmation: {} as BaselineConfirmation,
+    }),
+  ).rejects.toMatchObject({ code: "policy" })
+  expect(fake.events).toEqual([])
+})
+
+test("rejects nonempty journal history during preflight", async () => {
+  const { fake, run } = await baselineFixture()
+
+  await run(["baseline-capture", "--out", "candidate.json"])
+  await fake.journal.createAttempt({
+    id: "previous",
+    artifactId: "old",
+    artifactDigest: `sha256:${"0".repeat(64)}`,
+    expectedHead: null,
+    state: "started",
+    startedAt: "2026-09-08T00:00:00.000Z",
+    updatedAt: "2026-09-08T00:00:00.000Z",
+  })
+  const result = await run(["baseline", "initial", "--candidate", "candidate.json", "--dry-run"])
+
+  expect(result.exit).toBe(cliExitCodes.policy)
+  expect(result.result.error.message).toContain("empty migration journal")
+  expect(await fake.journal.listApplied()).toEqual([])
+})
+
+test("blocks capture and preflight when strict inspection fails", async () => {
+  const { fake, state, run, repository } = await baselineFixture()
+
+  await run(["baseline-capture", "--out", "candidate.json"])
+  state.failInspection = true
+  for (const args of [
+    ["baseline-capture", "--out", "failed.json"],
+    ["baseline", "initial", "--candidate", "candidate.json", "--dry-run"],
+    ["baseline", "initial", "--candidate", "candidate.json", ...baselineFacts],
+  ]) {
+    const result = await run(args)
+
+    expect(result.exit).toBe(cliExitCodes.adapter)
+    expect(result.result.error.message).toContain("Strict SQLite introspection failed")
+  }
+
+  expect(await repository.list()).toEqual([])
+  expect(await fake.journal.listAttempts()).toEqual([])
+  expect(fake.events.filter((event) => event === "close-session")).toHaveLength(4)
+})
+
+test("rejects invalid candidates and nonempty artifact repositories before recording", async () => {
+  const { cwd, fake, run, repository } = await baselineFixture()
+
+  await writeFile(join(cwd, "bad.json"), "{}")
+  expect((await run(["baseline", "initial", "--candidate", "bad.json", "--dry-run"])).exit).toBe(
+    cliExitCodes.validation,
+  )
+  await run(["baseline-capture", "--out", "candidate.json"])
+  await repository.write((await noOpChain(1))[0]!)
+  expect(
+    (await run(["baseline", "initial", "--candidate", "candidate.json", ...baselineFacts])).exit,
+  ).toBe(cliExitCodes.policy)
+  expect(await fake.journal.listAttempts()).toEqual([])
 })
 
 async function temporaryDirectory(): Promise<string> {

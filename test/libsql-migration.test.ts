@@ -19,7 +19,11 @@ import {
   type Sha256Digest,
 } from "../packages/migrate/src/artifact/index.ts"
 import { compileMigrationProgram } from "../packages/migrate/src/artifact/sqlite.ts"
-import { compareManagedSnapshots, createBaseline } from "../packages/migrate/src/baseline/index.ts"
+import {
+  captureBaseline,
+  compareManagedSnapshots,
+  createBaseline,
+} from "../packages/migrate/src/baseline/index.ts"
 import { planSchemaBootstrap } from "../packages/migrate/src/bootstrap/sqlite.ts"
 import { executeMigrations } from "../packages/migrate/src/executor/index.ts"
 import { createMigrationPlan } from "../packages/migrate/src/plan/index.ts"
@@ -694,7 +698,10 @@ test("records a verified baseline atomically and reports unmanaged tables separa
   const result = await createBaseline({
     adapter: libsqlMigrationAdapter(database),
     id: "existing-production",
-    snapshot: target,
+    candidate: (await captureBaseline({ adapter: libsqlMigrationAdapter(database), scope: target }))
+      .snapshot,
+    scope: target,
+    repository: [],
     provenance: { source: "schema.ts", revision: "reviewed" },
     operator: { actor: "operator@example.test" },
     verifiedAt: "2026-08-29T12:00:00.000Z",
@@ -704,7 +711,7 @@ test("records a verified baseline atomically and reports unmanaged tables separa
       zeroManagedDriftVerified: true,
       backupRestoreReady: true,
       otherMigratorsStopped: true,
-      applicationCompatible: true,
+      incompatibleApplicationPrevented: true,
       legacyHistoryCutoverAccepted: true,
     },
   })
@@ -729,7 +736,9 @@ test("refuses a baseline when logical IDs agree but physical facts differ", asyn
     createBaseline({
       adapter: libsqlMigrationAdapter(database),
       id: "mismatch",
-      snapshot: snapshot(["accounts"]),
+      candidate: snapshot(["accounts"]),
+      scope: snapshot(["accounts"]),
+      repository: [],
       provenance: { source: "schema.ts" },
       confirmation: {
         databaseTargetVerified: true,
@@ -737,7 +746,7 @@ test("refuses a baseline when logical IDs agree but physical facts differ", asyn
         zeroManagedDriftVerified: true,
         backupRestoreReady: true,
         otherMigratorsStopped: true,
-        applicationCompatible: true,
+        incompatibleApplicationPrevented: true,
         legacyHistoryCutoverAccepted: true,
       },
     }),
