@@ -56,6 +56,8 @@ entrypoint:
 - [Command line operations](operations.md): configure and use the CLI.
 - [Adopt an existing SQLite database](adopt-sqlite.md): capture, review, and accept
   the live starting schema before planning reconciliation.
+- [Adopt an existing PostgreSQL database](adopt-postgres.md): configure pinned
+  `pg` inspection and accept the reviewed catalog before reconciliation.
 - [Recovery and reconciliation](recovery.md): handle interrupted migrations.
 - [Lotta Games adoption](lotta-adoption.md): review the downstream cutover
   plan and combo-matrix release blocker.

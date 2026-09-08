@@ -36,7 +36,10 @@ for an example and lifecycle rules.
 
 - You can also pass a connected `Client` or an already-acquired pool client. The application owns its release and shutdown; Qubu never releases it. Root operations on the same adapter reject during a transaction; raw driver calls and other adapter instances must avoid that pinned client until it finishes.
 - No query streaming is exposed. Abort signals are checked before execution, but do not cancel an in-flight driver query.
-- The `/migration` entry point requires an already-pinned client and a `readSnapshot` callback. Migration locks support `none` and `exclusive`, not `shared`.
+- The `/migration` entry point requires an already-pinned client. It provides strict PostgreSQL catalog inspection by default; `readSnapshot` is an optional override. Migration locks support `none` and `exclusive`, not `shared`.
 
 See [migration capability profiles](../../docs/migrations/adapters.md) for the
 execution requirements of migration entry points.
+
+See [PostgreSQL adoption](../../docs/migrations/adopt-postgres.md) for namespace
+selection, managed scope, connection ownership, and reviewed baseline commands.

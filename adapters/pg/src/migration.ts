@@ -6,10 +6,15 @@ import {
 } from "@qubu/migrate/executor"
 import type { ClientBase, QueryResultRow } from "pg"
 
+import { readPgMigrationSnapshot } from "./migration-snapshot.ts"
 import { postgresMigrationAdapter } from "./migration-support.ts"
 
+export { readPgMigrationSnapshot } from "./migration-snapshot.ts"
+
+/** Inspection and session settings for one caller-owned pinned PostgreSQL client. */
 export interface PgMigrationAdapterOptions {
-  readonly readSnapshot: (
+  /** Override strict standard inspection; the caller owns scope and journal exclusions. */
+  readonly readSnapshot?: (
     client: ClientBase,
     expected?: MigrationSnapshot,
   ) => Promise<MigrationSnapshot | Sha256Digest | MigrationSnapshotInspection>
@@ -20,7 +25,7 @@ export interface PgMigrationAdapterOptions {
 /** Adapt one already-pinned `pg` client. Pools must acquire and release the client themselves. */
 export function pgMigrationAdapter(
   client: ClientBase,
-  options: PgMigrationAdapterOptions,
+  options: PgMigrationAdapterOptions = {},
 ): MigrationAdapter {
   return postgresMigrationAdapter({
     ...options,
@@ -36,6 +41,7 @@ export function pgMigrationAdapter(
         },
       }
     },
-    readSnapshot: (_connection, expected) => options.readSnapshot(client, expected),
+    readSnapshot: (_connection, expected) =>
+      (options.readSnapshot ?? readPgMigrationSnapshot)(client, expected),
   })
 }

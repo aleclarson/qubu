@@ -361,12 +361,14 @@ interface IdentityEntry {
   readonly kind: CatalogIdentityEntityKind
   readonly currentId: string
   readonly physicalName: string
+  readonly metadataTarget?: string
   readonly physicalIdentityName: string
   readonly scopePhysicalName?: string
   readonly scopeId?: string
 }
 
 interface PreviousIdentity {
+  readonly metadataTarget?: string
   readonly kind: CatalogIdentityEntityKind
   readonly id: string
   readonly physicalName: string
@@ -666,6 +668,7 @@ function collectIdentityEntries(input: IntrospectionCatalog): readonly IdentityE
     scopePhysicalName?: string,
     scopeId?: string,
     physicalIdentityName = physicalName,
+    metadataTarget?: string,
   ) => {
     if (seen.has(object)) {
       return
@@ -678,6 +681,7 @@ function collectIdentityEntries(input: IntrospectionCatalog): readonly IdentityE
       currentId,
       physicalName,
       physicalIdentityName,
+      ...(metadataTarget === undefined ? {} : { metadataTarget }),
       ...(scopePhysicalName === undefined ? {} : { scopePhysicalName }),
       ...(scopeId === undefined ? {} : { scopeId }),
     })
@@ -810,6 +814,7 @@ function collectIdentityEntries(input: IntrospectionCatalog): readonly IdentityE
     object: {
       readonly id: string
       readonly reference?: CatalogReference
+      readonly object: CatalogObjectReference
     },
     kind: "comment" | "ownership",
   ): void {
@@ -821,8 +826,37 @@ function collectIdentityEntries(input: IntrospectionCatalog): readonly IdentityE
       undefined,
       undefined,
       object.id,
+      metadataIdentityTarget(object.object, input),
     )
   }
+}
+
+function metadataIdentityTarget(
+  reference: CatalogObjectReference,
+  source: {
+    readonly tables: readonly {
+      readonly kind: string
+      readonly id: string
+      readonly physicalName: string
+    }[]
+    readonly views?: readonly {
+      readonly kind: string
+      readonly id: string
+      readonly physicalName: string
+    }[]
+    readonly domains?: readonly {
+      readonly kind: string
+      readonly id: string
+      readonly physicalName: string
+    }[]
+  },
+): string {
+  const owner = reference.owner
+  const objects = [...source.tables, ...(source.views ?? []), ...(source.domains ?? [])]
+  const physicalOwner =
+    owner && objects.find((item) => item.kind === owner.kind && item.id === owner.id)?.physicalName
+
+  return JSON.stringify([reference.kind, owner?.kind, physicalOwner])
 }
 
 function collectPreviousIdentities(
@@ -834,11 +868,13 @@ function collectPreviousIdentities(
     id: string,
     physicalName: string,
     scopePhysicalName?: string,
+    metadataTarget?: string,
   ) =>
     result.push({
       kind,
       id,
       physicalName,
+      ...(metadataTarget === undefined ? {} : { metadataTarget }),
       ...(scopePhysicalName === undefined ? {} : { scopePhysicalName }),
     })
 
@@ -908,11 +944,23 @@ function collectPreviousIdentities(
   }
 
   for (const item of snapshot.comments) {
-    add("comment", item.id, item.physicalName)
+    add(
+      "comment",
+      item.id,
+      item.physicalName,
+      undefined,
+      metadataIdentityTarget(item.object, snapshot),
+    )
   }
 
   for (const item of snapshot.ownership) {
-    add("ownership", item.id, item.physicalName)
+    add(
+      "ownership",
+      item.id,
+      item.physicalName,
+      undefined,
+      metadataIdentityTarget(item.object, snapshot),
+    )
   }
 
   return result
@@ -931,7 +979,12 @@ function createIdentityResolver(
   const previousBySelector = new Map<string, PreviousIdentity | null>()
 
   for (const item of previous ?? []) {
-    const key = identitySelectorKey(item.kind, item.physicalName, item.scopePhysicalName)
+    const key = identitySelectorKey(
+      item.kind,
+      item.physicalName,
+      item.scopePhysicalName,
+      item.metadataTarget,
+    )
     const existing = previousBySelector.get(key)
 
     previousBySelector.set(key, existing === undefined ? item : null)
@@ -1026,7 +1079,12 @@ function resolveIdentityEntry(
       }
     } else if (source === "previous-snapshot") {
       const match = previous.get(
-        identitySelectorKey(entry.kind, entry.physicalName, entry.scopePhysicalName),
+        identitySelectorKey(
+          entry.kind,
+          entry.physicalName,
+          entry.scopePhysicalName,
+          entry.metadataTarget,
+        ),
       )
 
       if (match !== undefined && match !== null) {
@@ -1070,8 +1128,9 @@ function identitySelectorKey(
   kind: CatalogIdentityEntityKind,
   physicalName: string,
   scopePhysicalName: string | undefined,
+  metadataTarget?: string,
 ): string {
-  return `${kind}\u0000${scopePhysicalName ?? ""}\u0000${physicalName}`
+  return `${metadataTarget ?? ""}\u0000${kind}\u0000${scopePhysicalName ?? ""}\u0000${physicalName}`
 }
 
 function normalizeIdentityKind(kind: string): CatalogIdentityEntityKind | undefined {
