@@ -62,7 +62,7 @@ The runner consumes SQL you supply and does not accept sealed executable
 artifacts or inspect schemas before applying SQL. To adopt an existing database,
 use `captureBaseline`, `preflightBaseline`, and `createBaseline` from the same
 entry point. They capture and accept reviewed live facts without changing
-application schema/data; see [MySQL adoption](../../docs/migrations/adopt-mysql.md).
+application schema/data; see [MySQL adoption](../../docs/migrations/adopt.md#mysql).
 Possible stronger execution guarantees are tracked in
 [issue #1](https://github.com/aleclarson/qubu/issues/1).
 

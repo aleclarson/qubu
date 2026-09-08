@@ -131,8 +131,7 @@ Drizzle migration history.
 
 ## Adopt an existing database
 
-Follow the [SQLite](adopt-sqlite.md) or [PostgreSQL](adopt-postgres.md) adoption
-guide to capture a live candidate, review its scope and facts, run preflight,
-and explicitly accept it.
+Follow the [adoption guide](adopt.md) to capture a live candidate, review its
+scope and facts, run preflight, and explicitly accept it.
 Keep the configured application snapshot as the desired schema for subsequent
 migration planning. Baseline acceptance does not certify application compatibility.

@@ -54,12 +54,8 @@ entrypoint:
   files and approve operations.
 - [Adapter capability profiles](adapters.md): choose a supported driver.
 - [Command line operations](operations.md): configure and use the CLI.
-- [Adopt an existing SQLite database](adopt-sqlite.md): capture, review, and accept
-  the live starting schema before planning reconciliation.
-- [Adopt an existing PostgreSQL database](adopt-postgres.md): configure pinned
-  `pg` inspection and accept the reviewed catalog before reconciliation.
-- [Adopt an existing MySQL database](adopt-mysql.md): accept reviewed catalog
-  facts through the basic `mysql2` runner, then apply separate SQL migrations.
+- [Adopt an existing database](adopt.md): capture, review, and accept the live
+  starting schema before applying separate migrations.
 - [Recovery and reconciliation](recovery.md): handle interrupted migrations.
 - [Lotta Games adoption](lotta-adoption.md): review the downstream cutover
   plan and combo-matrix release blocker.

@@ -41,5 +41,5 @@ for an example and lifecycle rules.
 See [migration capability profiles](../../docs/migrations/adapters.md) for the
 execution requirements of migration entry points.
 
-See [PostgreSQL adoption](../../docs/migrations/adopt-postgres.md) for namespace
+See [PostgreSQL adoption](../../docs/migrations/adopt.md#postgresql-configuration) for namespace
 selection, managed scope, connection ownership, and reviewed baseline commands.
