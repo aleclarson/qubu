@@ -68,6 +68,8 @@ MySQL has a [basic SQL migration runner](../../adapters/mysql2/README.md#run-sql
 migrations. It runs independently of the shared executor and its stronger
 capability contract. The MySQL profile below remains unavailable; possible
 improvements are tracked in [issue #1](https://github.com/aleclarson/qubu/issues/1).
+The same entry point supports [reviewed MySQL adoption](adopt-mysql.md) through
+`captureBaseline`, `preflightBaseline`, and `createBaseline`.
 
 These exported profiles are unavailable and must not be passed to the
 executor:

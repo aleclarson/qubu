@@ -1,6 +1,17 @@
 import type { UnavailableMigrationAdapterProfile } from "@qubu/migrate/executor"
 
 import type { Mysql2Connection } from "./index.ts"
+import { initializeHistory, readCompletedIds, validateMigrationId } from "./migration-history.ts"
+
+export { readMigrationSnapshot } from "./migration-snapshot.ts"
+export {
+  captureBaseline,
+  preflightBaseline,
+  createBaseline,
+  type CaptureBaselineInput,
+  type VerifyBaselineInput,
+  type CreateBaselineInput,
+} from "./migration-baseline.ts"
 
 /** An append-only SQL migration for the basic MySQL runner. */
 export interface Mysql2Migration {
@@ -33,15 +44,9 @@ export async function migrate(
 
   // Validate the entire list before creating history or executing migration SQL.
   for (const migration of migrations) {
-    if (
-      !migration.id ||
-      migration.id.trim() !== migration.id ||
-      [...migration.id].length > 255 ||
-      ids.has(migration.id)
-    ) {
-      throw new TypeError(
-        "MySQL migration IDs must be unique, trimmed, non-empty, and at most 255 characters",
-      )
+    validateMigrationId(migration.id)
+    if (ids.has(migration.id)) {
+      throw new TypeError("MySQL migration IDs must be unique")
     }
 
     if (migration.sql.some((statement) => !statement.trim())) {
@@ -51,41 +56,8 @@ export async function migrate(
     ids.add(migration.id)
   }
 
-  await connection.execute({
-    sql: `CREATE TABLE IF NOT EXISTS __qubu_mysql2_migrations (
-      id VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL PRIMARY KEY,
-      hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
-      created_at BIGINT NOT NULL
-    ) ENGINE=InnoDB`,
-    values: [],
-    rowsAsArray: false,
-    nestTables: false,
-  })
-  const [rows] = await connection.execute({
-    sql: "SELECT id FROM __qubu_mysql2_migrations",
-    values: [],
-    rowsAsArray: false,
-    nestTables: false,
-  })
-
-  if (!Array.isArray(rows)) {
-    throw new TypeError("MySQL migration history must return object rows")
-  }
-
-  const completed = new Set<string>()
-
-  for (const row of rows) {
-    if (
-      typeof row !== "object" ||
-      row === null ||
-      Array.isArray(row) ||
-      typeof row.id !== "string"
-    ) {
-      throw new TypeError("MySQL migration history contains an invalid ID")
-    }
-
-    completed.add(row.id)
-  }
+  await initializeHistory(connection)
+  const completed = await readCompletedIds(connection)
 
   const applied: string[] = []
 

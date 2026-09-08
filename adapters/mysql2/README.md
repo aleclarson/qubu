@@ -58,9 +58,12 @@ record, including when its SQL succeeds but the history write fails. Inspect
 and repair the database before retrying; the runner does not automatically
 roll back, resume, or reconcile failures.
 
-This basic runner does not inspect schemas or adopt an existing database, and
-does not accept the shared executor's sealed artifacts. It consumes SQL you
-supply. Possible stronger guarantees are tracked in
+The runner consumes SQL you supply and does not accept sealed executable
+artifacts or inspect schemas before applying SQL. To adopt an existing database,
+use `captureBaseline`, `preflightBaseline`, and `createBaseline` from the same
+entry point. They capture and accept reviewed live facts without changing
+application schema/data; see [MySQL adoption](../../docs/migrations/adopt-mysql.md).
+Possible stronger execution guarantees are tracked in
 [issue #1](https://github.com/aleclarson/qubu/issues/1).
 
 ## Limitations
