@@ -99,43 +99,21 @@ its limits.
 
 ## Declare a downstream aggregate
 
-Define reusable SQL aggregates in application or extension code with `call()`
-and `makeExpression()`. This factory uses existing public APIs; it is not a
-Qubu export:
+Declare reusable SQL aggregates with `aggregateFunction()` from `qubu/core`.
+The returned function infers its arguments on each call and preserves their
+source, dependency, nullability, and capability metadata:
 
 ```ts
-import { call } from "qubu"
-import type { AggregateMeta, DependenciesOf, MetadataOf } from "qubu"
-import { makeExpression } from "qubu/core"
-
-function aggregateFunction<TOutput>(name: string) {
-  return <const TArgs extends readonly unknown[]>(...args: TArgs) => {
-    const expression = call<TOutput, string, TArgs>(name, ...args)
-
-    return makeExpression<
-      | MetadataOf<typeof expression>
-      | AggregateMeta<DependenciesOf<typeof expression>>,
-      "function"
-    >(
-      "function",
-      context => context.render(expression),
-      "aggregate",
-    )
-  }
-}
+import { aggregateFunction } from "qubu/core"
 
 const jsonGroupArray = aggregateFunction<string>("json_group_array")
 ```
 
-The returned function infers its argument tuple on each call. Passing that
-tuple explicitly to `call()` preserves source requirements, dependencies,
-nullability, and capability requirements. Using only `call<string>(...)`
-would default the remaining type parameters and lose argument metadata.
-
-`AggregateMeta` records the dependencies consumed by the aggregate, enabling
-grouping checks. The `"aggregate"` constructor argument also marks the runtime
-expression category. `markExpressionCategory(expression, "aggregate")` alone
-only sets that runtime marker; it does not add type-level aggregate metadata.
+The helper adds both the runtime aggregate category and the type-level metadata
+used by grouping checks. This avoids manually composing `call()` and
+`markExpressionCategory()`: `call<string>(...)` defaults its remaining type
+parameters, losing argument inference, and `markExpressionCategory()` alone
+does not add type-level aggregate metadata.
 
 For a SQLite query, declare the function once and use it in projections:
 
