@@ -56,7 +56,7 @@ type ConditionalPaginationClause<TParts extends readonly SelectPart[]> = {
  * unless a known row-reducing clause is present. Conditional pagination, predicates, and arbitrary
  * clauses do not prove exactness.
  */
-export type SelectCardinality<TParts extends readonly SelectPart[]> =
+type SelectCardinalityForParts<TParts extends readonly SelectPart[]> =
   UnconditionalAtMostOneClause<TParts> extends never
     ? ConditionalPaginationClause<TParts> extends never
       ? Exclude<TParts[number], ExactlyOneSafeClause | Omit> extends never
@@ -64,6 +64,17 @@ export type SelectCardinality<TParts extends readonly SelectPart[]> =
         : "many"
       : "many"
     : "zero-or-one"
+
+type PossibleSelectCardinality<TParts extends readonly SelectPart[]> =
+  TParts extends readonly SelectPart[] ? SelectCardinalityForParts<TParts> : never
+
+/** Collapse every possible clause tuple to the weakest cardinality guaranteed by all branches. */
+export type SelectCardinality<TParts extends readonly SelectPart[]> =
+  "many" extends PossibleSelectCardinality<TParts>
+    ? "many"
+    : "zero-or-one" extends PossibleSelectCardinality<TParts>
+      ? "zero-or-one"
+      : "exactly-one"
 
 export type ClauseScope<TClause> = TClause extends FromClause
   ? FromScope<TClause>
@@ -89,15 +100,32 @@ export type RequiredScope<TSelection, TClauses extends readonly AnySelectClause[
   | RequiresOf<TClauses[number]>
   | RequiresOuterOf<TClauses[number]>
 
-export type MissingScope<TSelection, TClauses extends readonly AnySelectClause[]> = Exclude<
+type MissingScopeForClauses<TSelection, TClauses extends readonly AnySelectClause[]> = Exclude<
   RequiredScope<TSelection, TClauses>,
   AvailableScope<TClauses> | AvailableOuterScope<TClauses>
 >
 
-export type RequiredOuterScope<TSelection, TClauses extends readonly AnySelectClause[]> = Extract<
+export type MissingScope<
+  TSelection,
+  TClauses extends readonly AnySelectClause[],
+> = TClauses extends readonly AnySelectClause[]
+  ? MissingScopeForClauses<TSelection, TClauses>
+  : never
+
+type RequiredOuterScopeForClauses<
+  TSelection,
+  TClauses extends readonly AnySelectClause[],
+> = Extract<
   Exclude<RequiredScope<TSelection, TClauses>, AvailableScope<TClauses>>,
   AvailableOuterScope<TClauses>
 >
+
+export type RequiredOuterScope<
+  TSelection,
+  TClauses extends readonly AnySelectClause[],
+> = TClauses extends readonly AnySelectClause[]
+  ? RequiredOuterScopeForClauses<TSelection, TClauses>
+  : never
 
 export type ScopeValidation<TSelection, TClauses extends readonly AnySelectClause[]> = [
   MissingScope<TSelection, TClauses>,
@@ -269,19 +297,27 @@ type GroupingFailures<TSelection, TClauses extends readonly AnySelectClause[]> =
   | ClauseGroupingFailures<TClauses>
   | GroupByAggregateFailures<TClauses>
 
+type PossibleGroupingFailures<
+  TSelection,
+  TClauses extends readonly AnySelectClause[],
+> = TClauses extends readonly AnySelectClause[]
+  ? RequiresGrouping<TSelection, TClauses> extends true
+    ? GroupingFailures<TSelection, TClauses>
+    : never
+  : never
+
 /**
  * Enforce the grouped-query rule: visible column dependencies must be grouped or functionally
  * determined by a grouped, declared key from the same source. Aggregate arguments are consumed by
  * the aggregate. Non-column GROUP BY expressions are accepted as exact grouping keys only.
  */
-export type GroupingValidation<TSelection, TClauses extends readonly AnySelectClause[]> =
-  RequiresGrouping<TSelection, TClauses> extends true
-    ? [GroupingFailures<TSelection, TClauses>] extends [never]
-      ? unknown
-      : QueryTypeValidation<
-          "invalid-grouping",
-          "select.grouping",
-          "Group every visible dependency or project it through an aggregate.",
-          GroupingFailures<TSelection, TClauses>
-        >
-    : unknown
+export type GroupingValidation<TSelection, TClauses extends readonly AnySelectClause[]> = [
+  PossibleGroupingFailures<TSelection, TClauses>,
+] extends [never]
+  ? unknown
+  : QueryTypeValidation<
+      "invalid-grouping",
+      "select.grouping",
+      "Group every visible dependency or project it through an aggregate.",
+      PossibleGroupingFailures<TSelection, TClauses>
+    >
