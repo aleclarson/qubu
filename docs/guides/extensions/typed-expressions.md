@@ -97,6 +97,77 @@ known domain opts the extension into incompatible-operation errors. See
 [SQL semantic types](../../sql-semantic-types.md) for the capability model and
 its limits.
 
+## Declare a downstream aggregate
+
+Define reusable SQL aggregates in application or extension code with `call()`
+and `makeExpression()`. This factory uses existing public APIs; it is not a
+Qubu export:
+
+```ts
+import { call } from "qubu"
+import type { AggregateMeta, DependenciesOf, MetadataOf } from "qubu"
+import { makeExpression } from "qubu/core"
+
+function aggregateFunction<TOutput>(name: string) {
+  return <const TArgs extends readonly unknown[]>(...args: TArgs) => {
+    const expression = call<TOutput, string, TArgs>(name, ...args)
+
+    return makeExpression<
+      | MetadataOf<typeof expression>
+      | AggregateMeta<DependenciesOf<typeof expression>>,
+      "function"
+    >(
+      "function",
+      context => context.render(expression),
+      "aggregate",
+    )
+  }
+}
+
+const jsonGroupArray = aggregateFunction<string>("json_group_array")
+```
+
+The returned function infers its argument tuple on each call. Passing that
+tuple explicitly to `call()` preserves source requirements, dependencies,
+nullability, and capability requirements. Using only `call<string>(...)`
+would default the remaining type parameters and lose argument metadata.
+
+`AggregateMeta` records the dependencies consumed by the aggregate, enabling
+grouping checks. The `"aggregate"` constructor argument also marks the runtime
+expression category. `markExpressionCategory(expression, "aggregate")` alone
+only sets that runtime marker; it does not add type-level aggregate metadata.
+
+For a SQLite query, declare the function once and use it in projections:
+
+```ts
+import { from, groupBy, select, table, text } from "qubu"
+
+const gameCategory = table("game_category", {
+  gameId: text(),
+  name: text(),
+})
+
+const categoriesByGame = select(
+  {
+    gameId: gameCategory.gameId,
+    categories: jsonGroupArray(gameCategory.name),
+  },
+  from(gameCategory),
+  groupBy(gameCategory.gameId),
+)
+```
+
+Qubu rejects a missing argument source, an ungrouped selected column, or an
+aggregate used as a grouping key. The factory uses `call()`'s default
+`SqlUnknown` result domain and argument-derived nullability; declare a different
+result contract in the downstream helper when the SQL function requires one.
+`TOutput` declares the JavaScript result type without decoding database values.
+
+Keep the function catalog, argument restrictions, decoding, null filtering,
+distinctness, and sorting policy downstream. An application can decode the
+returned JSON text with its own `parseCategories()` helper after execution, or
+attach its decoder with `mapResult()`.
+
 ## Read next
 
 - [Add sources and clauses](sources-and-clauses.md) covers custom relations and
