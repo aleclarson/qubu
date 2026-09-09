@@ -29,18 +29,18 @@ export const posts = table("posts", {
 
 export const untypedTemplate = sql`CURRENT_TIMESTAMP`
 
-export const normalizedName = sql.type<string, SqlText>()`LOWER(${users.name})`
+export const normalizedName = sql`LOWER(${users.name})`.$type<string, SqlText>()
 
-export const normalizedPostTitle = sql.type<string, SqlText>()`LOWER(${posts.title})`
+export const normalizedPostTitle = sql`LOWER(${posts.title})`.$type<string, SqlText>()
 
-export const aggregatePostCount = sql.type<number, SqlInteger>()`${count(posts.id)}`
+export const aggregatePostCount = sql`${count(posts.id)}`.$type<number, SqlInteger>()
 
-export const windowedPostCount = sql.type<number, SqlInteger>()`${over(count(posts.id), {
+export const windowedPostCount = sql`${over(count(posts.id), {
   partitionBy: [users.id],
-})}`
+})}`.$type<number, SqlInteger>()
 
 export const postgresPredicate = withDialectCapability(
-  sql.type<boolean, SqlBoolean>()`${users.name} ILIKE ${"%ada%"}`,
+  sql`${users.name} ILIKE ${"%ada%"}`.$type<boolean, SqlBoolean>(),
   "ilike",
 )
 
@@ -55,10 +55,10 @@ export const correlatedPostIds = select(
   where(eq(posts.authorId, users.id)),
 )
 
-export const correlatedQueryTemplate = sql.type<
+export const correlatedQueryTemplate = sql`EXISTS (${correlatedPostIds})`.$type<
   boolean,
   SqlBoolean
->()`EXISTS (${correlatedPostIds})`
+>()
 
 export const nestedTemplate = sql`${normalizedName}`
 

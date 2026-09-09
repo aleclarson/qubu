@@ -535,7 +535,7 @@ function escapeLikePattern(value: string) {
 }
 
 function escapedLike(left: any, pattern: string) {
-  return sql.type<boolean, SqlBoolean>()`${left} LIKE ${pattern} ESCAPE '!'`
+  return sql`${left} LIKE ${pattern} ESCAPE '!'`.$type<boolean, SqlBoolean>()
 }
 
 function whereExpression(target: AnyTable, filters: CleanedWhere[]): any {

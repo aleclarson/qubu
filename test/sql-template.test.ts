@@ -18,7 +18,7 @@ test("binds ordinary template substitutions and renders fragment substitutions",
 
 test("composes nested templates and queries in one placeholder sequence", () => {
   const selectedNames = select({ displayName: users.name }, from(users), where(eq(users.id, 7)))
-  const namePredicate = sql.type<boolean, SqlBoolean>()`${users.name} = ${"Ada"}`
+  const namePredicate = sql`${users.name} = ${"Ada"}`.$type<boolean, SqlBoolean>()
   const fragment = sql`EXISTS (${selectedNames}) AND (${namePredicate})`
 
   expect(render(fragment, postgresDialect())).toEqual({
@@ -45,6 +45,21 @@ test("retains dialect capability checks through template composition", () => {
   })
 
   expect(() => render(postgresPredicate, sqliteDialect() as unknown as Dialect)).toThrow(
+    'Dialect "sqlite" does not support the "ilike" capability',
+  )
+})
+
+test("preserves rendering and capability checks after output annotations", () => {
+  const selectedNames = select({ name: users.name }, from(users), where(eq(users.id, 7)))
+  const original = sql`EXISTS (${selectedNames}) AND (${postgresPredicate})`
+  const annotated = original.$type<boolean, SqlBoolean>()
+
+  expect(render(annotated, postgresDialect())).toEqual(render(original, postgresDialect()))
+  expect(render(annotated.$type<true>(), postgresDialect())).toEqual({
+    text: 'EXISTS (SELECT "users"."name" AS "name" FROM "users" WHERE ("users"."id" = $1)) AND ("users"."name" ILIKE $2)',
+    parameters: [7, "%ada%"],
+  })
+  expect(() => render(annotated, sqliteDialect() as unknown as Dialect)).toThrow(
     'Dialect "sqlite" does not support the "ilike" capability',
   )
 })

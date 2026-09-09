@@ -160,7 +160,7 @@ export { cast } from "./expressions/cast.ts"
 export { mapResult } from "./expressions/map-result.ts"
 export { caseWhen } from "./expressions/case.ts"
 export { sql } from "./expressions/sql.ts"
-export type { SqlFragment, SqlTag, TypedSqlTag } from "./expressions/sql.ts"
+export type { SqlFragment, SqlTag } from "./expressions/sql.ts"
 export {
   call,
   coalesce,

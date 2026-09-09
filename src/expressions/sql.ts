@@ -30,23 +30,25 @@ export type SqlFragment<
   | InheritedMetadata<TChild>
   | EmbeddedQueryMetadata<TChild>,
   "sql"
->
-
-/** A SQL template tag with an explicitly declared output and SQL domain. */
-export interface TypedSqlTag<TOutput, TSqlType extends AnySqlType = SqlUnknown> {
-  <const TValues extends readonly unknown[]>(
-    strings: TemplateStringsArray,
-    ...values: TValues
-  ): SqlFragment<TOutput, TSqlType, SqlChild<TValues>>
+> & {
+  /**
+   * Declare the application output and optionally the SQL semantic domain. Omitting the domain
+   * preserves its current declaration. This changes only type metadata: rendering, interpolation
+   * metadata, and nullable-source tracking remain unchanged. No SQL cast or decoder is applied.
+   */
+  $type<TNextOutput, TNextSqlType extends AnySqlType = TSqlType>(): SqlFragment<
+    TNextOutput,
+    TNextSqlType,
+    TChild
+  >
 }
 
 /** Public call contract for {@link sql}. */
-export interface SqlTag extends TypedSqlTag<unknown, SqlUnknown> {
-  /**
-   * Declare the application output and SQL semantic domain without changing how template
-   * substitutions render.
-   */
-  type<TOutput, TSqlType extends AnySqlType = SqlUnknown>(): TypedSqlTag<TOutput, TSqlType>
+export interface SqlTag {
+  <const TValues extends readonly unknown[]>(
+    strings: TemplateStringsArray,
+    ...values: TValues
+  ): SqlFragment<unknown, SqlUnknown, SqlChild<TValues>>
 }
 
 function sqlTemplate<
@@ -57,7 +59,7 @@ function sqlTemplate<
   strings: TemplateStringsArray,
   values: TValues,
 ): SqlFragment<TOutput, TSqlType, SqlChild<TValues>> {
-  return makeExpression("sql", (context) => {
+  const expression = makeExpression("sql", (context) => {
     strings.forEach((text, index) => {
       context.append(text)
       if (index >= values.length) {
@@ -77,19 +79,15 @@ function sqlTemplate<
         context.render(value)
       }
     })
+  })
+
+  const result = Object.freeze({
+    ...expression,
+    $type: () => result,
   }) as SqlFragment<TOutput, TSqlType, SqlChild<TValues>>
+
+  return result
 }
-
-function createSqlTag<TOutput, TSqlType extends AnySqlType>(): TypedSqlTag<TOutput, TSqlType> {
-  return <const TValues extends readonly unknown[]>(
-    strings: TemplateStringsArray,
-    ...values: TValues
-  ) => sqlTemplate<TOutput, TSqlType, TValues>(strings, values)
-}
-
-const sqlTag = createSqlTag<unknown, SqlUnknown>() as SqlTag
-
-sqlTag.type = createSqlTag
 
 /**
  * Build trusted SQL syntax while binding every ordinary substitution as a parameter. Qubu fragments
@@ -97,10 +95,13 @@ sqlTag.type = createSqlTag
  *
  * @remarks
  *   Template text is trusted and is not parsed. Use `identifier()` from `qubu/core` for runtime
- *   identifiers and `unsafeExpression()` for deliberately dynamic syntax. Use `sql.type<Output,
- *   SqlType>()` when the fragment's result is known.
+ *   identifiers and `unsafeExpression()` for deliberately dynamic syntax. Use `.$type<Output,
+ *   SqlType>()` on the returned fragment when the fragment's result is known.
  */
-export const sql: SqlTag = Object.freeze(sqlTag)
+export const sql: SqlTag = Object.freeze(
+  <const TValues extends readonly unknown[]>(strings: TemplateStringsArray, ...values: TValues) =>
+    sqlTemplate<unknown, SqlUnknown, TValues>(strings, values),
+)
 
 function isQueryFragment(value: AnyFragment): value is AnyQuery {
   return "queryKind" in value && "row" in value

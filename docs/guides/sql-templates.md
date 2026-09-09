@@ -61,19 +61,33 @@ named projection:
 import { from, select, sql } from "qubu"
 import type { SqlText } from "qubu"
 
-const normalizedName = sql.type<string, SqlText>()`LOWER(${users.name})`
+const normalizedName = sql`LOWER(${users.name})`.$type<string, SqlText>()
 
 const query = select({ name: normalizedName }, from(users))
 // typeof query.row is { name: string }
 ```
 
-`sql.type<Output, SqlType>()` changes only TypeScript metadata. It does not
+`sql` changes only TypeScript metadata. It does not
 parse the SQL or validate the declared types against the database. The tag
-still binds ordinary substitutions.
+still binds ordinary substitutions. It does not emit a SQL cast or decode runtime
+values.
+
+Use `.$type<number>()` when only the application output is known. The SQL
+domain stays `SqlUnknown` on a fresh template; `number` does not distinguish
+integer from decimal. On an already annotated fragment, an output-only call
+preserves the declared SQL domain:
+
+```ts
+const renamedOutput = normalizedName.$type<"Ada" | "Grace">()
+// Output: "Ada" | "Grace"; SQL domain: SqlText
+```
+
+Each annotation replaces the previous output declaration. These declarations
+are caller assertions; Qubu does not validate the returned values.
 
 Interpolated fragments contribute their source requirements and
-nullability. For example, a `sql.type<string, SqlText>()` template containing a
-column from the right side of a `leftJoin()` produces `string | null` in the
+nullability. For example, a `.$type<Output, SqlType>()sql` template containing a
+column from the right side of a `.$type<string, SqlText>()leftJoin()` produces `string | null` in the
 selected row.
 
 ## Keep identifiers and dynamic syntax explicit
@@ -125,14 +139,14 @@ Use a built-in expression as the substitution when its semantics matter:
 import { count, sql } from "qubu"
 import type { SqlInteger } from "qubu"
 
-const postCount = sql.type<number, SqlInteger>()`${count(posts.id)}`
+const postCount = sql`${count(posts.id)}`.$type<number, SqlInteger>()
 ```
 
 This wrapper retains the aggregate dependency recorded by `count()`. Writing
 the aggregate name in template text would not record that fact:
 
 ```ts
-const untrackedPostCount = sql.type<number, SqlInteger>()`COUNT(${posts.id})`
+const untrackedPostCount = sql`COUNT(${posts.id})`.$type<number, SqlInteger>()
 ```
 
 This renders valid SQL, but Qubu sees an ordinary column dependency because it
@@ -147,7 +161,7 @@ import { withDialectCapability } from "qubu/core"
 import type { SqlBoolean } from "qubu"
 
 const postgresMatch = withDialectCapability(
-  sql.type<boolean, SqlBoolean>()`${users.name} ILIKE ${search}`,
+  sql`${users.name} ILIKE ${search}`.$type<boolean, SqlBoolean>(),
   "ilike",
 )
 ```

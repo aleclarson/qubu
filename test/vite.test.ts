@@ -103,7 +103,6 @@ test("exposes ambient Qubu value types", () => {
   const typedReferences: typeof references = undefined as never
   const typedSql: typeof sql = undefined as never
   const ambientSqlTag: SqlTag = undefined as never
-  const ambientTypedSqlTag: TypedSqlTag<string, SqlText> = undefined as never
 
   expectTypeOf(typedQubu).toBeFunction()
   expectTypeOf(typedTable).toBeFunction()
@@ -116,7 +115,6 @@ test("exposes ambient Qubu value types", () => {
   expectTypeOf(typedReferences).toBeFunction()
   expectTypeOf(typedSql).toBeFunction()
   expectTypeOf(ambientSqlTag).toBeFunction()
-  expectTypeOf(ambientTypedSqlTag).toBeFunction()
 })
 
 test("supports filters and ignores non-script modules", () => {

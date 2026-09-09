@@ -230,10 +230,6 @@ declare global {
     TChild extends import("qubu").AnyFragment = never,
   > = import("qubu").SqlFragment<TOutput, TSqlType, TChild>
   type SqlTag = import("qubu").SqlTag
-  type TypedSqlTag<
-    TOutput,
-    TSqlType extends import("qubu").AnySqlType = import("qubu").SqlUnknown,
-  > = import("qubu").TypedSqlTag<TOutput, TSqlType>
   type SqlTypeSatisfies<TActual, TConstraint> = import("qubu").SqlTypeSatisfies<
     TActual,
     TConstraint

@@ -152,6 +152,30 @@ select(
   groupBy(users.id),
 )
 
-const outputOnly = sql.type<string>()`custom_text(${users.name})`
+const outputOnly = sql`custom_text(${users.name})`.$type<string>()
 
 export type OutputOnlyDomainRemainsUnknown = Assert<Equal<SqlTypeOf<typeof outputOnly>, SqlUnknown>>
+
+const retyped = normalizedName.$type<"Ada" | "Grace">()
+const changedDomain = retyped.$type<number, SqlInteger>()
+
+export type RetypingReplacesOutputAndPreservesDomain = Assert<
+  Equal<[OutputOf<typeof retyped>, SqlTypeOf<typeof retyped>], ["Ada" | "Grace", SqlText]>
+>
+export type RetypingCanReplaceDomain = Assert<
+  Equal<[OutputOf<typeof changedDomain>, SqlTypeOf<typeof changedDomain>], [number, SqlInteger]>
+>
+export type RetypingPreservesSourceMetadata = Assert<
+  Equal<[RequiresOf<typeof retyped>, DependenciesOf<typeof retyped>], [UserIdentity, UserName]>
+>
+
+const capabilityTemplate = sql`${postgresPredicate}`.$type<boolean>()
+
+export type AnnotatedTemplateRetainsCapabilities = Assert<
+  Equal<CapabilitiesOf<typeof capabilityTemplate>, "ilike">
+>
+// @ts-expect-error Annotation cannot erase an interpolated dialect capability.
+render(capabilityTemplate, sqliteDialect())
+
+// @ts-expect-error The prefix typing API has been removed.
+sql.type<string>()
