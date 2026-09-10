@@ -1,6 +1,6 @@
 {
   "name": "@qubu/sqlite-fts5",
-  "version": "0.7.3",
+  "version": "0.8.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/aleclarson/qubu",
@@ -39,8 +39,8 @@
     "qubu": "workspace:*"
   },
   "peerDependencies": {
-    "@qubu/migrate": "0.7.3",
-    "qubu": "0.7.3"
+    "@qubu/migrate": "0.8.0",
+    "qubu": "0.8.0"
   },
   "peerDependenciesMeta": {
     "@qubu/migrate": {
