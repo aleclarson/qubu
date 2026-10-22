@@ -371,6 +371,29 @@ test("normalizes constraints, foreign keys, checks, predicates, terms, and inclu
   ])
 })
 
+test("maps PostgreSQL CHECK definitions to executable snapshot predicates", async () => {
+  const { connection: fake } = connection(completeRows)
+  const catalog = await readCatalog(fake, options())
+  const mapped = mapCatalogToCompleteSnapshot(catalog)
+
+  expect(mapped.ok, JSON.stringify(mapped.diagnostics)).toBe(true)
+  if (!mapped.ok) {
+    throw new Error("The catalog could not be mapped")
+  }
+
+  const accounts = mapped.snapshot.tables.find((entry) => entry.physicalName === "accounts")
+  const check = accounts?.constraints.find((entry) => entry.physicalName === "accounts_name_check")
+
+  expect(check).toMatchObject({
+    kind: "check",
+    expression: {
+      kind: "expression",
+      sql: "(display_name <> '')",
+      dialect: "postgresql",
+    },
+  })
+})
+
 test("gates unsupported PostgreSQL versions", async () => {
   const fake = connection({
     "current_setting('server_version_num')": [

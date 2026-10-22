@@ -570,6 +570,43 @@ test("maps constraints and ordered index terms to Snapshot v1", () => {
   ])
 })
 
+test.each(["strict", "lossy"] as const)(
+  "preserves a fully modeled CHECK constraint in %s snapshot mapping",
+  (mode) => {
+    const input = catalog(
+      [column("score", "score", 1)],
+      [
+        {
+          kind: "check",
+          id: "positive_score",
+          identitySource: "physical-name",
+          physicalName: "positive_score",
+          expression: sql("score > 0"),
+        },
+      ],
+    )
+    const result = mapCatalogToSnapshot(input, {
+      namespace: "public",
+      mode,
+    })
+
+    expect(result.ok, JSON.stringify(result.diagnostics)).toBe(true)
+    if (!result.ok) {
+      throw new Error("The catalog could not be mapped")
+    }
+
+    expect(result.snapshot.tables[0]?.constraints).toEqual([
+      expect.objectContaining({
+        kind: "check",
+        id: "positive_score",
+        expression: expect.objectContaining({ sql: "score > 0" }),
+      }),
+    ])
+    expect(result.lossy).toBe(false)
+    expect(result.diagnostics).toEqual([])
+  },
+)
+
 test("uses mapped column IDs for index candidate keys and physical names for constraints", () => {
   const result = mapCatalogToSnapshot(
     catalog(

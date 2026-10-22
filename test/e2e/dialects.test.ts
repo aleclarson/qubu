@@ -899,6 +899,60 @@ describe.skipIf(!selectedDialect)("live dialect E2E", () => {
     30_000,
   )
 
+  test.skipIf(dialectName !== "postgresql")(
+    "preserves PostgreSQL index keys, ordering, operator classes, and included columns",
+    async () => {
+      if (!environment) {
+        throw new Error("E2E environment was not initialized")
+      }
+
+      await environment.driver.exec("DROP TABLE IF EXISTS qubu_e2e_index_positions")
+      try {
+        await environment.driver.exec(
+          "CREATE TABLE qubu_e2e_index_positions (first_key TEXT, second_key TEXT, payload INTEGER)",
+        )
+        await environment.driver.exec(
+          "CREATE UNIQUE INDEX qubu_e2e_index_positions_key ON qubu_e2e_index_positions (first_key text_pattern_ops DESC NULLS LAST, second_key ASC NULLS FIRST) INCLUDE (payload)",
+        )
+
+        const catalog = await readCatalog(environment)
+        const fixture = catalog.tables.find(
+          (entry) => entry.physicalName === "qubu_e2e_index_positions",
+        )
+        const index = fixture?.indexes.find(
+          (entry) => entry.physicalName === "qubu_e2e_index_positions_key",
+        )
+
+        expect(catalog.diagnostics.filter((issue) => issue.severity === "error")).toEqual([])
+        expect(index).toMatchObject({
+          unique: true,
+          terms: [
+            {
+              kind: "column",
+              column: "first_key",
+              position: 1,
+              direction: "DESC",
+              nulls: "LAST",
+              operatorClass: "text_pattern_ops",
+            },
+            {
+              kind: "column",
+              column: "second_key",
+              position: 2,
+              direction: "ASC",
+              nulls: "FIRST",
+              operatorClass: "text_ops",
+            },
+          ],
+          includedColumns: ["payload"],
+        })
+      } finally {
+        await environment.driver.exec("DROP TABLE IF EXISTS qubu_e2e_index_positions")
+      }
+    },
+    30_000,
+  )
+
   test("reads the selected namespace through its catalog adapter", async () => {
     if (!environment) {
       throw new Error("E2E environment was not initialized")
