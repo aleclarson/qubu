@@ -5,6 +5,7 @@ import { afterEach, expect, test } from "vitest"
 
 import { nodeSqliteAdapter } from "../adapters/node-sqlite/src/index.ts"
 import {
+  bigint,
   boolean,
   date,
   execute,
@@ -153,6 +154,42 @@ test("binds portable SQLite domains and decodes aliased rows from array-configur
   })
   expect(adapter.decoders).not.toHaveProperty("bigint")
 })
+
+test.each(["select", "returning"] as const)(
+  "round trips exact SQLite BIGINT values alongside ordinary integers through %s",
+  async (mode) => {
+    const database = createDatabase()
+
+    database.exec(
+      "CREATE TABLE exact_counters (id INTEGER NOT NULL, counter_value INTEGER NOT NULL)",
+    )
+    const counters = table("exact_counters", {
+      id: integer(),
+      counterValue: bigint(),
+    })
+    const adapter = nodeSqliteAdapter(database)
+    const input = {
+      id: 1,
+      counterValue: 9007199254740993n,
+    }
+    const projection = {
+      id: counters.id,
+      counterValue: counters.counterValue,
+    }
+
+    if (mode === "returning") {
+      await expect(
+        executeRows(insertInto(counters, values(input), returning(projection)), adapter),
+      ).resolves.toEqual([input])
+    } else {
+      await execute(insertInto(counters, values(input)), adapter)
+
+      await expect(executeRows(select(projection, from(counters)), adapter)).resolves.toEqual([
+        input,
+      ])
+    }
+  },
+)
 
 test("keeps returned rows as the reliable insert identifier path", async () => {
   const adapter = nodeSqliteAdapter(createDatabase(true))
