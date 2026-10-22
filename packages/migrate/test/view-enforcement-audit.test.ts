@@ -9,7 +9,10 @@ import { createMigrationPlan } from "../src/plan/index.ts"
 
 type View = SchemaSnapshot["views"][number]
 
-function viewSnapshot(predicate: string, options: Pick<View, "checkOption" | "securityInvoker">) {
+function viewSnapshot(
+  predicate: string,
+  options: Pick<View, "checkOption" | "securityInvoker" | "securityBarrier">,
+) {
   const records = table("records", { value: integer() })
   const base = createSchemaSnapshot(schema({ records }, { namespace: "public" }), {
     dialect: postgresSchemaDialect,
@@ -68,6 +71,44 @@ test.each(["none", "local", "cascaded"] as const)(
       expect(sql).not.toContain("CHECK OPTION")
     } else {
       expect(sql).toContain(`WITH ${checkOption.toUpperCase()} CHECK OPTION`)
+    }
+  },
+)
+
+test.each([
+  {
+    operation: "create",
+    securityBarrier: false,
+  },
+  {
+    operation: "create",
+    securityBarrier: true,
+  },
+  {
+    operation: "replace",
+    securityBarrier: false,
+  },
+  {
+    operation: "replace",
+    securityBarrier: true,
+  },
+] as const)(
+  "preserves PostgreSQL view security_barrier=$securityBarrier during $operation",
+  ({ operation, securityBarrier }) => {
+    const after = viewSnapshot("value > 1", { securityBarrier })
+    const before =
+      operation === "create"
+        ? {
+            ...after,
+            views: [],
+          }
+        : viewSnapshot("value > 0", { securityBarrier })
+    const sql = emitChange(before, after)
+
+    if (securityBarrier) {
+      expect(sql).toMatch(/"?security_barrier"?\s*=\s*(?:true|'true')/i)
+    } else {
+      expect(sql).not.toMatch(/"?security_barrier"?\s*=\s*(?:true|'true')/i)
     }
   },
 )
