@@ -1,0 +1,112 @@
+import { integer, schema, table } from "qubu"
+import { diffSnapshots } from "qubu/diff"
+import { createSchemaSnapshot, type SchemaSnapshot } from "qubu/snapshot"
+import { postgresSchemaDialect } from "qubu/snapshot/postgres"
+import { expect, test } from "vitest"
+
+import { emitMigrationPlan } from "../src/ddl/postgres.ts"
+import { createMigrationPlan } from "../src/plan/index.ts"
+
+type View = SchemaSnapshot["views"][number]
+
+function viewSnapshot(predicate: string, options: Pick<View, "checkOption" | "securityInvoker">) {
+  const records = table("records", { value: integer() })
+  const base = createSchemaSnapshot(schema({ records }, { namespace: "public" }), {
+    dialect: postgresSchemaDialect,
+  })
+  const snapshot: SchemaSnapshot = {
+    ...base,
+    views: [
+      {
+        kind: "view",
+        id: "visible_records",
+        physicalName: "visible_records",
+        columns: base.tables[0]!.columns,
+        definition: {
+          kind: "expression",
+          expressionKind: "raw",
+          sql: `SELECT value FROM public.records WHERE ${predicate}`,
+        },
+        dependencies: [
+          {
+            kind: "table",
+            id: "records",
+          },
+        ],
+        ...options,
+      },
+    ],
+  }
+
+  return snapshot
+}
+
+function emitChange(before: SchemaSnapshot, after: SchemaSnapshot) {
+  const planned = createMigrationPlan(diffSnapshots(before, after), {
+    allowReviewRequired: true,
+  })
+
+  expect(planned.ok, JSON.stringify(planned.diagnostics)).toBe(true)
+  const emitted = emitMigrationPlan(planned.plan, {
+    afterSnapshot: after,
+    serverVersion: "17.0",
+  })
+
+  expect(emitted.ok, JSON.stringify(emitted.diagnostics)).toBe(true)
+  return emitted.sql
+}
+
+test.each(["none", "local", "cascaded"] as const)(
+  "preserves PostgreSQL view check option %s when replacing its definition",
+  (checkOption) => {
+    const before = viewSnapshot("value > 0", { checkOption })
+    const after = viewSnapshot("value > 1", { checkOption })
+    const sql = emitChange(before, after)
+
+    expect(sql).toContain("CREATE OR REPLACE VIEW")
+    if (checkOption === "none") {
+      expect(sql).not.toContain("CHECK OPTION")
+    } else {
+      expect(sql).toContain(`WITH ${checkOption.toUpperCase()} CHECK OPTION`)
+    }
+  },
+)
+
+test.each([
+  {
+    operation: "create",
+    securityInvoker: false,
+  },
+  {
+    operation: "create",
+    securityInvoker: true,
+  },
+  {
+    operation: "replace",
+    securityInvoker: false,
+  },
+  {
+    operation: "replace",
+    securityInvoker: true,
+  },
+] as const)(
+  "preserves PostgreSQL view security_invoker=$securityInvoker during $operation",
+  ({ operation, securityInvoker }) => {
+    const after = viewSnapshot("value > 1", { securityInvoker })
+    const before =
+      operation === "create"
+        ? {
+            ...after,
+            views: [],
+          }
+        : viewSnapshot("value > 0", { securityInvoker })
+    const sql = emitChange(before, after)
+
+    if (securityInvoker) {
+      // Omitting this option defaults to the view owner's underlying privileges.
+      expect(sql).toMatch(/"?security_invoker"?\s*=\s*(?:true|'true')/i)
+    } else {
+      expect(sql).not.toMatch(/"?security_invoker"?\s*=\s*(?:true|'true')/i)
+    }
+  },
+)
