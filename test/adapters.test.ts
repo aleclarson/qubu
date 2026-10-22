@@ -570,8 +570,11 @@ describe("workspace adapters", () => {
           command: command.constructor.name,
         })
         if ("sql" in command.input) {
+          // The adapter requests longReturnType: "STRING", so AWS returns
+          // integer columns as stringValue rather than longValue.
+          // https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/data-api-operations.html
           return {
-            records: [[{ longValue: 7 }, { stringValue: "Ada" }]],
+            records: [[{ stringValue: "7" }, { stringValue: "Ada" }]],
             columnMetadata: [{ label: "id" }, { name: "name" }],
             numberOfRecordsUpdated: 1,
             generatedFields: [{ longValue: 7 }],

@@ -555,6 +555,48 @@ function reviewed(before: SchemaSnapshot, after: SchemaSnapshot) {
   }
 }
 
+test("recomputes generated columns instead of inserting them during a SQLite rebuild", () => {
+  const generated: SchemaSnapshot["tables"][number]["columns"][number] = {
+    ...column("slug"),
+    ordinalPosition: 2,
+    generated: true,
+    generatedColumn: {
+      kind: "expression",
+      expression: {
+        kind: "expression",
+        expressionKind: "call",
+        sql: 'lower("name")',
+      },
+      mode: "stored",
+    },
+  }
+  const before = snapshot([table("accounts", [column("name"), generated])])
+  const after = snapshot([
+    table("accounts", [
+      {
+        ...column("name"),
+        nullable: true,
+      },
+      generated,
+    ]),
+  ])
+  const input = reviewed(before, after)
+  const result = compileMigrationProgram(input.plan, input)
+
+  expect(result.ok).toBe(true)
+  if (!result.ok) {
+    return
+  }
+
+  const copy = result.program.phases
+    .flatMap((phase) => phase.statements)
+    .find((statement) => statement.sql.startsWith("INSERT INTO"))
+
+  expect(copy?.sql).toBe(
+    'INSERT INTO "main"."__qubu_rebuild_accounts" ("name") SELECT "name" FROM "main"."accounts"',
+  )
+})
+
 test("emits mixed rebuild and new-table operations exactly once and seals their coverage", async () => {
   const { before, after } = rebuildFixture("logical/table:with spaces".repeat(20))
   const input = reviewed(before, after)

@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite"
 
 import { diffSnapshots } from "qubu/diff"
-import type { SchemaSnapshot } from "qubu/snapshot"
+import { canonicalizeSchemaSnapshot, type SchemaSnapshot } from "qubu/snapshot"
 import { afterEach, expect, test } from "vitest"
 
 import { migrationAdapter } from "../adapters/node-sqlite/src/migration.ts"
@@ -217,6 +217,148 @@ test("applies and journals a transactional node:sqlite migration", async () => {
   expect(value.prepare("SELECT COUNT(*) AS count FROM __qubu_migration_applied").get()).toEqual({
     count: 1,
   })
+})
+
+test("preserves the AUTOINCREMENT high-water mark through a SQLite rebuild", async () => {
+  const value = database()
+
+  value.exec(`
+    CREATE TABLE accounts (
+      value INTEGER CONSTRAINT accounts_pk PRIMARY KEY AUTOINCREMENT,
+      label TEXT
+    );
+    INSERT INTO accounts (label) VALUES ('retained'), ('deleted');
+    DELETE FROM accounts WHERE value = 2;
+  `)
+  const base = snapshot(["accounts"])
+  const before = canonicalizeSchemaSnapshot({
+    ...base,
+    tables: base.tables.map((table) => ({
+      ...table,
+      columns: [
+        {
+          ...table.columns[0]!,
+          id: "label",
+          physicalName: "label",
+          ordinalPosition: 2,
+          nullable: true,
+        },
+        {
+          ...table.columns[0]!,
+          generated: true,
+          storage: {
+            kind: "native",
+            dialect: "sqlite",
+            type: "INTEGER",
+            affinity: "integer",
+          },
+          identity: {
+            kind: "identity",
+            generation: "by-default",
+            options: {},
+            dialect: {
+              dialect: "sqlite",
+              version: 1,
+              data: { autoIncrement: true },
+            },
+          },
+        },
+      ],
+      constraints: [
+        {
+          id: "accounts_pk",
+          physicalName: "accounts_pk",
+          kind: "primary-key",
+          columns: ["value"],
+        },
+      ],
+    })),
+  })
+  const after = canonicalizeSchemaSnapshot({
+    ...before,
+    tables: before.tables.map((table) => ({
+      ...table,
+      columns: table.columns.map((column) =>
+        column.id === "label"
+          ? {
+              ...column,
+              nullable: false,
+            }
+          : column,
+      ),
+    })),
+  })
+  const planned = createMigrationPlan(diffSnapshots(before, after), {
+    allowReviewRequired: true,
+    allowDestructive: true,
+    allowUnsupported: true,
+  })
+
+  if (!planned.ok) {
+    throw new Error("AUTOINCREMENT rebuild planning failed")
+  }
+
+  const approvals = planned.plan.operations
+    .filter((operation) => operation.safety !== "safe")
+    .map((operation) => ({
+      operationId: operation.id,
+      decision: "approve" as const,
+      safety: operation.safety,
+      findings: planned.plan.diagnostics
+        .filter((finding) => finding.operationId === operation.id)
+        .map((finding) => finding.code)
+        .sort(),
+      reason: "Reviewed label nullability change",
+    }))
+  const compiled = compileMigrationProgram(planned.plan, {
+    beforeSnapshot: before,
+    afterSnapshot: after,
+    approvals,
+  })
+
+  if (!compiled.ok) {
+    throw new Error(JSON.stringify(compiled.diagnostics))
+  }
+
+  const artifact = await sealExecutableArtifact({
+    format: "qubu-executable-migration",
+    version: 1,
+    id: "rebuild-accounts",
+    sequence: 0,
+    parentArtifactDigest: null,
+    dialect,
+    plan: planned.plan,
+    renderer: {
+      id: "qubu-sqlite",
+      version: 1,
+      dialect,
+    },
+    program: compiled.program,
+    beforeSnapshot: { value: before },
+    afterSnapshot: { value: after },
+    approvals,
+    provenance: { source: "node-sqlite-live-test" },
+  })
+
+  await executeMigrations({
+    repository: [artifact],
+    adapter: migrationAdapter(value, {
+      async readSnapshot() {
+        return before
+      },
+    }),
+  })
+  value.prepare("INSERT INTO accounts (label) VALUES (?)").run("next")
+  expect(value.prepare("SELECT value, label FROM accounts ORDER BY value").all()).toEqual([
+    {
+      value: 1,
+      label: "retained",
+    },
+    {
+      value: 3,
+      label: "next",
+    },
+  ])
 })
 
 test("accepts BigInt journal change counts", async () => {
