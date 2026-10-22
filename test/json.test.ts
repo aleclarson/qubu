@@ -80,6 +80,20 @@ test("renders MySQL JSON paths with type guards", () => {
   expect(rendered.parameters).toEqual([])
 })
 
+test("renders MySQL JSON number guards for floating-point and decimal values", () => {
+  const rendered = render(
+    select({ score: jsonNumber(events.payload, jsonPath("scores", 0)) }, from(events)),
+    mysqlDialect(),
+  )
+  // MySQL JSON_TYPE distinguishes INTEGER, DOUBLE, and DECIMAL numeric values:
+  // https://dev.mysql.com/doc/refman/8.4/en/json-attribute-functions.html
+  const acceptedTypes = [...rendered.text.matchAll(/WHEN '([A-Z]+)' THEN/gu)].map(
+    (match) => match[1],
+  )
+
+  expect(acceptedTypes).toEqual(expect.arrayContaining(["INTEGER", "DOUBLE", "DECIMAL"]))
+})
+
 test("renders SQLite JSON paths with scalar type guards", () => {
   const rendered = render(query, sqliteDialect())
 

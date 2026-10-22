@@ -46,6 +46,7 @@ import {
   json,
   jsonTextResultDecoder,
   jsonPath,
+  jsonNumber,
   jsonText,
   lt,
   orderBy,
@@ -568,6 +569,60 @@ describe.skipIf(!selectedDialect)("live dialect E2E", () => {
     } finally {
       await environment.driver.exec("DROP TABLE IF EXISTS qubu_e2e_audit_defaults")
     }
+  })
+
+  test("extracts fractional JSON numbers while rejecting numeric strings", async () => {
+    if (!environment) {
+      throw new Error("E2E environment was not initialized")
+    }
+
+    await execute(
+      insertInto(
+        records,
+        values(
+          {
+            id: 1,
+            name: "fraction",
+            payload: JSON.stringify({ score: 9.5 }),
+            active: null,
+            eventDate: null,
+            createdAt: null,
+          },
+          {
+            id: 2,
+            name: "numeric string",
+            payload: JSON.stringify({ score: "9.5" }),
+            active: null,
+            eventDate: null,
+            createdAt: null,
+          },
+        ),
+      ),
+      environment.adapter,
+    )
+
+    await expect(
+      executeRows(
+        select(
+          {
+            id: records.id,
+            score: jsonNumber(records.payload, jsonPath("score")),
+          },
+          from(records),
+          orderBy(records.id),
+        ),
+        environment.adapter,
+      ),
+    ).resolves.toEqual([
+      {
+        id: 1,
+        score: 9.5,
+      },
+      {
+        id: 2,
+        score: null,
+      },
+    ])
   })
 
   test("executes parameterized queries through the dialect adapter", async () => {
