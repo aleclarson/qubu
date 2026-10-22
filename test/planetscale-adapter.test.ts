@@ -2,7 +2,18 @@ import { expect, test, vi } from "vitest"
 
 import { planetscaleAdapter } from "../adapters/planetscale/src/index.ts"
 import type { ExecutionRequest } from "../src/execution.ts"
-import { boolean, date, executeRows, from, select, table } from "../src/index.ts"
+import {
+  boolean,
+  date,
+  execute,
+  executeRows,
+  from,
+  insertInto,
+  json,
+  select,
+  table,
+  values,
+} from "../src/index.ts"
 
 test("formats bound PlanetScale queries once in root and transaction scopes", async () => {
   const execute = vi.fn(async (..._args: unknown[]) => ({
@@ -78,3 +89,36 @@ test("decodes typed PlanetScale booleans and dates", async () => {
     } as never),
   ).toThrow(/SQL-aware formatter/)
 })
+
+test.each([
+  {
+    label: "object",
+    payload: { value: 1 },
+  },
+  {
+    label: "array",
+    payload: [1, 2],
+  },
+])(
+  "serializes a JSON $label before passing it to the PlanetScale formatter",
+  async ({ payload }) => {
+    const format = vi.fn(() => "INSERT INTO audit_json_records (payload) VALUES ('[]')")
+    const adapter = planetscaleAdapter({
+      config: { format },
+      async execute() {
+        return {
+          rows: [],
+          rowsAffected: 1,
+          insertId: "0",
+        }
+      },
+    } as never)
+    const records = table("audit_json_records", { payload: json<unknown>() })
+
+    await execute(insertInto(records, values({ payload })), adapter)
+
+    expect(format).toHaveBeenCalledWith("INSERT INTO `audit_json_records` (`payload`) VALUES (?)", [
+      JSON.stringify(payload),
+    ])
+  },
+)
