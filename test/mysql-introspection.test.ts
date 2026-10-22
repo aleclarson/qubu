@@ -1022,3 +1022,118 @@ test("rejects a connection from another dialect before querying", async () => {
     }),
   ])
 })
+
+test.each([null, "NULL", "TRUE", "FALSE", "'quoted'", "ordinary"])(
+  "preserves MySQL VARCHAR default value %j from COLUMN_DEFAULT",
+  async (defaultValue) => {
+    const fake = connection((statement) => {
+      if (statement.text === mysqlServerQuery) {
+        return [
+          {
+            version: "8.0.36",
+            version_comment: "MySQL Community Server",
+          },
+        ]
+      }
+
+      if (statement.text === mysqlTablesQuery) {
+        return [
+          {
+            table_name: "labels",
+            table_type: "BASE TABLE",
+            engine: "InnoDB",
+          },
+        ]
+      }
+
+      if (statement.text === mysqlColumnsQuery) {
+        return [
+          {
+            table_name: "labels",
+            column_name: "label",
+            ordinal_position: 1,
+            column_type: "varchar(100)",
+            data_type: "varchar",
+            is_nullable: "YES",
+            column_default: defaultValue,
+            extra: "",
+            generation_expression: "",
+          },
+        ]
+      }
+
+      return []
+    })
+    const catalog = await readCatalog(fake.connection, options())
+
+    // COLUMN_DEFAULT is a value, not a quoted SQL expression. SQL NULL is
+    // represented by a null field; the string "NULL" is still VARCHAR data.
+    // https://dev.mysql.com/doc/refman/8.4/en/information-schema-columns-table.html
+    expect(catalog.tables[0]?.columns[0]?.default).toEqual(
+      defaultValue === null
+        ? undefined
+        : {
+            kind: "literal",
+            value: defaultValue,
+          },
+    )
+  },
+)
+
+test.each([
+  ["datetime", "CURRENT_TIMESTAMP"],
+  ["varchar", "(uuid())"],
+])(
+  "retains MySQL %s expression defaults without inventing a generated column",
+  async (type, expression) => {
+    const fake = connection((statement) => {
+      if (statement.text === mysqlServerQuery) {
+        return [
+          {
+            version: "8.0.36",
+            version_comment: "MySQL Community Server",
+          },
+        ]
+      }
+
+      if (statement.text === mysqlTablesQuery) {
+        return [
+          {
+            table_name: "events",
+            table_type: "BASE TABLE",
+            engine: "InnoDB",
+          },
+        ]
+      }
+
+      if (statement.text === mysqlColumnsQuery) {
+        return [
+          {
+            table_name: "events",
+            column_name: "created",
+            ordinal_position: 1,
+            column_type: type === "varchar" ? "varchar(100)" : type,
+            data_type: type,
+            is_nullable: "NO",
+            column_default: expression,
+            extra: "DEFAULT_GENERATED",
+            generation_expression: "",
+          },
+        ]
+      }
+
+      return []
+    })
+    const catalog = await readCatalog(fake.connection, options())
+
+    // DEFAULT_GENERATED describes an expression default on a writable column.
+    // It is distinct from VIRTUAL GENERATED or STORED GENERATED.
+    expect(catalog.tables[0]?.columns[0]).toMatchObject({
+      generated: undefined,
+      default: {
+        kind: "expression",
+        expression: { text: expression },
+      },
+    })
+  },
+)
