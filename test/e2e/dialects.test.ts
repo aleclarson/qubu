@@ -706,6 +706,49 @@ describe.skipIf(!selectedDialect)("live dialect E2E", () => {
     ])
   }, 30_000)
 
+  test("preserves named fields when a recursive CTE member changes projection order", async () => {
+    if (!environment) {
+      throw new Error("E2E environment was not initialized")
+    }
+
+    const numbers = recursiveCte(
+      "qubu_e2e_named_recursion",
+      select({
+        id: cast(value(1), integer()),
+        weight: cast(value(100), integer()),
+      }),
+      (self) =>
+        select(
+          {
+            weight: self.weight,
+            id: add(self.id, 1),
+          },
+          from(self),
+          where(lt(self.id, 2)),
+        ),
+    )
+    const query = select(
+      {
+        id: numbers.id,
+        weight: numbers.weight,
+      },
+      withCte(numbers),
+      from(numbers),
+      orderBy(numbers.id),
+    )
+
+    await expect(executeRows(query, environment.adapter)).resolves.toEqual([
+      {
+        id: 1,
+        weight: 100,
+      },
+      {
+        id: 2,
+        weight: 100,
+      },
+    ])
+  })
+
   test.skipIf(dialectName !== "postgresql")(
     "executes a PostgreSQL insert backed by a CTE",
     async () => {
