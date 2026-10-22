@@ -167,7 +167,7 @@ test("preserves serial identity and bigint number behavior in Qubu metadata", ()
   ).toBe(42)
 })
 
-test("preserves PostgreSQL UUID and timestamp database generation", () => {
+test("preserves PostgreSQL UUID generation and application-owned date defaults", () => {
   const result = betterAuthSchema(
     {
       advanced: { database: { generateId: "uuid" } },
@@ -187,7 +187,7 @@ test("preserves PostgreSQL UUID and timestamp database generation", () => {
     kind: "expression",
   })
   expect(result.tableFor("user").definitions.activatedAt.default).toMatchObject({
-    kind: "expression",
+    kind: "external",
   })
 })
 
