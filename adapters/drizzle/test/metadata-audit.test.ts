@@ -1,4 +1,8 @@
+import { DrizzleSchemaConversionError } from "@qubu/drizzle"
+import { toDrizzleSchema as toMysqlDrizzleSchema } from "@qubu/drizzle/mysql"
 import { toDrizzleSchema } from "@qubu/drizzle/postgres"
+import { sql } from "drizzle-orm"
+import { getTableConfig as getMysqlTableConfig, MySqlDialect } from "drizzle-orm/mysql-core"
 import { getTableConfig } from "drizzle-orm/pg-core"
 import { identityColumn, index, integer, schema, table, text } from "qubu"
 import { expect, test } from "vitest"
@@ -54,3 +58,36 @@ test.each([false, true])(
     expect(getTableConfig(converted.records).indexes[0]?.config.method).toBe("hash")
   },
 )
+
+test("preserves MySQL unique index prefixes or rejects unsupported conversion", () => {
+  const records = table("audit_prefix_records", { label: text() }, (columns) => ({
+    constraints: {},
+    indexes: {
+      prefix: index([columns.label], {
+        unique: true,
+        termOptions: [{ prefixLength: 8 }],
+      }),
+    },
+  }))
+
+  try {
+    const converted = toMysqlDrizzleSchema(schema({ records }))
+    const convertedIndex = getMysqlTableConfig(converted.records).indexes[0]
+
+    expect(convertedIndex?.config.unique).toBe(true)
+    const term = convertedIndex?.config.columns[0]
+
+    expect(term).toBeDefined()
+    const rendered = new MySqlDialect().sqlToQuery(sql`${term}`)
+
+    expect(rendered.sql).toContain("`label`(8)")
+    expect(rendered.params).toEqual([])
+  } catch (error) {
+    if (!(error instanceof DrizzleSchemaConversionError)) {
+      throw error
+    }
+
+    expect(error.code).toBe("unsupported-metadata")
+    expect(error.path).toContain("prefixLength")
+  }
+})
