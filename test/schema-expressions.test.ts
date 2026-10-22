@@ -1,7 +1,9 @@
 import { expect, expectTypeOf, test } from "vitest"
 
 import { createDialect, makeExpression } from "../src/core/index.ts"
+import { mysqlDialect } from "../src/dialects/mysql.ts"
 import { postgresDialect } from "../src/dialects/postgres.ts"
+import { sqliteDialect } from "../src/dialects/sqlite.ts"
 import { and, count, gt, lower, table, text, value } from "../src/index.ts"
 import { integer } from "../src/index.ts"
 import type { ResultMeta } from "../src/index.ts"
@@ -28,6 +30,32 @@ test("renders deterministic scalar expressions with schema literals", () => {
     parameters: [],
   })
   expect(renderSchemaSql(value("O'Reilly"), { mode: "default" })).toBe("'O''Reilly'")
+})
+
+test("renders question marks inside SQLite string literals without treating them as parameters", () => {
+  expect(
+    renderSchemaExpression(value("What's next?"), {
+      mode: "default",
+      dialect: sqliteDialect(),
+    }),
+  ).toEqual({
+    text: "'What''s next?'",
+    parameters: [],
+  })
+})
+
+test.each([
+  [String.raw`C:\temp\new`, String.raw`'C:\\temp\\new'`],
+  ["O'Reilly", "'O''Reilly'"],
+])("preserves MySQL schema string %j under default SQL mode", (input, expected) => {
+  // MySQL interprets backslash escapes unless NO_BACKSLASH_ESCAPES is set.
+  // https://dev.mysql.com/doc/refman/8.4/en/string-literals.html
+  expect(
+    renderSchemaSql(value(input), {
+      mode: "default",
+      dialect: mysqlDialect(),
+    }),
+  ).toBe(expected)
 })
 
 test("uses bare physical columns outside default expressions", () => {

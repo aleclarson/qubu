@@ -104,6 +104,38 @@ function planFor(dialect: SchemaSnapshot["dialect"]): MigrationPlan {
   return result.plan
 }
 
+test("emits SQLite string defaults containing a literal question mark", () => {
+  const dialect = {
+    name: "sqlite",
+    version: 1,
+  } as const
+  const after = snapshot(dialect, [
+    table("prompts", [
+      {
+        ...column("label"),
+        hasDefault: true,
+        default: {
+          kind: "literal",
+          value: {
+            kind: "string",
+            value: "Ready?",
+          },
+        },
+      },
+    ]),
+  ])
+  const planned = createMigrationPlan(diffSnapshots(snapshot(dialect, []), after))
+
+  if (!planned.ok) {
+    throw new Error(JSON.stringify(planned.diagnostics))
+  }
+
+  expect(sqliteDdl.emitMigrationPlan(planned.plan)).toMatchObject({
+    ok: true,
+    sql: expect.stringContaining("DEFAULT 'Ready?'"),
+  })
+})
+
 test("retains PostgreSQL identity start and increment options in table DDL", () => {
   const dialect = {
     name: "postgresql",
