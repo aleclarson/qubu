@@ -185,6 +185,101 @@ test("retains PostgreSQL identity start and increment options in table DDL", () 
   expect(emitted.sql).toContain("GENERATED ALWAYS AS IDENTITY (START WITH 100 INCREMENT BY 5)")
 })
 
+test.each([false, true])(
+  "retains PostgreSQL index access methods in DDL (extension metadata: %s)",
+  (extension) => {
+    const dialect = {
+      name: "postgresql",
+      version: 1,
+    } as const
+    const after = snapshot(dialect, [
+      {
+        ...table("records", [column("label")]),
+        indexes: [
+          {
+            id: "lookup",
+            physicalName: "records_lookup",
+            kind: "index",
+            candidateKey: false,
+            unique: false,
+            ...(extension
+              ? {
+                  dialect: {
+                    dialect: "postgresql",
+                    version: 1,
+                    data: { method: "hash" },
+                  },
+                }
+              : { method: "hash" }),
+            terms: [
+              {
+                kind: "column",
+                column: "label",
+                position: 1,
+              },
+            ],
+          },
+        ],
+      },
+    ])
+    const planned = createMigrationPlan(diffSnapshots(snapshot(dialect, []), after))
+
+    if (!planned.ok) {
+      throw new Error(JSON.stringify(planned.diagnostics))
+    }
+
+    const emitted = postgresDdl.emitMigrationPlan(planned.plan)
+
+    expect(emitted.ok).toBe(true)
+    expect(emitted.sql).toContain('USING hash ("label")')
+  },
+)
+
+test("retains MySQL unique index prefix lengths instead of changing the uniqueness rule", () => {
+  const dialect = {
+    name: "mysql",
+    version: 1,
+  } as const
+  const after = snapshot(dialect, [
+    {
+      ...table("records", [column("label")]),
+      indexes: [
+        {
+          id: "prefix",
+          physicalName: "records_prefix",
+          kind: "index",
+          candidateKey: false,
+          unique: true,
+          terms: [
+            {
+              kind: "column",
+              column: "label",
+              position: 1,
+              prefixLength: {
+                kind: "literal",
+                value: {
+                  kind: "number",
+                  value: "8",
+                },
+              },
+            },
+          ],
+        },
+      ],
+    },
+  ])
+  const planned = createMigrationPlan(diffSnapshots(snapshot(dialect, []), after))
+
+  if (!planned.ok) {
+    throw new Error(JSON.stringify(planned.diagnostics))
+  }
+
+  const emitted = mysqlDdl.emitMigrationPlan(planned.plan)
+
+  expect(emitted.ok).toBe(true)
+  expect(emitted.sql).toContain("(`label`(8))")
+})
+
 test("emits deterministic table and column SQL for all first-party dialects", () => {
   const postgres = postgresDdl.emitMigrationPlan(
     planFor({
