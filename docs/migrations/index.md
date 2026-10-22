@@ -12,8 +12,7 @@ These packages handle different parts of a migration:
 | Adapter package | `@qubu/adapter-*/migration`                                                                                                 | Pinned driver sessions, parameter binding, transactions, leases, locks, database journal storage, and failure classification |
 | Application     | Its own configuration and deployment code                                                                                   | Credentials, environment selection, approval policy, custom SQL, rollout timing, and legacy cutover decisions                |
 
-The pre-alpha `qubu/migration` and `qubu/ddl` entrypoints no longer exist. Use
-the extracted compiler entrypoints:
+Import migration behavior from its owning package:
 
 ```ts
 import { createMigrationPlan } from "@qubu/migrate/plan"
@@ -57,8 +56,6 @@ entrypoint:
 - [Adopt an existing database](adopt.md): capture, review, and accept the live
   starting schema before applying separate migrations.
 - [Recovery and reconciliation](recovery.md): handle interrupted migrations.
-- [Lotta Games adoption](lotta-adoption.md): review the downstream cutover
-  plan and combo-matrix release blocker.
 
 ## Select a built-in dialect
 

@@ -40,6 +40,16 @@ const rowLockWaitPolicies = [
   "skip-locked",
 ] as const satisfies readonly RowLockWaitPolicy[]
 
+/**
+ * Add a dialect-checked locking clause; defaults to UPDATE with the database's default wait policy.
+ *
+ * PostgreSQL supports every mode; MySQL supports UPDATE and SHARE only. Standard SQL and SQLite
+ * policies reject this capability. This does not open a transaction or check every server grammar
+ * restriction. `wait` takes precedence over `waitPolicy` in the object form.
+ *
+ * @throws QueryValidationError for an invalid mode or wait policy. Dialect restrictions are checked
+ *   during rendering.
+ */
 export function rowLock(): RowLockClause<"update", "default">
 export function rowLock<TMode extends RowLockMode>(mode: TMode): RowLockClause<TMode, "default">
 export function rowLock<TMode extends RowLockMode, TWait extends RowLockWaitPolicy>(

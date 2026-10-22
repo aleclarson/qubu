@@ -27,6 +27,13 @@ export type ReturningSqlTypes<T> = [T] extends [ReturningClause<infer TSelection
   ? SelectionSqlTypes<TSelection>
   : Record<string, never>
 
+/**
+ * Project typed mutation rows using SELECT naming rules.
+ *
+ * Use with a supporting database such as PostgreSQL or SQLite. This clause does not advertise a
+ * dialect capability; plain MySQL mutations can render unsupported RETURNING syntax. MySQL
+ * duplicate-key updates reject it during construction.
+ */
 export function returning<const TSelection extends Selection>(
   selection: TSelection,
 ): ReturningClause<TSelection> {

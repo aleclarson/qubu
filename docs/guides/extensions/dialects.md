@@ -25,7 +25,7 @@ you provide `quoteIdentifier`. A complete pagination policy can be supplied
 through the optional `pagination` renderer.
 
 For the full rendering and execution boundary, read
-[Dialects and execution](../../dialects-and-execution.md). It covers capability
+[Dialects and adapters](../../dialects-and-execution.md). It covers capability
 requirements, the driver adapter, and the values that cross the boundary.
 
 For syntax that is not a small policy decision, add a

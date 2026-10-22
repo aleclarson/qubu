@@ -11,7 +11,11 @@ export interface ResultDecodeContext {
   readonly rowIndex: number
 }
 
-/** Convert one normalized driver value into its application representation. */
+/**
+ * Convert a driver value into its application representation. Top-level SQL NULL bypasses the
+ * decoder. Execution wraps decoder failures in ResultDecodingError without retaining the raw
+ * value.
+ */
 export type ResultDecoder<T = unknown> = (value: unknown, context: ResultDecodeContext) => T
 
 /** Driver-specific decoders selected by a field's portable result domain. */

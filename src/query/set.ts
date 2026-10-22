@@ -36,6 +36,12 @@ export type SetSqlValidation<TLeft, TRight> = [SetSqlCompatibilityFailures<TLeft
       SetSqlCompatibilityFailures<TLeft, TRight>
     >
 
+/**
+ * Combine queries using the left projection's row shape, SQL domains, and decoders.
+ *
+ * Use matching projection keys in matching order. Type compatibility is checked by field name,
+ * while SQL combines fields positionally; this does not reorder or runtime-validate projections.
+ */
 export function setOperation<TLeft extends AnyQuery, TRight extends QueryWithRow<QueryRow<TLeft>>>(
   operator: SetOperator,
   left: TLeft & SetSqlValidation<TLeft, TRight>,
@@ -73,6 +79,7 @@ export function setOperation<TLeft extends AnyQuery, TRight extends QueryWithRow
   }>
 }
 
+/** Combine distinct rows under the positional projection contract of {@link setOperation}. */
 export function union<TLeft extends AnyQuery, TRight extends QueryWithRow<QueryRow<TLeft>>>(
   left: TLeft & SetSqlValidation<TLeft, TRight>,
   right: TRight,
@@ -80,6 +87,7 @@ export function union<TLeft extends AnyQuery, TRight extends QueryWithRow<QueryR
   return setOperation("UNION", left, right)
 }
 
+/** Combine rows including duplicates; projection order must match as in {@link setOperation}. */
 export function unionAll<TLeft extends AnyQuery, TRight extends QueryWithRow<QueryRow<TLeft>>>(
   left: TLeft & SetSqlValidation<TLeft, TRight>,
   right: TRight,
@@ -87,6 +95,7 @@ export function unionAll<TLeft extends AnyQuery, TRight extends QueryWithRow<Que
   return setOperation("UNION ALL", left, right)
 }
 
+/** Intersect rows using the positional projection contract of {@link setOperation}. */
 export function intersect<TLeft extends AnyQuery, TRight extends QueryWithRow<QueryRow<TLeft>>>(
   left: TLeft & SetSqlValidation<TLeft, TRight>,
   right: TRight,
@@ -94,6 +103,7 @@ export function intersect<TLeft extends AnyQuery, TRight extends QueryWithRow<Qu
   return setOperation("INTERSECT", left, right)
 }
 
+/** Subtract right rows using the positional projection contract of {@link setOperation}. */
 export function except<TLeft extends AnyQuery, TRight extends QueryWithRow<QueryRow<TLeft>>>(
   left: TLeft & SetSqlValidation<TLeft, TRight>,
   right: TRight,

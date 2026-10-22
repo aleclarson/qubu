@@ -37,28 +37,13 @@ const query = select({ ...all(users), normalizedName: upper(users.name) }, from(
 `all(source)` expands to explicit named columns rather than emitting
 `source.*`. That keeps the SQL output and the inferred row keys aligned.
 
-Named object projections keep the row shape visible at the selection site,
-which is useful when the result is consumed by application code.
-
 ## Add joins and predicates
 
 Join functions add a source and make the join condition part of the same scope
 check as the projection and `WHERE` clause:
 
 ```ts
-import {
-  count,
-  eq,
-  from,
-  innerJoin,
-  isNotNull,
-  leftJoin,
-  select,
-  table,
-  text,
-  integer,
-  where,
-} from "qubu"
+import { eq, from, innerJoin, isNotNull, leftJoin, select, table, text, integer, where } from "qubu"
 
 const posts = table("posts", {
   id: integer(),
@@ -80,24 +65,29 @@ use them only when that SQL behavior is intentional.
 
 ### Handle missing joined rows
 
-`leftJoin()` also carries nullability into the selected row. A column from the
-joined source is nullable because the row may be missing, while an expression
-with a deliberately non-nullable result such as `count()` remains non-null:
+`leftJoin()` makes columns from the joined source nullable in the selected row:
 
 ```ts
 const summary = select(
   {
     userName: users.name,
     postTitle: posts.title,
-    postCount: count(posts.id),
   },
   from(users),
   leftJoin(posts, eq(users.id, posts.authorId)),
 )
 
 // typeof summary.row:
-// { userName: string; postTitle: string | null; postCount: number }
+// { userName: string; postTitle: string | null }
 ```
+
+Expression nullability follows its own contract: `upper(posts.title)` also
+becomes nullable, while `count(posts.id)` stays non-null in a
+[grouped query](grouping-and-windows.md).
+
+Current nullability inference covers `leftJoin()` only. For `rightJoin()` or
+`fullJoin()`, account for nullable results explicitly; see the
+[result-shape limits](../../query-model/result-shapes.md#account-for-nullable-joins).
 
 ### Add conditions
 

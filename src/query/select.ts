@@ -46,6 +46,19 @@ export type {
   SelectQuery,
 } from "./select/types.ts"
 
+/**
+ * Build a named projection from independent clauses, sorted into SQL order.
+ *
+ * TypeScript checks source scope and grouping dependencies when the query is assembled. Projection
+ * fields may use `omit`; conditional clauses may use it only for supported clause kinds. Repeated
+ * singleton clauses throw rather than merge; combine conditions in one `where()`.
+ *
+ * Construction does not execute SQL. An empty effective projection fails during rendering. Use
+ * `typeof query.row` for the inferred row type; `query.row` contains no result data.
+ *
+ * @see all
+ * @see omit
+ */
 export function select<
   const TSelection extends Selection,
   const TParts extends readonly SelectPart[],

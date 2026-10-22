@@ -6,6 +6,7 @@ import type { SqlTypeName } from "./sql-types.ts"
 
 type DefaultDialectCapability = "json"
 
+/** SQL text and ordered bind values; this is not an executable query or a result. */
 export interface RenderedQuery {
   readonly text: string
   readonly parameters: readonly unknown[]
@@ -35,6 +36,12 @@ export type RenderCapabilityValidation<TQuery, TCapabilities extends string> = [
       MissingCapabilities<TQuery, TCapabilities>
     >
 
+/**
+ * Render a fragment with the standard policy or a supplied dialect without opening a connection.
+ *
+ * Rendering invokes fragment callbacks, column parameter encoders, and runtime insert defaults on
+ * every call. Bind `parameters` with the driver API; never interpolate them into the SQL text.
+ */
 export function render<TQuery extends AnyFragment>(
   query: TQuery & RenderCapabilityValidation<TQuery, DefaultDialectCapability>,
 ): RenderedQuery

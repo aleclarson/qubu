@@ -34,6 +34,7 @@ export interface ValuesSource<TRows extends readonly object[] = readonly object[
   readonly rows: TRows
 }
 
+/** Collect insert rows; `insertInto()` checks required fields and matching column sets. */
 export function values<const TRows extends readonly [object, ...object[]]>(
   ...rows: TRows
 ): ValuesSource<TRows> {
@@ -47,6 +48,7 @@ export interface DefaultValuesSource {
   readonly insertKind: "default-values"
 }
 
+/** Insert one row using database defaults and any runtime defaults evaluated during rendering. */
 export function defaultValues(): DefaultValuesSource {
   return Object.freeze({ insertKind: "default-values" as const })
 }
@@ -60,6 +62,7 @@ export interface InsertSelectSource<
   readonly columns: TColumns
 }
 
+/** Map selected fields positionally to target column names; runtime defaults are not filled in. */
 export function insertSelect<
   TQuery extends AnyQuery,
   const TColumns extends readonly [string, ...string[]],
@@ -218,6 +221,15 @@ type ValidInsertSource<TTable extends AnyTable, TSource extends InsertSource> =
             >
         : never
 
+/**
+ * Build an INSERT from rows, defaults, or a query, checking writable target fields.
+ *
+ * Raw values pass through column encoders; expressions render directly and cannot read a relational
+ * source in VALUES. Runtime defaults run per omitted row field on every render of VALUES or DEFAULT
+ * VALUES, including inspection renders. Explicit `undefined` is not omission.
+ *
+ * @throws QueryValidationError for invalid rows, columns, or incompatible conflict clauses.
+ */
 export function insertInto<
   const TTable extends AnyTable,
   const TSource extends InsertSource,

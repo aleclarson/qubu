@@ -86,9 +86,9 @@ Each annotation replaces the previous output declaration. These declarations
 are caller assertions; Qubu does not validate the returned values.
 
 Interpolated fragments contribute their source requirements and
-nullability. For example, a `.$type<Output, SqlType>()sql` template containing a
-column from the right side of a `.$type<string, SqlText>()leftJoin()` produces `string | null` in the
-selected row.
+nullability. A `sql` template annotated with `.$type<string, SqlText>()`
+still produces `string | null` when it interpolates a column made nullable by
+`leftJoin()`. The annotation does not erase inherited outer-join nullability.
 
 ## Keep identifiers and dynamic syntax explicit
 

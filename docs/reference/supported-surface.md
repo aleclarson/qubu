@@ -247,7 +247,7 @@ Your application supplies:
 - Proof needed for recovery and decisions about legacy cutover.
 - Database lifecycle management.
 
-Start with [Dialects and execution](../dialects-and-execution.md) for the query
+Start with [Dialects and adapters](../dialects-and-execution.md) for the query
 adapter contract. The schema path is documented in [Canonical schema
 snapshots](../schema/snapshots.md), [Snapshot diffing](../schema/diff.md),
 [Migration plans](../schema/migration-plans.md), and [DDL

@@ -29,7 +29,11 @@ type MappedResultMetadata<TOutput, TExpression> =
   | ExpressionMeta<DependenciesOf<TExpression>>
   | InheritedMetadata<TExpression>
 
-/** Attach an application decoder to an expression without changing its SQL. */
+/**
+ * Attach an application decoder without changing SQL, the SQL domain, or inherited nullability.
+ * Overrides adapter decoding for the field. Top-level SQL NULL bypasses the decoder and stays
+ * null.
+ */
 export function mapResult<TOutput, TExpression extends AnyExpression>(
   expression: TExpression,
   decoder: ResultDecoder<TOutput>,

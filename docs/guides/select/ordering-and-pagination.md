@@ -19,24 +19,25 @@ identifier quoting and any dialect-specific ordering syntax.
 
 ## Paginate results
 
-Choose `fetchFirst()` or `offset()` for pagination:
+Combine `fetchFirst()` with `offset()` for pagination. Include a unique
+tie-breaker for stable pages:
 
 ```ts
-import { desc, eq, fetchFirst, from, offset, orderBy, select, where } from "qubu"
+import { desc, fetchFirst, from, offset, orderBy, select } from "qubu"
 
 const page = select(
   { id: users.id, name: users.name },
   from(users),
-  where(eq(users.id, 7)),
-  orderBy(desc(users.name)),
+  orderBy(desc(users.name), desc(users.id)),
   offset(20),
   fetchFirst(20),
 )
 ```
 
-The rendered clauses follow SQL order: `FROM` comes before `WHERE`, followed
-by `ORDER BY` and pagination. The active dialect decides whether pagination uses standard
-`FETCH` syntax or a driver-specific `LIMIT` form.
+The active dialect decides whether pagination uses standard `FETCH` syntax or
+a `LIMIT` form. `fetchNext()` has the same row-bound behavior as `fetchFirst()`;
+its distinction is the standard SQL keyword. All row counts must be
+non-negative integers, including zero.
 
 ### Make the limit optional
 

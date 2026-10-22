@@ -3,9 +3,8 @@
 > Learn why a column must belong to a source in the query, and how to refer to an enclosing query.
 
 A column carries the identity of the source that provides it. Qubu checks that
-identity when you assemble a query. The source must appear in `FROM` or a join
-before its columns can appear in the projection, a predicate, or another
-clause.
+identity when you assemble a query. The source must be supplied by `FROM` or a
+join for its columns to appear in the projection, a predicate, or another clause.
 
 ## Add the source that owns a column
 
@@ -82,50 +81,6 @@ const query = select({ name: namesSource.name }, from(namesSource))
 
 Use [Compose queries](../guides/compose-queries.md) for the full CTE,
 derived-table, scalar-subquery, and set-operation workflow.
-
-## Produce a custom FROM source
-
-Use `customSource()` for a table-valued function or another relation that
-`table()` cannot describe. The producer supplies the source identity, column
-definitions, and complete relation renderer:
-
-```ts
-import { eq, from, integer, select, text, where } from "qubu"
-import { identifier } from "qubu/core"
-import { customSource } from "qubu/schema"
-
-const entries = customSource({
-  identity: {
-    sourceKind: "table-function",
-    name: "json_each",
-    alias: "entry",
-  },
-  sourceKind: "table-function",
-  reference: identifier("entry"),
-  columns: {
-    key: integer(),
-    value: text({ nullable: true }),
-  },
-  render(context) {
-    context.append("json_each(")
-    context.parameter('{"a":1}')
-    context.append(") AS ")
-    context.render(identifier("entry"))
-  },
-})
-
-const query = select({ value: entries.value }, from(entries), where(eq(entries.key, 7)))
-```
-
-`identity` is the type-level source key. `reference` is the SQL qualifier used
-by the generated columns.
-
-The nullable `value` column stays nullable, and a
-`leftJoin()` adds outer-join nullability to every selected column from
-`entries`.
-
-Bind function arguments with `context.parameter()`. The normal renderer then
-keeps those values in placeholder order.
 
 ## Correlate an inner query
 

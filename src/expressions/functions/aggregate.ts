@@ -13,6 +13,10 @@ import {
 } from "../types.ts"
 import { call } from "./call.ts"
 
+/**
+ * Count rows, or non-null values when passed an expression, with a non-null numeric contract.
+ * Driver strings are not automatically converted to numbers; configure the driver or mapResult().
+ */
 export function count(): AggregateResultExpression<{
   readonly output: number
   readonly kind: "function"
@@ -52,6 +56,7 @@ export function count(expression?: AnyExpression) {
   }>
 }
 
+/** Count distinct non-null values, with the same driver-value caveat as {@link count}. */
 export function countDistinct<TExpression extends AnyExpression>(expression: TExpression) {
   return makeExpression(
     "function",
@@ -71,6 +76,12 @@ export function countDistinct<TExpression extends AnyExpression>(expression: TEx
   }>
 }
 
+/**
+ * Sum a numeric expression while retaining its declared output type and SQL domain.
+ *
+ * Current types do not add `null` for empty input sets or model database aggregate widening.
+ * Account for those cases with COALESCE, driver configuration, or an explicit result decoder.
+ */
 export function sum<T, TExpression extends ExpressionWithOutput<T>>(
   expression: TExpression & SqlCapabilityValidation<ExpressionSqlType<TExpression>, SqlNumericLike>,
 ) {
@@ -89,6 +100,10 @@ export function sum<T, TExpression extends ExpressionWithOutput<T>>(
   }>
 }
 
+/**
+ * Average a numeric expression with a declared `number` output and SqlDecimal domain. Empty-input
+ * nullability and driver string/decimal conversion are not inferred; see {@link sum}.
+ */
 export function avg<T, TExpression extends ExpressionWithOutput<T>>(
   expression: TExpression & SqlCapabilityValidation<ExpressionSqlType<TExpression>, SqlNumericLike>,
 ) {
@@ -107,6 +122,7 @@ export function avg<T, TExpression extends ExpressionWithOutput<T>>(
   }>
 }
 
+/** Return a minimum with the input's type and domain; empty-input nullability is not added. */
 export function min<T, TExpression extends ExpressionWithOutput<T>>(
   expression: TExpression & SqlCapabilityValidation<ExpressionSqlType<TExpression>, SqlOrderable>,
 ) {
@@ -125,6 +141,7 @@ export function min<T, TExpression extends ExpressionWithOutput<T>>(
   }>
 }
 
+/** Return a maximum with the input's type and domain; empty-input nullability is not added. */
 export function max<T, TExpression extends ExpressionWithOutput<T>>(
   expression: TExpression & SqlCapabilityValidation<ExpressionSqlType<TExpression>, SqlOrderable>,
 ) {

@@ -113,9 +113,9 @@ so downstream text operations remain checked without redeclaring the field.
 `scalar()` turns a query with exactly one selected field into an expression:
 
 ```ts
-import { from, scalar, select, value } from "qubu"
+import { asc, fetchFirst, from, orderBy, scalar, select, value } from "qubu"
 
-const firstId = select({ id: users.id }, from(users))
+const firstId = select({ id: users.id }, from(users), orderBy(asc(users.id)), fetchFirst(1))
 const query = select(
   {
     name: users.name,
@@ -125,10 +125,10 @@ const query = select(
 )
 ```
 
-`scalar()` throws at runtime when the query selects more than one field. Its
-type is the selected field's value type, widened with `null` when the query may
-return no rows. An ordinary select and `fetchFirst(1)` are both nullable: the
-limit proves at most one row, not that a row exists.
+`scalar()` checks field count, not row count. Keep the limit when multiple
+rows are possible; most databases reject a multi-row scalar subquery, while
+SQLite uses its first row. The type widens with `null` unless Qubu proves
+exactly one row. `fetchFirst(1)` proves only an upper bound.
 
 A source-free select such
 as `select({ value: value(42) })` is known to produce exactly one row.
@@ -138,8 +138,10 @@ Qubu does not treat an arbitrary predicate as proof of exactness. Use
 
 ## Combine compatible queries
 
-Set operations preserve the left query's row shape. Both queries must select
-compatible rows:
+Set operations preserve the left query's row shape and decoders. Use identical
+projection keys in identical order on both sides. TypeScript checks named-field
+compatibility, but Qubu does not reorder the right projection to match the
+left; SQL combines fields by position:
 
 ```ts
 import { eq, from, select, unionAll, where } from "qubu"

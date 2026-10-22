@@ -43,7 +43,7 @@ const currentTimestamp = defineSchemaExpression("function", (context) => {
   context.append("CURRENT_TIMESTAMP")
 })
 
-const accounts = table("accounts", {
+const generatedAccounts = table("generated_accounts", {
   id: integer({ identity: identityColumn("always") }),
   status: text({ default: "pending" }),
   active: boolean({ default: true }),
@@ -80,9 +80,13 @@ const sessions = table("sessions", {
 })
 ```
 
-Runtime defaults make the insert key optional and run once for each omitted
-row value. They remain live column behavior: snapshots and emitted DDL do not
-record a database default.
+Runtime defaults make the insert key optional. `values()` and
+`defaultValues()` evaluate them during rendering, once per omitted row value
+per render. Rendering for inspection and then executing the query evaluates
+them again. Explicit values, including `undefined`, do not trigger them, and
+`insertSelect()` does not fill omitted target columns from `defaultFn`.
+Snapshots and emitted DDL do not record a database default for a runtime-only
+default.
 
 A column may declare both `default` and `defaultFn`;
 Qubu writes use the runtime value while the database default remains available

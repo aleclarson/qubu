@@ -48,6 +48,11 @@ export function renderPagination(context: RenderContext, clauses: readonly AnyPa
   })
 }
 
+/**
+ * Skip a non-negative integer number of rows using the selected dialect's pagination policy.
+ *
+ * @throws QueryValidationError for a negative, fractional, or non-finite count.
+ */
 export function offset(rows: number): OffsetClause {
   if (!Number.isInteger(rows) || rows < 0) {
     throw queryValidationError({
@@ -113,10 +118,17 @@ function fetchRows<const TRows extends number>(
   ) as FetchClause<TRows>
 }
 
+/**
+ * Limit rows with FETCH FIRST or the dialect's LIMIT form. An unconditional literal 0 or 1 proves
+ * at most one row, never that a row exists. A conditional clause does not prove a bound.
+ *
+ * @throws QueryValidationError unless the count is a non-negative integer.
+ */
 export function fetchFirst<const TRows extends number>(rows: TRows) {
   return fetchRows("FIRST", rows)
 }
 
+/** Use FETCH NEXT with the same bounds and validation as {@link fetchFirst}. */
 export function fetchNext<const TRows extends number>(rows: TRows) {
   return fetchRows("NEXT", rows)
 }

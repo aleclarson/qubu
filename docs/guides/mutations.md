@@ -42,8 +42,10 @@ render(query)
 // }
 ```
 
-Use `defaultValues()` only when every non-generated column has a database
-default. Use `insertSelect(query, columns)` for an `INSERT ... SELECT` source.
+Use `defaultValues()` only when every non-generated column has a database or
+runtime default. `defaultFn` runs during rendering, including renders done for
+inspection; see [runtime defaults](../schema/columns-and-writes.md#supply-defaults-at-runtime).
+Use `insertSelect(query, columns)` for an `INSERT ... SELECT` source.
 An ordinary or recursive `withCte()` clause can prefix any mutation; see
 [Compose queries](compose-queries.md#turn-a-query-into-a-cte) for the typed
 `WITH ... INSERT`, `WITH ... UPDATE`, and `WITH ... DELETE` patterns.
@@ -88,11 +90,11 @@ const accounts = table(
   }),
 )
 
-const incoming = excluded(accounts)
+const excludedAccounts = excluded(accounts)
 const conflict = onConflict(
   accounts,
   accounts.indexes.activeEmail,
-  doUpdate({ name: incoming.name }),
+  doUpdate({ name: excludedAccounts.name }),
 )
 ```
 
@@ -162,6 +164,9 @@ before validating and rendering the effective assignment set:
 
 ```ts
 import { eq, omit, update, where } from "qubu"
+
+declare const rename: boolean
+declare const clearEmail: boolean
 
 const query = update(
   users,
@@ -246,6 +251,11 @@ unrestricted operation is intended.
 `returning()` uses the same named object projection as `SELECT`. Use
 `{ ...all(table) }` when you want every table column.
 
+Use `RETURNING` with PostgreSQL or SQLite. Qubu currently emits the clause
+without checking dialect support, so a plain MySQL mutation can render but
+fail at the database. MySQL duplicate-key updates reject `RETURNING` during
+construction. Read rows separately when using MySQL.
+
 The mutation’s `row` type is inferred from that projection, so
 `(await db.execute(query)).rows` has the same shape as a read query when `db`
 comes from `qubu(adapter)`.
@@ -257,9 +267,9 @@ UUID, text, numeric, or other known fields to their JavaScript types alone.
 `db.execute()` and the standalone `execute()` function also return optional
 `affectedRows`, `changedRows`, and `insertId` facts supplied by the adapter. Use
 `db.rows()` or `executeRows()` when only the returned rows matter. The
-[execution guide](../dialects-and-execution.md) defines which driver facts
+[adapter result contract](../dialects-and-execution.md#result-fields) defines which driver facts
 belong in each field.
 
 See [Column behavior and write types](../schema/columns-and-writes.md)
-for custom output, insert, and update types, then [Dialects and execution](../dialects-and-execution.md)
+for custom output, insert, and update types, then [Execute queries](execution.md)
 for the driver boundary.

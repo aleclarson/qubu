@@ -7,7 +7,13 @@ import type { AnySelectClause } from "./clauses/types.ts"
 import type { WhereClause } from "./clauses/where.ts"
 import type { QueryTypeValidation } from "./errors.ts"
 
-/** An explicit placeholder for a safely omitted SELECT clause or projection field. */
+/**
+ * Omit a supported SELECT clause, projection field, boolean/order term, or UPDATE assignment.
+ *
+ * This is distinct from `null` and `undefined`. FROM, joins, grouping, CTEs, correlation, and
+ * custom clauses cannot be conditionally omitted. Generic fragment collections do not discard the
+ * token.
+ */
 export const omit: unique symbol = Symbol("qubu.omit")
 
 export type Omit = typeof omit

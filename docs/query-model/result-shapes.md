@@ -50,7 +50,7 @@ source widens with `null`, while an expression with its own non-null result
 contract can stay non-null:
 
 ```ts
-import { count, eq, from, integer, leftJoin, select, table, text } from "qubu"
+import { count, eq, from, groupBy, integer, leftJoin, select, table, text } from "qubu"
 
 const users = table("users", {
   id: integer(),
@@ -70,6 +70,7 @@ const query = select(
   },
   from(users),
   leftJoin(posts, eq(users.id, posts.authorId)),
+  groupBy(users.name, posts.title),
 )
 
 type Row = typeof query.row
@@ -80,13 +81,20 @@ The same rule applies inside expressions. `upper(posts.title)` remains
 nullable because it depends on the joined row. `coalesce()` and a `CASE`
 expression with non-null branches can return a non-null result.
 
+Current inference handles outer-join widening only for `leftJoin()`.
+`rightJoin()` and `fullJoin()` render their SQL forms without widening the
+affected source fields. Account for their possible `NULL` values explicitly;
+their inferred non-null fields are not a runtime guarantee.
+
 ## Check scalar cardinality
 
-`scalar()` turns a query with exactly one selected field into an expression. The
-result includes `null` when the query may return no rows:
+`scalar()` requires exactly one selected field. It does not enforce a row
+limit: constrain the query when multiple rows are possible, or the database
+may reject it (SQLite uses the first row). The result includes `null` unless
+Qubu proves the query returns exactly one row:
 
 ```ts
-import { fetchFirst, from, scalar, select, table, value } from "qubu"
+import { fetchFirst, from, integer, scalar, select, table, value } from "qubu"
 
 const users = table("users", { id: integer() })
 const firstUser = select({ id: users.id }, from(users), fetchFirst(1))
@@ -104,8 +112,11 @@ const constantValue = scalar(constant)
 // OutputOf<typeof constantValue> is number
 ```
 
-Qubu does not infer exactness from a predicate such as `WHERE id = 1`. That
-predicate can match no rows, so the scalar result remains nullable.
+Qubu does not infer an upper bound from a unique-key predicate or exactness
+from an aggregate over a source. An aggregate-only `SELECT COUNT(*) FROM ...`
+is conservatively nullable through `scalar()` even though SQL returns one row
+without `HAVING`. Source-free exactness also disappears when a filtering,
+grouping, or pagination clause can remove its row.
 
 ## Keep SQL domains with the row
 

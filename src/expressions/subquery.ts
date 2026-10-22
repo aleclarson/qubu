@@ -24,6 +24,14 @@ type ScalarOutput<TQuery extends AnyQuery> =
 
 type SingleColumnSqlType<TQuery extends AnyQuery> = SingleColumn<QuerySqlTypeMap<TQuery>>
 
+/**
+ * Render a single-field query as a scalar subquery, preserving its source and SQL-domain metadata.
+ *
+ * Adds `null` unless Qubu proves exactly one row. This checks field count, not row count: callers
+ * must constrain multi-row queries when required by the database. It does not add a limit.
+ *
+ * @throws QueryValidationError if the effective projection does not contain exactly one field.
+ */
 export function scalar<TQuery extends AnyQuery>(
   query: TQuery,
 ): Expression<

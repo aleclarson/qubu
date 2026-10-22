@@ -21,6 +21,10 @@ type WhereValidation<TCondition> = TCondition extends Omit
   ? unknown
   : SqlCapabilityValidation<ExpressionSqlType<TCondition>, SqlBoolean>
 
+/**
+ * Add a source-aware predicate, or propagate `omit` without emitting a clause. A SELECT accepts one
+ * WHERE; combine predicates with `and()` or `or()` rather than repeating it.
+ */
 export function where<TCondition extends BooleanExpression<any> | Omit>(
   condition: TCondition & WhereValidation<TCondition>,
 ): WhereComposition<TCondition> {

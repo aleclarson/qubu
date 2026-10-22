@@ -86,16 +86,19 @@ orderBy(asc(records.id)) // TypeScript error: SqlUuid is not portably orderable
 
 Plain JavaScript operands take their domain from the typed expression in that
 operation. This contextual typing does not relabel an expression: comparing a
-`SqlUuid` expression with a `SqlText` expression is still rejected. Cast when
-the database operation intentionally changes domains:
+`SqlUuid` expression with a `SqlText` expression is still rejected.
 
 Scalar text functions bind primitive operands automatically, and `coalesce()`
 uses its first expression to type primitive fallbacks:
 
 ```ts
+import { coalesce, upper } from "qubu"
+
 upper("Ada") // UPPER(?)
 coalesce(metrics.label, "Anonymous") // COALESCE("metrics"."label", ?)
 ```
+
+Cast when the database operation intentionally changes domains:
 
 ```ts
 import { cast, like, text } from "qubu"
@@ -133,6 +136,8 @@ Qubu code.
 composing while authors adopt semantic types incrementally:
 
 ```ts
+import { column } from "qubu"
+
 const legacyId = column<string>()
 // ColumnSqlType<typeof legacyId> is SqlUnknown
 ```

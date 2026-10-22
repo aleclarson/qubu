@@ -24,13 +24,13 @@ custom expression or source must preserve source, result, nullability, or SQL
 domain metadata. The [sources and clauses](sources-and-clauses.md) page starts
 with a complete custom-clause example.
 
-## Read the concept pages
+## When a query check needs explaining
 
 - [Source scope](../../query-model/source-scope.md) explains the identities
   custom sources must provide.
 - [Fragments and metadata](../../query-model/fragments.md) explains the facts
   composition carries between fragments.
-- [Dialects and execution](../../dialects-and-execution.md) explains the
+- [Dialects and adapters](../../dialects-and-execution.md) explains the
   rendering and driver boundary.
 - [SQL semantic types](../../sql-semantic-types.md) explains capability checks
   for typed expressions.

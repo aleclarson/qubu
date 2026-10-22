@@ -78,11 +78,11 @@ not prove a functional dependency:
 ```ts
 import { table, text, uniqueConstraint } from "qubu"
 
-const accounts = table("accounts", { email: text({ nullable: true }) }, (accounts) => ({
+const contacts = table("contacts", { email: text({ nullable: true }) }, (contacts) => ({
   constraints: {
-    emailUnique: uniqueConstraint(accounts.email, {
+    emailUnique: uniqueConstraint(contacts.email, {
       nulls: "distinct",
-      physicalName: "accounts_email_key",
+      physicalName: "contacts_email_key",
     }),
   },
   indexes: {},
@@ -109,9 +109,9 @@ eligible unique index. These options record database behavior as metadata:
 - `deferrable` and `initially`.
 
 ```ts
-const memberships = table("memberships", { accountId: integer() }, (memberships) => ({
+const accountLinks = table("account_links", { accountId: integer() }, (links) => ({
   constraints: {
-    accountForeign: foreignKey([memberships.accountId], references(accounts, accounts.id), {
+    accountForeign: foreignKey([links.accountId], references(accounts, accounts.id), {
       onDelete: "cascade",
       onUpdate: "cascade",
     }),
@@ -153,6 +153,10 @@ The proof follows a table alias and remains source-local through a join,
 including a source made nullable by `leftJoin()`. It does not cross a derived
 query, CTE, LATERAL query, or custom-source boundary. Those relations need an
 explicit proof on their own source model.
+
+This is Qubu's type-level proof, not a rewrite of SQL. Database engines differ
+in which functional dependencies they accept in `GROUP BY`; group all selected
+non-aggregate columns when the query must work across dialects.
 
 ## Store dialect-specific metadata
 

@@ -658,10 +658,11 @@ export interface DriverValueEncoder<TDriverValue = unknown> {
 }
 
 /**
- * Render a typed query, pass it to an application adapter, and return the adapter's structured
- * result unchanged.
+ * Render a typed query, execute through an application adapter, and decode its named result rows.
  *
- * Driver errors are not caught or translated.
+ * Preserves adapter-supplied mutation facts. The options dialect overrides the adapter default;
+ * cancellation is delegated to the adapter. Standalone execution does not run bound-client hooks.
+ * Driver errors pass through; decoding failures become ResultDecodingError.
  */
 export function execute<TRow extends object>(
   query: QueryWithRow<TRow>,
@@ -703,6 +704,10 @@ export async function executeRows<TRow extends object>(
 /**
  * Render a query as a dialect-specific EXPLAIN request and return the adapter-decoded vendor plan
  * rows. EXPLAIN never calls QueryAdapter.execute.
+ *
+ * Analysis executes read queries; mutation query kinds reject it. Qubu does not parse SQL to detect
+ * side effects hidden in routines or custom fragments. Unsupported options fail before calling the
+ * adapter.
  */
 export function explain<TQuery extends AnyQuery, TAdapter extends ExplainableQueryAdapter>(
   query: TQuery,
@@ -726,8 +731,11 @@ export async function explain(
 }
 
 /**
- * Render a SELECT or set-operation query and return the adapter-owned row stream. Mutations,
- * including mutations with RETURNING, must use execute().
+ * Render a SELECT or set-operation query and lazily decode the adapter-owned row stream.
+ *
+ * Rendering and the adapter call happen immediately, before iteration. The adapter owns cursor
+ * cleanup; consume or close the stream before its transaction scope ends. Mutations, including
+ * mutations with RETURNING, must use execute().
  */
 export function stream<TRow extends object>(
   query: StreamableQuery<TRow>,

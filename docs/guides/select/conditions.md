@@ -7,7 +7,7 @@ The examples use the `users` table from [Build a `SELECT`](overview.md).
 ## Omit query parts conditionally
 
 Use `omit` as the other branch of a JavaScript conditional when a `WHERE`,
-`HAVING`, `ORDER BY`, or `DISTINCT` clause is optional:
+`HAVING`, `ORDER BY`, `DISTINCT`, or row-lock clause is optional:
 
 ```ts
 import { eq, from, omit, select, where } from "qubu"
@@ -69,6 +69,9 @@ not make the expression nullable: a non-nullable expression would produce
 Use `omit` in the clauses and expression lists shown above. Generic
 `sequence()` and `commaSeparated()` collections do not discard it.
 
+At least one projection field must remain. An all-`omit` projection throws
+`QueryValidationError`; it does not become `SELECT *`.
+
 Pagination also supports `omit`: pair it with `offset()`, `fetchFirst()`, or
 `fetchNext()`. A conditional limit keeps the inferred cardinality at `many`
 because the limit may be absent.
@@ -101,6 +104,8 @@ does not give them ordinary boolean comparison semantics. Use `isNull`,
 Empty membership lists remain valid and portable:
 
 ```ts
+import { inList, notIn } from "qubu"
+
 inList(users.id, []) // (1 = 0)
 notIn(users.id, []) // (1 = 1)
 ```

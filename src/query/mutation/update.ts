@@ -102,6 +102,16 @@ type UpdateFromSourceValidation<TClauses extends readonly UpdateClause[]> = [
       >
     >
 
+/**
+ * Build an UPDATE using writable target fields and source-checked expressions.
+ *
+ * Requires `where()` or `allowAll()`. Assignments equal to `omit` are removed; explicit `undefined`
+ * remains a bound value. Raw values use the target column encoder, while expressions render
+ * directly. PostgreSQL `updateFrom()` sources are also available to assignments and clauses.
+ *
+ * @throws QueryValidationError for missing write intent, duplicate clauses, unknown/generated
+ *   fields, or an empty assignment set after omissions.
+ */
 export function update<
   const TTable extends AnyTable,
   const TAssignments extends object,

@@ -210,7 +210,10 @@ export interface ColumnOptions<TOutput = unknown, TInsert = TOutput> {
   readonly generated?: boolean
   /** A literal, deterministic expression, or externally managed default. */
   readonly default?: ColumnDefaultInput
-  /** Supply an application value when an insert omits this column. */
+  /**
+   * Supply an omitted VALUES/DEFAULT VALUES field on every render, including inspection renders.
+   * Explicit `undefined` does not trigger it. INSERT SELECT and schema snapshots do not use it.
+   */
   readonly defaultFn?: () => TInsert
   /** Complete generated-column metadata, independent of identity behavior. */
   readonly generatedColumn?: GeneratedColumnDescriptor
@@ -340,7 +343,7 @@ export interface ColumnDefinition<TConfig extends ColumnDefinitionConfig = {}> {
   readonly dialect?: SchemaDialectExtension
   /** Runtime decoder used when this definition is projected. */
   readonly resultDecoder?: ResultDecoder
-  /** Runtime default used when an application insert omits this definition. */
+  /** Runtime default evaluated per omitted VALUES/DEFAULT VALUES field on every render. */
   readonly defaultFn?: () => ColumnConfigInsert<TConfig>
   /** Runtime encoder applied to application values written through this definition. */
   readonly parameterEncoder?: (value: ColumnConfigInsert<TConfig>) => unknown

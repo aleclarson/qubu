@@ -37,6 +37,7 @@ type QueryConfigSqlTypes<TConfig> = QueryConfigValue<
   SourceSqlTypes<QueryConfigRow<TConfig>>
 >
 
+/** A renderable statement carrying its inferred row and runtime result-decoding metadata. */
 export interface Query<TConfig extends QueryConfig = {}> extends Fragment<
   | ResultMeta<readonly QueryConfigRow<TConfig>[]>
   | CardinalityMeta<QueryConfigCardinality<TConfig>>
@@ -47,6 +48,7 @@ export interface Query<TConfig extends QueryConfig = {}> extends Fragment<
   readonly queryKind: QueryKind
   /** @internal Runtime row-bound proof retained by built-in query constructors. */
   readonly cardinality?: QueryCardinality
+  /** Inference carrier and projection keys; runtime values are placeholders, not database rows. */
   readonly row: QueryConfigRow<TConfig>
   /** Runtime metadata used to decode named result fields. */
   readonly resultShape: ResultShape

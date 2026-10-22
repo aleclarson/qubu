@@ -50,8 +50,8 @@ not import a dialect core or provide a universal runtime converter.
 physical `user_records` name, `app` namespace, field keys, and physical column
 names all come from the Qubu declaration.
 
-Use the converted tables in ordinary Drizzle queries. Table objects do not need
-to be passed to `drizzle()`:
+Use the converted tables with the application's `pg` pool, named `pool` here.
+Table objects do not need to be passed to `drizzle()`:
 
 ```ts
 import { eq } from "drizzle-orm"
@@ -85,7 +85,7 @@ const events = table("events", {
   }),
 })
 
-const drizzleTables = toDrizzleSchema(schema({ events }))
+const sqliteTables = toDrizzleSchema(schema({ events }))
 ```
 
 `timestamp` stores Unix seconds and `timestamp_ms` stores Unix milliseconds.

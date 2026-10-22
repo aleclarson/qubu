@@ -13,6 +13,11 @@ import {
   validateMutationWithClauses,
 } from "./types.ts"
 
+/**
+ * Build a DELETE with source-checked clauses; requires `where()` or explicit `allowAll()`.
+ *
+ * @throws QueryValidationError if neither safety clause is present or singleton clauses repeat.
+ */
 export function deleteFrom<
   const TTable extends AnyTable,
   const TClauses extends readonly MutationClause[],

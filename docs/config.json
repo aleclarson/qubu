@@ -8,12 +8,15 @@
   "navigation": {
     "order": [
       "getting-started.md",
+      "guides/",
+      "guides/select/",
+      "guides/select/overview.md",
+      "guides/execution.md",
       "query-model/",
       "schema/",
       "migrations/",
       "dialects-and-execution.md",
       "sql-semantic-types.md",
-      "guides/",
       "reference/",
       "troubleshooting.md"
     ],

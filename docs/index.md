@@ -13,11 +13,6 @@ TypeScript checks:
 
 Render a query to inspect its SQL text and ordered parameters.
 
-The preferred source style names each projected field and writes the final
-`select()` clauses in SQL order. Clause values remain order-independent at
-runtime, so a reusable `where()` or `orderBy()` fragment can be built earlier
-and placed in that final call where it reads best.
-
 ## Start here
 
 If this is your first query, follow [Getting started](getting-started.md) to
@@ -25,6 +20,8 @@ define a table, build a `SELECT`, and inspect its SQL and parameters.
 
 ## Build and run queries
 
+- [Execute queries](guides/execution.md) with an adapter, then add
+  transactions, streams, plans, or hooks when the task needs them.
 - [Build a `SELECT`](guides/select/overview.md) with projections, joins,
   predicates, ordering, and grouping.
 - [Compose queries](guides/compose-queries.md) with CTEs, derived tables,
@@ -80,37 +77,15 @@ that unchecked syntax enters the query.
 Use these pages when a guide leaves a rule unexplained or when an extension
 needs to preserve a fact across composition:
 
-| Model                    | Start with                                          | Covers                                                                              |
-| ------------------------ | --------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Query model              | [Source scope](query-model/source-scope.md)         | Source identity, result shapes, fragments, metadata, and query composition          |
-| Schema model             | [Tables and names](schema/tables-and-names.md)      | Tables, snapshots, diffs, migration plans, and DDL emission                         |
-| Migration operations     | [Migration operations](migrations/index.md)         | Artifacts, adapters, CLI policy, baselines, execution, and recovery                 |
-| Database introspection   | [Database introspection](schema/introspection.md)   | Catalog readers, Snapshot v1 mapping, identities, diagnostics, and support limits   |
-| Schema source generation | [Generate a schema](schema/code-generation.md)      | Machine-owned TypeScript, identity handoff, controlled mappings, and v1 exclusions  |
-| Rendering and execution  | [Dialects and execution](dialects-and-execution.md) | Placeholder and identifier policies, capabilities, adapters, and raw-SQL boundaries |
-| SQL semantic types       | [SQL semantic types](sql-semantic-types.md)         | Application types, SQL domains, nullability, and compatible operations              |
-
-## A small example
-
-```ts
-import { eq, from, integer, render, select, table, text, where } from "qubu"
-
-const users = table("users", {
-  id: integer(),
-  name: text(),
-})
-
-const query = select({ id: users.id, name: users.name }, from(users), where(eq(users.id, 7)))
-
-render(query)
-// {
-// text: 'SELECT "users"."id" AS "id", "users"."name" AS "name" FROM "users" WHERE ("users"."id" = ?)',
-// parameters: [7],
-// }
-```
-
-The inferred row is `{ id: number; name: string }`. The value `7` stays out
-of the SQL text and appears in the `parameters` array in placeholder order.
+| Model                    | Start with                                         | Covers                                                                              |
+| ------------------------ | -------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Query model              | [Source scope](query-model/source-scope.md)        | Source identity, result shapes, fragments, metadata, and query composition          |
+| Schema model             | [Tables and names](schema/tables-and-names.md)     | Tables, snapshots, diffs, migration plans, and DDL emission                         |
+| Migration operations     | [Migration operations](migrations/index.md)        | Artifacts, adapters, CLI policy, baselines, execution, and recovery                 |
+| Database introspection   | [Database introspection](schema/introspection.md)  | Catalog readers, Snapshot v1 mapping, identities, diagnostics, and support limits   |
+| Schema source generation | [Generate a schema](schema/code-generation.md)     | Machine-owned TypeScript, identity handoff, controlled mappings, and v1 exclusions  |
+| Rendering and execution  | [Dialects and adapters](dialects-and-execution.md) | Placeholder and identifier policies, capabilities, adapters, and raw-SQL boundaries |
+| SQL semantic types       | [SQL semantic types](sql-semantic-types.md)        | Application types, SQL domains, nullability, and compatible operations              |
 
 ## Find support details
 

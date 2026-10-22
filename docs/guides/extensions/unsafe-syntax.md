@@ -25,7 +25,7 @@ Keep raw identifiers and values out of the string:
 - Use `identifier()` or `qualifiedIdentifier()` from `qubu/core` for runtime
   identifiers.
 
-Read [Dialects and execution](../../dialects-and-execution.md) for the boundary
+Read [Dialects and adapters](../../dialects-and-execution.md) for the boundary
 between rendering and driver behavior. Read [Add typed
 expressions](typed-expressions.md) when the extension needs a result domain or
 source metadata.

@@ -1,8 +1,12 @@
-# Dialects and execution
+# Dialects and adapters
 
-> Choose a SQL dialect and connect Qubu queries to your database driver.
+> Choose rendering policies or implement the driver boundary.
 
-## Render once, choose a policy at the boundary
+To run queries with an existing adapter, start with [Execute queries](guides/execution.md).
+This page covers policy and adapter implementation; transactions, streams,
+plans, and hooks have focused guides linked there.
+
+## Choose a rendering policy
 
 `render()` returns a `RenderedQuery` with SQL text and raw parameter values. The
 default renderer uses Qubu's standard SQL policy. Select a concrete dialect
@@ -20,8 +24,11 @@ Construct the query without choosing a driver, then render it with the policy
 the adapter expects:
 
 ```ts
-import { render } from "qubu"
+import { eq, from, integer, render, select, table, text, where } from "qubu"
 import { postgresDialect } from "qubu/postgres"
+
+const users = table("users", { id: integer(), name: text() })
+const query = select({ name: users.name }, from(users), where(eq(users.id, 7)))
 
 const standard = render(query)
 const postgres = render(query, postgresDialect())
@@ -36,8 +43,7 @@ postgres.text
 ## Capability requirements
 
 Portable syntax stays portable, while dialect-specific syntax carries a
-capability requirement to the rendering boundary. PostgreSQL's `ilike()` is
-the first such feature:
+capability requirement to the rendering boundary. For example, PostgreSQL's `ilike()` requires PostgreSQL support:
 
 ```ts
 import { from, like, render, select, where } from "qubu"
@@ -196,8 +202,9 @@ than converting it to a JavaScript number.
 
 Do not register `jsonTextResultDecoder` when the driver already returns parsed
 JSON. A JSON string is otherwise ambiguous: it may be serialized JSON or an
-already-decoded JSON string scalar. With no registered decoder, Qubu preserves
-the driver's value.
+already-decoded JSON string scalar. With no registered JSON decoder, Qubu
+preserves the driver's value. Bigint has a built-in decoder even without an
+adapter registration; a registered bigint decoder overrides it.
 
 Use a column decoder for a custom stored type, or `mapResult()` for one
 expression. Both override adapter policy for that field:
@@ -209,348 +216,11 @@ const score = column<number>({ decode: (value) => Number(value) })
 const decodedTotal = mapResult(value("42"), (value) => Number(value))
 ```
 
-## Stream read results
-
-Add `StreamingQueryAdapter` when a driver can return rows through an
-adapter-owned `AsyncIterable`. The standalone `stream()` function and the
-bound `db.stream()` method accept only `SELECT` and set-operation queries.
-Mutations stay on `execute()` and `executeRows()`, including mutations with
-`RETURNING`.
-
-```ts
-import { qubu } from "qubu"
-import type { ExecutionRequest, StreamingQueryAdapter } from "qubu"
-import { postgresDialect } from "qubu/postgres"
-
-declare const driver: {
-  query<TRow extends object>(
-    text: string,
-    parameters: readonly unknown[],
-    options: { signal?: AbortSignal },
-  ): Promise<{ rows: readonly TRow[]; rowCount: number | null }>
-  stream<TRow extends object>(
-    text: string,
-    parameters: readonly unknown[],
-    options: { signal?: AbortSignal },
-  ): AsyncIterable<TRow>
-}
-
-const adapter: StreamingQueryAdapter = {
-  dialect: postgresDialect(),
-  async execute(request: ExecutionRequest) {
-    const result = await driver.query<Record<string, unknown>>(
-      request.statement.text,
-      request.statement.parameters,
-      { signal: request.signal },
-    )
-    return {
-      rows: result.rows,
-      ...(result.rowCount === null ? {} : { affectedRows: result.rowCount }),
-    }
-  },
-  stream(request: ExecutionRequest) {
-    return driver.stream<Record<string, unknown>>(
-      request.statement.text,
-      request.statement.parameters,
-      { signal: request.signal },
-    )
-  },
-}
-
-const db = qubu(adapter)
-for await (const row of db.stream(readQuery)) {
-  consume(row)
-}
-```
-
-Qubu renders the query with the selected dialect before calling `stream()`. It
-passes ordered raw parameters, query kind, result shape, and the optional
-`AbortSignal` in the same `ExecutionRequest` used by `execute()`. The adapter
-binds values and returns the iterable. Qubu lazily decodes each row without
-opening a cursor or connection, buffering rows, or imposing a fetch size.
-
-The adapter owns the iterator's cleanup contract:
-
-| Event                           | Adapter responsibility                                                                                        |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Normal completion               | Close the cursor and release stream-only resources before the iterable completes.                             |
-| Early iterator close            | Implement `return()` so a consumer can stop without leaking resources.                                        |
-| Iteration failure               | Close the cursor and release resources before the failure reaches the consumer.                               |
-| Aborted signal                  | Stop the driver operation and clean up any open stream resources.                                             |
-| Transaction callback completion | Consume or close every stream before the callback resolves, then commit or release the transaction resources. |
-
-`for await` closes an iterator when a loop exits early. Code that manually
-holds an iterator should close it in a `finally` block:
-
-```ts
-const iterator = db.stream(readQuery)[Symbol.asyncIterator]()
-try {
-  const first = await iterator.next()
-  if (!first.done) consume(first.value)
-} finally {
-  await iterator.return?.()
-}
-```
-
-Inside a transaction, use a `StreamingTransactionalQueryAdapter` so the
-transaction callback receives a streaming client. The adapter must keep its
-cursor and connection valid until the callback's streams finish or close:
-
-```ts
-declare const transactionalAdapter: import("qubu").StreamingTransactionalQueryAdapter
-const transactionalDb = qubu(transactionalAdapter)
-
-await transactionalDb.transaction(async (transaction) => {
-  for await (const row of transaction.stream(readQuery)) {
-    consume(row)
-  }
-})
-```
-
-The adapter decides how `next()` drives driver reads, whether it prefetches,
-and how much data it buffers. Qubu only forwards the async-iterator protocol
-and the abort signal. Driver errors and cancellation errors pass through
-unchanged.
-
-## Inspect query plans
-
-Add `ExplainableQueryAdapter` when the driver can decode its EXPLAIN rows. The
-standalone `explain()` function and the bound `db.explain()` method render a
-plan request without calling `execute()`:
-
-```ts
-import { explain, qubu } from "qubu"
-import type { ExplainableQueryAdapter } from "qubu"
-import { postgresDialect } from "qubu/postgres"
-
-type PostgresPlanRow = { "QUERY PLAN": string }
-
-declare const driver: {
-  query<TRow extends object>(
-    text: string,
-    parameters: readonly unknown[],
-    options: { signal?: AbortSignal },
-  ): Promise<{ rows: readonly TRow[] }>
-}
-
-const adapter: ExplainableQueryAdapter<PostgresPlanRow> = {
-  dialect: postgresDialect(),
-  async execute() {
-    return { rows: [] }
-  },
-  async explain(request) {
-    const result = await driver.query<PostgresPlanRow>(
-      request.statement.text,
-      request.statement.parameters,
-      { signal: request.signal },
-    )
-    return { rows: result.rows }
-  },
-}
-
-const plan = await explain(readQuery, adapter, {
-  analyze: true,
-  verbose: true,
-})
-const db = qubu(adapter)
-const samePlan = await db.explain(readQuery)
-```
-
-Qubu keeps `ExplainResult.rows` in the adapter's vendor-specific shape. It
-does not normalize PostgreSQL, SQLite, or MySQL plans into one tree. The
-adapter owns parameter binding, plan-row decoding, connections, transactions,
-and cancellation. `ExplainRequest` carries the rendered statement, ordered
-raw parameters, query kind, and optional abort signal just like an ordinary
-execution request.
-
-The first-party policies accept these options:
-
-| Dialect    | Plan options                                                                       | Restrictions                                                      |
-| ---------- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| PostgreSQL | `analyze`, `verbose`, `buffers`, and `format: 'text' \| 'xml' \| 'json' \| 'yaml'` | `buffers` requires `analyze`; analysis is read-only               |
-| SQLite     | `format: 'query-plan' \| 'bytecode'` or `queryPlan`                                | `analyze`, `verbose`, and `buffers` are unsupported               |
-| MySQL      | `analyze` or `format: 'traditional' \| 'json' \| 'tree'`                           | `analyze` cannot be combined with `format`; analysis is read-only |
-
-All supported queries can be explained, including `INSERT`, `UPDATE`, and
-`DELETE`. Mutation EXPLAIN is always plan-only. The type and runtime
-boundaries reject `analyze` for mutations so an inspection call cannot apply a
-write. Unsupported options and invalid combinations raise a structured
-`QueryValidationError` before the adapter is called.
-
-## Bind the adapter once
-
-Use `qubu()` when several calls share one adapter. The returned client keeps
-the adapter available as `db.adapter` and accepts the same execution options as
-the standalone functions:
-
-```ts
-const db = qubu(adapter)
-
-const controller = new AbortController()
-const result = await db.execute(query, {
-  signal: controller.signal,
-})
-
-result.rows
-result.affectedRows
-
-const rows = await db.rows(readQuery)
-```
-
-`db.execute()` returns the structured result. `db.rows()` returns only its row
-array. Both methods infer each row from the query projection. They do not make
-query values executable or transfer connection ownership to Qubu.
-
-## Observe bound operations
-
-Configure hooks on a bound client when logs, traces, or metrics need the same
-lifecycle view across queries, streams, plans, and transactions:
-
-```ts
-import { qubu } from "qubu"
-
-const db = qubu(adapter, {
-  hooks: {
-    onOperationStart(operation) {
-      console.info("Qubu operation started", operation)
-
-      return (outcome) => {
-        console.info("Qubu operation finished", operation.id, outcome)
-      }
-    },
-    onHookError(error) {
-      console.error("Qubu hook failed", error)
-    },
-  },
-})
-
-await db.rows(readQuery, {
-  hookMetadata: { operation: "users.list" },
-})
-```
-
-Query operations start after rendering and immediately before the adapter is
-called. Completion reports duration, success or the original error, and
-available aggregate facts such as row and affected-row counts. Transaction
-queries identify their parent transaction operation. Hooks are synchronous,
-and their failures are sent to `onHookError` without changing the database
-operation's result.
-
-### What observations include
-
-Hook metadata accepts only strings, numbers, and booleans. Observations include
-rendered SQL and parameter count, but never parameter values, result rows,
-decoded values, or insert identifiers. Rendered SQL can still contain literals
-introduced by unsafe SQL helpers, so treat it according to the application's
-logging policy.
-
-### Stream observation timing
-
-Streaming adapters are still called eagerly. A consumed stream completes its
-observation when it is exhausted, closed early, or fails. A stream created but
-never consumed has no completion observation. Hooks are available only on
-clients created with `qubu()`; standalone execution functions remain
-unobserved.
-
-## Run a transaction
-
-Use a transactional adapter when several queries must share one commit or
-rollback boundary:
-
-```ts
-import { qubu } from "qubu"
-import type { TransactionalQueryAdapter } from "qubu"
-
-declare const transactionalAdapter: TransactionalQueryAdapter
-const transactionalDb = qubu(transactionalAdapter)
-
-const result = await transactionalDb.transaction(async (transaction) => {
-  await transaction.execute(firstMutation)
-  await transaction.execute(secondMutation)
-  return transaction.rows(readQuery)
-})
-```
-
-The adapter manages the transaction:
-
-1. Acquire and pin one connection.
-2. Begin the transaction.
-3. Run the callback.
-4. Commit if the callback resolves, or roll back if it rejects.
-5. Release the connection in either case.
-
-Qubu creates the scoped client and returns the callback result. The adapter
-emits `BEGIN`, `COMMIT`, and `ROLLBACK`.
-
-A scoped client's methods follow its adapter's capabilities: `execute()` and
-`rows()` are always available; EXPLAIN and streaming require their respective
-capabilities. `TransactionOptions.signal` is passed to the adapter. Isolation
-levels and other driver-specific settings remain adapter-specific.
-
-### Roll back part of a transaction
-
-The pg, mysql2, and node:sqlite adapters expose `transaction()` on scoped
-clients through the shared `NestedTransactionalQueryAdapter` capability.
-Other adapters retain their existing transaction surface. For example, with a
-bound pg client, catch a nested failure to keep earlier work:
-
-```ts
-await db.transaction(async (outer) => {
-  await outer.execute(firstMutation)
-  try {
-    await outer.transaction(async (inner) => {
-      await inner.execute(optionalMutation)
-    })
-  } catch (error) {
-    // The nested work was rolled back; the outer transaction can continue.
-  }
-  await outer.execute(secondMutation)
-})
-```
-
-Each nested callback uses a uniquely named savepoint on the same connection.
-Success releases it; failure rolls back to it and releases it. Letting the
-failure escape also rolls back the outer transaction. Failed savepoint creation
-or recovery makes the entire transaction unsafe to commit, even if the callback
-catches the error. Primary and cleanup failures are retained in `AggregateError`.
-
-#### Finish work before leaving a scope
-
-Await every query and nested transaction before returning. These three adapters
-reject:
-
-- Calls on a finished scoped client.
-- Overlapping sibling scopes.
-- A child scope started while its parent has pending queries.
-- Parent queries while a child is active.
-
-If a callback finishes with work pending, the adapter waits for that work and
-rolls back.
-
-Use the active scoped client for all work on a directly supplied connection.
-Its root client rejects unrelated operations during the transaction. A pg pool
-can still run independent queries on other connections.
-
-Your application remains responsible for raw driver calls and separately
-constructed adapters.
-
-EXPLAIN and result decoding remain available at every depth. Nested transaction
-hooks identify their enclosing transaction with `parentId`; queries identify
-their immediate scope. Cancellation does not interrupt savepoint recovery.
-
-## Execute without a bound client
-
-The standalone functions remain useful when the adapter varies by call or a
-small module does not need a bound client:
-
-```ts
-import { execute, executeRows } from "qubu"
-
-const result = await execute(query, adapter)
-const rows = await executeRows(readQuery, adapter)
-```
-
-### Result fields
+SQL `NULL` bypasses top-level field decoders and stays `null`; a decoder is
+not a replacement for SQL `coalesce()`. Decoder exceptions become
+`ResultDecodingError` without exposing the raw value.
+
+## Result fields
 
 | Result field   | Adapter type                         | Contract                                                                              |
 | -------------- | ------------------------------------ | ------------------------------------------------------------------------------------- |
@@ -564,7 +234,7 @@ The last three fields are optional. For example, an adapter can map PostgreSQL
 `changes` and `lastInsertRowid`. Omit a fact that the selected driver cannot
 report accurately. Qubu does not derive mutation metadata from returned rows.
 
-### Dialect overrides and errors
+## Dialect overrides and errors
 
 The adapter's `dialect` becomes the default for standalone and bound execution.
 A `dialect` in the execution options overrides that rendering policy. Qubu

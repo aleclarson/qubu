@@ -43,13 +43,14 @@ A scalar subquery must return one selected field. Reduce the projection before
 calling `scalar()`:
 
 ```ts
-import { from, scalar, select } from "qubu"
+import { fetchFirst, from, scalar, select } from "qubu"
 
-const idQuery = select({ id: users.id }, from(users))
+const idQuery = select({ id: users.id }, from(users), fetchFirst(1))
 const idExpression = scalar(idQuery)
 ```
 
-Use a normal derived table or CTE when the nested query needs multiple fields.
+The field-count check does not enforce a row limit. Use ordering when the
+choice of row matters. Use a derived table or CTE for multiple fields.
 For scalar result nullability, see [Result shapes and cardinality](query-model/result-shapes.md).
 
 ## Placeholders do not match the driver

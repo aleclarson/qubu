@@ -14,7 +14,7 @@ Scoped clients support `transaction()` through savepoints on the same connection
 Catch an inner failure to continue the outer transaction; an uncaught failure
 rolls back the outer transaction. Await every query and child scope. Finished
 scopes and overlapping scopes reject; failed savepoint recovery prevents commit.
-See [nested transactions](../../docs/dialects-and-execution.md#roll-back-part-of-a-transaction)
+See [nested transactions](../../docs/guides/transactions.md#roll-back-part-of-a-transaction)
 for an example and lifecycle rules.
 
 ## Limitations

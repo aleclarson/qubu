@@ -76,14 +76,17 @@ type UserRow = typeof query.row
 // { id: number; displayName: string }
 ```
 
+`query.row` carries type information and placeholder keys, not database rows.
+
 > [!NOTE]
 > Rendering produces a statement; it does not execute it. Keep the
 > `RenderedQuery` value for logging or testing. Bind an
-> [application-owned adapter](dialects-and-execution.md) with `qubu()`, or use
+> [application-owned adapter](guides/execution.md) with `qubu()`, or use
 > `execute()` and `executeRows()` directly, to run the query.
 
 ## Next steps
 
+- [Execute queries](guides/execution.md) with a database driver and adapter.
 - [Build a `SELECT`](guides/select/overview.md) with joins, predicates, aggregates, and
   pagination.
 - [Compose queries](guides/compose-queries.md) from CTEs and derived sources.

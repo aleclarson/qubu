@@ -35,6 +35,19 @@ grouped primary or unique key declared in the table schema. Qubu uses only
 explicit key metadata and keeps the proof within the source boundary. See
 [Constraints, keys, and indexes](../../schema/constraints-and-indexes.md#use-key-metadata-for-grouped-queries).
 
+### Aggregate types and driver values
+
+`count()` has a non-null numeric contract. Other aggregates have a current
+typing limit: `sum()`, `min()`, and `max()` retain the input's output type, and
+`avg()` declares `number`, without adding `null` for an empty input set.
+Outer-join nullability is tracked separately. Handle empty-input `NULL` with
+`coalesce()` or an application policy when no group is guaranteed.
+
+Qubu also does not normalize every driver's aggregate values. For example,
+PostgreSQL drivers can return `COUNT` or `NUMERIC` as strings. Configure the
+driver or attach `mapResult()` when its wire value differs from the declared
+application type; see [result decoding](../../dialects-and-execution.md#decode-schema-aware-result-values).
+
 ## Window functions
 
 Use `over()` to attach an inline window specification to a typed expression.

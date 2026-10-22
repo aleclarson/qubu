@@ -67,6 +67,7 @@ export function innerJoin<TSource extends AnySource, TCondition extends BooleanE
   return join("INNER", source, condition)
 }
 
+/** Add a LEFT JOIN, widening fields that depend on the joined source with null. */
 export function leftJoin<TSource extends AnySource, TCondition extends BooleanExpression<any>>(
   source: TSource,
   condition: TCondition,
@@ -74,6 +75,7 @@ export function leftJoin<TSource extends AnySource, TCondition extends BooleanEx
   return join("LEFT", source, condition)
 }
 
+/** Render RIGHT JOIN; current inference does not widen the left-side fields with null. */
 export function rightJoin<TSource extends AnySource, TCondition extends BooleanExpression<any>>(
   source: TSource,
   condition: TCondition,
@@ -81,6 +83,7 @@ export function rightJoin<TSource extends AnySource, TCondition extends BooleanE
   return join("RIGHT", source, condition)
 }
 
+/** Render FULL JOIN; current inference does not widen either side's fields with null. */
 export function fullJoin<TSource extends AnySource, TCondition extends BooleanExpression<any>>(
   source: TSource,
   condition: TCondition,

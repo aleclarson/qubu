@@ -104,7 +104,8 @@ Continue with the documentation for the task at hand:
   predicates, joins, grouping, and pagination.
 - [Write mutations](docs/guides/mutations.md) covers typed `INSERT`, `UPDATE`,
   and `DELETE` statements.
-- [Dialects and execution](docs/dialects-and-execution.md) explains rendering
+- [Execute queries](docs/guides/execution.md) connects queries to a driver.
+- [Dialects and adapters](docs/dialects-and-execution.md) explains rendering
   policies and the application-owned adapter boundary.
 - [Schema and migration documentation](docs/schema/tables-and-names.md) starts
   with table metadata and links through snapshots, diffs, plans, and DDL.
