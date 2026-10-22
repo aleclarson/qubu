@@ -524,3 +524,92 @@ test("reports separately committed required phases as checkpointed rather than a
   expect(adapter.events.filter((event) => event === "commit")).toHaveLength(2)
   expect(result.applied[0]?.atomicity).toBe("checkpointed")
 })
+
+test.each([undefined, null, false, 0, "", new Error("driver query failed")])(
+  "rejects a migration journal read failure with thrown value %j",
+  async (failure) => {
+    const migration = await artifact()
+    const fake = new DeterministicFakeMigrationAdapter({
+      snapshotDigest: migration.beforeSnapshot.digest,
+    })
+    const adapter = {
+      async openMigrationSession() {
+        const session = await fake.openMigrationSession()
+
+        session.journal.readMetadata = async () => {
+          throw failure
+        }
+
+        return session
+      },
+    }
+
+    await expect(
+      executeMigrations({
+        repository: [migration],
+        adapter,
+      }),
+    ).rejects.toBeInstanceOf(MigrationExecutionError)
+    expect(fake.executions).toEqual([])
+    expect(fake.events).toContain("release-lease")
+    expect(fake.events).toContain("close-session")
+  },
+)
+
+test("journals a verified statement-free migration and makes its next execution idempotent", async () => {
+  const before = snapshot()
+  const planned = createMigrationPlan(diffSnapshots(before, before))
+
+  if (!planned.ok) {
+    throw new Error("No-op migration planning failed")
+  }
+
+  const compiled = compileMigrationProgram(planned.plan)
+
+  if (!compiled.ok) {
+    throw new Error("No-op migration compilation failed")
+  }
+
+  expect(compiled.program.phases).toEqual([])
+  const migration = await sealExecutableArtifact({
+    format: "qubu-executable-migration",
+    version: 1,
+    id: "no-op",
+    sequence: 0,
+    parentArtifactDigest: null,
+    dialect,
+    plan: planned.plan,
+    renderer: {
+      id: "qubu-sqlite",
+      version: 1,
+      dialect,
+    },
+    program: compiled.program,
+    beforeSnapshot: { value: before },
+    afterSnapshot: { value: before },
+    approvals: [],
+    provenance: { source: "unit-test" },
+  })
+  const adapter = new DeterministicFakeMigrationAdapter({
+    snapshotDigest: migration.beforeSnapshot.digest,
+  })
+
+  const result = await executeMigrations({
+    repository: [migration],
+    adapter,
+  })
+
+  expect(result.head).toBe(migration.artifactDigest)
+  expect(await adapter.journal.readMetadata()).toMatchObject({ head: migration.artifactDigest })
+  expect((await adapter.journal.listAttempts())[0]?.state).toBe("applied")
+  await expect(
+    executeMigrations({
+      repository: [migration],
+      adapter,
+    }),
+  ).resolves.toMatchObject({
+    head: migration.artifactDigest,
+    idempotent: true,
+    applied: [],
+  })
+})
