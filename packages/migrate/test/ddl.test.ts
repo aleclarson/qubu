@@ -104,6 +104,55 @@ function planFor(dialect: SchemaSnapshot["dialect"]): MigrationPlan {
   return result.plan
 }
 
+test("retains PostgreSQL identity start and increment options in table DDL", () => {
+  const dialect = {
+    name: "postgresql",
+    version: 1,
+  } as const
+  const after = snapshot(dialect, [
+    table("audit_identity", [
+      {
+        ...column("id"),
+        generated: true,
+        storage: {
+          kind: "portable",
+          type: "integer",
+        },
+        identity: {
+          kind: "identity",
+          generation: "always",
+          options: {
+            start: {
+              kind: "literal",
+              value: {
+                kind: "number",
+                value: "100",
+              },
+            },
+            increment: {
+              kind: "literal",
+              value: {
+                kind: "number",
+                value: "5",
+              },
+            },
+          },
+        },
+      },
+    ]),
+  ])
+  const planned = createMigrationPlan(diffSnapshots(snapshot(dialect, []), after))
+
+  if (!planned.ok) {
+    throw new Error(JSON.stringify(planned.diagnostics))
+  }
+
+  const emitted = postgresDdl.emitMigrationPlan(planned.plan)
+
+  expect(emitted.ok).toBe(true)
+  expect(emitted.sql).toContain("GENERATED ALWAYS AS IDENTITY (START WITH 100 INCREMENT BY 5)")
+})
+
 test("emits deterministic table and column SQL for all first-party dialects", () => {
   const postgres = postgresDdl.emitMigrationPlan(
     planFor({
@@ -721,6 +770,55 @@ function physicalSqliteTables(): SchemaSnapshot["tables"] {
     },
   ]
 }
+
+test.each(["postgresql", "mysql"] as const)(
+  "resolves physical names in %s key constraints and indexes",
+  (name) => {
+    const dialect = {
+      name,
+      version: 1,
+    } as const
+    const tables = physicalSqliteTables().map((entry) =>
+      entry.id === "parent"
+        ? {
+            ...entry,
+            constraints: [
+              {
+                id: "parent_pk",
+                physicalName: "parent_pk",
+                kind: "primary-key" as const,
+                columns: ["id"],
+              },
+            ],
+          }
+        : entry,
+    )
+    const after = canonicalSnapshot(dialect, tables)
+    const planned = createMigrationPlan(diffSnapshots(canonicalSnapshot(dialect, []), after))
+
+    if (!planned.ok) {
+      throw new Error(JSON.stringify(planned.diagnostics))
+    }
+
+    const emitter = name === "mysql" ? mysqlDdl : postgresDdl
+    const emitted = emitter.emitMigrationPlan(planned.plan, { afterSnapshot: after })
+    const quote = name === "mysql" ? "`" : '"'
+    const quoted = (value: string) => `${quote}${value}${quote}`
+
+    expect(emitted.ok).toBe(true)
+    expect
+      .soft(emitted.sql)
+      .toContain(
+        `FOREIGN KEY (${quoted("parent_id")}) REFERENCES ${quoted("public")}.${quoted("parent_records")} (${quoted("parent_key")})`,
+      )
+    expect.soft(emitted.sql).toContain(`PRIMARY KEY (${quoted("parent_key")})`)
+    expect
+      .soft(emitted.sql)
+      .toContain(
+        `CREATE INDEX ${quoted("public")}.${quoted("child_lookup")} ON ${quoted("public")}.${quoted("child_records")} (${quoted("parent_id")} DESC)`,
+      )
+  },
+)
 
 test.each([false, true])(
   "resolves SQLite physical references with unchanged target %s",
