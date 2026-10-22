@@ -2,7 +2,7 @@ import { expect, test } from "vitest"
 
 import { customClause, typedValue } from "../src/core/index.ts"
 import type { SqlUuid } from "../src/core/sql-types.ts"
-import { eq, from, integer, select, table, text, render, where } from "../src/index.ts"
+import { date, eq, from, integer, select, table, text, render, where } from "../src/index.ts"
 
 const users = table("users", {
   id: integer(),
@@ -38,5 +38,22 @@ test("carries explicit typed-value domains beside raw parameters", () => {
   expect(render(uuidValue)).toMatchObject({
     parameters: ["uuid"],
     parameterSqlTypes: ["uuid"],
+  })
+})
+
+test("carries the DATE domain when binding an application Date in a column predicate", () => {
+  const events = table("events", { occurredOn: date() })
+  const day = new Date("2026-10-22T00:00:00.000Z")
+  const query = select(
+    { occurredOn: events.occurredOn },
+    from(events),
+    where(eq(events.occurredOn, day)),
+  )
+
+  // The default node:sqlite encoder rejects an untyped Date, even when the same
+  // application value was successfully encoded by an INSERT into this column.
+  expect(render(query)).toMatchObject({
+    parameters: [day],
+    parameterSqlTypes: ["date"],
   })
 })
