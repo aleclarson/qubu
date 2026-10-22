@@ -230,6 +230,15 @@ test("seals and strictly round-trips a fully covered executable artifact", async
   expect(Object.isFrozen(artifact.program.phases[0])).toBe(true)
 })
 
+test("keeps a resealed executable artifact verifiable by its own decoder", async () => {
+  const original = await sealExecutableArtifact(executable())
+  const resealed = await sealExecutableArtifact(original)
+  const decoded = await decodeExecutableArtifact(encodeExecutableArtifact(resealed))
+
+  expect(decoded.ok, decoded.ok ? undefined : JSON.stringify(decoded.diagnostics)).toBe(true)
+  expect(resealed.artifactDigest).toBe(original.artifactDigest)
+})
+
 test("fails closed for non-canonical bytes, unknown keys, versions, and tampering", async () => {
   const artifact = await sealExecutableArtifact(executable())
 
@@ -323,4 +332,23 @@ test("seals a verified baseline without a fake plan or program", async () => {
     value: baseline,
   })
   expect("program" in baseline).toBe(false)
+})
+
+test("keeps a resealed baseline verifiable by its own decoder", async () => {
+  const original = await sealBaselineArtifact({
+    format: "qubu-verified-baseline",
+    version: 1,
+    id: "initial",
+    sequence: 0,
+    parentArtifactDigest: null,
+    dialect,
+    snapshot: { value: snapshot() },
+    verifiedAt: "2026-08-29T12:00:00.000Z",
+    provenance: { source: "live-introspection" },
+  })
+  const resealed = await sealBaselineArtifact(original)
+  const decoded = await decodeBaselineArtifact(encodeBaselineArtifact(resealed))
+
+  expect(decoded.ok, decoded.ok ? undefined : JSON.stringify(decoded.diagnostics)).toBe(true)
+  expect(resealed.artifactDigest).toBe(original.artifactDigest)
 })
