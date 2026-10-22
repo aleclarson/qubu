@@ -555,6 +555,131 @@ function reviewed(before: SchemaSnapshot, after: SchemaSnapshot) {
   }
 }
 
+test.each([
+  {
+    strict: false,
+    withoutRowid: false,
+  },
+  {
+    strict: true,
+    withoutRowid: false,
+  },
+  {
+    strict: false,
+    withoutRowid: true,
+  },
+  {
+    strict: true,
+    withoutRowid: true,
+  },
+])(
+  "preserves SQLite table options during a column rebuild (strict: $strict, withoutRowid: $withoutRowid)",
+  ({ strict, withoutRowid }) => {
+    const before: SchemaSnapshot = {
+      ...snapshot([
+        {
+          ...table("records", [
+            {
+              ...column("id"),
+              storage: {
+                kind: "native",
+                dialect: "sqlite",
+                type: "INTEGER",
+                affinity: "integer",
+              },
+            },
+            {
+              ...column("label"),
+              ordinalPosition: 2,
+            },
+          ]),
+          constraints: [
+            {
+              kind: "primary-key",
+              id: "records_pk",
+              physicalName: "records_pk",
+              columns: ["id"],
+            },
+          ],
+          dialect: {
+            dialect: "sqlite",
+            version: 1,
+            data: {
+              tableType: "table",
+              strict,
+              withoutRowid,
+              rowid: !withoutRowid,
+            },
+          },
+        },
+      ]),
+      // Introspection retains these table options as opaque facts as well as
+      // dialect metadata. Keep them unchanged while relaxing label nullability.
+      opaqueObjects: [...(strict ? ["strict"] : []), ...(withoutRowid ? ["withoutRowid"] : [])].map(
+        (field) => ({
+          kind: "opaque-object",
+          id: `unknown:table:records:${field}`,
+          objectKind: "unknown-field",
+          physicalName: "records",
+          data: {
+            ownerKind: "table",
+            ownerId: "records",
+            field,
+            value: true,
+          },
+        }),
+      ),
+    }
+    const after: SchemaSnapshot = {
+      ...before,
+      tables: before.tables.map((entry) => ({
+        ...entry,
+        columns: entry.columns.map((value) =>
+          value.id === "label"
+            ? {
+                ...value,
+                nullable: true,
+              }
+            : value,
+        ),
+      })),
+    }
+    const input = reviewed(before, after)
+    const result = compileMigrationProgram(input.plan, input)
+
+    if (!strict && !withoutRowid) {
+      expect(result.ok).toBe(true)
+    }
+
+    if (!result.ok) {
+      // Explicitly declining an unsupported table is safe; silently weakening
+      // its enforcement or changing its rowid behavior is not.
+      expect(result.diagnostics).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            code: "unsupported",
+            message: expect.stringMatching(/strict|without.?rowid|table options|opaque/i),
+          }),
+        ]),
+      )
+      return
+    }
+
+    const create = result.program.phases
+      .flatMap((phase) => phase.statements)
+      .find((statement) => statement.sql.startsWith("CREATE TABLE"))?.sql
+
+    expect(create).toBeDefined()
+    if (strict) {
+      expect(create).toMatch(/\)\s*(?:WITHOUT ROWID\s*,\s*)?STRICT\b/i)
+    }
+
+    if (withoutRowid) {
+      expect(create).toMatch(/\)\s*(?:STRICT\s*,\s*)?WITHOUT ROWID\b/i)
+    }
+  },
+)
+
 test("recomputes generated columns instead of inserting them during a SQLite rebuild", () => {
   const generated: SchemaSnapshot["tables"][number]["columns"][number] = {
     ...column("slug"),
