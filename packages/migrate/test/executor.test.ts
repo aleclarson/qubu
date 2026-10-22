@@ -97,6 +97,58 @@ async function artifact(transaction: ProgramTransactionRequirement = "required")
   })
 }
 
+async function twoPhaseArtifact() {
+  const before = snapshot()
+  const initial = snapshot(true)
+  const after = {
+    ...initial,
+    tables: [
+      ...initial.tables,
+      {
+        ...initial.tables[0]!,
+        id: "events",
+        physicalName: "events",
+      },
+    ],
+  }
+  const plan = createMigrationPlan(diffSnapshots(before, after))
+
+  if (!plan.ok) {
+    throw new Error("fixture plan failed")
+  }
+  const compiled = compileMigrationProgram(plan.plan)
+
+  if (!compiled.ok) {
+    throw new Error("fixture program failed")
+  }
+
+  return sealExecutableArtifact({
+    format: "qubu-executable-migration",
+    version: 1,
+    id: "create-accounts-and-events",
+    sequence: 0,
+    parentArtifactDigest: null,
+    dialect,
+    plan: plan.plan,
+    renderer: {
+      id: "qubu-sqlite",
+      version: 1,
+      dialect,
+    },
+    program: {
+      ...compiled.program,
+      phases: compiled.program.phases.map((phase) => ({
+        ...phase,
+        transaction: "required" as const,
+      })),
+    },
+    beforeSnapshot: { value: before },
+    afterSnapshot: { value: after },
+    approvals: [],
+    provenance: { source: "unit-test" },
+  })
+}
+
 test("executes on one pinned session and becomes idempotent from the journal head", async () => {
   const migration = await artifact()
   const adapter = new DeterministicFakeMigrationAdapter({
@@ -377,4 +429,98 @@ test("marks recovery required when rollback itself fails", async () => {
     }),
   ).rejects.toMatchObject({ code: "uncertain-outcome" })
   expect((await adapter.journal.listAttempts())[0]?.state).toBe("recovery_required")
+})
+
+test("rolls back and releases migration resources after cancellation inside a transaction", async () => {
+  const migration = await artifact()
+  const adapter = new DeterministicFakeMigrationAdapter({
+    snapshotDigest: migration.beforeSnapshot.digest,
+  })
+  const controller = new AbortController()
+
+  await expect(
+    executeMigrations({
+      repository: [migration],
+      adapter,
+      options: {
+        signal: controller.signal,
+        createAttemptId: () => "attempt-aborted",
+        onBoundary(boundary) {
+          if (boundary === "checkpoint-statement") {
+            controller.abort()
+          }
+        },
+      },
+    }),
+  ).rejects.toBeInstanceOf(MigrationExecutionError)
+
+  expect(adapter.events).toEqual(
+    expect.arrayContaining([
+      "rollback",
+      "release-lock:exclusive",
+      "release-lease",
+      "close-session",
+    ]),
+  )
+  expect((await adapter.journal.listAttempts())[0]?.state).toBe("rolled_back")
+  expect(adapter.executions).toEqual([])
+})
+
+test("reports optional phases as atomic when the adapter executes them in a transaction", async () => {
+  const migration = await artifact("optional")
+  const adapter = new DeterministicFakeMigrationAdapter({
+    snapshotDigest: migration.beforeSnapshot.digest,
+    capabilities: { optionalTransactions: true },
+  })
+
+  const result = await executeMigrations({
+    repository: [migration],
+    adapter,
+    options: { createAttemptId: () => "attempt-optional-atomic" },
+  })
+
+  expect(adapter.events).toEqual(expect.arrayContaining(["begin", "commit"]))
+  expect(result.applied[0]?.atomicity).toBe("atomic")
+})
+
+test("requires recovery when a later phase rolls back after an earlier phase committed", async () => {
+  const migration = await twoPhaseArtifact()
+
+  expect(migration.program.phases).toHaveLength(2)
+  const adapter = new DeterministicFakeMigrationAdapter({
+    snapshotDigest: migration.beforeSnapshot.digest,
+  })
+
+  await expect(
+    executeMigrations({
+      repository: [migration],
+      adapter,
+      options: {
+        createAttemptId: () => "attempt-partially-committed",
+        onBoundary: failAtBoundary("checkpoint-statement", 2),
+      },
+    }),
+  ).rejects.toBeInstanceOf(MigrationExecutionError)
+
+  expect(adapter.executions).toHaveLength(1)
+  expect(adapter.events).toEqual(expect.arrayContaining(["commit", "rollback"]))
+  expect((await adapter.journal.listAttempts())[0]?.state).toBe("recovery_required")
+})
+
+test("reports separately committed required phases as checkpointed rather than atomic", async () => {
+  const migration = await twoPhaseArtifact()
+
+  expect(migration.program.phases).toHaveLength(2)
+  const adapter = new DeterministicFakeMigrationAdapter({
+    snapshotDigest: migration.beforeSnapshot.digest,
+  })
+
+  const result = await executeMigrations({
+    repository: [migration],
+    adapter,
+    options: { createAttemptId: () => "attempt-two-commits" },
+  })
+
+  expect(adapter.events.filter((event) => event === "commit")).toHaveLength(2)
+  expect(result.applied[0]?.atomicity).toBe("checkpointed")
 })

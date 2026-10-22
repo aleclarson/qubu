@@ -10,15 +10,19 @@ import { describe, expect, test, vi } from "vitest"
 import { libsqlAdapter } from "../adapters/libsql/src/index.ts"
 import type { ExecutionRequest } from "../src/execution.ts"
 import {
+  boolean,
+  date,
   eq,
   execute,
   executeRows,
   from,
   insertInto,
   integer,
+  json,
   select,
   table,
   text,
+  timestamp,
   values,
   where,
 } from "../src/index.ts"
@@ -200,5 +204,98 @@ describe("libsqlAdapter", () => {
       libsqlAdapter(client).execute(request("select", controller.signal)),
     ).rejects.toThrow("cancelled")
     expect(execute).not.toHaveBeenCalled()
+  })
+
+  test("decodes portable logical fields from normalized libSQL rows", async () => {
+    const records = table("qubu_libsql_typed_records", {
+      enabled: boolean(),
+      day: date(),
+      instant: timestamp(),
+      metadata: json<{ kind: string }>(),
+    })
+    const client = {
+      execute: vi.fn(async () =>
+        result({
+          rows: [
+            {
+              enabled: 1,
+              day: "2026-10-22",
+              instant: "2026-10-22 12:30:00",
+              metadata: '{"kind":"created"}',
+            },
+          ] as unknown as Row[],
+        }),
+      ),
+    } as unknown as Client
+
+    await expect(
+      executeRows(
+        select(
+          {
+            enabled: records.enabled,
+            day: records.day,
+            instant: records.instant,
+            metadata: records.metadata,
+          },
+          from(records),
+        ),
+        libsqlAdapter(client),
+      ),
+    ).resolves.toEqual([
+      {
+        enabled: true,
+        day: new Date("2026-10-22T00:00:00.000Z"),
+        instant: new Date("2026-10-22T12:30:00.000Z"),
+        metadata: { kind: "created" },
+      },
+    ])
+  })
+
+  test("preserves a callback failure when libSQL rollback also fails", async () => {
+    const primary = new Error("callback failed")
+    const cleanup = new Error("rollback failed")
+    const transaction = {
+      rollback: vi.fn(async () => {
+        throw cleanup
+      }),
+      close: vi.fn(),
+      closed: false,
+    } as unknown as Transaction
+    const client = { transaction: async () => transaction } as unknown as Client
+
+    const failure = await libsqlAdapter(client)
+      .transaction(async () => {
+        throw primary
+      })
+      .catch((error: unknown) => error)
+
+    expect(transaction.close).toHaveBeenCalledOnce()
+    expect(failure).toBeInstanceOf(AggregateError)
+    expect((failure as AggregateError).errors).toEqual([primary, cleanup])
+    expect((failure as Error & { readonly cause?: unknown }).cause).toBe(primary)
+  })
+
+  test("preserves a callback failure when libSQL close also fails", async () => {
+    const primary = new Error("callback failed")
+    const cleanup = new Error("close failed")
+    const transaction = {
+      rollback: vi.fn(async () => undefined),
+      close: vi.fn(() => {
+        throw cleanup
+      }),
+      closed: false,
+    } as unknown as Transaction
+    const client = { transaction: async () => transaction } as unknown as Client
+
+    const failure = await libsqlAdapter(client)
+      .transaction(async () => {
+        throw primary
+      })
+      .catch((error: unknown) => error)
+
+    expect(transaction.rollback).toHaveBeenCalledOnce()
+    expect(failure).toBeInstanceOf(AggregateError)
+    expect((failure as AggregateError).errors).toEqual([primary, cleanup])
+    expect((failure as Error & { readonly cause?: unknown }).cause).toBe(primary)
   })
 })
