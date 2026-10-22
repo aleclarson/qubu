@@ -47,6 +47,7 @@ import {
   jsonTextResultDecoder,
   jsonPath,
   jsonNumber,
+  jsonExists,
   jsonText,
   lt,
   orderBy,
@@ -569,6 +570,64 @@ describe.skipIf(!selectedDialect)("live dialect E2E", () => {
     } finally {
       await environment.driver.exec("DROP TABLE IF EXISTS qubu_e2e_audit_defaults")
     }
+  })
+
+  test("requires explicit JSON array indexes before reading object members", async () => {
+    if (!environment) {
+      throw new Error("E2E environment was not initialized")
+    }
+
+    await execute(
+      insertInto(
+        records,
+        values({
+          id: 1,
+          name: "array traversal",
+          payload: JSON.stringify({ users: [{ name: "Ada" }, { name: "Bob" }] }),
+          active: null,
+          eventDate: null,
+          createdAt: null,
+        }),
+      ),
+      environment.adapter,
+    )
+
+    await expect(
+      executeRows(
+        select(
+          {
+            first: jsonText(records.payload, jsonPath("users", 0, "name")),
+            second: jsonText(records.payload, jsonPath("users", 1, "name")),
+          },
+          from(records),
+        ),
+        environment.adapter,
+      ),
+    ).resolves.toEqual([
+      {
+        first: "Ada",
+        second: "Bob",
+      },
+    ])
+
+    // Object-member segments must not act as an implicit array wildcard.
+    await expect(
+      executeRows(
+        select(
+          {
+            value: jsonText(records.payload, jsonPath("users", "name")),
+            present: jsonExists(records.payload, jsonPath("users", "name")),
+          },
+          from(records),
+        ),
+        environment.adapter,
+      ),
+    ).resolves.toEqual([
+      {
+        value: null,
+        present: false,
+      },
+    ])
   })
 
   test("extracts fractional JSON numbers while rejecting numeric strings", async () => {
