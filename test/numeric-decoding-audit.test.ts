@@ -2,7 +2,7 @@ import { expect, test } from "vitest"
 
 import { pgAdapter } from "../adapters/pg/src/index.ts"
 import { pgliteAdapter } from "../adapters/pglite/src/index.ts"
-import { cast, count, executeRows, numeric, select, value } from "../src/index.ts"
+import { add, bigint, cast, count, executeRows, numeric, select, value } from "../src/index.ts"
 
 function adapter(name: "pg" | "pglite", amount: string | number) {
   const client = {
@@ -32,6 +32,22 @@ test("decodes a safely represented PostgreSQL COUNT result through pg", async ()
   const query = select({ amount: count() })
 
   await expect(executeRows(query, adapter("pg", "1"))).resolves.toEqual([{ amount: 1 }])
+})
+
+test("decodes exact PostgreSQL BIGINT arithmetic results through pg", async () => {
+  const query = select({ amount: add(cast(value(9007199254740992n), bigint()), 1n) })
+
+  await expect(executeRows(query, adapter("pg", "9007199254740993"))).resolves.toEqual([
+    { amount: 9007199254740993n },
+  ])
+})
+
+test("decodes a direct PostgreSQL BIGINT projection through pg", async () => {
+  const query = select({ amount: cast(value(9007199254740993n), bigint()) })
+
+  await expect(executeRows(query, adapter("pg", "9007199254740993"))).resolves.toEqual([
+    { amount: 9007199254740993n },
+  ])
 })
 
 test.each(["pg", "pglite"] as const)(
