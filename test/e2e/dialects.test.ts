@@ -511,6 +511,65 @@ describe.skipIf(!selectedDialect)("live dialect E2E", () => {
     }
   })
 
+  test("preserves named fields when UNION ALL operands declare fields in different orders", async () => {
+    if (!environment) {
+      throw new Error("E2E environment was not initialized")
+    }
+
+    const first = select({
+      id: cast(value(1), integer()),
+      label: cast(value("Ada"), text()),
+    })
+    const second = select({
+      label: cast(value("Grace"), text()),
+      id: cast(value(2), integer()),
+    })
+
+    await expect(executeRows(unionAll(first, first), environment.adapter)).resolves.toEqual([
+      {
+        id: 1,
+        label: "Ada",
+      },
+      {
+        id: 1,
+        label: "Ada",
+      },
+    ])
+    await expect(executeRows(unionAll(first, second), environment.adapter)).resolves.toEqual([
+      {
+        id: 1,
+        label: "Ada",
+      },
+      {
+        id: 2,
+        label: "Grace",
+      },
+    ])
+  })
+
+  test("inserts every requested row when all VALUES fields use database defaults", async () => {
+    if (!environment) {
+      throw new Error("E2E environment was not initialized")
+    }
+
+    const defaults = table("qubu_e2e_audit_defaults", {
+      marker: text({ hasDefault: true }),
+    })
+
+    try {
+      await environment.driver.exec(
+        "CREATE TABLE qubu_e2e_audit_defaults (marker VARCHAR(20) DEFAULT 'created')",
+      )
+      await execute(insertInto(defaults, values({}, {})), environment.adapter)
+
+      await expect(
+        executeRows(select({ marker: defaults.marker }, from(defaults)), environment.adapter),
+      ).resolves.toEqual([{ marker: "created" }, { marker: "created" }])
+    } finally {
+      await environment.driver.exec("DROP TABLE IF EXISTS qubu_e2e_audit_defaults")
+    }
+  })
+
   test("executes parameterized queries through the dialect adapter", async () => {
     if (!environment) {
       throw new Error("E2E environment was not initialized")
