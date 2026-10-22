@@ -680,6 +680,83 @@ test.each([
   },
 )
 
+test.each(["literal", "expression-default", "virtual", "stored"] as const)(
+  "compiles SQLite column additions that work on populated tables (%s)",
+  (mode) => {
+    let added: SchemaSnapshot["tables"][number]["columns"][number] = {
+      ...column("added"),
+      ordinalPosition: 2,
+    }
+
+    if (mode === "literal" || mode === "expression-default") {
+      added = {
+        ...added,
+        hasDefault: true,
+        default:
+          mode === "literal"
+            ? {
+                kind: "literal",
+                value: {
+                  kind: "string",
+                  value: "fixed",
+                },
+              }
+            : {
+                kind: "expression",
+                expression: {
+                  kind: "expression",
+                  expressionKind: "raw",
+                  sql: "CURRENT_TIMESTAMP",
+                },
+              },
+      }
+    } else {
+      added = {
+        ...added,
+        generated: true,
+        generatedColumn: {
+          kind: "expression",
+          expression: {
+            kind: "expression",
+            expressionKind: "call",
+            sql: 'lower("name")',
+          },
+          mode,
+        },
+      }
+    }
+
+    const before = snapshot([table("accounts", [column("name")])])
+    const after = snapshot([table("accounts", [column("name"), added])])
+    const input = reviewed(before, after)
+    const result = compileMigrationProgram(input.plan, input)
+    const requiresRebuild = mode === "stored" || mode === "expression-default"
+
+    if (!requiresRebuild) {
+      expect(result.ok).toBe(true)
+    }
+
+    if (!result.ok) {
+      expect(result.diagnostics).toEqual(
+        expect.arrayContaining([expect.objectContaining({ code: "unsupported" })]),
+      )
+      return
+    }
+
+    const statements = result.program.phases.flatMap((phase) => phase.statements)
+
+    if (requiresRebuild) {
+      // SQLite rejects ADD COLUMN for these definitions when rows already exist.
+      expect(statements.some((statement) => statement.sql.startsWith("CREATE TABLE"))).toBe(true)
+      expect(statements.some((statement) => statement.sql.includes("ADD COLUMN"))).toBe(false)
+    } else {
+      expect(statements.some((statement) => statement.sql.includes('ADD COLUMN "added"'))).toBe(
+        true,
+      )
+    }
+  },
+)
+
 test("recomputes generated columns instead of inserting them during a SQLite rebuild", () => {
   const generated: SchemaSnapshot["tables"][number]["columns"][number] = {
     ...column("slug"),
