@@ -13,6 +13,7 @@ import {
   not,
   select,
   table,
+  where,
 } from "../src/index.ts"
 
 const measurements = table("audit_measurements", { score: integer({ nullable: true }) })
@@ -45,3 +46,14 @@ expectTypeOf(predicates.row.negated).toEqualTypeOf<boolean | null>()
 expectTypeOf(predicates.row.missing).toEqualTypeOf<boolean>()
 expectTypeOf(predicates.row.distinct).toEqualTypeOf<boolean>()
 expectTypeOf(predicates.row.anyRows).toEqualTypeOf<boolean>()
+
+const candidates = table("audit_candidates", { id: integer() })
+const matching = select(
+  { id: candidates.id },
+  from(candidates),
+  // NULL rows in an IN subquery are legal SQL. They do not make the integer
+  // domains incompatible or make a matching candidate's id nullable.
+  where(inQuery(candidates.id, scores)),
+)
+
+expectTypeOf(matching.row.id).toEqualTypeOf<number>()
