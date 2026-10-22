@@ -1,6 +1,7 @@
 import { DatabaseSync } from "node:sqlite"
 
 import {
+  caseInsensitiveTestSuite,
   joinsTestSuite,
   normalTestSuite,
   testAdapter,
@@ -59,7 +60,7 @@ const { execute } = await testAdapter({
 
     await migrations.runMigrations()
   },
-  tests: [normalTestSuite(), joinsTestSuite(), transactionsTestSuite()],
+  tests: [normalTestSuite(), caseInsensitiveTestSuite(), joinsTestSuite(), transactionsTestSuite()],
   onFinish() {
     database.close()
   },
