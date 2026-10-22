@@ -6,6 +6,7 @@ import {
   compileMigrationProgram,
   sealExecutableArtifact,
   type ExecutableMigrationArtifact,
+  type MigrationProgram,
 } from "@qubu/migrate/artifact"
 import {
   createBaseline,
@@ -836,4 +837,83 @@ test("rejects alignment configuration for SQLite bootstrap", async () => {
 
   expect(exit).not.toBe(0)
   expect(errors.join("")).toContain("only for PostgreSQL")
+})
+
+test("creates an approved SQLite table rebuild through the migration CLI", async () => {
+  const cwd = await temporaryDirectory()
+  const initial = snapshot(["accounts"])
+  let target: SchemaSnapshot = {
+    ...initial,
+    tables: initial.tables.map((table) => ({
+      ...table,
+      columns: [
+        {
+          kind: "column",
+          id: "name",
+          physicalName: "name",
+          ordinalPosition: 1,
+          nullable: true,
+          hasDefault: false,
+          generated: false,
+          storage: {
+            kind: "portable",
+            type: "text",
+          },
+        },
+      ],
+    })),
+  }
+  const config: QubuCliConfig = {
+    artifacts: "migrations",
+    snapshot: () => target,
+    approvals({ operation, findings }) {
+      if (operation.safety === "safe") {
+        return undefined
+      }
+
+      return {
+        operationId: operation.id,
+        decision: "approve",
+        safety: operation.safety,
+        findings,
+        reason: "Reviewed NOT NULL rebuild",
+      }
+    },
+  }
+  const errors: string[] = []
+  const runtime = {
+    cwd,
+    loadConfig: async () => config,
+    stdout: () => {},
+    stderr: (text: string) => errors.push(text),
+  }
+
+  expect(
+    await runCli(["migrate", "create", "initial", "--format", "json"], runtime),
+    errors.join(""),
+  ).toBe(0)
+  target = {
+    ...target,
+    tables: target.tables.map((table) => ({
+      ...table,
+      columns: table.columns.map((column) => ({
+        ...column,
+        nullable: false,
+      })),
+    })),
+  }
+  errors.length = 0
+
+  expect(
+    await runCli(["migrate", "create", "require-name", "--format", "json"], runtime),
+    errors.join(""),
+  ).toBe(0)
+  const files = await new FileArtifactRepository("migrations", cwd).list()
+
+  expect(files).toHaveLength(2)
+  const program: MigrationProgram = JSON.parse(files[1]!).program
+
+  expect(
+    program.phases.flatMap((phase) => phase.statements).map((statement) => statement.sql),
+  ).toEqual(expect.arrayContaining([expect.stringMatching(/^INSERT INTO .* SELECT /u)]))
 })
