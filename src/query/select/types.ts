@@ -1,4 +1,5 @@
 import type {
+  EmptyAggregateInput,
   GroupingDependenciesOf,
   GroupingKeysOf,
   HasAggregate,
@@ -90,9 +91,52 @@ export type AvailableOuterScope<TClauses extends readonly AnySelectClause[]> = P
   TClauses[number]
 >
 
-export type NullableSources<TClauses extends readonly AnySelectClause[]> = NullableSourcesOf<
-  TClauses[number]
->
+// SQL JOIN binds to the last comma-separated FROM source, not the entire FROM list.
+type FromJoinScope<TClause> =
+  TClause extends FromClause<infer TSources>
+    ? TSources extends readonly [...unknown[], infer TLast extends AnySource]
+      ? ProvidedSourceIdentity<TLast>
+      : ProvidedSourceIdentity<TSources[number]>
+    : never
+
+// FROM renders before every JOIN, even when the caller supplies clauses out of order.
+// JOINs retain their relative order, so a RIGHT/FULL JOIN only widens preceding sources.
+type JoinNullableSources<
+  TClauses extends readonly AnySelectClause[],
+  TSeen = never,
+> = TClauses extends readonly [infer THead, ...infer TTail extends readonly AnySelectClause[]]
+  ? THead extends JoinClause<any, any>
+    ?
+        | (Extract<THead["joinType"], "RIGHT" | "FULL"> extends never ? never : TSeen)
+        | JoinNullableSources<TTail, TSeen | ClauseScope<THead>>
+    : JoinNullableSources<TTail, TSeen>
+  : number extends TClauses["length"]
+    ? Extract<TClauses[number], JoinClause<any, any>> extends infer TJoin extends JoinClause<
+        any,
+        any
+      >
+      ? Extract<TJoin["joinType"], "RIGHT" | "FULL"> extends never
+        ? never
+        : TSeen | AvailableScope<TClauses>
+      : never
+    : never
+
+export type NullableSources<TClauses extends readonly AnySelectClause[]> =
+  TClauses extends readonly AnySelectClause[]
+    ?
+        | NullableSourcesOf<TClauses[number]>
+        | (Extract<
+            Extract<TClauses[number], { readonly joinType: string }>["joinType"],
+            "RIGHT" | "FULL"
+          > extends never
+            ? never
+            : JoinNullableSources<TClauses, FromJoinScope<TClauses[number]>>)
+        | (Extract<TClauses[number], GroupByClause<any>> extends never
+            ? Exclude<TClauses[number], ExactlyOneSafeClause> extends never
+              ? never
+              : EmptyAggregateInput
+            : never)
+    : never
 
 export type RequiredScope<TSelection, TClauses extends readonly AnySelectClause[]> =
   | SelectionRequires<TSelection>

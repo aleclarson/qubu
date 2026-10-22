@@ -85,9 +85,10 @@ Expression nullability follows its own contract: `upper(posts.title)` also
 becomes nullable, while `count(posts.id)` stays non-null in a
 [grouped query](grouping-and-windows.md).
 
-Current nullability inference covers `leftJoin()` only. For `rightJoin()` or
-`fullJoin()`, account for nullable results explicitly; see the
-[result-shape limits](../../query-model/result-shapes.md#account-for-nullable-joins).
+`rightJoin()` makes the preceding relation nullable; `fullJoin()` makes both
+sides nullable. This includes expressions that depend on those sources. With
+several joins, widening follows their SQL order; see
+[result shapes](../../query-model/result-shapes.md#account-for-nullable-joins).
 
 ### Add conditions
 

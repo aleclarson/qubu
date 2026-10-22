@@ -3,6 +3,13 @@ import type { AnySqlType, SqlTypeName, SqlUnknown } from "./sql-types.ts"
 
 declare const fragmentMetadata: unique symbol
 
+declare const emptyAggregateInput: unique symbol
+
+/** Nullability provenance resolved by SELECT grouping or a nonempty inline window. */
+export interface EmptyAggregateInput {
+  readonly [emptyAggregateInput]: true
+}
+
 /** Result value metadata, including nullability provenance and its SQL domain. */
 export type ResultMeta<TOutput, TNullableFrom = never, TSqlType extends AnySqlType = SqlUnknown> = {
   readonly kind: "result"
@@ -229,6 +236,7 @@ type RequiredCapabilities<TMetadata> = TMetadata extends {
 export type InheritedMetadataOf<TMetadata> = WithoutResult<TMetadata>
 export type InheritedMetadata<T> = InheritedMetadataOf<MetadataOf<T>>
 
+/** Declared output before SELECT resolves nullability provenance; use the query row for results. */
 export type OutputOf<T> = ResultOutput<ResultMetadata<MetadataOf<T>>>
 
 /** The SQL semantic domain produced by a result-bearing fragment. */

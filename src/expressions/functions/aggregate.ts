@@ -1,4 +1,4 @@
-import type { NullabilityOf } from "../../core/fragment.ts"
+import type { EmptyAggregateInput, NullabilityOf } from "../../core/fragment.ts"
 import type { SqlDecimal, SqlInteger, SqlNumericLike, SqlOrderable } from "../../core/sql-types.ts"
 import { attachResultValue, resultValue, resultValueOf } from "../../result.ts"
 import type { SqlCapabilityValidation } from "../operators/shared.ts"
@@ -79,8 +79,9 @@ export function countDistinct<TExpression extends AnyExpression>(expression: TEx
 /**
  * Sum a numeric expression while retaining its declared output type and SQL domain.
  *
- * Current types do not add `null` for empty input sets or model database aggregate widening.
- * Account for those cases with COALESCE, driver configuration, or an explicit result decoder.
+ * SELECT adds `null` when input can be empty. GROUP BY groups and supported inline windows contain
+ * rows, but nullable arguments or outer joins can still make the result null. Database aggregate
+ * widening and driver wire-value conversion are not inferred.
  */
 export function sum<T, TExpression extends ExpressionWithOutput<T>>(
   expression: TExpression & SqlCapabilityValidation<ExpressionSqlType<TExpression>, SqlNumericLike>,
@@ -95,14 +96,14 @@ export function sum<T, TExpression extends ExpressionWithOutput<T>>(
     readonly output: ExpressionOutput<TExpression>
     readonly children: TExpression
     readonly kind: "function"
-    readonly nullableFrom: NullabilityOf<TExpression>
+    readonly nullableFrom: NullabilityOf<TExpression> | EmptyAggregateInput
     readonly sqlType: ExpressionSqlType<TExpression>
   }>
 }
 
 /**
- * Average a numeric expression with a declared `number` output and SqlDecimal domain. Empty-input
- * nullability and driver string/decimal conversion are not inferred; see {@link sum}.
+ * Average a numeric expression with a numeric output and SqlDecimal domain. SELECT adds `null` for
+ * empty input or nullable arguments; see {@link sum} for grouping and driver-value boundaries.
  */
 export function avg<T, TExpression extends ExpressionWithOutput<T>>(
   expression: TExpression & SqlCapabilityValidation<ExpressionSqlType<TExpression>, SqlNumericLike>,
@@ -114,15 +115,15 @@ export function avg<T, TExpression extends ExpressionWithOutput<T>>(
     ),
     "aggregate",
   ) as AggregateResultExpression<{
-    readonly output: number
+    readonly output: number | (null extends ExpressionOutput<TExpression> ? null : never)
     readonly children: TExpression
     readonly kind: "function"
-    readonly nullableFrom: NullabilityOf<TExpression>
+    readonly nullableFrom: NullabilityOf<TExpression> | EmptyAggregateInput
     readonly sqlType: SqlDecimal
   }>
 }
 
-/** Return a minimum with the input's type and domain; empty-input nullability is not added. */
+/** Return a minimum with the input's type and domain, nullable for empty input; see {@link sum}. */
 export function min<T, TExpression extends ExpressionWithOutput<T>>(
   expression: TExpression & SqlCapabilityValidation<ExpressionSqlType<TExpression>, SqlOrderable>,
 ) {
@@ -136,12 +137,12 @@ export function min<T, TExpression extends ExpressionWithOutput<T>>(
     readonly output: ExpressionOutput<TExpression>
     readonly children: TExpression
     readonly kind: "function"
-    readonly nullableFrom: NullabilityOf<TExpression>
+    readonly nullableFrom: NullabilityOf<TExpression> | EmptyAggregateInput
     readonly sqlType: ExpressionSqlType<TExpression>
   }>
 }
 
-/** Return a maximum with the input's type and domain; empty-input nullability is not added. */
+/** Return a maximum with the input's type and domain, nullable for empty input; see {@link sum}. */
 export function max<T, TExpression extends ExpressionWithOutput<T>>(
   expression: TExpression & SqlCapabilityValidation<ExpressionSqlType<TExpression>, SqlOrderable>,
 ) {
@@ -155,7 +156,7 @@ export function max<T, TExpression extends ExpressionWithOutput<T>>(
     readonly output: ExpressionOutput<TExpression>
     readonly children: TExpression
     readonly kind: "function"
-    readonly nullableFrom: NullabilityOf<TExpression>
+    readonly nullableFrom: NullabilityOf<TExpression> | EmptyAggregateInput
     readonly sqlType: ExpressionSqlType<TExpression>
   }>
 }

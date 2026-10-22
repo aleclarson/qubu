@@ -14,12 +14,21 @@ export type JoinType = "INNER" | "LEFT" | "RIGHT" | "FULL" | "CROSS" | "NATURAL"
 export interface JoinClause<
   TSource extends AnySource = AnySource,
   TMetadata = never,
+  TJoinType extends JoinType = JoinType,
 > extends SelectClause<TMetadata> {
   readonly clauseKind: "join"
-  readonly joinType: JoinType
+  readonly joinType: TJoinType
   readonly source: TSource
   readonly condition?: BooleanExpression<any>
 }
+
+type JoinMetadata<TSource extends AnySource, TCondition, TJoinType extends JoinType> =
+  | InheritedMetadata<TCondition>
+  | RequiresOuterMetadataOf<TSource>
+  | CapabilityMetadataOf<TSource>
+  | (TJoinType extends "LEFT" | "FULL"
+      ? NullableSourceMeta<ProvidedSourceIdentity<TSource>>
+      : never)
 
 function join<
   const TJoinType extends JoinType,
@@ -29,13 +38,7 @@ function join<
   joinType: TJoinType,
   source: TSource,
   condition?: TCondition,
-): JoinClause<
-  TSource,
-  | InheritedMetadata<TCondition>
-  | RequiresOuterMetadataOf<TSource>
-  | CapabilityMetadataOf<TSource>
-  | (TJoinType extends "LEFT" ? NullableSourceMeta<ProvidedSourceIdentity<TSource>> : never)
-> {
+): JoinClause<TSource, JoinMetadata<TSource, TCondition, TJoinType>, TJoinType> {
   return Object.assign(
     createClause("join", "after-select", 40, (context) => {
       context.append(`${joinType} JOIN `)
@@ -51,13 +54,7 @@ function join<
       source,
       condition,
     },
-  ) as JoinClause<
-    TSource,
-    | InheritedMetadata<TCondition>
-    | RequiresOuterMetadataOf<TSource>
-    | CapabilityMetadataOf<TSource>
-    | (TJoinType extends "LEFT" ? NullableSourceMeta<ProvidedSourceIdentity<TSource>> : never)
-  >
+  ) as JoinClause<TSource, JoinMetadata<TSource, TCondition, TJoinType>, TJoinType>
 }
 
 export function innerJoin<TSource extends AnySource, TCondition extends BooleanExpression<any>>(
@@ -75,7 +72,7 @@ export function leftJoin<TSource extends AnySource, TCondition extends BooleanEx
   return join("LEFT", source, condition)
 }
 
-/** Render RIGHT JOIN; current inference does not widen the left-side fields with null. */
+/** Add a RIGHT JOIN, widening fields from the preceding relation with null. */
 export function rightJoin<TSource extends AnySource, TCondition extends BooleanExpression<any>>(
   source: TSource,
   condition: TCondition,
@@ -83,7 +80,7 @@ export function rightJoin<TSource extends AnySource, TCondition extends BooleanE
   return join("RIGHT", source, condition)
 }
 
-/** Render FULL JOIN; current inference does not widen either side's fields with null. */
+/** Add a FULL JOIN, widening fields from both the preceding relation and joined source with null. */
 export function fullJoin<TSource extends AnySource, TCondition extends BooleanExpression<any>>(
   source: TSource,
   condition: TCondition,
@@ -93,12 +90,16 @@ export function fullJoin<TSource extends AnySource, TCondition extends BooleanEx
 
 export function crossJoin<TSource extends AnySource>(
   source: TSource,
-): JoinClause<TSource, RequiresOuterMetadataOf<TSource> | CapabilityMetadataOf<TSource>> {
+): JoinClause<TSource, RequiresOuterMetadataOf<TSource> | CapabilityMetadataOf<TSource>, "CROSS"> {
   return join<"CROSS", TSource, undefined>("CROSS", source)
 }
 
 export function naturalJoin<TSource extends AnySource>(
   source: TSource,
-): JoinClause<TSource, RequiresOuterMetadataOf<TSource> | CapabilityMetadataOf<TSource>> {
+): JoinClause<
+  TSource,
+  RequiresOuterMetadataOf<TSource> | CapabilityMetadataOf<TSource>,
+  "NATURAL"
+> {
   return join<"NATURAL", TSource, undefined>("NATURAL", source)
 }

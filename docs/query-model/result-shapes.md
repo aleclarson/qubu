@@ -81,10 +81,31 @@ The same rule applies inside expressions. `upper(posts.title)` remains
 nullable because it depends on the joined row. `coalesce()` and a `CASE`
 expression with non-null branches can return a non-null result.
 
-Current inference handles outer-join widening only for `leftJoin()`.
-`rightJoin()` and `fullJoin()` render their SQL forms without widening the
-affected source fields. Account for their possible `NULL` values explicitly;
-their inferred non-null fields are not a runtime guarantee.
+`rightJoin()` widens fields from the preceding relation; `fullJoin()` widens
+both that relation and the joined source. With several joins, the preceding
+relation includes `FROM` and earlier joins. Later sources are unaffected by
+that widening. Qubu sorts `FROM` before joins and preserves the relative order
+of joins, including joins supplied through a clause tuple. With `from(a, b)`, SQL joins
+bind to `b`; `a` remains a separate comma-separated source.
+
+For example, replacing `leftJoin(posts, ...)` above with `rightJoin(posts, ...)`
+produces `{ userName: string | null; postTitle: string; postCount: number }`.
+Using `fullJoin(posts, ...)` makes both names nullable and keeps `postCount`
+non-null.
+
+## Account for empty aggregate input
+
+A selected `sum()`, `min()`, `max()`, or `avg()` includes `null` when the input
+can be empty. A `GROUP BY` group or a supported inline window contains rows,
+so a non-null argument keeps its non-null result type there. Nullable arguments
+and outer-joined sources can still produce all-null input. `count()` and
+`countDistinct()` stay non-null in each context.
+
+These nullability facts propagate through expressions and resolve at the
+`select()` boundary, just like source nullability. A derived table or CTE then
+retains the resolved row shape. See [Group and rank
+rows](../guides/select/grouping-and-windows.md#aggregate-types-and-driver-values)
+for examples and the separate driver-value policy.
 
 ## Check scalar cardinality
 

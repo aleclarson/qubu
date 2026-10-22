@@ -76,6 +76,7 @@ export type {
   CapabilitiesOf,
   CapabilityMetadataOf,
   DependenciesOf,
+  EmptyAggregateInput,
   ExpressionMeta,
   Fragment,
   FragmentMeta,

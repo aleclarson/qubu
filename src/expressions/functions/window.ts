@@ -1,5 +1,6 @@
 import {
   type DependenciesOf,
+  type EmptyAggregateInput,
   type ExpressionMeta,
   type InheritedMetadata,
   type NullabilityOf,
@@ -39,13 +40,18 @@ export type WindowedExpression<
   TExpression extends AnyExpression,
   TWindow extends WindowSpec | undefined,
 > = Expression<
-  | ResultMeta<OutputOf<TExpression>, NullabilityOf<TExpression>, SqlTypeOf<TExpression>>
+  | ResultMeta<
+      OutputOf<TExpression>,
+      Exclude<NullabilityOf<TExpression>, EmptyAggregateInput>,
+      SqlTypeOf<TExpression>
+    >
   | ExpressionMeta<DependenciesOf<TExpression | WindowSpecParts<TWindow>>>
   | InheritedMetadata<TExpression | WindowSpecParts<TWindow>>
   | WindowMeta,
   "function"
 >
 
+/** Attach an inline window that includes the current row, preserving argument nullability. */
 export function over<
   TExpression extends AnyExpression,
   const TWindow extends WindowSpec | undefined = undefined,

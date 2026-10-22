@@ -37,11 +37,29 @@ explicit key metadata and keeps the proof within the source boundary. See
 
 ### Aggregate types and driver values
 
-`count()` has a non-null numeric contract. Other aggregates have a current
-typing limit: `sum()`, `min()`, and `max()` retain the input's output type, and
-`avg()` declares `number`, without adding `null` for an empty input set.
-Outer-join nullability is tracked separately. Handle empty-input `NULL` with
-`coalesce()` or an application policy when no group is guaranteed.
+`count()` and `countDistinct()` have non-null numeric contracts. A selected
+`sum()`, `min()`, `max()`, or `avg()` includes `null` when its input can be empty:
+
+```ts
+import { avg, from, groupBy, select, sum } from "qubu"
+
+const totals = select({ total: sum(users.id), average: avg(users.id) }, from(users))
+// typeof totals.row: { total: number | null; average: number | null }
+
+const perName = select({ total: sum(users.id) }, from(users), groupBy(users.name))
+// typeof perName.row: { total: number }
+```
+
+Each emitted `GROUP BY` group has rows. Supported inline windows also include
+the current row, so they do not add empty-input nullability. Nullable arguments
+or outer-joined sources can still make either result null when all input
+values are null. A source-free aggregate over a constant stays non-null when
+no clause can remove its input row; a `WHERE` clause makes it nullable.
+
+`sum()`, `min()`, and `max()` keep the input's declared output type and SQL
+domain apart from nullability. `avg()` uses `number` and `SqlDecimal`.
+Nullability is resolved at `select()`, and expressions that propagate argument
+nullability retain it. Use `coalesce()` when you want a fallback for SQL `NULL`.
 
 Qubu also does not normalize every driver's aggregate values. For example,
 PostgreSQL drivers can return `COUNT` or `NUMERIC` as strings. Configure the
