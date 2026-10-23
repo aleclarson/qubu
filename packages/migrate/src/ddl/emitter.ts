@@ -1842,6 +1842,15 @@ function renderAddConstraint(
     }
 
     body = `CHECK (${expression.sql})`
+    const notValid =
+      value.validated === false || recordValue(value.dialect)?.notValid === true
+    if (notValid) {
+      if (features.dialect !== "postgresql") {
+        throw new TypeError("CHECK NOT VALID requires PostgreSQL")
+      }
+
+      body += " NOT VALID"
+    }
   } else {
     throw new TypeError(`Unsupported constraint kind "${String(kind)}"`)
   }
