@@ -129,6 +129,22 @@ function prepareRebuilds(
         "SQLite rebuilds of tables with triggers require an explicit program",
         ["afterSnapshot", "triggers"],
       )
+    if (
+      [
+        ...before.deferredObjects,
+        ...before.opaqueObjects,
+        ...after.deferredObjects,
+        ...after.opaqueObjects,
+      ].some((object) => {
+        const content = isRecord(object.data) ? object.data.content : undefined
+        return isRecord(content) && content.table === target.physicalName
+      })
+    )
+      return failure(
+        "unsupported",
+        "SQLite rebuilds of tables with dependent opaque objects require an explicit program",
+        ["afterSnapshot", "opaqueObjects"],
+      )
     const rendered = createStatements(after, target, options)
     if (!rendered.ok) return rendered
     const temporaryName = `__qubu_rebuild_${target.physicalName}`
