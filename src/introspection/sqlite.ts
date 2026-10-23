@@ -924,6 +924,47 @@ function sqlWithoutLiterals(sqlText: string | undefined): string {
   )
 }
 
+// SQLite only aliases the rowid for INTEGER PRIMARY KEY ASC; a DESC key is an
+// ordinary primary key on a hidden column.
+function primaryKeyIsDesc(sqlText: string | undefined, physicalName: string): boolean {
+  for (const tokens of constraintDefinitions(sqlText)) {
+    if (unquoteIdentifier(tokens[0]) === physicalName) {
+      const key = tokens.findIndex(
+        (token, index) =>
+          token.toUpperCase() === "PRIMARY" && tokens[index + 1]?.toUpperCase() === "KEY",
+      )
+
+      if (
+        key >= 0 &&
+        tokens
+          .slice(key + 2)
+          .some(
+            (token) => /^[A-Za-z]+$/.test(token) && token.toUpperCase() === "DESC",
+          )
+      ) {
+        return true
+      }
+    }
+
+    if (
+      tokens[0]?.toUpperCase() === "PRIMARY" &&
+      tokens[1]?.toUpperCase() === "KEY" &&
+      tokens[2] === "("
+    ) {
+      for (let index = 3; index < tokens.length && tokens[index] !== ")"; index += 1) {
+        if (
+          unquoteIdentifier(tokens[index]) === physicalName &&
+          tokens[index + 1]?.toUpperCase() === "DESC"
+        ) {
+          return true
+        }
+      }
+    }
+  }
+
+  return false
+}
+
 function unquoteIdentifier(value: string | undefined): string | undefined {
   if (!value) {
     return undefined
@@ -1293,7 +1334,9 @@ function column(
     rowidPrimaryKey &&
     (number(row.pk) ?? 0) > 0 &&
     type.toUpperCase() === "INTEGER" &&
-    !/WITHOUT\s+ROWID/i.test(ddl)
+    !/WITHOUT\s+ROWID/i.test(ddl) &&
+    // A descending single-column primary key is not a rowid alias.
+    !primaryKeyIsDesc(sqlText, physicalName)
   const identity: CatalogIdentity | undefined = rowid
     ? {
         kind: "identity",
