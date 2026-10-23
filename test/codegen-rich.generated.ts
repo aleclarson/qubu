@@ -45,6 +45,7 @@ const _AccountEntriesDefinitions = {
     {
       nullable: false,
       sqlName: 'id',
+      sqlType: 'integer',
     }
   ),
   parentId: _catalogColumn<unknown, unknown, unknown, _qubu.SqlInteger>()(
@@ -53,6 +54,7 @@ const _AccountEntriesDefinitions = {
     {
       nullable: true,
       sqlName: 'parent_id',
+      sqlType: 'integer',
       default: 0,
     }
   ),
@@ -62,6 +64,7 @@ const _AccountEntriesDefinitions = {
     {
       nullable: false,
       sqlName: 'status',
+      sqlType: 'text',
       dialect: { dialect: 'postgresql', ['collation']: 'C' },
       default: 'pending',
     }
@@ -72,6 +75,7 @@ const _AccountEntriesDefinitions = {
     {
       nullable: false,
       sqlName: 'slug',
+      sqlType: 'text',
       generatedColumn: _qubu.generatedColumn(
         _qubu.unsafeSchemaSql({ dialect: 'postgresql', sql: 'lower(status)' }),
         'stored'
@@ -84,6 +88,7 @@ const _AccountEntriesDefinitions = {
     {
       nullable: false,
       sqlName: 'updated_at',
+      sqlType: 'timestamp',
       default: _qubu.unsafeSchemaSql({
         dialect: 'postgresql',
         sql: 'CURRENT_TIMESTAMP',
@@ -186,7 +191,7 @@ export const accountEntries: _AccountEntriesTable = _qubu.table(
       accountEntriesStatusCheck: _qubu.catalogCheck(
         {
           dialect: 'postgresql',
-          sql: "CHECK (status <> '*/\\nexport const hacked = true')",
+          sql: "(status <> '*/\\nexport const hacked = true')",
         },
         { physicalName: 'account_entries_status_check' }
       ),
@@ -233,6 +238,7 @@ const _ParentRecordsDefinitions = {
     {
       nullable: false,
       sqlName: 'id',
+      sqlType: 'integer',
       identity: _qubu.identityColumn('always', {
         options: { ['start']: 7 },
         dialect: { dialect: 'postgresql', ['sequenceOwned']: true },

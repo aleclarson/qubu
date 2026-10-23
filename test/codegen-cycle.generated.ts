@@ -41,6 +41,7 @@ const _AlphaRecordsDefinitions = {
     {
       nullable: false,
       sqlName: 'id',
+      sqlType: 'integer',
     }
   ),
   betaId: _catalogColumn<unknown, unknown, unknown, _qubu.SqlInteger>()(
@@ -49,6 +50,7 @@ const _AlphaRecordsDefinitions = {
     {
       nullable: false,
       sqlName: 'beta_id',
+      sqlType: 'integer',
     }
   ),
 }
@@ -104,6 +106,7 @@ const _BetaRecordsDefinitions = {
     {
       nullable: false,
       sqlName: 'id',
+      sqlType: 'integer',
     }
   ),
   alphaId: _catalogColumn<unknown, unknown, unknown, _qubu.SqlInteger>()(
@@ -112,6 +115,7 @@ const _BetaRecordsDefinitions = {
     {
       nullable: false,
       sqlName: 'alpha_id',
+      sqlType: 'integer',
     }
   ),
 }
