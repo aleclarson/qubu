@@ -1,6 +1,11 @@
 import type { SqlText, SqlTextLike } from "../../core/sql-types.ts"
 import { attachResultValue, resultValue, resultValueOf } from "../../result.ts"
-import type { Operand, OperandDomain, OperandOutput } from "../operators/shared.ts"
+import type {
+  Operand,
+  OperandDomain,
+  OperandNullOutput,
+  OperandOutput,
+} from "../operators/shared.ts"
 import type {
   OperandSqlType,
   SqlCapabilityValidation,
@@ -34,12 +39,12 @@ type CoalesceValidation<TFirst, TRest extends readonly unknown[]> = TRest extend
       CoalesceValidation<TFirst, TTail>
   : unknown
 
-export function lower<const TInput extends Operand<string>>(
+export function lower<const TInput extends Operand<string | null>>(
   input: TInput & TextOperandValidation<TInput>,
 ) {
   return attachResultValue(
     schemaCall<
-      string,
+      string | OperandNullOutput<TInput>,
       "LOWER",
       [TInput],
       import("../../core/fragment.ts").NullabilityOf<TInput>,
@@ -49,12 +54,12 @@ export function lower<const TInput extends Operand<string>>(
   )
 }
 
-export function upper<const TInput extends Operand<string>>(
+export function upper<const TInput extends Operand<string | null>>(
   input: TInput & TextOperandValidation<TInput>,
 ) {
   return attachResultValue(
     schemaCall<
-      string,
+      string | OperandNullOutput<TInput>,
       "UPPER",
       [TInput],
       import("../../core/fragment.ts").NullabilityOf<TInput>,
@@ -83,12 +88,12 @@ export function coalesce<
   )
 }
 
-export function concat<const TArguments extends readonly Operand<string>[]>(
+export function concat<const TArguments extends readonly Operand<string | null>[]>(
   ...argumentsToConcat: TArguments & TextArgumentsValidation<TArguments>
 ) {
   return attachResultValue(
     schemaCall<
-      string,
+      string | OperandNullOutput<TArguments[number]>,
       "CONCAT",
       TArguments,
       import("../../core/fragment.ts").NullabilityOf<TArguments[number]>,
