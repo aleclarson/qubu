@@ -1,3 +1,4 @@
+import { parenthesize } from "../../core/fragment.ts"
 import type {
   Fragment,
   InheritedMetadata,
@@ -18,6 +19,7 @@ import type {
   ExpressionOutput,
   ExpressionWithOutput,
 } from "../types.ts"
+import { isExpression } from "../types.ts"
 import { asValue, isValueExpression, type ValueExpression } from "../value.ts"
 
 export type Operand<T> = T | ExpressionWithOutput<T>
@@ -87,7 +89,12 @@ export function isNullOperand(value: unknown): boolean {
 }
 
 export function expressionOperand<T>(operand: Operand<T>) {
-  return asValue(operand)
+  const expression = asValue(operand)
+  // Operator-kind operands need their own parentheses inside another
+  // expression, or a low-precedence inner operator binds to the wrong side.
+  return isExpression(expression) && expression.expressionKind === "operator"
+    ? parenthesize(expression)
+    : expression
 }
 
 export function renderOperands(
