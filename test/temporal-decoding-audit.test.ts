@@ -19,17 +19,19 @@ test.each([
   ).toEqual(new Date(expected))
 })
 
-test.each(["America/New_York", "Asia/Tokyo", "UTC"])(
-  "keeps the SQL DATE calendar day at UTC midnight with pg in %s",
-  (timezone) => {
-    // Exercise pg's actual default DATE parser in an isolated timezone without
-    // changing the test worker's global TZ or depending on the host timezone.
-    const output = execFileSync(
-      process.execPath,
-      [
-        "--input-type=module",
-        "-e",
-        `import pg from "pg"
+test.each([
+  ["America/New_York", "2026-08-27T04:00:00.000Z"],
+  ["Asia/Tokyo", "2026-08-26T15:00:00.000Z"],
+  ["UTC", "2026-08-27T00:00:00.000Z"],
+])("preserves the driver-created PostgreSQL DATE value in %s", (timezone, expected) => {
+  // Exercise pg's actual default DATE parser in an isolated timezone without
+  // changing the test worker's global TZ or depending on the host timezone.
+  const output = execFileSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      `import pg from "pg"
          import { pgAdapter } from ${JSON.stringify(new URL("../adapters/pg/src/index.ts", import.meta.url).href)}
          import { cast, date, executeRows, select, value } from ${JSON.stringify(new URL("../src/index.ts", import.meta.url).href)}
          const day = pg.types.getTypeParser(1082)("2026-08-27")
@@ -38,17 +40,16 @@ test.each(["America/New_York", "Asia/Tokyo", "UTC"])(
          })
          const query = select({ day: cast(value("2026-08-27"), date()) })
          process.stdout.write(JSON.stringify(await executeRows(query, adapter)))`,
-      ],
-      {
-        encoding: "utf8",
-        cwd: new URL("../", import.meta.url),
-        env: {
-          ...process.env,
-          TZ: timezone,
-        },
+    ],
+    {
+      encoding: "utf8",
+      cwd: new URL("../", import.meta.url),
+      env: {
+        ...process.env,
+        TZ: timezone,
       },
-    )
+    },
+  )
 
-    expect(JSON.parse(output)).toEqual([{ day: "2026-08-27T00:00:00.000Z" }])
-  },
-)
+  expect(JSON.parse(output)).toEqual([{ day: expected }])
+})

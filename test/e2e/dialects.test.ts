@@ -740,7 +740,12 @@ describe.skipIf(!selectedDialect)("live dialect E2E", () => {
     expect(rows).toHaveLength(1)
     expect(rows[0]).toMatchObject({
       enabled: true,
-      occurredOn: new Date("2026-08-27T00:00:00.000Z"),
+      // SQLite supplies a date string; pg/mysql2 supply local-midnight Dates.
+      // The date decoder converts strings and preserves driver-created Dates.
+      occurredOn:
+        dialectName === "sqlite"
+          ? new Date("2026-08-27T00:00:00.000Z")
+          : new Date(2026, 7, 27),
       metadata: { user: { name: "Ada" } },
     })
     expect(rows[0]?.recordedAt).toBeInstanceOf(Date)
