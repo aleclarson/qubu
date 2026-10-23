@@ -1794,9 +1794,25 @@ function renderAddConstraint(
     )
   )
     return undefined
-  const table = parentTable(operation, operations, dialect)
   const name = requiredName(operation, value)
   const kind = stringValue(value.kind)
+  const domain = parentDomain(operation, operations, dialect)
+
+  if (domain !== undefined) {
+    if (kind !== "check") {
+      throw new TypeError(`Domain constraint kind "${String(kind)}" is not supported`)
+    }
+
+    const expression = expressionValue(value.expression)
+
+    if (expression === undefined) {
+      throw new TypeError("Domain constraint is missing its expression")
+    }
+
+    return `ALTER DOMAIN ${domain} ADD CONSTRAINT ${dialect.quoteIdentifier(name)} CHECK (${expression.sql})`
+  }
+
+  const table = parentTable(operation, operations, dialect)
   const parent = operation.origin?.after?.parent ?? operation.origin?.before?.parent
   const columnNames = physicalColumnNames(
     resolveTable(parent?.id, operation, operations, features) ?? {},
@@ -1902,9 +1918,19 @@ function renderDropConstraint(
   dialect: SchemaDialect,
   features: DdlFeatures,
 ): string | undefined {
-  const table = parentTable(operation, operations, dialect)
   const name = requiredName(operation, value)
   const kind = stringValue(value.kind)
+  const domain = parentDomain(operation, operations, dialect)
+
+  if (domain !== undefined) {
+    if (features.dialect !== "postgresql") {
+      throw new TypeError(`${features.dialect} does not support domain constraints`)
+    }
+
+    return `ALTER DOMAIN ${domain} DROP CONSTRAINT ${dialect.quoteIdentifier(name)}`
+  }
+
+  const table = parentTable(operation, operations, dialect)
 
   if (features.dialect === "postgresql") {
     return `ALTER TABLE ${table} DROP CONSTRAINT ${dialect.quoteIdentifier(name)}`
@@ -2804,6 +2830,33 @@ function parentTable(
 
   if (name === undefined || name.length === 0) {
     throw new TypeError("Child operation is missing its parent table identity")
+  }
+
+  return qualifiedName(operation, name, dialect)
+}
+
+function parentDomain(
+  operation: MigrationOperation,
+  operations: readonly MigrationOperation[],
+  dialect: SchemaDialect,
+): string | undefined {
+  const parent = operation.origin?.after?.parent ?? operation.origin?.before?.parent
+
+  if (parent?.kind !== "domain") {
+    return undefined
+  }
+
+  const candidate = operations.find(
+    (item) =>
+      item.kind === "domain" &&
+      item.logicalId === parent.id &&
+      item.namespace === operation.namespace &&
+      item.status !== "skipped",
+  )
+  const name = candidate?.physicalName ?? parent.physicalName ?? parent.id
+
+  if (name === undefined || name.length === 0) {
+    throw new TypeError("Child operation is missing its parent domain identity")
   }
 
   return qualifiedName(operation, name, dialect)
