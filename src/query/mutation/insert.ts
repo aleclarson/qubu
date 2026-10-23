@@ -396,19 +396,19 @@ export function insertInto<
     } else {
       renderTargetColumns(context, table, source.columns)
       context.append(" ")
+      const fields = Object.keys(source.query.row)
+
+      if (fields.length !== source.columns.length) {
+        throw queryValidationError({
+          code: "invalid-insert",
+          context: "insert.select.columns",
+          path: ["insertSelect", "columns"],
+          message: "INSERT SELECT target and projection lengths must match",
+          hint: "Map every projected field to one insert column.",
+        })
+      }
+
       if (duplicate) {
-        const fields = Object.keys(source.query.row)
-
-        if (fields.length !== source.columns.length) {
-          throw queryValidationError({
-            code: "invalid-insert",
-            context: "insert.select.columns",
-            path: ["insertSelect", "columns"],
-            message: "INSERT SELECT target and projection lengths must match",
-            hint: "Map every projected field to one insert column.",
-          })
-        }
-
         context.append("SELECT * FROM (SELECT ")
         fields.forEach((field, index) => {
           if (index) {
