@@ -82,7 +82,12 @@ for (const operation of ["remove", "replace"] as const) {
 
       expect(emitted.ok, JSON.stringify(emitted.diagnostics)).toBe(true)
       expect(emitted.statements).toHaveLength(1)
-      if (overloaded) {
+      if (operation === "replace" && !/\bDROP FUNCTION\b/iu.test(emitted.sql)) {
+        // An in-place replacement also identifies its overload by argument types.
+        expect(emitted.sql).toMatch(
+          /CREATE OR REPLACE FUNCTION "public"\."lookup"\([^)]*\binteger\b/iu,
+        )
+      } else if (overloaded) {
         // PostgreSQL cannot resolve a bare function name when overloads exist.
         expect(emitted.sql).toContain('DROP FUNCTION "public"."lookup"(integer)')
       } else {
