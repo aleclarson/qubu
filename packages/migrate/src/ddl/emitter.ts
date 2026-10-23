@@ -2011,6 +2011,15 @@ function renderIndexTerm(
     throw new TypeError(`Unsupported index term kind "${String(kind)}"`)
   }
 
+  const operatorClass = stringValue(value.operatorClass)
+  if (operatorClass !== undefined) {
+    if (features.dialect !== "postgresql") {
+      throw new TypeError("Index operator classes require PostgreSQL")
+    }
+
+    sql += ` ${operatorClass}`
+  }
+
   const direction = stringValue(value.direction)
 
   if (direction === "ASC" || direction === "DESC") {
