@@ -128,12 +128,31 @@ function executionAdapter(
       const statement = database.prepare(request.statement.text)
       statement.setReturnArrays(false)
       const parameters = encodeParameters(request, encoder)
+      const bigintFields = new Set(
+        request.resultShape.fields
+          .filter((field) => field.sqlType === "bigint")
+          .map((field) => field.name),
+      )
+
+      if (bigintFields.size > 0) {
+        statement.setReadBigInts(true)
+      }
 
       if (statement.columns().length > 0) {
         return {
-          rows: statement
-            .all(...parameters)
-            .map((row) => ({ ...row })) as unknown as readonly TRow[],
+          rows: statement.all(...parameters).map((row) => {
+            const record = { ...row } as Record<string, unknown>
+
+            if (bigintFields.size > 0) {
+              for (const key of Object.keys(record)) {
+                if (typeof record[key] === "bigint" && !bigintFields.has(key)) {
+                  record[key] = Number(record[key])
+                }
+              }
+            }
+
+            return record
+          }) as unknown as readonly TRow[],
         }
       }
 
