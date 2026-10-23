@@ -1620,7 +1620,7 @@ function renderStorage(value: unknown, dialect: SchemaDialect): string {
       : dialect.name === "mysql"
         ? {
             integer: "INT",
-            numeric: "DECIMAL",
+            numeric: "DOUBLE",
             text: "TEXT",
             boolean: "BOOLEAN",
             date: "DATE",

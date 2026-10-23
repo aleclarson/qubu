@@ -45,7 +45,7 @@ class MysqlSnapshotDialectError extends TypeError {
 
 const mysqlStorageTypes: Readonly<Record<PortableStorageType, string>> = Object.freeze({
   integer: "INT",
-  numeric: "DECIMAL",
+  numeric: "DOUBLE",
   text: "TEXT",
   boolean: "BOOLEAN",
   date: "DATE",
