@@ -1,7 +1,8 @@
 import type { NullabilityOf } from "../../../core/fragment.ts"
 import type { SqlBoolean, SqlTextLike } from "../../../core/sql-types.ts"
 import { queryValidationError } from "../../../query/errors.ts"
-import { resultValue } from "../../../result.ts"
+import { resultValue, resultValueOf } from "../../../result.ts"
+import { asValue, isValueExpression } from "../../value.ts"
 import {
   makeSchemaExpression,
   type AnyExpression,
@@ -86,7 +87,19 @@ export function comparison<
     }
   }
 
-  const rightExpression = expressionOperand(right)
+  const rightOperand = expressionOperand(right)
+  const leftDomain = resultValueOf(left)?.sqlType
+  // A bare object bound against a typed operand inherits its SQL domain so the
+  // adapter can encode driver-specific values like Date for a DATE column;
+  // primitives already bind natively.
+  const rightExpression =
+    leftDomain !== undefined &&
+    isValueExpression(rightOperand) &&
+    resultValueOf(rightOperand)?.sqlType === undefined &&
+    typeof rightOperand.value === "object" &&
+    rightOperand.value !== null
+      ? asValue(rightOperand.value, leftDomain)
+      : rightOperand
 
   return makeSchemaExpression(
     "operator",
