@@ -175,7 +175,8 @@ export function validateJournalState(
     if (
       !attempt ||
       attempt.artifactId !== record.artifactId ||
-      attempt.artifactDigest !== record.artifactDigest
+      attempt.artifactDigest !== record.artifactDigest ||
+      attempt.state !== "applied"
     ) {
       diagnostics.push(
         diag(
