@@ -2,7 +2,17 @@ import { expect, test } from "vitest"
 
 import { pgAdapter } from "../adapters/pg/src/index.ts"
 import { pgliteAdapter } from "../adapters/pglite/src/index.ts"
-import { add, bigint, cast, count, executeRows, numeric, select, value } from "../src/index.ts"
+import {
+  add,
+  bigint,
+  cast,
+  count,
+  executeRows,
+  mapResult,
+  numeric,
+  select,
+  value,
+} from "../src/index.ts"
 
 function adapter(name: "pg" | "pglite", amount: string | number) {
   const client = {
@@ -17,19 +27,33 @@ function adapter(name: "pg" | "pglite", amount: string | number) {
   return name === "pg" ? pgAdapter(client as never) : pgliteAdapter(client as never)
 }
 
-test.each(["pg", "pglite"] as const)(
-  "decodes an exactly representable PostgreSQL NUMERIC result through %s",
-  async (name) => {
-    const query = select({ amount: cast(value(0.5), numeric()) })
+for (const name of ["pg", "pglite"] as const) {
+  test.each(["0.5", "9007199254740993.125"])(
+    `preserves the driver's exact PostgreSQL NUMERIC text through ${name} (%s)`,
+    async (amount) => {
+      const query = select({ amount: cast(value(amount), numeric()) })
 
-    // PostgreSQL clients return NUMERIC in text form by default. numeric()
-    // declares a number output; this value needs no lossy precision conversion.
+      // NUMERIC conversion belongs to driver/application policy, including
+      // values that cannot be represented exactly by a JavaScript number.
+      await expect(executeRows(query, adapter(name, amount))).resolves.toEqual([{ amount }])
+    },
+  )
+
+  test(`applies an explicit NUMERIC result conversion through ${name}`, async () => {
+    const query = select({ amount: mapResult(cast(value(0.5), numeric()), Number) })
+
     await expect(executeRows(query, adapter(name, "0.5"))).resolves.toEqual([{ amount: 0.5 }])
-  },
-)
+  })
+}
 
-test("decodes a safely represented PostgreSQL COUNT result through pg", async () => {
+test("preserves a PostgreSQL COUNT driver string without an explicit conversion", async () => {
   const query = select({ amount: count() })
+
+  await expect(executeRows(query, adapter("pg", "1"))).resolves.toEqual([{ amount: "1" }])
+})
+
+test("applies an explicit PostgreSQL COUNT result conversion", async () => {
+  const query = select({ amount: mapResult(count(), Number) })
 
   await expect(executeRows(query, adapter("pg", "1"))).resolves.toEqual([{ amount: 1 }])
 })
