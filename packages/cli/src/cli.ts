@@ -217,6 +217,10 @@ export function createCli(runtime: CliRuntime = {}) {
           signal: context.signal,
         })
 
+        if (result.interruptedAttempts.length) {
+          throw new CliFailure("recovery-required", "Migration recovery is required", result)
+        }
+
         if (result.diagnostics.length) {
           throw new CliFailure("validation", "Migration preflight failed", result.diagnostics)
         }
