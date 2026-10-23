@@ -16,8 +16,15 @@ function appendPath(
   path: readonly (string | number)[],
   requiredType?: JsonScalarKind,
 ) {
+  const rendered = jsonPath(path)
   context.append("'")
-  context.append(jsonPath(path).replaceAll("'", "''"))
+  // MySQL consumes SQL-string backslashes before interpreting the JSON path, so
+  // JSON escapes must survive an extra escaping layer.
+  context.append(
+    context.dialect.name === "mysql"
+      ? rendered.replaceAll("\\", "\\\\").replaceAll("'", "''")
+      : rendered.replaceAll("'", "''"),
+  )
   if (requiredType) {
     const type = requiredType === "text" ? "string" : requiredType
 
