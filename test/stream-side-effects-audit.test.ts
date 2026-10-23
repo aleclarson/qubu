@@ -7,7 +7,6 @@ import {
   deleteFrom,
   from,
   integer,
-  QueryValidationError,
   returning,
   select,
   stream,
@@ -18,7 +17,7 @@ import {
 } from "../src/index.ts"
 
 test.each([false, true])(
-  "only streams CTE queries that have no mutation (writable: %s)",
+  "streams outer SELECT queries with CTEs (writable: %s)",
   async (writable) => {
     const records = table("audit_stream_records", { id: integer() })
     const source = cte(
@@ -42,20 +41,15 @@ test.each([false, true])(
       },
     }
 
-    if (writable) {
-      expect(() => Reflect.apply(stream, undefined, [query, adapter])).toThrowError(
-        QueryValidationError,
-      )
-      expect(requests).toEqual([])
-    } else {
-      const rows = []
+    const rows = []
 
-      for await (const row of Reflect.apply(stream, undefined, [query, adapter])) {
-        rows.push(row)
-      }
-
-      expect(rows).toEqual([{ id: 1 }])
-      expect(requests).toHaveLength(1)
+    for await (const row of stream(query, adapter)) {
+      rows.push(row)
     }
+
+    expect(rows).toEqual([{ id: 1 }])
+    expect(requests).toHaveLength(1)
+    expect(requests[0]?.queryKind).toBe("select")
+    expect(requests[0]?.statement.text).toContain(writable ? "AS (DELETE FROM" : "AS (SELECT")
   },
 )

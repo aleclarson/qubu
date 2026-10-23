@@ -32,8 +32,13 @@ const adapter: StreamingQueryAdapter = {
 stream(readOnly, adapter)
 qubu(adapter).stream(readOnly)
 
-// @ts-expect-error A mutation CTE makes the complete query ineligible for streaming.
+// Eligibility follows the outer SELECT kind, not the CTE's side effects.
 stream(writable, adapter)
-
-// @ts-expect-error Bound clients must also reject streaming a mutation CTE.
 qubu(adapter).stream(writable)
+
+const mutation = deleteFrom(records, allowAll(), returning({ id: records.id }))
+
+// @ts-expect-error Direct mutations must use execute or executeRows.
+stream(mutation, adapter)
+// @ts-expect-error Bound clients enforce the same mutation restriction.
+qubu(adapter).stream(mutation)

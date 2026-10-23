@@ -30,8 +30,13 @@ const adapter: ExplainableQueryAdapter = {
 explain(query, adapter)
 qubu(adapter).explain(query)
 
-// @ts-expect-error A writable CTE must keep the complete query's analysis disabled.
+// Eligibility follows the outer SELECT kind, not the CTE's side effects.
 explain(query, adapter, { analyze: true })
-
-// @ts-expect-error Bound clients must also reject analysis of a writable CTE.
 qubu(adapter).explain(query, { analyze: true })
+
+const mutation = deleteFrom(records, allowAll(), returning({ id: records.id }))
+
+// @ts-expect-error Direct mutation query kinds cannot request analysis.
+explain(mutation, adapter, { analyze: true })
+// @ts-expect-error Bound clients enforce the same mutation restriction.
+qubu(adapter).explain(mutation, { analyze: true })
