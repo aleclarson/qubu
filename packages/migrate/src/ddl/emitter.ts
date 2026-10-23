@@ -1935,9 +1935,11 @@ function renderCreateIndex(
         ? dialect.quoteIdentifier(sqliteTableName(tableValue))
         : qualifiedName(operation, sqliteTableName(tableValue), dialect)
   let sql = `CREATE ${value.unique === true ? "UNIQUE " : ""}INDEX ${qualifiedName(operation, name, dialect)} ON ${table}`
-  const method = recordValue(value.dialect)?.method
+  const extension = recordValue(value.dialect)
+  const method =
+    stringValue(value.method) ?? stringValue(recordValue(extension?.data)?.method)
 
-  if (features.dialect === "postgresql" && typeof method === "string") {
+  if (features.dialect === "postgresql" && method !== undefined) {
     sql += ` USING ${method}`
   }
 
