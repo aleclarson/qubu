@@ -1,7 +1,7 @@
 import type { Pool } from "pg"
 import { expect, test, vi } from "vitest"
 
-import { pgAdapter } from "../adapters/pg/src/index.ts"
+import { pgAdapter, type PgTransactionAdapter } from "../adapters/pg/src/index.ts"
 import type { ExecutionRequest, ExplainRequest } from "../src/index.ts"
 
 const request: ExecutionRequest = {
@@ -244,3 +244,37 @@ test("leaves directly supplied client ownership with the application", async () 
   ).rejects.toThrow("failed")
   expect(connection.release).not.toHaveBeenCalled()
 })
+
+test.each(["pool", "client"])(
+  "skips the %s transaction callback when cancellation arrives during BEGIN",
+  async (kind) => {
+    const { pool, connection } = fixture()
+    const adapter = pgAdapter(kind === "pool" ? (pool as unknown as Pool) : (connection as never))
+    const controller = new AbortController()
+    const reason = new Error("cancelled during BEGIN")
+    const callback = vi.fn(async (transaction: PgTransactionAdapter) => {
+      await transaction.execute(request)
+      return "unexpected"
+    })
+
+    connection.query.mockImplementation(async (sql) => {
+      if (sql === "BEGIN") {
+        controller.abort(reason)
+      }
+
+      return {
+        rows: [],
+        rowCount: 0,
+      }
+    })
+
+    await expect(adapter.transaction(callback, { signal: controller.signal })).rejects.toBe(reason)
+    expect.soft(callback).not.toHaveBeenCalled()
+    expect.soft(connection.query.mock.calls.map(([sql]) => sql)).toEqual(["BEGIN", "ROLLBACK"])
+    if (kind === "pool") {
+      expect(connection.release).toHaveBeenCalledExactlyOnceWith(false)
+    } else {
+      expect(connection.release).not.toHaveBeenCalled()
+    }
+  },
+)
