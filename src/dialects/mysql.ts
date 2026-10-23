@@ -52,11 +52,44 @@ function renderPagination(context: RenderContext, parts: readonly PaginationPart
   }
 }
 
+// MySQL interprets backslash escapes in string literals unless
+// NO_BACKSLASH_ESCAPES is set, so literal text must double them.
+function renderSchemaLiteral(value: unknown): string {
+  if (value === null) {
+    return "NULL"
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "TRUE" : "FALSE"
+  }
+
+  if (typeof value === "string") {
+    return `'${value.replaceAll("\\", "\\\\").replaceAll("'", "''")}'`
+  }
+
+  if (typeof value === "bigint") {
+    return String(value)
+  }
+
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw new TypeError("MySQL schema literals require finite numbers")
+    }
+
+    return Object.is(value, -0) ? "0" : String(value)
+  }
+
+  throw new TypeError(
+    `Unsupported MySQL schema literal type: ${value === undefined ? "undefined" : typeof value}`,
+  )
+}
+
 export function mysqlDialect() {
   return createDialect({
     name: "mysql",
     quoteIdentifier: (identifier) => `\`${identifier.replaceAll("`", "``")}\``,
     placeholder: () => "?",
+    renderSchemaLiteral,
     pagination: { render: renderPagination },
     rowLocking: mysqlRowLocking,
     json: mysqlJson,
