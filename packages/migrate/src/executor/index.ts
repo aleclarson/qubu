@@ -679,7 +679,19 @@ export async function reconcileAttempt(input: ReconcileAttemptInput): Promise<vo
       )
     }
   }
-  await journal.recordReconciliation({ attemptId, outcome, reason, reconciledAt: now() })
+  const recorded = (await journal.listReconciliations()).find(
+    (item) => item.attemptId === attemptId,
+  )
+  if (recorded !== undefined) {
+    if (recorded.outcome !== outcome)
+      throw new MigrationExecutionError(
+        "validation",
+        "A different reconciliation outcome was already recorded",
+        { attemptId },
+      )
+  } else {
+    await journal.recordReconciliation({ attemptId, outcome, reason, reconciledAt: now() })
+  }
   await journal.transitionAttempt(attemptId, outcome)
 }
 
