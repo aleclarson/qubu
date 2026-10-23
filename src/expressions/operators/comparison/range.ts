@@ -7,7 +7,12 @@ import {
   type ResultExpression,
 } from "../../types.ts"
 import type { ExpressionSqlType } from "../../types.ts"
-import { expressionOperand, isNullOperand, type Operand } from "../shared.ts"
+import {
+  expressionOperand,
+  isNullOperand,
+  type Operand,
+  type OperandNullOutput,
+} from "../shared.ts"
 import type { OperandSqlType, SqlEqualityValidation, SqlOrderValidation } from "../shared.ts"
 
 type BetweenValidation<TExpression, TLower, TUpper> = SqlOrderValidation<
@@ -56,7 +61,7 @@ export function between<
     },
     resultValue("boolean"),
   ) as ResultExpression<{
-    readonly output: boolean
+    readonly output: boolean | OperandNullOutput<TExpression | L | H>
     readonly children: TExpression | L | H
     readonly kind: "operator"
     readonly nullableFrom: NullabilityOf<TExpression | L | H>
@@ -93,7 +98,7 @@ export function inList<
     },
     resultValue("boolean"),
   ) as ResultExpression<{
-    readonly output: boolean
+    readonly output: boolean | OperandNullOutput<TExpression | TValues[number]>
     readonly children: TExpression | TValues[number]
     readonly kind: "operator"
     readonly nullableFrom: NullabilityOf<TExpression | TValues[number]>
@@ -130,7 +135,7 @@ export function notIn<
     },
     resultValue("boolean"),
   ) as ResultExpression<{
-    readonly output: boolean
+    readonly output: boolean | OperandNullOutput<TExpression | TValues[number]>
     readonly children: TExpression | TValues[number]
     readonly kind: "operator"
     readonly nullableFrom: NullabilityOf<TExpression | TValues[number]>

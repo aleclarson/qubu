@@ -6,7 +6,11 @@ import { resultValue } from "../../result.ts"
 import { makeSchemaExpression, type ResultExpression } from "../types.ts"
 import type { ExpressionSqlType } from "../types.ts"
 import type { BooleanExpression } from "./comparison.ts"
-import { renderOperands, type SqlCapabilityValidation } from "./shared.ts"
+import {
+  renderOperands,
+  type OperandNullOutput,
+  type SqlCapabilityValidation,
+} from "./shared.ts"
 
 type BooleanOperand = BooleanExpression<any> | Omit
 type PresentConditions<TConditions extends readonly BooleanOperand[]> = Exclude<
@@ -19,7 +23,7 @@ type BooleanComposition<TConditions extends readonly BooleanOperand[]> = [
   ? Omit
   :
       | ResultExpression<{
-          readonly output: boolean
+          readonly output: boolean | OperandNullOutput<PresentConditions<TConditions>>
           readonly children: PresentConditions<TConditions>
           readonly kind: "operator"
           readonly nullableFrom: NullabilityOf<PresentConditions<TConditions>>
@@ -93,7 +97,7 @@ export function not<TCondition extends BooleanExpression<any>>(
     },
     resultValue("boolean"),
   ) as ResultExpression<{
-    readonly output: boolean
+    readonly output: boolean | OperandNullOutput<TCondition>
     readonly children: TCondition
     readonly kind: "operator"
     readonly nullableFrom: NullabilityOf<TCondition>

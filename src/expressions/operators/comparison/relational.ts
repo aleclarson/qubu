@@ -17,6 +17,7 @@ import {
   type IsNullOperand,
   type Operand,
   type OperandNullability,
+  type OperandNullOutput,
   type OperandSqlType,
   type SqlCapabilityValidation,
   type SqlEqualityValidation,
@@ -24,7 +25,13 @@ import {
 } from "../shared.ts"
 
 type ComparisonResult<TLeft, R, TOperator extends string> = ResultExpression<{
-  readonly output: boolean
+  // Three-valued logic turns a nullable operand into a NULL predicate, which
+  // projects as NULL. DISTINCT FROM predicates always resolve to a boolean.
+  readonly output: TOperator extends "IS DISTINCT FROM" | "IS NOT DISTINCT FROM"
+    ? boolean
+    : IsNullOperand<R> extends true
+      ? boolean
+      : boolean | OperandNullOutput<TLeft> | OperandNullOutput<R>
   readonly children: TLeft | R
   readonly kind: "operator"
   readonly nullableFrom: TOperator extends "IS DISTINCT FROM" | "IS NOT DISTINCT FROM"

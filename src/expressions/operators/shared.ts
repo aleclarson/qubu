@@ -28,6 +28,9 @@ export type OperandOutput<T> = T extends AnyExpression ? ExpressionOutput<T> : T
 /** An unresolvable output domain keeps the operand open instead of collapsing to never. */
 export type OperandDomain<T> = [T] extends [never] ? unknown : T
 
+/** The `null` member of an operand's output, or never when the operand cannot be null. */
+export type OperandNullOutput<T> = Extract<null, OperandOutput<T>>
+
 /** Plain values are contextually typed by the expression beside them. */
 export type OperandSqlType<T, TContext extends AnySqlType> =
   T extends Fragment<any> ? SqlTypeOf<T> : TContext

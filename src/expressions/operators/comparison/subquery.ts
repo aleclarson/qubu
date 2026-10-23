@@ -11,7 +11,7 @@ import {
   type ExpressionOutput,
   type ExpressionSqlType,
 } from "../../types.ts"
-import type { SqlEqualityValidation } from "../shared.ts"
+import type { OperandNullOutput, SqlEqualityValidation } from "../shared.ts"
 
 type IsUnion<T, TWhole = T> = T extends unknown ? ([TWhole] extends [T] ? false : true) : never
 
@@ -27,7 +27,7 @@ type InQueryValidation<TExpression, TQuery> = [keyof QueryRow<TQuery>] extends [
         "in-query.projection",
         "Select exactly one field in the IN subquery."
       >
-    : SingleColumn<QueryRow<TQuery>> extends ExpressionOutput<TExpression>
+    : SingleColumn<QueryRow<TQuery>> extends ExpressionOutput<TExpression> | null
       ? SqlEqualityValidation<ExpressionSqlType<TExpression>, SingleColumn<QuerySqlTypeMap<TQuery>>>
       : QueryTypeValidation<
           "incompatible-sql-equality",
@@ -40,7 +40,7 @@ export function inQuery<TExpression extends AnyExpression, TQuery extends AnyQue
   expression: TExpression & InQueryValidation<TExpression, TQuery>,
   query: TQuery,
 ): SubqueryResultExpression<{
-  readonly output: boolean
+  readonly output: boolean | OperandNullOutput<TExpression>
   readonly children: TExpression | TQuery
   readonly nullableFrom: never
   readonly sqlType: SqlBoolean
@@ -57,7 +57,7 @@ export function inQuery<TExpression extends AnyExpression, TQuery extends AnyQue
     "subquery",
     resultValue("boolean"),
   ) as SubqueryResultExpression<{
-    readonly output: boolean
+    readonly output: boolean | OperandNullOutput<TExpression>
     readonly children: TExpression | TQuery
     readonly nullableFrom: never
     readonly sqlType: SqlBoolean
