@@ -1921,7 +1921,7 @@ function renderCreateIndex(
   const columnNames = tableValue === undefined ? undefined : physicalColumnNames(tableValue)
   const terms = arrayOfRecords(value.terms)
     .sort((left, right) => numberValue(left.position) - numberValue(right.position))
-    .map((term) => renderIndexTerm(term, dialect, columnNames))
+    .map((term) => renderIndexTerm(term, dialect, features, columnNames))
     .join(", ")
 
   if (terms.length === 0) {
@@ -1968,6 +1968,7 @@ function renderCreateIndex(
 function renderIndexTerm(
   value: JsonRecord,
   dialect: SchemaDialect,
+  features: DdlFeatures,
   columnNames?: ReadonlyMap<string | undefined, string | undefined>,
 ): string {
   const kind = stringValue(value.kind)
@@ -1983,6 +1984,15 @@ function renderIndexTerm(
     sql = dialect.quoteIdentifier(
       columnNames === undefined ? column : requireColumnName(columnNames, column),
     )
+
+    const prefix = recordValue(value.prefixLength)
+    if (prefix !== undefined) {
+      if (features.dialect !== "mysql") {
+        throw new TypeError("Index column prefix lengths require MySQL")
+      }
+
+      sql += `(${renderValueFact(prefix, dialect)})`
+    }
   } else if (kind === "expression") {
     const expression = expressionValue(value.expression)
 
