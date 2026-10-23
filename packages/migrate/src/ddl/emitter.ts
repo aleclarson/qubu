@@ -1709,7 +1709,13 @@ function renderAddConstraint(
   const table = parentTable(operation, operations, dialect)
   const name = requiredName(operation, value)
   const kind = stringValue(value.kind)
-  const columns = stringArray(value.columns)
+  const parent = operation.origin?.after?.parent ?? operation.origin?.before?.parent
+  const columnNames = physicalColumnNames(
+    resolveTable(parent?.id, operation, operations, features) ?? {},
+  )
+  const columns = stringArray(value.columns).map((id) =>
+    columnNames.size === 0 ? id : requireColumnName(columnNames, id),
+  )
   const terms = columns.map((column) => dialect.quoteIdentifier(column)).join(", ")
   let body: string
 
@@ -1720,17 +1726,26 @@ function renderAddConstraint(
   } else if (kind === "foreign-key") {
     const target = recordValue(value.target)
     const targetTable = target === undefined ? undefined : recordValue(target.table)
+    const resolvedTarget = resolveTable(
+      targetTable === undefined ? undefined : stringValue(targetTable.id),
+      operation,
+      operations,
+      features,
+    )
     const targetName =
       targetTable === undefined
         ? undefined
-        : (stringValue(targetTable.id) ?? stringValue(targetTable.physicalName))
+        : (stringValue(resolvedTarget?.physicalName) ??
+          stringValue(targetTable.physicalName) ??
+          stringValue(targetTable.id))
     const targetColumns = target === undefined ? [] : stringArray(target.columns)
+    const targetColumnNames = physicalColumnNames(resolvedTarget ?? {})
 
     if (targetName === undefined || columns.length === 0 || targetColumns.length === 0) {
       throw new TypeError("Foreign-key constraint is missing target identity")
     }
 
-    body = `FOREIGN KEY (${terms}) REFERENCES ${qualifiedName(operation, targetName, dialect)} (${targetColumns.map((column) => dialect.quoteIdentifier(column)).join(", ")})`
+    body = `FOREIGN KEY (${terms}) REFERENCES ${qualifiedName(operation, targetName, dialect)} (${targetColumns.map((id) => dialect.quoteIdentifier(targetColumnNames.size === 0 ? id : requireColumnName(targetColumnNames, id))).join(", ")})`
     const onDelete = stringValue(value.onDelete)
     const onUpdate = stringValue(value.onUpdate)
 
@@ -1829,12 +1844,13 @@ function requireColumnName(
   return name
 }
 
-function resolveSqliteTable(
+function resolveTable(
   id: string | undefined,
   operation: MigrationOperation,
   operations: readonly MigrationOperation[],
   features: DdlFeatures,
-): JsonRecord {
+): JsonRecord | undefined {
+  if (id === undefined) return undefined
   const snapshot = features.afterSnapshot
   const table =
     snapshot !== undefined && snapshot.namespace.name === operation.namespace
@@ -1844,13 +1860,22 @@ function resolveSqliteTable(
   const candidate = operations.find(
     (item) =>
       item.kind === "table" &&
-      item.type === "add" &&
       item.status !== "skipped" &&
       item.logicalId === id &&
       item.namespace === operation.namespace,
   )
-  const value = candidate?.origin?.after?.value
-  if (isRecord(value)) return value
+  const value = candidate?.origin?.after?.value ?? candidate?.origin?.before?.value
+  return isRecord(value) ? value : undefined
+}
+
+function resolveSqliteTable(
+  id: string | undefined,
+  operation: MigrationOperation,
+  operations: readonly MigrationOperation[],
+  features: DdlFeatures,
+): JsonRecord {
+  const table = resolveTable(id, operation, operations, features)
+  if (table) return table
   throw new TypeError(
     `Cannot resolve physical table and column names for "${String(id)}"; provide the reviewed afterSnapshot`,
   )
@@ -1868,7 +1893,7 @@ function renderCreateIndex(
   const tableValue =
     features.dialect === "sqlite"
       ? resolveSqliteTable(parent?.id, operation, operations, features)
-      : undefined
+      : resolveTable(parent?.id, operation, operations, features)
   const columnNames = tableValue === undefined ? undefined : physicalColumnNames(tableValue)
   const terms = arrayOfRecords(value.terms)
     .sort((left, right) => numberValue(left.position) - numberValue(right.position))
@@ -1882,7 +1907,9 @@ function renderCreateIndex(
   const table =
     tableValue === undefined
       ? parentTable(operation, operations, dialect)
-      : dialect.quoteIdentifier(sqliteTableName(tableValue))
+      : features.dialect === "sqlite"
+        ? dialect.quoteIdentifier(sqliteTableName(tableValue))
+        : qualifiedName(operation, sqliteTableName(tableValue), dialect)
   let sql = `CREATE ${value.unique === true ? "UNIQUE " : ""}INDEX ${qualifiedName(operation, name, dialect)} ON ${table}`
   const method = recordValue(value.dialect)?.method
 
@@ -1894,7 +1921,13 @@ function renderCreateIndex(
   const included = stringArray(value.includedColumns)
 
   if (included.length > 0) {
-    sql += ` INCLUDE (${included.map((column) => dialect.quoteIdentifier(column)).join(", ")})`
+    sql += ` INCLUDE (${included
+      .map((id) =>
+        dialect.quoteIdentifier(
+          columnNames === undefined ? id : requireColumnName(columnNames, id),
+        ),
+      )
+      .join(", ")})`
   }
 
   const predicate = expressionValue(value.predicate)
