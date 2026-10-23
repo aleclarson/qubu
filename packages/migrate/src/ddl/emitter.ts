@@ -1628,7 +1628,7 @@ function renderStorage(value: unknown, dialect: SchemaDialect): string {
             uuid: "CHAR(36)",
             json: "JSON",
             bigint: "BIGINT",
-            binary: "VARBINARY",
+            binary: "BLOB",
           }
         : {
             integer: "INTEGER",

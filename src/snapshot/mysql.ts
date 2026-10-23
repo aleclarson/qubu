@@ -53,7 +53,7 @@ const mysqlStorageTypes: Readonly<Record<PortableStorageType, string>> = Object.
   uuid: "CHAR(36)",
   json: "JSON",
   bigint: "BIGINT",
-  binary: "VARBINARY",
+  binary: "BLOB",
 })
 
 /** MySQL's query dialect plus its schema metadata behavior. */
