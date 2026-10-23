@@ -170,6 +170,7 @@ async function executeArtifact(
   let mayHaveEffect = false
   let activeTransaction = false
   let rolledBack = false
+  let committed = false
   let transactions = 0
   let untransacted = 0
   let activeLock: Exclude<MigrationProgramPhase["lock"], "none"> | undefined
@@ -276,6 +277,7 @@ async function executeArtifact(
           try {
             await at(options, "commit-transaction", () => session.commitTransaction())
             activeTransaction = false
+            committed = true
             transactions++
           } catch (error) {
             if (session.classifyFailure(error, "commit-transaction") === "uncertain") {
@@ -327,7 +329,10 @@ async function executeArtifact(
     }
     const uncertain =
       finalError instanceof MigrationExecutionError && finalError.code === "uncertain-outcome"
-    const state = uncertain || (mayHaveEffect && !rolledBack) ? "recovery_required" : "rolled_back"
+    const state =
+      uncertain || committed || (mayHaveEffect && !rolledBack)
+        ? "recovery_required"
+        : "rolled_back"
     try {
       await at(options, "transition-attempt", () =>
         session.journal.transitionAttempt(attemptId, state, safeFailure(finalError, context)),
