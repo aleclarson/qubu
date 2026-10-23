@@ -2603,6 +2603,12 @@ function renderCreatePolicy(
 
   let sql = `CREATE POLICY ${dialect.quoteIdentifier(name)} ON ${tableReference(operation, value.table, operations, dialect)}`
 
+  if (value.permissive === true) {
+    sql += " AS PERMISSIVE"
+  } else if (value.permissive === false) {
+    sql += " AS RESTRICTIVE"
+  }
+
   if (command !== "all") {
     sql += ` FOR ${command.toUpperCase()}`
   }
