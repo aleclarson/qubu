@@ -2466,7 +2466,26 @@ function renderDropRoutine(
     throw new TypeError("Routine kind is unknown")
   }
 
-  return `DROP ${kind.toUpperCase()} ${qualifiedName(operation, requiredName(operation, value), dialect)}`
+  const name = qualifiedName(operation, requiredName(operation, value), dialect)
+
+  if (features.dialect === "postgresql") {
+    // PostgreSQL resolves routines by name plus input argument types; a bare
+    // name is ambiguous whenever overloads exist.
+    return `DROP ${kind.toUpperCase()} ${name}(${routineSignature(value, dialect)})`
+  }
+
+  return `DROP ${kind.toUpperCase()} ${name}`
+}
+
+function routineSignature(value: JsonRecord, dialect: SchemaDialect): string {
+  return arrayOfRecords(value.parameters)
+    .filter((parameter) => {
+      const mode = stringValue(parameter.mode)
+      return mode === undefined || mode === "in" || mode === "inout" || mode === "variadic"
+    })
+    .sort((left, right) => numberValue(left.ordinalPosition) - numberValue(right.ordinalPosition))
+    .map((parameter) => renderStorage(parameter.storage, dialect))
+    .join(", ")
 }
 
 function renderCreatePartition(
