@@ -1365,8 +1365,17 @@ function renderCreateTable(
     }
   }
   const name = requiredName(operation, value)
+  const tableOptions = recordValue(recordValue(value.dialect)?.data)
+  const suffix = [
+    tableOptions?.strict === true ? "STRICT" : undefined,
+    tableOptions?.withoutRowid === true ? "WITHOUT ROWID" : undefined,
+  ].filter((option) => option !== undefined)
 
-  return `CREATE TABLE ${qualifiedName(operation, name, dialect)} (${definitions.join(", ")})`
+  if (suffix.length > 0 && features.dialect !== "sqlite") {
+    throw new TypeError("SQLite table options require the SQLite dialect")
+  }
+
+  return `CREATE TABLE ${qualifiedName(operation, name, dialect)} (${definitions.join(", ")})${suffix.length ? ` ${suffix.join(", ")}` : ""}`
 }
 
 function renderInlineConstraint(
