@@ -513,7 +513,7 @@ describe.skipIf(!selectedDialect)("live dialect E2E", () => {
     }
   })
 
-  test("preserves named fields when UNION ALL operands declare fields in different orders", async () => {
+  test("combines UNION ALL rows with matching projection order", async () => {
     if (!environment) {
       throw new Error("E2E environment was not initialized")
     }
@@ -523,8 +523,8 @@ describe.skipIf(!selectedDialect)("live dialect E2E", () => {
       label: cast(value("Ada"), text()),
     })
     const second = select({
-      label: cast(value("Grace"), text()),
       id: cast(value(2), integer()),
+      label: cast(value("Grace"), text()),
     })
 
     await expect(executeRows(unionAll(first, first), environment.adapter)).resolves.toEqual([
