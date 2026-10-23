@@ -3,18 +3,17 @@ import { expect, test } from "vitest"
 import { diffSnapshots } from "../src/diff/index.ts"
 import type { SchemaSnapshot } from "../src/snapshot/index.ts"
 
-function snapshot(provenance: unknown): SchemaSnapshot {
-  const table: Record<string, unknown> = {
+function snapshot(
+  provenance?: NonNullable<SchemaSnapshot["tables"][number]["provenance"]>,
+): SchemaSnapshot {
+  const table: SchemaSnapshot["tables"][number] = {
     kind: "table",
     id: "accounts",
     physicalName: "accounts",
     columns: [],
     constraints: [],
     indexes: [],
-  }
-
-  if (provenance !== undefined) {
-    table.provenance = provenance
+    ...(provenance === undefined ? {} : { provenance }),
   }
 
   return {
