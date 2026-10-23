@@ -1919,9 +1919,13 @@ function renderCreateIndex(
       ? resolveSqliteTable(parent?.id, operation, operations, features)
       : resolveTable(parent?.id, operation, operations, features)
   const columnNames = tableValue === undefined ? undefined : physicalColumnNames(tableValue)
+  const extensionData = recordValue(recordValue(value.dialect)?.data)
+  const collations = stringArray(extensionData?.collations)
   const terms = arrayOfRecords(value.terms)
     .sort((left, right) => numberValue(left.position) - numberValue(right.position))
-    .map((term) => renderIndexTerm(term, dialect, features, columnNames))
+    .map((term, index) =>
+      renderIndexTerm(term, dialect, features, columnNames, collations[index]),
+    )
     .join(", ")
 
   if (terms.length === 0) {
@@ -1976,6 +1980,7 @@ function renderIndexTerm(
   dialect: SchemaDialect,
   features: DdlFeatures,
   columnNames?: ReadonlyMap<string | undefined, string | undefined>,
+  collation?: string,
 ): string {
   const kind = stringValue(value.kind)
   let sql: string
@@ -2018,6 +2023,14 @@ function renderIndexTerm(
     }
 
     sql += ` ${operatorClass}`
+  }
+
+  if (collation !== undefined && collation !== "BINARY") {
+    if (features.dialect !== "sqlite") {
+      throw new TypeError("Per-term index collations require SQLite")
+    }
+
+    sql += ` COLLATE ${dialect.quoteIdentifier(collation)}`
   }
 
   const direction = stringValue(value.direction)
