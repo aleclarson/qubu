@@ -363,7 +363,7 @@ test("emits child constraints and indexes when a table is created", () => {
     'ALTER TABLE "public"."accounts" ADD CONSTRAINT "accounts_pk" PRIMARY KEY ("id");',
   )
   expect(emission.sql).toContain(
-    'CREATE INDEX "public"."accounts_name_idx" ON "public"."accounts" ("name");',
+    'CREATE INDEX "accounts_name_idx" ON "public"."accounts" ("name");',
   )
 })
 
@@ -942,7 +942,7 @@ test.each(["postgresql", "mysql"] as const)(
     expect
       .soft(emitted.sql)
       .toContain(
-        `CREATE INDEX ${quoted("public")}.${quoted("child_lookup")} ON ${quoted("public")}.${quoted("child_records")} (${quoted("parent_id")} DESC)`,
+        `CREATE INDEX ${quoted("child_lookup")} ON ${quoted("public")}.${quoted("child_records")} (${quoted("parent_id")} DESC)`,
       )
   },
 )

@@ -1934,7 +1934,13 @@ function renderCreateIndex(
       : features.dialect === "sqlite"
         ? dialect.quoteIdentifier(sqliteTableName(tableValue))
         : qualifiedName(operation, sqliteTableName(tableValue), dialect)
-  let sql = `CREATE ${value.unique === true ? "UNIQUE " : ""}INDEX ${qualifiedName(operation, name, dialect)} ON ${table}`
+  // PostgreSQL and MySQL forbid schema-qualified index names in CREATE INDEX;
+  // the index always lands in the parent table's namespace.
+  const indexName =
+    features.dialect === "sqlite"
+      ? qualifiedName(operation, name, dialect)
+      : dialect.quoteIdentifier(name)
+  let sql = `CREATE ${value.unique === true ? "UNIQUE " : ""}INDEX ${indexName} ON ${table}`
   const extension = recordValue(value.dialect)
   const method =
     stringValue(value.method) ?? stringValue(recordValue(extension?.data)?.method)
