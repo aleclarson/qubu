@@ -162,6 +162,19 @@ function prepareRebuilds(
       statements: [
         rendered.create.replace(targetQualified, temporaryQualified),
         `INSERT INTO ${temporaryQualified} (${common.map((item) => quote(item.next)).join(", ")}) SELECT ${common.map((item) => quote(item.old)).join(", ")} FROM ${targetQualified}`,
+        ...(target.columns.some(
+          (column) =>
+            isRecord(column.identity) &&
+            isRecord(column.identity.dialect) &&
+            isRecord(column.identity.dialect.data) &&
+            column.identity.dialect.data.autoIncrement === true,
+        )
+          ? [
+              // The copied rows end below the source AUTOINCREMENT high-water mark;
+              // carry it over or the next insert reclaims a deleted rowid.
+              `UPDATE sqlite_sequence SET seq = COALESCE((SELECT seq FROM sqlite_sequence WHERE name = ${sqlString(target.physicalName)}), seq) WHERE name = ${sqlString(temporaryName)}`,
+            ]
+          : []),
         `DROP TABLE ${targetQualified}`,
         `ALTER TABLE ${temporaryQualified} RENAME TO ${quote(target.physicalName)}`,
         ...rendered.indexes,
@@ -202,6 +215,10 @@ function columnAddNeedsRebuild(operation: MigrationOperation): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function sqlString(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`
 }
 
 function createStatements(
