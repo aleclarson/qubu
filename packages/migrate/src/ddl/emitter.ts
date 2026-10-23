@@ -1463,9 +1463,15 @@ function renderColumn(
   }
 
   if (value.default !== undefined) {
+    const descriptor = recordValue(value.default)
     const rendered = renderDefault(value.default, dialect)
 
-    parts.push(`DEFAULT ${rendered}`)
+    // MySQL 8.0.13+ requires expression-default parentheses for expressions and
+    // for literal defaults on TEXT, BLOB, GEOMETRY, and JSON storage.
+    const parenthesized =
+      features.dialect === "mysql" && mysqlExpressionDefault(descriptor, recordValue(value.storage))
+
+    parts.push(`DEFAULT ${parenthesized ? `(${rendered})` : rendered}`)
   } else if (value.hasDefault === true) {
     throw new TypeError("Column declares a default but no default value was retained")
   }
@@ -1533,6 +1539,40 @@ function renderColumn(
   }
 
   return parts.join(" ")
+}
+
+const mysqlExpressionDefaultTypes = new Set([
+  "TEXT",
+  "TINYTEXT",
+  "MEDIUMTEXT",
+  "LONGTEXT",
+  "BLOB",
+  "TINYBLOB",
+  "MEDIUMBLOB",
+  "LONGBLOB",
+  "JSON",
+  "GEOMETRY",
+  "POINT",
+  "LINESTRING",
+  "POLYGON",
+  "MULTIPOINT",
+  "MULTILINESTRING",
+  "MULTIPOLYGON",
+  "GEOMETRYCOLLECTION",
+])
+
+function mysqlExpressionDefault(
+  descriptor: JsonRecord | undefined,
+  storage: JsonRecord | undefined,
+): boolean {
+  if (descriptor === undefined || descriptor.kind === "expression") return true
+
+  const type = stringValue(storage?.type)
+
+  if (type === undefined) return false
+
+  const base = type.replace(/\(.*\)/u, "")
+  return mysqlExpressionDefaultTypes.has(base.toUpperCase()) || base === "binary" || base === "text"
 }
 
 function renderStorage(value: unknown, dialect: SchemaDialect): string {
