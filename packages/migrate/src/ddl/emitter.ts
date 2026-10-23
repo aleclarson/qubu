@@ -1142,6 +1142,19 @@ function renderPropertyChange(
 
   if (operation.kind === "routine") {
     const before = operation.origin?.before?.value
+
+    if (
+      features.dialect === "postgresql" &&
+      isRecord(before) &&
+      before.routineKind === value.routineKind &&
+      sameValue(before.parameters, value.parameters) &&
+      sameValue(before.returnType, value.returnType)
+    ) {
+      // CREATE OR REPLACE preserves the routine's identity and ACL; it is only
+      // valid when the signature and return type stay unchanged.
+      return renderCreateRoutine(operation, value, dialect, features, true)
+    }
+
     const dropped =
       before === undefined ? undefined : renderDropRoutine(operation, before, dialect, features)
     const created = renderCreateRoutine(operation, value, dialect, features)
@@ -2368,6 +2381,7 @@ function renderCreateRoutine(
   value: JsonRecord,
   dialect: SchemaDialect,
   features: DdlFeatures,
+  orReplace = false,
 ): string | undefined {
   if (features.dialect === "sqlite") {
     throw new TypeError("SQLite does not support stored routines")
@@ -2390,7 +2404,7 @@ function renderCreateRoutine(
     throw new TypeError("Routine body is missing")
   }
 
-  let sql = `CREATE ${kind.toUpperCase()} ${qualifiedName(operation, name, dialect)}(${parameters})`
+  let sql = `CREATE ${orReplace ? "OR REPLACE " : ""}${kind.toUpperCase()} ${qualifiedName(operation, name, dialect)}(${parameters})`
 
   if (kind === "function") {
     const returnType = renderStorage(value.returnType, dialect)
