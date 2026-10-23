@@ -7,7 +7,10 @@ import {
 } from "@qubu/migrate/executor"
 import type { ReservedSql, Row, Sql } from "postgres"
 
-import { postgresMigrationAdapter } from "../../pg/src/migration-support.ts"
+import {
+  postgresMigrationAdapter,
+  type PostgresMigrationConnection,
+} from "../../pg/src/migration-support.ts"
 
 export interface PostgresJsMigrationAdapterOptions {
   readonly readSnapshot: (
@@ -23,15 +26,20 @@ export function migrationAdapter(
   sql: Sql,
   options: PostgresJsMigrationAdapterOptions,
 ): MigrationAdapter {
-  let reserved: ReservedSql | undefined
+  const reservedByConnection = new WeakMap<PostgresMigrationConnection, ReservedSql>()
 
   return postgresMigrationAdapter({
     ...options,
-    async openConnection() {
-      reserved = await sql.reserve()
-      const connection = reserved
+    async openConnection(signal) {
+      const connection = await sql.reserve()
 
-      return {
+      try {
+        signal?.throwIfAborted()
+      } catch (error) {
+        connection.release()
+        throw error
+      }
+      const handle: PostgresMigrationConnection = {
         async query(text, parameters = []) {
           const result = await connection.unsafe<Row[]>(text, [...parameters] as never[])
 
@@ -42,13 +50,15 @@ export function migrationAdapter(
         },
         async close() {
           connection.release()
-          if (reserved === connection) {
-            reserved = undefined
-          }
         },
       }
+
+      reservedByConnection.set(handle, connection)
+      return handle
     },
-    readSnapshot: (_connection, expected) => {
+    readSnapshot: (handle, expected) => {
+      const reserved = reservedByConnection.get(handle)
+
       if (!reserved) {
         throw new Error("Postgres.js migration connection is not reserved")
       }
