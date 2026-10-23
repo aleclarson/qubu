@@ -144,6 +144,7 @@ export function canonicalJson(value: SnapshotJsonValue): string {
   const objectValue = value as { readonly [key: string]: SnapshotJsonValue }
 
   return `{${Object.keys(objectValue)
+    .sort()
     .map((key) => `${JSON.stringify(key)}:${canonicalJson(objectValue[key])}`)
     .join(",")}}`
 }
