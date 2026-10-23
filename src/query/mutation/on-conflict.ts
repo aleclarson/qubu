@@ -211,6 +211,7 @@ export interface OnConflictClause<TAction extends ConflictAction = ConflictActio
   RequiresCapabilityMeta<"on-conflict"> | ConflictActionCapabilities<TAction>
 > {
   readonly clauseKind: "on-conflict"
+  readonly table: AnyTable | undefined
   readonly target: KeyConstraint | SourceIndex | undefined
   readonly action: TAction
 }
@@ -248,6 +249,7 @@ export function onConflict(
 
   return Object.freeze({
     clauseKind: "on-conflict" as const,
+    table,
     target,
     action,
     render(context: RenderContext) {

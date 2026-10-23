@@ -297,6 +297,21 @@ export function insertInto<
   }
 
   validateMutationWithClauses("INSERT", insertClauses)
+  for (const clause of insertClauses) {
+    if (
+      clause.clauseKind === "on-conflict" &&
+      clause.table !== undefined &&
+      clause.table !== table
+    ) {
+      throw queryValidationError({
+        code: "invalid-mutation",
+        context: "insert.conflict",
+        path: ["onConflict"],
+        message: "Conflict targets require the same INSERT target table",
+        hint: "Pass the INSERT table to onConflict().",
+      })
+    }
+  }
   const withClause = insertClauses.find((clause) => clause.clauseKind === "with")
   const row = insertClauses.find((clause) => clause.clauseKind === "returning")?.row ?? {}
   const resultShape = insertClauses.find((clause) => clause.clauseKind === "returning")
