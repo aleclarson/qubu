@@ -1472,9 +1472,33 @@ function renderColumn(
 
   if (identity !== undefined) {
     if (features.dialect === "postgresql") {
-      parts.push(
-        `GENERATED ${identity.generation === "always" ? "ALWAYS" : "BY DEFAULT"} AS IDENTITY`,
-      )
+      let clause = `GENERATED ${identity.generation === "always" ? "ALWAYS" : "BY DEFAULT"} AS IDENTITY`
+      const options = recordValue(identity.options)
+
+      if (options !== undefined) {
+        const sequence: string[] = []
+        const option = (key: string) => recordValue(options[key])
+        const start = option("start")
+        if (start !== undefined) sequence.push(`START WITH ${renderValueFact(start, dialect)}`)
+        const increment = option("increment")
+        if (increment !== undefined)
+          sequence.push(`INCREMENT BY ${renderValueFact(increment, dialect)}`)
+        const minimum = option("minimum")
+        if (minimum !== undefined) sequence.push(`MINVALUE ${renderValueFact(minimum, dialect)}`)
+        const maximum = option("maximum")
+        if (maximum !== undefined) sequence.push(`MAXVALUE ${renderValueFact(maximum, dialect)}`)
+        const cache = option("cache")
+        if (cache !== undefined) sequence.push(`CACHE ${renderValueFact(cache, dialect)}`)
+        const cycle = option("cycle")
+        if (cycle !== undefined) {
+          const flag = recordValue(cycle.value)
+          if (flag?.kind === "boolean") sequence.push(flag.value === true ? "CYCLE" : "NO CYCLE")
+        }
+
+        if (sequence.length > 0) clause += ` (${sequence.join(" ")})`
+      }
+
+      parts.push(clause)
     } else if (features.dialect === "mysql") {
       parts.push("AUTO_INCREMENT")
     } else if (sqliteIdentityPrimary) {
