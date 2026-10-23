@@ -1,10 +1,12 @@
 import { integer, schema, table } from "qubu"
 import { diffSnapshots } from "qubu/diff"
+import type { SchemaDialect } from "qubu/schema"
 import { createSchemaSnapshot, type SchemaSnapshot } from "qubu/snapshot"
+import { mysqlSchemaDialect } from "qubu/snapshot/mysql"
 import { postgresSchemaDialect } from "qubu/snapshot/postgres"
 import { expect, test } from "vitest"
 
-import { emitMigrationPlan } from "../src/ddl/postgres.ts"
+import { emitMigrationPlan } from "../src/ddl/index.ts"
 import { createMigrationPlan } from "../src/plan/index.ts"
 
 type View = SchemaSnapshot["views"][number]
@@ -12,10 +14,11 @@ type View = SchemaSnapshot["views"][number]
 function viewSnapshot(
   predicate: string,
   options: Pick<View, "checkOption" | "securityInvoker" | "securityBarrier">,
+  dialect: SchemaDialect = postgresSchemaDialect,
 ) {
   const records = table("records", { value: integer() })
   const base = createSchemaSnapshot(schema({ records }, { namespace: "public" }), {
-    dialect: postgresSchemaDialect,
+    dialect,
   })
   const snapshot: SchemaSnapshot = {
     ...base,
@@ -44,15 +47,19 @@ function viewSnapshot(
   return snapshot
 }
 
-function emitChange(before: SchemaSnapshot, after: SchemaSnapshot) {
+function emitChange(
+  before: SchemaSnapshot,
+  after: SchemaSnapshot,
+  dialect: SchemaDialect = postgresSchemaDialect,
+) {
   const planned = createMigrationPlan(diffSnapshots(before, after), {
     allowReviewRequired: true,
   })
 
   expect(planned.ok, JSON.stringify(planned.diagnostics)).toBe(true)
-  const emitted = emitMigrationPlan(planned.plan, {
+  const emitted = emitMigrationPlan(planned.plan, dialect, {
     afterSnapshot: after,
-    serverVersion: "17.0",
+    serverVersion: dialect.name === "mysql" ? "8.4" : "17.0",
   })
 
   expect(emitted.ok, JSON.stringify(emitted.diagnostics)).toBe(true)
@@ -74,6 +81,32 @@ test.each(["none", "local", "cascaded"] as const)(
     }
   },
 )
+
+for (const operation of ["create", "replace"] as const) {
+  test.each([false, true])(
+    `preserves MySQL view security_invoker=%s during ${operation}`,
+    (securityInvoker) => {
+      const after = viewSnapshot("value > 1", { securityInvoker }, mysqlSchemaDialect)
+      const before =
+        operation === "create"
+          ? {
+              ...after,
+              views: [],
+            }
+          : viewSnapshot("value > 0", { securityInvoker }, mysqlSchemaDialect)
+      const sql = emitChange(before, after, mysqlSchemaDialect)
+
+      // MySQL defaults omitted SQL SECURITY to DEFINER, which changes whose
+      // privileges protect the underlying table.
+      // https://dev.mysql.com/doc/refman/8.4/en/create-view.html
+      if (securityInvoker) {
+        expect(sql).toMatch(/\bSQL\s+SECURITY\s+INVOKER\s+VIEW\b/iu)
+      } else {
+        expect(sql).not.toMatch(/\bSQL\s+SECURITY\s+INVOKER\b/iu)
+      }
+    },
+  )
+}
 
 test.each([
   {
