@@ -292,6 +292,12 @@ async function executeArtifact(
         }
       }
     }
+    if (artifact.program.phases.length === 0) {
+      await recordApplied(session.journal, artifact, attemptId, expectedHead, now, options)
+      await at(options, "transition-attempt", () =>
+        session.journal.transitionAttempt(attemptId, "applied"),
+      )
+    }
     return Object.freeze({
       artifactId: artifact.id,
       artifactDigest: artifact.artifactDigest,
