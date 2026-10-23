@@ -2271,14 +2271,20 @@ function renderCreateTrigger(
     throw new TypeError("MySQL triggers only support row orientation")
   }
 
-  let sql = `CREATE TRIGGER ${qualifiedName(operation, name, dialect)} ${timing.toUpperCase()} ${supportedEvents} ON ${table} FOR EACH ${orientation === "statement" ? "STATEMENT" : "ROW"} ${body.sql}`
+  // PostgreSQL forbids schema-qualified trigger names; the trigger inherits
+  // its table's namespace.
+  const triggerName =
+    features.dialect === "postgresql"
+      ? dialect.quoteIdentifier(name)
+      : qualifiedName(operation, name, dialect)
+  let sql = `CREATE TRIGGER ${triggerName} ${timing.toUpperCase()} ${supportedEvents} ON ${table} FOR EACH ${orientation === "statement" ? "STATEMENT" : "ROW"}`
   const condition = expressionValue(value.condition)
 
   if (condition !== undefined) {
     sql += ` WHEN (${condition.sql})`
   }
 
-  return sql
+  return `${sql} ${body.sql}`
 }
 
 function renderCreateRoutine(
