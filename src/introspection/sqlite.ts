@@ -2163,8 +2163,24 @@ function partialPredicate(
   namespace: string,
   table: CatalogTable,
 ) {
-  const match = sqlText?.match(/\bWHERE\s+([\s\S]+)$/i)
-  const predicate = match?.[1]?.trim().replace(/;\s*$/, "")
+  if (sqlText === undefined) {
+    return undefined
+  }
+
+  // Mask literals, quoted names, and comments in place so a WHERE inside them
+  // cannot be mistaken for the partial-index clause.
+  const masked = sqlText.replace(
+    /--[^\n]*|\/\*[\s\S]*?\*\/|'(?:[^']|'')*'|"(?:[^"]|"")*"|`(?:[^`]|``)*`|\[[^\]]*\]/g,
+    (value) => " ".repeat(value.length),
+  )
+  const match = /\bWHERE\b/i.exec(masked)
+  const predicate =
+    match === null
+      ? undefined
+      : sqlText
+          .slice(match.index + match[0].length)
+          .trim()
+          .replace(/;\s*$/, "")
 
   return predicate ? sql(predicate, namespace, table, indexName) : undefined
 }
