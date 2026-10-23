@@ -2524,7 +2524,7 @@ function parentTable(
             item.namespace === operation.namespace &&
             item.status !== "skipped",
         )
-  const name = candidate?.physicalName ?? parent?.id
+  const name = candidate?.physicalName ?? parent?.physicalName ?? parent?.id
 
   if (name === undefined || name.length === 0) {
     throw new TypeError("Child operation is missing its parent table identity")
