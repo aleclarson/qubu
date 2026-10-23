@@ -437,7 +437,21 @@ export function insertInto<
       context.render(identifier(incomingAlias(table)))
     }
 
-    for (const clause of insertClauses) {
+    const orderedClauses = [
+      ...insertClauses.filter(
+        (clause) =>
+          clause.clauseKind === "on-conflict" || clause.clauseKind === "on-duplicate-key-update",
+      ),
+      ...insertClauses.filter(
+        (clause) =>
+          clause.clauseKind !== "on-conflict" &&
+          clause.clauseKind !== "on-duplicate-key-update" &&
+          clause.clauseKind !== "returning",
+      ),
+      ...insertClauses.filter((clause) => clause.clauseKind === "returning"),
+    ]
+
+    for (const clause of orderedClauses) {
       if (clause.clauseKind === "with") {
         continue
       }
