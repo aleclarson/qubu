@@ -2801,7 +2801,7 @@ function renderAlterColumn(
     }
   }
 
-  if (before.generatedColumn !== value.generatedColumn || before.identity !== value.identity) {
+  if (!sameValue(before.generatedColumn, value.generatedColumn) || !sameValue(before.identity, value.identity)) {
     throw new TypeError(
       "PostgreSQL generated and identity column changes require an explicit custom SQL operation",
     )
