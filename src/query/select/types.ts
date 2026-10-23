@@ -1,8 +1,11 @@
 import type {
+  AggregateDependenciesOf,
   EmptyAggregateInput,
+  Fragment,
   GroupingDependenciesOf,
   GroupingKeysOf,
   HasAggregate,
+  MetadataOf,
   NullableSourcesOf,
   ProvidesOuterOf,
   RequiresOuterOf,
@@ -197,12 +200,27 @@ type GroupingRuleClauses<TClauses extends readonly AnySelectClause[]> = Extract<
   GroupingRuleClause
 >
 
+/** An aggregate outside a window collapses rows; a windowed aggregate evaluates per row. */
+type HasGroupingAggregate<T> = [
+  T extends infer TItem
+    ? TItem extends Fragment<any>
+      ? [Extract<MetadataOf<TItem>, { readonly kind: "aggregate" }>] extends [never]
+        ? never
+        : [Extract<MetadataOf<TItem>, { readonly kind: "window" }>] extends [never]
+          ? TItem
+          : never
+      : never
+    : never,
+] extends [never]
+  ? false
+  : true
+
 type RequiresGrouping<TSelection, TClauses extends readonly AnySelectClause[]> =
   HasGroupByClause<TClauses> extends true
     ? true
     : HasHavingClause<TClauses> extends true
       ? true
-      : HasAggregate<SelectionItems<TSelection> | GroupingRuleClauses<TClauses>>
+      : HasGroupingAggregate<SelectionItems<TSelection> | GroupingRuleClauses<TClauses>>
 
 type ClauseSource<TClause> = TClause extends FromClause
   ? FromSource<TClause>
@@ -338,10 +356,29 @@ type GroupByAggregateFailures<TClauses extends readonly AnySelectClause[]> =
       : never
     : never
 
+/** Windowed aggregates consume their arguments per row, so those columns must be grouped. */
+type WindowGroupingFailures<TSelection, TClauses extends readonly AnySelectClause[]> =
+  SelectionItems<TSelection> extends infer TExpression
+    ? TExpression extends unknown
+      ? [Extract<MetadataOf<TExpression>, { readonly kind: "window" }>] extends [never]
+        ? never
+        : [
+              Exclude<
+                AggregateDependenciesOf<TExpression>,
+                | GroupingDependenciesOf<TClauses[number]>
+                | FunctionallyDeterminedDependencies<TClauses>
+              >,
+            ] extends [never]
+          ? never
+          : AggregateDependenciesOf<TExpression>
+      : never
+    : never
+
 type GroupingFailures<TSelection, TClauses extends readonly AnySelectClause[]> =
   | SelectionGroupingFailures<TSelection, TClauses>
   | ClauseGroupingFailures<TClauses>
   | GroupByAggregateFailures<TClauses>
+  | WindowGroupingFailures<TSelection, TClauses>
 
 type PossibleGroupingFailures<
   TSelection,

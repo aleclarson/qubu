@@ -61,5 +61,5 @@ export const groupedWithWindow = select(
   },
   from(users),
   leftJoin(posts, eq(users.id, posts.authorId)),
-  groupBy(users.name),
+  groupBy(users.name, posts.id),
 )
