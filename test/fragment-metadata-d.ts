@@ -209,6 +209,6 @@ export type PublicMetadataUnionIsClosedForCurrentFacts = Assert<
     | SubqueryMeta
     | GroupingMeta<unknown, unknown>
     | CardinalityMeta<QueryCardinality>
-    | RequiresCapabilityMeta
+    | RequiresCapabilityMeta<string>
   >
 >

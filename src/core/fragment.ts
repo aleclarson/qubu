@@ -98,7 +98,7 @@ export type FragmentMeta =
   | SubqueryMeta
   | GroupingMeta
   | CardinalityMeta
-  | RequiresCapabilityMeta
+  | RequiresCapabilityMeta<string>
 
 export interface RenderContext {
   readonly dialect: Dialect

@@ -115,7 +115,7 @@ export type ExpressionWithOutput<
   | NullableSourceMeta<unknown>
   | ExpressionMeta<unknown>
   | AggregateMeta<unknown>
-  | RequiresCapabilityMeta
+  | RequiresCapabilityMeta<string>
   | WindowMeta
   | SubqueryMeta,
   TKind
