@@ -1788,7 +1788,10 @@ function renderAddConstraint(
   if (kind === "primary-key") {
     body = `PRIMARY KEY (${terms})`
   } else if (kind === "unique" || kind === "unique-constraint") {
-    body = `UNIQUE (${terms})`
+    body =
+      features.dialect === "postgresql" && value.nulls === "not-distinct"
+        ? `UNIQUE NULLS NOT DISTINCT (${terms})`
+        : `UNIQUE (${terms})`
   } else if (kind === "foreign-key") {
     const target = recordValue(value.target)
     const targetTable = target === undefined ? undefined : recordValue(target.table)
