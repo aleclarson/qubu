@@ -1315,10 +1315,7 @@ function compareValues(
 ): void {
   const key = path[path.length - 1]
 
-  if (
-    path.length === 1 &&
-    (key === "id" || key === "physicalName" || key === "physicalReference")
-  ) {
+  if (path.length === 1 && isIdentityField(key)) {
     return
   }
 
