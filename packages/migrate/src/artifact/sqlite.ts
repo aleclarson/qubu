@@ -193,22 +193,15 @@ function prepareRebuilds(
  */
 function columnAddNeedsRebuild(operation: MigrationOperation): boolean {
   const value = operation.origin?.after?.value
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return false
+  if (!isRecord(value)) return false
   const generated = value.generatedColumn
-  if (
-    generated !== null &&
-    typeof generated === "object" &&
-    !Array.isArray(generated) &&
-    generated.mode === "stored"
-  )
-    return true
+  if (isRecord(generated) && generated.mode === "stored") return true
   const fallback = value.default
-  return (
-    fallback !== null &&
-    typeof fallback === "object" &&
-    !Array.isArray(fallback) &&
-    fallback.kind === "expression"
-  )
+  return isRecord(fallback) && fallback.kind === "expression"
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
 function createStatements(
