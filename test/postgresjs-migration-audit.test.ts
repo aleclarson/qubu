@@ -77,3 +77,63 @@ test("reads and releases sequential postgres.js migration sessions independently
     expect(connection.release).toHaveBeenCalledOnce()
   }
 })
+
+test.each([false, true])(
+  "preserves migration initialization failure when postgres.js release also fails: %s",
+  async (releaseFails) => {
+    const { adapter, connections } = fixture()
+    const primary = new Error("journal initialization failed")
+    const cleanup = new Error("reserved connection release failed")
+
+    connections[0]!.unsafe.mockRejectedValueOnce(primary)
+    if (releaseFails) {
+      connections[0]!.release.mockImplementationOnce(() => {
+        throw cleanup
+      })
+    }
+
+    const opening = adapter.openMigrationSession()
+
+    if (releaseFails) {
+      await expect(opening).rejects.toMatchObject({
+        cause: primary,
+        errors: [primary, cleanup],
+      })
+    } else {
+      await expect(opening).rejects.toBe(primary)
+    }
+
+    expect(connections[0]!.release).toHaveBeenCalledOnce()
+    expect(connections[0]!.unsafe).toHaveBeenCalledOnce()
+  },
+)
+
+test("releases a postgres.js reservation cancelled before migration initialization", async () => {
+  const controller = new AbortController()
+  const reason = new Error("cancelled while reserving a connection")
+  const connection = {
+    unsafe: vi.fn(async () => Object.assign([], { count: 0 })),
+    release: vi.fn(),
+  }
+  const reserve = vi.fn(async () => {
+    controller.abort(reason)
+    return connection
+  })
+  const adapter = migrationAdapter({ reserve } as unknown as Sql, {
+    readSnapshot: async () => fakeDigest("a"),
+  })
+  const outcome = await adapter.openMigrationSession(controller.signal).then(
+    (session) => ({ session }),
+    (error: unknown) => ({ error }),
+  )
+
+  try {
+    expect.soft(outcome).toEqual({ error: reason })
+    expect.soft(connection.unsafe).not.toHaveBeenCalled()
+    expect(connection.release).toHaveBeenCalledOnce()
+  } finally {
+    if ("session" in outcome) {
+      await outcome.session.close()
+    }
+  }
+})
