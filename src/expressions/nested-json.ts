@@ -6,7 +6,7 @@ import {
   type ResultMeta,
   type SubqueryMeta,
 } from "../core/fragment.ts"
-import { snakeCaseIdentifier } from "../core/naming.ts"
+import { resolveSqlNames } from "../core/naming.ts"
 import type { SqlJson } from "../core/sql-types.ts"
 import type { QueryTypeValidation } from "../query/errors.ts"
 import type { AnyQuery, QueryRow } from "../query/types.ts"
@@ -123,7 +123,10 @@ function renderNestedJson(context: RenderContext, query: AnyQuery, array: boolea
   }
 
   const q = context.dialect.quoteIdentifier
-  const names = new Set(query.resultShape.fields.map((field) => snakeCaseIdentifier(field.name)))
+  const sqlNames = resolveSqlNames(
+    query.resultShape.fields.map((field) => ({ fieldName: field.name })),
+  )
+  const names = new Set(Object.values(sqlNames))
   let ordinal = "__qubu_json_order"
 
   while (names.has(ordinal)) {
@@ -146,7 +149,7 @@ function renderNestedJson(context: RenderContext, query: AnyQuery, array: boolea
 
       context.append(", ")
       const type = field.sqlType ?? field.type
-      const ref = () => reference(snakeCaseIdentifier(field.name))
+      const ref = () => reference(sqlNames[field.name]!)
 
       if (type === "decimal" && dialect === "sqlite") {
         // SQLite's ordinary text cast keeps only 15 significant digits for REAL.
