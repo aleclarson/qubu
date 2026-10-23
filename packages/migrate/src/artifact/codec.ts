@@ -113,6 +113,7 @@ export async function sealBaselineArtifact(
     digestAlgorithm: digestAlgorithmDescriptor,
     snapshot,
   }
+  delete (source as RecordValue).artifactDigest
   const artifact = {
     ...source,
     artifactDigest: await digestCanonical("baseline", json(source)),
