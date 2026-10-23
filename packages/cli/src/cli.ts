@@ -22,6 +22,7 @@ import {
   type MigrationArtifact,
   type OperationApproval,
 } from "@qubu/migrate/artifact"
+import { compileMigrationProgram as compileSqliteMigrationProgram } from "@qubu/migrate/artifact/sqlite"
 import {
   captureBaseline,
   createBaseline,
@@ -678,6 +679,20 @@ async function createMigration(
     throw new CliFailure("validation", "Artifact repository validation failed", chain.diagnostics)
   }
 
+  if (chain.artifacts.some((artifact) => artifact.id === args.id)) {
+    throw new CliFailure(
+      "validation",
+      `Artifact id "${args.id}" already exists in the repository`,
+      chain.artifacts
+        .filter((artifact) => artifact.id === args.id)
+        .map((artifact) => ({
+          code: "duplicate" as const,
+          message: `id duplicates artifact at sequence ${artifact.sequence}`,
+          path: ["artifacts", artifact.sequence, "id"],
+        })),
+    )
+  }
+
   const previous = chain.artifacts.at(-1)
   const before = previous
     ? previous.format === "qubu-executable-migration"
@@ -707,13 +722,20 @@ async function createMigration(
     args.approvedBy,
     context.config,
   )
-  const compiled = compileMigrationProgram(planned.plan, schemaDialectFor(target), {
+  const compileOptions = {
     afterSnapshot: target,
     approvals,
     customPrograms: context.config.customPrograms,
     serverVersion: context.config.serverVersion,
     columnOrder: resolveColumnOrder(args.columnOrder, context.config),
-  })
+  }
+  const compiled =
+    target.dialect.name === "sqlite"
+      ? compileSqliteMigrationProgram(planned.plan, {
+          ...compileOptions,
+          beforeSnapshot: before,
+        })
+      : compileMigrationProgram(planned.plan, schemaDialectFor(target), compileOptions)
 
   if (!compiled.ok) {
     throw new CliFailure(
