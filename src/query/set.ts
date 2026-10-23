@@ -36,6 +36,18 @@ export type SetSqlValidation<TLeft, TRight> = [SetSqlCompatibilityFailures<TLeft
       SetSqlCompatibilityFailures<TLeft, TRight>
     >
 
+/** SQL combines fields positionally, so both operands must project the same keys. */
+export type SetKeyValidation<TLeft, TRight> = [
+  Exclude<keyof QueryRow<TRight>, keyof QueryRow<TLeft>>,
+] extends [never]
+  ? unknown
+  : QueryTypeValidation<
+      "incompatible-set-domain",
+      "set-operation.columns",
+      "Set operands must project the same fields in the same order.",
+      Exclude<keyof QueryRow<TRight>, keyof QueryRow<TLeft>>
+    >
+
 /**
  * Combine queries using the left projection's row shape, SQL domains, and decoders.
  *
@@ -45,7 +57,7 @@ export type SetSqlValidation<TLeft, TRight> = [SetSqlCompatibilityFailures<TLeft
 export function setOperation<TLeft extends AnyQuery, TRight extends QueryWithRow<QueryRow<TLeft>>>(
   operator: SetOperator,
   left: TLeft & SetSqlValidation<TLeft, TRight>,
-  right: TRight,
+  right: TRight & SetKeyValidation<TLeft, TRight>,
 ): SetQuery<{
   readonly row: QueryRow<TLeft>
   readonly cardinality: any
@@ -82,31 +94,31 @@ export function setOperation<TLeft extends AnyQuery, TRight extends QueryWithRow
 /** Combine distinct rows under the positional projection contract of {@link setOperation}. */
 export function union<TLeft extends AnyQuery, TRight extends QueryWithRow<QueryRow<TLeft>>>(
   left: TLeft & SetSqlValidation<TLeft, TRight>,
-  right: TRight,
+  right: TRight & SetKeyValidation<TLeft, TRight>,
 ) {
-  return setOperation("UNION", left, right)
+  return setOperation<TLeft, TRight>("UNION", left, right)
 }
 
 /** Combine rows including duplicates; projection order must match as in {@link setOperation}. */
 export function unionAll<TLeft extends AnyQuery, TRight extends QueryWithRow<QueryRow<TLeft>>>(
   left: TLeft & SetSqlValidation<TLeft, TRight>,
-  right: TRight,
+  right: TRight & SetKeyValidation<TLeft, TRight>,
 ) {
-  return setOperation("UNION ALL", left, right)
+  return setOperation<TLeft, TRight>("UNION ALL", left, right)
 }
 
 /** Intersect rows using the positional projection contract of {@link setOperation}. */
 export function intersect<TLeft extends AnyQuery, TRight extends QueryWithRow<QueryRow<TLeft>>>(
   left: TLeft & SetSqlValidation<TLeft, TRight>,
-  right: TRight,
+  right: TRight & SetKeyValidation<TLeft, TRight>,
 ) {
-  return setOperation("INTERSECT", left, right)
+  return setOperation<TLeft, TRight>("INTERSECT", left, right)
 }
 
 /** Subtract right rows using the positional projection contract of {@link setOperation}. */
 export function except<TLeft extends AnyQuery, TRight extends QueryWithRow<QueryRow<TLeft>>>(
   left: TLeft & SetSqlValidation<TLeft, TRight>,
-  right: TRight,
+  right: TRight & SetKeyValidation<TLeft, TRight>,
 ) {
-  return setOperation("EXCEPT", left, right)
+  return setOperation<TLeft, TRight>("EXCEPT", left, right)
 }
