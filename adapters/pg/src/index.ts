@@ -74,6 +74,7 @@ export function pgAdapter<TClient extends ClientBase | Pool>(
           }
 
           try {
+            throwIfAborted(transactionOptions.signal)
             result = await runSavepointScope(
               executionAdapter(connection, encoder),
               (sql) => connection.query(sql),
