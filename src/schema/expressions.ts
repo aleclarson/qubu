@@ -39,6 +39,7 @@ export class SchemaExpressionError extends TypeError {
   }
 }
 
+
 /**
  * Restricted rendering surface made available to explicit schema extensions. `parameter()` is
  * retained for structural compatibility with query renderers, but always throws; use `literal()`
@@ -50,17 +51,20 @@ export interface SchemaRenderContext extends RenderContext {
   readonly renderColumnReference: (columnName: string) => void
 }
 
+
 /** Result of schema rendering. The parameter list is always empty. */
 export interface RenderedSchemaExpression {
   readonly text: string
   readonly parameters: readonly []
 }
 
+
 /** Options for rendering a branded schema expression. */
 export interface SchemaRenderOptions {
   readonly mode: SchemaExpressionMode
   readonly dialect?: Dialect
 }
+
 
 /** Compile-time gate used by schema renderers to reject ordinary query ASTs. */
 export type SchemaExpressionInput<TExpression extends AnyExpression> =
@@ -76,6 +80,7 @@ export interface UnsafeSchemaSqlExpression extends SchemaExpression<never, "unsa
   readonly schemaSql: string
 }
 
+
 /**
  * Normalize only line endings. Whitespace, quoting, and every other byte of a raw schema expression
  * remain under the extension author's control.
@@ -83,6 +88,7 @@ export interface UnsafeSchemaSqlExpression extends SchemaExpression<never, "unsa
 export function normalizeSchemaSql(sql: string): string {
   return sql.replace(/\r\n?/g, "\n")
 }
+
 
 /**
  * Explicitly opt an audited expression into deterministic schema rendering. The wrapper does not
@@ -99,6 +105,7 @@ export function schemaExpression(expression: AnyExpression): AnySchemaExpression
   return markSchemaExpression(expression)
 }
 
+
 /**
  * Define an extension with the restricted schema context. This is the typed alternative to
  * {@link unsafeSchemaSql} for deterministic custom syntax.
@@ -111,6 +118,7 @@ export function defineSchemaExpression<
     render(context as SchemaRenderContext),
   )
 }
+
 
 /**
  * Create a dialect-specific raw schema expression. The SQL is parameter-free by contract and is
@@ -153,6 +161,7 @@ export function unsafeSchemaSql(
   })
 }
 
+
 /** Identify a dialect-tagged raw schema expression. */
 export function isUnsafeSchemaSql(value: unknown): value is UnsafeSchemaSqlExpression {
   return (
@@ -162,6 +171,7 @@ export function isUnsafeSchemaSql(value: unknown): value is UnsafeSchemaSqlExpre
     typeof (value as Partial<UnsafeSchemaSqlExpression>).schemaSql === "string"
   )
 }
+
 
 /** Render a schema expression without ever creating query parameters. */
 export function renderSchemaExpression<TExpression extends AnyExpression>(
@@ -246,6 +256,7 @@ export function renderSchemaExpression(
   })
 }
 
+
 /** Convenience form for callers that only need the SQL text. */
 export function renderSchemaSql<TExpression extends AnyExpression>(
   expression: SchemaExpressionInput<TExpression>,
@@ -253,6 +264,7 @@ export function renderSchemaSql<TExpression extends AnyExpression>(
 ): string {
   return renderSchemaExpression(expression, options).text
 }
+
 
 function renderSchemaPart(
   context: SchemaRenderContext,
@@ -294,6 +306,7 @@ function renderSchemaPart(
   part.render(context)
 }
 
+
 function assertSupportedExpression(
   expression: AnySchemaExpression,
   mode: SchemaExpressionMode,
@@ -310,11 +323,12 @@ function assertSupportedExpression(
   }
 }
 
+
 function renderSchemaLiteral(dialect: Dialect, value: unknown, mode: SchemaExpressionMode): string {
   if (dialect.renderSchemaLiteral) {
     const rendered = dialect.renderSchemaLiteral(value)
 
-    if (typeof rendered !== "string" || rendered.includes("?")) {
+    if (typeof rendered !== "string" || containsPlaceholder(rendered)) {
       throw new SchemaExpressionError(
         "invalid-literal",
         "A schema literal renderer must return parameter-free SQL text",
@@ -358,4 +372,12 @@ function renderSchemaLiteral(dialect: Dialect, value: unknown, mode: SchemaExpre
     `Unsupported schema literal type: ${value === undefined ? "undefined" : typeof value}`,
     mode,
   )
+}
+
+function containsPlaceholder(sql: string): boolean {
+  return sql
+    .replace(/'(?:[^']|'')*'/g, "")
+    .replace(/"(?:[^"]|"")*"/g, "")
+    .replace(/`(?:[^`]|``)*`/g, "")
+    .includes("?")
 }
