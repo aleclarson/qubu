@@ -429,6 +429,24 @@ export function insertInto<
         context.render(identifier(incomingAlias(table)))
       } else {
         context.renderRelation(source.query)
+        const sourceClauses =
+          "clauses" in source.query && Array.isArray(source.query.clauses)
+            ? (source.query.clauses as readonly { readonly clauseKind: string }[])
+            : []
+        const trailingOnly = sourceClauses.some((clause) =>
+          ["order-by", "offset", "fetch", "row-lock", "limit"].includes(clause.clauseKind),
+        )
+
+        // SQLite parses a bare ON after the source SELECT as a possible join
+        // condition; a tautological WHERE resolves the ambiguity.
+        if (
+          context.dialect.name === "sqlite" &&
+          insertClauses.some((clause) => clause.clauseKind === "on-conflict") &&
+          !trailingOnly &&
+          !sourceClauses.some((clause) => clause.clauseKind === "where")
+        ) {
+          context.append(" WHERE TRUE")
+        }
       }
     }
 

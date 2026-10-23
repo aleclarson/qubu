@@ -33,6 +33,8 @@ import type { Query, QueryConfig } from "../types.ts"
 
 export interface SelectQuery<TConfig extends QueryConfig = {}> extends Query<TConfig> {
   readonly queryKind: "select"
+  /** @internal Runtime clause list retained for mutation-source inspection. */
+  readonly clauses: readonly AnySelectClause[]
 }
 
 type ExactlyOneSafeClause = DistinctClause | OrderByClause<any> | RowLockClause | WithClause
