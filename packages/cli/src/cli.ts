@@ -986,7 +986,9 @@ function safeError(error: unknown, aborted = false) {
           ? cliExitCodes.policy
           : code === "drift"
             ? cliExitCodes.drift
-            : code === "recovery-required" || code === "recovery"
+            : code === "recovery-required" ||
+                code === "recovery" ||
+                code === "uncertain-outcome"
               ? cliExitCodes.recovery
               : code === "aborted"
                 ? cliExitCodes.aborted
