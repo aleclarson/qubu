@@ -60,7 +60,15 @@ export function postgresMigrationAdapter(
         await initializeJournal(connection)
         return new PostgresMigrationSession(connection, options, poll)
       } catch (error) {
-        await connection.close?.()
+        try {
+          await connection.close?.()
+        } catch (cleanup) {
+          throw Object.assign(
+            new AggregateError([error, cleanup], "Migration initialization cleanup failed"),
+            { cause: error },
+          )
+        }
+
         throw error
       }
     },
