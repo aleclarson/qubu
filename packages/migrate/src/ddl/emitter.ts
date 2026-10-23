@@ -1049,7 +1049,9 @@ function renderRemove(
     }
 
     case "trigger": {
-      return `DROP TRIGGER ${qualifiedName(operation, name, dialect)}`
+      return features.dialect === "postgresql"
+        ? `DROP TRIGGER ${dialect.quoteIdentifier(name)} ON ${tableReference(operation, value.table, operations, dialect)}`
+        : `DROP TRIGGER ${qualifiedName(operation, name, dialect)}`
     }
 
     case "routine": {
