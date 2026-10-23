@@ -1410,7 +1410,45 @@ function isDestructiveProperty(change: SnapshotDiffPropertyChange): boolean {
     return true
   }
 
+  if (
+    key === "type" &&
+    change.path[change.path.length - 2] === "storage" &&
+    storageTypeNarrows(change.before, change.after)
+  ) {
+    return true
+  }
+
   return false
+}
+
+const parameterizedType = /^([a-z][a-z0-9 ]*?)\s*\(([\d\s,]+)\)\s*$/iu
+
+function storageTypeNarrows(before: unknown, after: unknown): boolean {
+  if (typeof before !== "string" || typeof after !== "string") {
+    return false
+  }
+
+  const beforeType = parameterizedType.exec(before.trim())
+  const afterType = parameterizedType.exec(after.trim())
+
+  if (beforeType === null || afterType === null) {
+    return false
+  }
+
+  if (beforeType[1]!.trim().toLowerCase() !== afterType[1]!.trim().toLowerCase()) {
+    return false
+  }
+
+  const beforeArgs = beforeType[2]!.split(",").map((part) => Number(part.trim()))
+  const afterArgs = afterType[2]!.split(",").map((part) => Number(part.trim()))
+
+  if (beforeArgs.length !== afterArgs.length) {
+    return false
+  }
+
+  return afterArgs.every(
+    (value, index) => Number.isFinite(value) && value <= beforeArgs[index]!,
+  ) && afterArgs.some((value, index) => value < beforeArgs[index]!)
 }
 
 function makeEvidence(
