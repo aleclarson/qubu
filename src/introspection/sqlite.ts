@@ -917,6 +917,13 @@ function triggerCondition(
   return header.match(/\bWHEN\s+([\s\S]+)$/i)?.[1]?.trim()
 }
 
+function sqlWithoutLiterals(sqlText: string | undefined): string {
+  return (sqlText ?? "").replace(
+    /--[^\n]*|\/\*[\s\S]*?\*\/|'(?:[^']|'')*'|"(?:[^"]|"")*"|`(?:[^`]|``)*`|\[[^\]]*\]/g,
+    " ",
+  )
+}
+
 function unquoteIdentifier(value: string | undefined): string | undefined {
   if (!value) {
     return undefined
@@ -1279,12 +1286,14 @@ function column(
     )
   }
 
+  // Table options must not match keywords inside string literals or comments.
+  const ddl = sqlWithoutLiterals(sqlText)
   const rowid =
     table.kind === "table" &&
     rowidPrimaryKey &&
     (number(row.pk) ?? 0) > 0 &&
     type.toUpperCase() === "INTEGER" &&
-    !/WITHOUT\s+ROWID/i.test(sqlText ?? "")
+    !/WITHOUT\s+ROWID/i.test(ddl)
   const identity: CatalogIdentity | undefined = rowid
     ? {
         kind: "identity",
@@ -1295,7 +1304,7 @@ function column(
           version: 1,
           data: {
             rowidAlias: true,
-            autoIncrement: /AUTOINCREMENT/i.test(sqlText ?? ""),
+            autoIncrement: /AUTOINCREMENT/i.test(ddl),
             withoutRowid: false,
           },
         },
@@ -1313,7 +1322,7 @@ function column(
       !(
         rowid ||
         ((number(row.pk) ?? 0) > 0 &&
-          (/WITHOUT\s+ROWID/i.test(sqlText ?? "") || /\bSTRICT\b/i.test(sqlText ?? "")))
+          (/WITHOUT\s+ROWID/i.test(ddl) || /\bSTRICT\b/i.test(ddl)))
       ),
     storage: { nativeType: type || "BLOB" },
     default:
