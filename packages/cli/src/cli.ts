@@ -471,11 +471,13 @@ export function createCli(runtime: CliRuntime = {}) {
             }),
         })
       } finally {
-        if (leased) {
-          await session.releaseLease()
+        try {
+          if (leased) {
+            await session.releaseLease()
+          }
+        } finally {
+          await session.close()
         }
-
-        await session.close()
       }
 
       return {
