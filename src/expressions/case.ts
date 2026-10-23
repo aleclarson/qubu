@@ -51,11 +51,7 @@ export function caseWhen<
       context.render(elseExpression)
       context.append(" END")
     },
-    resultValue(
-      domain === "integer" ? "decimal" : type,
-      decoder,
-      domain === "integer" ? "decimal" : domain,
-    ),
+    resultValue(type, decoder, domain === "integer" ? "decimal" : domain),
   ) as ResultExpression<{
     readonly output: T
     readonly children: TCondition | TThen | TElse

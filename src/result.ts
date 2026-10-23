@@ -145,9 +145,13 @@ export const timestampResultDecoder: ResultDecoder<Date> = (value) => {
     throw new TypeError("Expected a valid Date or timestamp string result")
   }
 
-  const normalized = value.includes("T") ? value : value.replace(" ", "T")
+  // PostgreSQL may emit hour-only offsets; Date.parse requires minutes.
+  const normalized = (value.includes("T") ? value : value.replace(" ", "T")).replace(
+    /([+-]\d{2})$/u,
+    "$1:00",
+  )
   const decoded = new Date(
-    /(?:Z|[+-]\d{2}:?\d{2})$/u.test(normalized) ? normalized : `${normalized}Z`,
+    /(?:Z|[+-]\d{2}(?::?\d{2})?)$/u.test(normalized) ? normalized : `${normalized}Z`,
   )
 
   if (Number.isNaN(decoded.getTime())) {
