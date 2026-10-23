@@ -672,7 +672,7 @@ function diagnoseOperation(
       )
     }
 
-    if (expression.sql.includes("?")) {
+    if (containsPlaceholder(expression.sql)) {
       diagnostics.push(
         operationDiagnostic(
           operation,
@@ -1659,7 +1659,7 @@ function schemaLiteral(dialect: SchemaDialect, value: unknown): string {
   const rendered = dialect.renderSchemaLiteral?.(value)
 
   if (rendered !== undefined) {
-    if (rendered.includes("?")) {
+    if (containsPlaceholder(rendered)) {
       throw new TypeError("Schema literal renderer returned a parameter placeholder")
     }
 
@@ -1679,6 +1679,14 @@ function schemaLiteral(dialect: SchemaDialect, value: unknown): string {
   }
 
   throw new TypeError("Unsupported schema literal")
+}
+
+function containsPlaceholder(sql: string): boolean {
+  return sql
+    .replace(/'(?:[^']|'')*'/g, "")
+    .replace(/"(?:[^"]|"")*"/g, "")
+    .replace(/`(?:[^`]|``)*`/g, "")
+    .includes("?")
 }
 
 function renderAddConstraint(
