@@ -1,17 +1,23 @@
 import type { NullabilityOf } from "../../core/fragment.ts"
 import type { SqlNumericLike } from "../../core/sql-types.ts"
 import { resultValue, resultValueOf } from "../../result.ts"
-import { makeSchemaExpression, type ExpressionWithOutput, type ResultExpression } from "../types.ts"
+import {
+  makeSchemaExpression,
+  type AnyExpression,
+  type ExpressionOutput,
+  type ResultExpression,
+} from "../types.ts"
 import type { ExpressionSqlType } from "../types.ts"
 import { expressionOperand, type Operand } from "./shared.ts"
 import type { OperandSqlType, SqlCapabilityValidation, SqlOrderValidation } from "./shared.ts"
 
-function arithmetic<T, TLeft extends ExpressionWithOutput<T>, R extends Operand<NoInfer<T>>>(
+function arithmetic<TLeft extends AnyExpression, R extends Operand<ExpressionOutput<TLeft>>>(
   operator: string,
   left: TLeft,
   right: R,
 ) {
   const rightExpression = expressionOperand(right)
+  const leftMeta = resultValueOf(left)
 
   return makeSchemaExpression(
     "operator",
@@ -23,12 +29,12 @@ function arithmetic<T, TLeft extends ExpressionWithOutput<T>, R extends Operand<
       context.append(")")
     },
     resultValue(
-      undefined,
-      undefined,
-      resultValueOf(left)?.sqlType === "integer" ? "decimal" : resultValueOf(left)?.sqlType,
+      leftMeta?.type,
+      leftMeta?.decoder,
+      leftMeta?.sqlType === "integer" ? "decimal" : leftMeta?.sqlType,
     ),
   ) as ResultExpression<{
-    readonly output: T
+    readonly output: ExpressionOutput<TLeft>
     readonly children: TLeft | R
     readonly kind: "operator"
     readonly nullableFrom: NullabilityOf<TLeft | R>
@@ -43,27 +49,42 @@ type ArithmeticValidation<TLeft, TRight> = SqlCapabilityValidation<
   SqlCapabilityValidation<OperandSqlType<TRight, ExpressionSqlType<TLeft>>, SqlNumericLike> &
   SqlOrderValidation<ExpressionSqlType<TLeft>, OperandSqlType<TRight, ExpressionSqlType<TLeft>>>
 
-export const add = <T, TLeft extends ExpressionWithOutput<T>, R extends Operand<NoInfer<T>>>(
+export const add = <
+  TLeft extends AnyExpression,
+  R extends Operand<ExpressionOutput<TLeft>>,
+>(
   left: TLeft & ArithmeticValidation<TLeft, R>,
   right: R,
 ) => arithmetic("+", left, right)
 
-export const subtract = <T, TLeft extends ExpressionWithOutput<T>, R extends Operand<NoInfer<T>>>(
+export const subtract = <
+  TLeft extends AnyExpression,
+  R extends Operand<ExpressionOutput<TLeft>>,
+>(
   left: TLeft & ArithmeticValidation<TLeft, R>,
   right: R,
 ) => arithmetic("-", left, right)
 
-export const multiply = <T, TLeft extends ExpressionWithOutput<T>, R extends Operand<NoInfer<T>>>(
+export const multiply = <
+  TLeft extends AnyExpression,
+  R extends Operand<ExpressionOutput<TLeft>>,
+>(
   left: TLeft & ArithmeticValidation<TLeft, R>,
   right: R,
 ) => arithmetic("*", left, right)
 
-export const divide = <T, TLeft extends ExpressionWithOutput<T>, R extends Operand<NoInfer<T>>>(
+export const divide = <
+  TLeft extends AnyExpression,
+  R extends Operand<ExpressionOutput<TLeft>>,
+>(
   left: TLeft & ArithmeticValidation<TLeft, R>,
   right: R,
 ) => arithmetic("/", left, right)
 
-export const modulo = <T, TLeft extends ExpressionWithOutput<T>, R extends Operand<NoInfer<T>>>(
+export const modulo = <
+  TLeft extends AnyExpression,
+  R extends Operand<ExpressionOutput<TLeft>>,
+>(
   left: TLeft & ArithmeticValidation<TLeft, R>,
   right: R,
 ) => arithmetic("%", left, right)

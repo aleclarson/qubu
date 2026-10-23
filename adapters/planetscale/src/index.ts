@@ -44,13 +44,13 @@ type PlanetScaleClientWithConfig = PlanetScaleClient & {
 }
 
 const planetScaleEncoder: DriverValueEncoder = {
-  encode(value) {
+  encode(value, sqlType) {
     if (
       value === null ||
       typeof value !== "object" ||
       value instanceof Date ||
       value instanceof Uint8Array ||
-      Array.isArray(value)
+      (Array.isArray(value) && sqlType !== "json")
     ) {
       return value
     }

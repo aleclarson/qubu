@@ -348,6 +348,10 @@ function printColumn(
     `sqlName: ${literal(snapshot.physicalName)}`,
   ]
 
+  if (column.sqlDomain !== "unknown") {
+    options.push(`sqlType: ${literal(column.sqlDomain)}`)
+  }
+
   if (snapshot.dialect !== undefined) {
     const extension = printExtension(snapshot.dialect, schema, [...path, "dialect"], diagnostics)
 

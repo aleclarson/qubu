@@ -25,6 +25,7 @@ export function caseWhen<
 >(
   condition: TCondition & SqlCapabilityValidation<ExpressionSqlType<TCondition>, SqlBoolean>,
   thenValue: TThen &
+    Operand<T> &
     SqlEqualityValidation<
       OperandSqlType<TThen, CaseSqlType<TThen, TElse>>,
       OperandSqlType<TElse, CaseSqlType<TThen, TElse>>

@@ -43,10 +43,38 @@ const punctuators = [
 
 export function tokenize(source: string): readonly QubuToken[] {
   const tokens: QubuToken[] = []
+  // Template/interpolation frames: `${` pushes code mode until its `}` closes
+  // back into template text, so substitutions tokenize like ordinary code.
+  const frames: { readonly kind: "template" | "interpolation"; openBraces: number }[] = []
   let cursor = 0
 
   while (cursor < source.length) {
     const character = source[cursor]
+    const top = frames.at(-1)
+
+    if (top?.kind === "template") {
+      if (character === "\\") {
+        cursor += 2
+        continue
+      }
+
+      if (character === "`") {
+        pushPunctuator(tokens, "`", cursor)
+        frames.pop()
+        cursor += 1
+        continue
+      }
+
+      if (source.startsWith("${", cursor)) {
+        pushPunctuator(tokens, "${", cursor)
+        frames.push({ kind: "interpolation", openBraces: 0 })
+        cursor += 2
+        continue
+      }
+
+      cursor += 1
+      continue
+    }
 
     if (isWhitespace(character)) {
       cursor += 1
@@ -69,8 +97,31 @@ export function tokenize(source: string): readonly QubuToken[] {
     }
 
     if (character === "`") {
-      cursor = skipTemplate(source, cursor)
+      pushPunctuator(tokens, "`", cursor)
+      frames.push({ kind: "template", openBraces: 0 })
+      cursor += 1
       continue
+    }
+
+    if (character === "}") {
+      pushPunctuator(tokens, character, cursor)
+      if (top === undefined) {
+        cursor += 1
+        continue
+      }
+
+      if (top.openBraces === 0) {
+        frames.pop()
+      } else {
+        top.openBraces -= 1
+      }
+
+      cursor += 1
+      continue
+    }
+
+    if (character === "{" && top !== undefined) {
+      top.openBraces += 1
     }
 
     if (isIdentifierStart(character)) {
@@ -152,23 +203,13 @@ function skipQuotedString(source: string, start: number) {
   return source.length
 }
 
-function skipTemplate(source: string, start: number) {
-  let cursor = start + 1
-
-  while (cursor < source.length) {
-    if (source[cursor] === "\\") {
-      cursor += 2
-      continue
-    }
-
-    if (source[cursor] === "`") {
-      return cursor + 1
-    }
-
-    cursor += 1
-  }
-
-  return source.length
+function pushPunctuator(tokens: QubuToken[], value: string, start: number) {
+  tokens.push({
+    kind: "punctuator",
+    value,
+    start,
+    end: start + value.length,
+  })
 }
 
 function skipNumber(source: string, start: number) {

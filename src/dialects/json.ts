@@ -127,19 +127,26 @@ export const mysqlJson: DialectJson = {
   renderScalar(context, document, path, kind) {
     context.append("(CASE JSON_TYPE(")
     renderMySqlExtract(context, document, path)
-    context.append(`) WHEN '${mysqlType(kind)}' THEN `)
-    if (kind === "boolean") {
-      context.append("(")
-    }
+    context.append(")")
+    // MySQL distinguishes INTEGER, DOUBLE, and DECIMAL in JSON_TYPE.
+    const acceptedTypes =
+      kind === "number" ? ["INTEGER", "DOUBLE", "DECIMAL"] : [mysqlType(kind)]
 
-    renderSqlJsonValue(
-      context,
-      document,
-      path,
-      kind === "text" ? "CHAR" : kind === "number" ? "DOUBLE" : "CHAR",
-    )
-    if (kind === "boolean") {
-      context.append(" = 'true')")
+    for (const acceptedType of acceptedTypes) {
+      context.append(` WHEN '${acceptedType}' THEN `)
+      if (kind === "boolean") {
+        context.append("(")
+      }
+
+      renderSqlJsonValue(
+        context,
+        document,
+        path,
+        kind === "text" ? "CHAR" : kind === "number" ? "DOUBLE" : "CHAR",
+      )
+      if (kind === "boolean") {
+        context.append(" = 'true')")
+      }
     }
 
     context.append(" END)")

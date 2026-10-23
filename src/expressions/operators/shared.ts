@@ -18,6 +18,9 @@ import { asValue, isValueExpression, type ValueExpression } from "../value.ts"
 
 export type Operand<T> = T | ExpressionWithOutput<T>
 
+/** The application output of an operand: an expression's result or a raw literal's own type. */
+export type OperandOutput<T> = T extends AnyExpression ? ExpressionOutput<T> : T
+
 /** Plain values are contextually typed by the expression beside them. */
 export type OperandSqlType<T, TContext extends AnySqlType> =
   T extends Fragment<any> ? SqlTypeOf<T> : TContext

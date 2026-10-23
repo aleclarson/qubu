@@ -204,7 +204,7 @@ async function executeRequest<TRow extends object>(
     new ExecuteStatementCommand(statementInput(options, encoder, request, transactionId)),
     request.signal,
   )
-  const rows = normalizeRows(response)
+  const rows = normalizeRows(response, request.resultShape)
   const isMutation = request.queryKind !== "select" && request.queryKind !== "set"
   const insertId =
     request.queryKind === "insert" ? generatedInsertId(response.generatedFields) : undefined
@@ -278,6 +278,16 @@ function transactionEndInput(options: RdsDataApiAdapterOptions, transactionId: s
 export function encodeRdsDataApiValue(value: unknown, sqlType?: SqlTypeName): Field {
   if (value === null || value === undefined) {
     return { isNull: true }
+  }
+
+  if (sqlType === "json") {
+    const serialized = JSON.stringify(value)
+
+    if (serialized === undefined) {
+      throw new TypeError("RDS Data API parameters must be JSON-serializable")
+    }
+
+    return { stringValue: serialized }
   }
 
   if (typeof value === "boolean") {
@@ -381,6 +391,10 @@ function rdsDataApiTypeHint(
     return "DECIMAL"
   }
 
+  if (sqlType === "json") {
+    return "JSON"
+  }
+
   if (typeof value === "bigint") {
     return "DECIMAL"
   }
@@ -472,7 +486,10 @@ function decodeRdsDataApiArray(value: ArrayValue): unknown[] {
   throw new TypeError("RDS Data API returned an empty array field")
 }
 
-function normalizeRows(response: ExecuteStatementCommandOutput): readonly RdsDataApiRow[] {
+function normalizeRows(
+  response: ExecuteStatementCommandOutput,
+  shape?: ExecutionRequest["resultShape"],
+): readonly RdsDataApiRow[] {
   if (response.formattedRecords !== undefined) {
     const parsed: unknown = JSON.parse(response.formattedRecords)
 
@@ -491,7 +508,7 @@ function normalizeRows(response: ExecuteStatementCommandOutput): readonly RdsDat
 
   const metadata = response.columnMetadata ?? []
 
-  return (response.records ?? []).map((record) => rowFromFields(record, metadata))
+  return (response.records ?? []).map((record) => rowFromFields(record, metadata, shape))
 }
 
 type RdsDataApiRow = Record<string, unknown>
@@ -499,14 +516,22 @@ type RdsDataApiRow = Record<string, unknown>
 function rowFromFields(
   fields: readonly Field[],
   metadata: readonly ColumnMetadata[],
+  shape?: ExecutionRequest["resultShape"],
 ): RdsDataApiRow {
   const row: RdsDataApiRow = {}
+  const sqlTypes = new Map(shape?.fields.map((field) => [field.name, field.sqlType]) ?? [])
 
   fields.forEach((field, index) => {
     const column = metadata[index]
     const name = column?.label ?? column?.name ?? `column${index + 1}`
+    const value = decodeRdsDataApiField(field)
 
-    row[name] = decodeRdsDataApiField(field)
+    // longReturnType: "STRING" delivers integers as text; restore the
+    // declared integer domain's numeric form.
+    row[name] =
+      sqlTypes.get(name) === "integer" && typeof value === "string"
+        ? Number(value)
+        : value
   })
   return row
 }

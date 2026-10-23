@@ -1677,7 +1677,7 @@ function mapConstraint(
       ? undefined
       : mapColumnNames(constraint.columns, columns, context, [...path, "columns"])
 
-  if (mappedColumns === undefined && context.mode === "lossy") {
+  if (constraint.kind !== "check" && mappedColumns === undefined && context.mode === "lossy") {
     return undefined
   }
 
@@ -1698,7 +1698,7 @@ function mapConstraint(
     return {
       kind: "check",
       ...common,
-      expression: mapExpression(constraint.expression),
+      expression: mapCheckExpression(constraint.expression),
       ...(constraint.deferrable === undefined ? {} : { deferrable: constraint.deferrable }),
       ...(constraint.initially === undefined ? {} : { initially: constraint.initially }),
       ...(constraint.validated === undefined ? {} : { validated: constraint.validated }),
@@ -2026,7 +2026,7 @@ function mapCheckConstraint(
     kind: "check",
     id: constraint.id,
     physicalName: constraint.physicalName ?? constraint.id,
-    expression: mapExpression(constraint.expression),
+    expression: mapCheckExpression(constraint.expression),
     ...(constraint.deferrable === undefined ? {} : { deferrable: constraint.deferrable }),
     ...(constraint.initially === undefined ? {} : { initially: constraint.initially }),
     ...(constraint.validated === undefined ? {} : { validated: constraint.validated }),
@@ -2359,6 +2359,18 @@ function mapExpression(value: CatalogSqlExpression) {
     expressionKind: "unsafe",
     sql: value.text.replace(/\r\n?/g, "\n").trim(),
     dialect: value.dialect,
+  }
+}
+
+/** Decompiled CHECK constraints keep the whole clause; the snapshot stores the bare predicate. */
+function mapCheckExpression(value: CatalogSqlExpression) {
+  return {
+    ...mapExpression(value),
+    sql: value.text
+      .replace(/\r\n?/g, "\n")
+      .trim()
+      .replace(/^\s*CHECK\s+/iu, "")
+      .replace(/\s+NOT\s+VALID\s*$/iu, ""),
   }
 }
 
