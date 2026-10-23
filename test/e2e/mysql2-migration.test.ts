@@ -73,6 +73,26 @@ describe.skipIf(process.env.QUBU_E2E_DIALECT !== "mysql")("mysql2 SQL migrations
     expect(history).toEqual([{ id: "001-accounts" }, { id: "002-name" }])
   })
 
+  test("creates stored procedures through SQL migrations", async () => {
+    // The server accepts this single statement through the text protocol.
+    await connection.query("CREATE PROCEDURE control_value() SELECT 7 AS value")
+    const [control] = await connection.query("CALL control_value()")
+
+    expect(control).toEqual(expect.arrayContaining([[{ value: 7 }]]))
+    const migration = {
+      id: "001-procedure",
+      sql: ["CREATE PROCEDURE migrated_value() SELECT 7 AS value"],
+    }
+
+    await expect(migrate(connection, [migration])).resolves.toEqual({
+      applied: [migration.id],
+    })
+    const [rows] = await connection.query("CALL migrated_value()")
+
+    expect(rows).toEqual(expect.arrayContaining([[{ value: 7 }]]))
+    await expect(migrate(connection, [migration])).resolves.toEqual({ applied: [] })
+  })
+
   test("leaves partial DDL unrecorded and stops before subsequent migrations", async () => {
     await expect(
       migrate(connection, [
