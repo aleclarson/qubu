@@ -2399,10 +2399,19 @@ function renderCreateRoutine(
   }
 
   const language = stringValue(value.language)
+  const volatility = stringValue(value.volatility)
   const security = stringValue(value.security)
 
   if (features.dialect === "postgresql") {
     sql += ` LANGUAGE ${dialect.quoteIdentifier(language ?? "sql")}`
+    if (
+      volatility === "immutable" ||
+      volatility === "stable" ||
+      volatility === "volatile"
+    ) {
+      sql += ` ${volatility.toUpperCase()}`
+    }
+
     if (security === "definer" || security === "invoker") {
       sql += ` SECURITY ${security.toUpperCase()}`
     }
