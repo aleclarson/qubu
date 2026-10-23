@@ -17,6 +17,12 @@ import type {
   TransactionOptions,
   TransactionalQueryAdapter,
 } from "qubu"
+import {
+  booleanResultDecoder,
+  dateResultDecoder,
+  jsonTextResultDecoder,
+  timestampResultDecoder,
+} from "qubu"
 import { sqliteDialect } from "qubu/sqlite"
 
 export interface LibsqlAdapterOptions {
@@ -42,6 +48,13 @@ const identityEncoder: DriverValueEncoder<InValue> = {
   },
 }
 
+const sqliteDecoders = Object.freeze({
+  boolean: booleanResultDecoder,
+  date: dateResultDecoder,
+  json: jsonTextResultDecoder,
+  timestamp: timestampResultDecoder,
+})
+
 /** Adapt an application-owned `@libsql/client` for Qubu execution. */
 export function libsqlAdapter(client: Client, options: LibsqlAdapterOptions = {}): LibsqlAdapter {
   const encoder = options.encoder ?? identityEncoder
@@ -50,6 +63,7 @@ export function libsqlAdapter(client: Client, options: LibsqlAdapterOptions = {}
   return {
     client,
     dialect: sqliteDialect(),
+    decoders: sqliteDecoders,
     transactionMode,
     execute(request) {
       return executeRequest(client, request, encoder)
@@ -91,6 +105,7 @@ function transactionAdapter(
 ): LibsqlTransactionAdapter {
   return {
     dialect: sqliteDialect(),
+    decoders: sqliteDecoders,
     execute(request) {
       return executeRequest(transaction, request, encoder)
     },
