@@ -84,6 +84,9 @@ export async function sealExecutableArtifact(
     beforeSnapshot,
     afterSnapshot,
   }
+  // A previously sealed artifact carries its artifactDigest; the digest input
+  // must exclude it so resealing stays verifiable.
+  delete (source as RecordValue).artifactDigest
   const artifact = {
     ...source,
     artifactDigest: await digestCanonical("artifact", json(source)),
