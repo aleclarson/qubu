@@ -1897,6 +1897,10 @@ function renderDropConstraint(
       return `ALTER TABLE ${table} DROP FOREIGN KEY ${dialect.quoteIdentifier(name)}`
     }
 
+    if (kind === "check") {
+      return `ALTER TABLE ${table} DROP CHECK ${dialect.quoteIdentifier(name)}`
+    }
+
     return `ALTER TABLE ${table} DROP INDEX ${dialect.quoteIdentifier(name)}`
   }
 
