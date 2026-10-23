@@ -873,7 +873,53 @@ function streamInternal<TRow extends object>(
   )
 
   try {
-    return decodeResultStream<TRow>(adapter.stream(request), request, adapter, dialect, active)
+    const rawIterator = adapter.stream(request)[Symbol.asyncIterator]()
+    const decoded = decodeResultStream<TRow>(
+      {
+        [Symbol.asyncIterator]() {
+          return rawIterator
+        },
+      },
+      request,
+      adapter,
+      dialect,
+      active,
+    )[Symbol.asyncIterator]()
+    let started = false
+
+    return {
+      [Symbol.asyncIterator]() {
+        return {
+          next() {
+            started = true
+            return decoded.next()
+          },
+          throw(error: unknown) {
+            started = true
+            return decoded.throw?.(error) ?? Promise.reject(error)
+          },
+          async return() {
+            if (!started) {
+              // An unstarted generator never enters its body, so close the
+              // driver stream and observation directly.
+              try {
+                await rawIterator.return?.()
+              } finally {
+                active?.finish({
+                  status: "success",
+                  rowCount: 0,
+                  streamEnd: "consumer-return",
+                })
+              }
+
+              return { done: true as const, value: undefined }
+            }
+
+            return decoded.return?.() ?? { done: true as const, value: undefined }
+          },
+        }
+      },
+    }
   } catch (error) {
     active?.finish({
       status: "error",
