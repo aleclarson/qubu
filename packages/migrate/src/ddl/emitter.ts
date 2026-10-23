@@ -2400,6 +2400,12 @@ function renderCreateTrigger(
     throw new TypeError("Trigger is missing timing, events, or body")
   }
 
+  // Catalog decompilers return the complete CREATE TRIGGER statement; emit it
+  // verbatim rather than embedding it inside a second declaration.
+  if (/^\s*CREATE\s+(?:OR\s+REPLACE\s+)?(?:CONSTRAINT\s+)?TRIGGER\b/iu.test(body.sql)) {
+    return body.sql.trim()
+  }
+
   if (timing === "unknown") {
     throw new TypeError("Trigger timing is unknown")
   }
@@ -2445,15 +2451,22 @@ function renderCreateRoutine(
     throw new TypeError(`Routine kind "${String(kind)}" is not supported by this emitter`)
   }
 
-  const parameters = arrayOfRecords(value.parameters)
-    .sort((left, right) => numberValue(left.ordinalPosition) - numberValue(right.ordinalPosition))
-    .map((parameter) => renderRoutineParameter(parameter, dialect, features))
-    .join(", ")
   const body = expressionValue(value.body)
 
   if (body === undefined) {
     throw new TypeError("Routine body is missing")
   }
+
+  // Catalog decompilers return the complete CREATE statement; emit it
+  // verbatim rather than embedding it inside a second declaration.
+  if (/^\s*CREATE\s+(?:OR\s+REPLACE\s+)?(?:FUNCTION|PROCEDURE|AGGREGATE)\b/iu.test(body.sql)) {
+    return body.sql.trim()
+  }
+
+  const parameters = arrayOfRecords(value.parameters)
+    .sort((left, right) => numberValue(left.ordinalPosition) - numberValue(right.ordinalPosition))
+    .map((parameter) => renderRoutineParameter(parameter, dialect, features))
+    .join(", ")
 
   let sql = `CREATE ${orReplace ? "OR REPLACE " : ""}${kind.toUpperCase()} ${qualifiedName(operation, name, dialect)}(${parameters})`
 
