@@ -139,7 +139,12 @@ function prepareRebuilds(
     const targetQualified = qualify(after.namespace.name, target.physicalName)
     const temporaryQualified = qualify(after.namespace.name, temporaryName)
     const common = target.columns.flatMap((column) => {
-      const old = source.columns.find((candidate) => candidate.id === column.id)
+      // Generated columns recompute from stored columns; they cannot receive
+      // inserted values.
+      if (column.generated) return []
+      const old = source.columns.find(
+        (candidate) => candidate.id === column.id && !candidate.generated,
+      )
       return old ? [{ old: old.physicalName, next: column.physicalName }] : []
     })
     if (!common.length)
