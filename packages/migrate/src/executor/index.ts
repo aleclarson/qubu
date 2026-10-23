@@ -442,10 +442,7 @@ function capabilityPreflight(
           {},
           { retry: "safe" },
         )
-      if (
-        session.capabilities.transactions &&
-        !session.capabilities.transactions.includes(phase.transaction)
-      )
+      if (!(session.capabilities.transactions ?? []).includes(phase.transaction))
         throw new MigrationExecutionError(
           "capability",
           `Transaction requirement ${phase.transaction} is not supported`,
