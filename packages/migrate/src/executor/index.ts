@@ -51,6 +51,7 @@ export async function executeMigrations(
   let leased = false
   let result: MigrationExecutionResult | undefined
   let primary: unknown
+  let failed = false
   try {
     await boundary(options, "open-session")
     session = await input.adapter.openMigrationSession(options.signal)
@@ -108,24 +109,31 @@ export async function executeMigrations(
       idempotent: executable.length === 0,
     })
   } catch (error) {
+    failed = true
     primary = error
   } finally {
     if (session && leased) {
       try {
         await at(options, "release-lease", () => session!.releaseLease())
       } catch (error) {
-        primary ??= wrapAdapter(error, "Failed to release migration lease")
+        if (!failed) {
+          failed = true
+          primary = wrapAdapter(error, "Failed to release migration lease")
+        }
       }
     }
     if (session) {
       try {
         await at(options, "close-session", () => session!.close())
       } catch (error) {
-        primary ??= wrapAdapter(error, "Failed to close migration session")
+        if (!failed) {
+          failed = true
+          primary = wrapAdapter(error, "Failed to close migration session")
+        }
       }
     }
   }
-  if (primary) throw wrapAdapter(primary, "Migration adapter operation failed")
+  if (failed) throw wrapAdapter(primary, "Migration adapter operation failed")
   return result!
 }
 
