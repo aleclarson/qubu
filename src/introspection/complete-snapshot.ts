@@ -1677,7 +1677,7 @@ function mapConstraint(
       ? undefined
       : mapColumnNames(constraint.columns, columns, context, [...path, "columns"])
 
-  if (mappedColumns === undefined && context.mode === "lossy") {
+  if (constraint.kind !== "check" && mappedColumns === undefined && context.mode === "lossy") {
     return undefined
   }
 
