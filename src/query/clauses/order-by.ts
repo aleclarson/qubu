@@ -4,6 +4,7 @@ import type { SqlCapabilityValidation } from "../../expressions/operators/shared
 import { makeExpression, type AnyExpression } from "../../expressions/types.ts"
 import type { ExpressionSqlType } from "../../expressions/types.ts"
 import { omit, type Omit } from "../omit.ts"
+import { queryValidationError } from "../errors.ts"
 import { createClause, type SelectClause } from "./types.ts"
 
 export type OrderDirection = "ASC" | "DESC"
@@ -31,6 +32,16 @@ function orderTerm<TExpression extends AnyExpression>(
     }
 
     if (nulls) {
+      if (context.dialect.name === "mysql") {
+        throw queryValidationError({
+          code: "missing-dialect-capability",
+          context: "expression.order.nulls",
+          path: ["orderBy", "nulls"],
+          message: "MySQL does not support NULLS FIRST or NULLS LAST ordering",
+          hint: "MySQL's ORDER BY grammar allows ASC/DESC but no NULLS ordering clause.",
+        })
+      }
+
       context.append(` NULLS ${nulls}`)
     }
   })
