@@ -2382,7 +2382,7 @@ function renderCreateRoutine(
 
   const parameters = arrayOfRecords(value.parameters)
     .sort((left, right) => numberValue(left.ordinalPosition) - numberValue(right.ordinalPosition))
-    .map((parameter) => renderRoutineParameter(parameter, dialect))
+    .map((parameter) => renderRoutineParameter(parameter, dialect, features))
     .join(", ")
   const body = expressionValue(value.body)
 
@@ -2428,12 +2428,26 @@ function renderCreateRoutine(
   return sql
 }
 
-function renderRoutineParameter(value: JsonRecord, dialect: SchemaDialect): string {
+function renderRoutineParameter(
+  value: JsonRecord,
+  dialect: SchemaDialect,
+  features: DdlFeatures,
+): string {
   const name = stringValue(value.name)
   const mode = stringValue(value.mode)
   const storage = renderStorage(value.storage, dialect)
+  const rendered =
+    `${mode === undefined || mode === "in" ? "" : `${mode.toUpperCase()} `}${name === undefined ? "" : `${dialect.quoteIdentifier(name)} `}${storage}`.trim()
 
-  return `${mode === undefined || mode === "in" ? "" : `${mode.toUpperCase()} `}${name === undefined ? "" : `${dialect.quoteIdentifier(name)} `}${storage}`.trim()
+  if (value.default === undefined) {
+    return rendered
+  }
+
+  if (features.dialect !== "postgresql") {
+    throw new TypeError(`${features.dialect} routine parameters cannot declare defaults`)
+  }
+
+  return `${rendered} DEFAULT ${renderValueFact(recordValue(value.default) ?? {}, dialect)}`
 }
 
 function renderDropRoutine(
