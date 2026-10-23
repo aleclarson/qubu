@@ -12,6 +12,7 @@ function arithmetic<T, TLeft extends ExpressionWithOutput<T>, R extends Operand<
   right: R,
 ) {
   const rightExpression = expressionOperand(right)
+  const leftMeta = resultValueOf(left)
 
   return makeSchemaExpression(
     "operator",
@@ -23,9 +24,9 @@ function arithmetic<T, TLeft extends ExpressionWithOutput<T>, R extends Operand<
       context.append(")")
     },
     resultValue(
-      undefined,
-      undefined,
-      resultValueOf(left)?.sqlType === "integer" ? "decimal" : resultValueOf(left)?.sqlType,
+      leftMeta?.type,
+      leftMeta?.decoder,
+      leftMeta?.sqlType === "integer" ? "decimal" : leftMeta?.sqlType,
     ),
   ) as ResultExpression<{
     readonly output: T
