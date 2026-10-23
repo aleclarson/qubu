@@ -35,6 +35,7 @@ test("permits only explicit attempt state transitions", () => {
 
 test("rejects mutation of immutable history and competing head updates", async () => {
   const journal = new InMemoryMigrationJournal()
+
   await journal.createAttempt(attempt("started"))
   const record = {
     artifactId: "one",
@@ -45,6 +46,7 @@ test("rejects mutation of immutable history and competing head updates", async (
     attemptId: "attempt-1",
     appliedAt: time,
   }
+
   await journal.appendApplied(record)
   await expect(journal.appendApplied(record)).rejects.toThrow("immutable")
   await expect(journal.compareAndSwapHead(null, fakeDigest("a"))).resolves.toBe(true)
@@ -72,7 +74,55 @@ test("detects corrupt history and abandoned attempts", () => {
     ],
     [attempt("running")],
   )
+
   expect(diagnostics.map((item) => item.code)).toEqual(
     expect.arrayContaining(["journal-corrupt", "journal-head-mismatch", "recovery-required"]),
   )
+})
+
+test.each(["applied", "rolled_back"] as const)(
+  "checks applied history against a matching attempt in state %s",
+  (state) => {
+    const diagnostics = validateJournalState(
+      {
+        format: migrationJournalFormat,
+        version: migrationJournalVersion,
+        head: fakeDigest("a"),
+      },
+      [
+        {
+          artifactId: "one",
+          sequence: 0,
+          artifactDigest: fakeDigest("a"),
+          parentArtifactDigest: null,
+          kind: "migration",
+          attemptId: "attempt-1",
+          appliedAt: time,
+        },
+      ],
+      [attempt(state)],
+    )
+
+    if (state === "applied") {
+      expect(diagnostics).toEqual([])
+    } else {
+      expect(diagnostics).toEqual(
+        expect.arrayContaining([expect.objectContaining({ code: "journal-corrupt" })]),
+      )
+    }
+  },
+)
+
+test("accepts a rolled-back attempt without applied history", () => {
+  expect(
+    validateJournalState(
+      {
+        format: migrationJournalFormat,
+        version: migrationJournalVersion,
+        head: null,
+      },
+      [],
+      [attempt("rolled_back")],
+    ),
+  ).toEqual([])
 })
