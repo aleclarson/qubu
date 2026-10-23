@@ -91,6 +91,19 @@ export function comparison<
   return makeSchemaExpression(
     "operator",
     (context) => {
+      if (
+        context.dialect.name === "mysql" &&
+        (operator === "IS DISTINCT FROM" || operator === "IS NOT DISTINCT FROM")
+      ) {
+        // MySQL has no IS [NOT] DISTINCT FROM; <=> is its null-safe equality.
+        context.append(operator === "IS DISTINCT FROM" ? "NOT (" : "(")
+        context.render(left)
+        context.append(" <=> ")
+        context.render(rightExpression)
+        context.append(")")
+        return
+      }
+
       context.append("(")
       context.render(left)
       context.append(` ${operator} `)
