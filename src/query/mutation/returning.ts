@@ -1,4 +1,5 @@
 import type { Fragment, RenderContext } from "../../core/fragment.ts"
+import { queryValidationError } from "../errors.ts"
 import type { ResultShape } from "../../result.ts"
 import { renderSelection, selectionRow } from "../select/render.ts"
 import {
@@ -43,6 +44,16 @@ export function returning<const TSelection extends Selection>(
     row: selectionRow(selection) as SelectionOutput<TSelection>,
     resultShape: selectionResultShape(selection),
     render(context: RenderContext) {
+      if (context.dialect.name === "mysql") {
+        throw queryValidationError({
+          code: "missing-dialect-capability",
+          context: "mutation.returning",
+          path: ["returning"],
+          message: "MySQL does not support a RETURNING clause on mutations",
+          hint: "None of MySQL 8.4's INSERT, UPDATE, or DELETE grammars includes RETURNING.",
+        })
+      }
+
       context.append("RETURNING ")
       renderSelection(selection, context)
     },
