@@ -196,6 +196,31 @@ export function validateMutationWithClauses(
       hint: "Pass every CTE to one withCte() clause.",
     })
   }
+
+  if (clauses.filter((clause) => clause.clauseKind === "returning").length > 1) {
+    throw queryValidationError({
+      code: "duplicate-clause",
+      context: `mutation.${kind.toLowerCase()}.clauses`,
+      path: ["clauses", "returning"],
+      message: `${kind} accepts only one RETURNING clause`,
+      hint: "Use one returning() clause containing the complete projection.",
+    })
+  }
+
+  if (
+    clauses.filter(
+      (clause) =>
+        clause.clauseKind === "on-conflict" || clause.clauseKind === "on-duplicate-key-update",
+    ).length > 1
+  ) {
+    throw queryValidationError({
+      code: "duplicate-clause",
+      context: `mutation.${kind.toLowerCase()}.clauses`,
+      path: ["clauses"],
+      message: `${kind} accepts one conflict clause`,
+      hint: "Merge conflict handling into a single clause.",
+    })
+  }
 }
 
 export type MutationReturningClause = ReturningClause<any>
