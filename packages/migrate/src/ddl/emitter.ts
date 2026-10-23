@@ -2399,10 +2399,20 @@ function renderCreateRoutine(
   }
 
   const language = stringValue(value.language)
+  const security = stringValue(value.security)
 
   if (features.dialect === "postgresql") {
-    sql += ` LANGUAGE ${dialect.quoteIdentifier(language ?? "sql")} AS ${dollarQuote(body.sql)}`
+    sql += ` LANGUAGE ${dialect.quoteIdentifier(language ?? "sql")}`
+    if (security === "definer" || security === "invoker") {
+      sql += ` SECURITY ${security.toUpperCase()}`
+    }
+
+    sql += ` AS ${dollarQuote(body.sql)}`
   } else {
+    if (security === "definer" || security === "invoker") {
+      sql += ` SQL SECURITY ${security.toUpperCase()}`
+    }
+
     sql += ` ${body.sql}`
   }
 
