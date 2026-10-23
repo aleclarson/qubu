@@ -280,6 +280,16 @@ export function encodeRdsDataApiValue(value: unknown, sqlType?: SqlTypeName): Fi
     return { isNull: true }
   }
 
+  if (sqlType === "json") {
+    const serialized = JSON.stringify(value)
+
+    if (serialized === undefined) {
+      throw new TypeError("RDS Data API parameters must be JSON-serializable")
+    }
+
+    return { stringValue: serialized }
+  }
+
   if (typeof value === "boolean") {
     return { booleanValue: value }
   }
@@ -379,6 +389,10 @@ function rdsDataApiTypeHint(
 
   if (sqlType === "decimal" || sqlType === "bigint") {
     return "DECIMAL"
+  }
+
+  if (sqlType === "json") {
+    return "JSON"
   }
 
   if (typeof value === "bigint") {
