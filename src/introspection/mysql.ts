@@ -1085,13 +1085,13 @@ function column(
     : undefined
   const onUpdateMatch = extra.match(/on update\s+(.+)$/i)
   const defaultText = text(row.column_default)
-  const defaultValue = mysqlDefault(
-    defaultText,
-    text(row.data_type),
-    namespace,
-    table,
-    physicalName,
-  )
+  const defaultValue =
+    defaultText !== undefined && /DEFAULT_GENERATED/i.test(extra)
+      ? {
+          kind: "expression" as const,
+          expression: sql(defaultText, namespace, table, physicalName),
+        }
+      : mysqlDefault(defaultText, text(row.data_type), namespace, table, physicalName)
 
   return {
     kind: "column",
