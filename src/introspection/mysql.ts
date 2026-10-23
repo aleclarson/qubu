@@ -2127,6 +2127,12 @@ function literal(value: string, dataType?: string): CatalogScalar | undefined {
   const trimmed = value.trim()
   const normalizedType = dataType?.trim().toLowerCase()
 
+  // COLUMN_DEFAULT for text types is the literal value itself, not SQL text:
+  // "NULL" is varchar data and "'quoted'" keeps its quote characters.
+  if (isTextDataType(normalizedType)) {
+    return value
+  }
+
   if (trimmed.toUpperCase() === "NULL") {
     return null
   }
@@ -2149,14 +2155,6 @@ function literal(value: string, dataType?: string): CatalogScalar | undefined {
 
   if (/^'(?:''|[^'])*'$/.test(trimmed)) {
     return trimmed.slice(1, -1).replace(/''/g, "'")
-  }
-
-  if (trimmed === "" && isTextDataType(normalizedType)) {
-    return ""
-  }
-
-  if (isTextDataType(normalizedType)) {
-    return value
   }
 
   return undefined
