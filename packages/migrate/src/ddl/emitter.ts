@@ -2251,7 +2251,9 @@ function renderCreateSequence(
   }
 
   const name = requiredName(operation, value)
-  const parts = [`CREATE SEQUENCE ${qualifiedName(operation, name, dialect)}`]
+  const parts = [
+    `CREATE SEQUENCE ${qualifiedName(operation, name, dialect)}${value.storage === undefined ? "" : ` AS ${renderStorage(value.storage, dialect)}`}`,
+  ]
   const options: readonly [string, string][] = [
     ["start", "START WITH"],
     ["increment", "INCREMENT BY"],
