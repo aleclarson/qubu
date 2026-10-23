@@ -114,7 +114,7 @@ export async function executeMigrations(
   } finally {
     if (session && leased) {
       try {
-        await at(options, "release-lease", () => session!.releaseLease())
+        await settle(options, "release-lease", () => session!.releaseLease())
       } catch (error) {
         if (!failed) {
           failed = true
@@ -124,7 +124,7 @@ export async function executeMigrations(
     }
     if (session) {
       try {
-        await at(options, "close-session", () => session!.close())
+        await settle(options, "close-session", () => session!.close())
       } catch (error) {
         if (!failed) {
           failed = true
@@ -294,7 +294,7 @@ async function executeArtifact(
         }
       } finally {
         if (activeLock) {
-          await at(options, "release-ddl-lock", () => session.releaseDdlLock(activeLock!))
+          await settle(options, "release-ddl-lock", () => session.releaseDdlLock(activeLock!))
           activeLock = undefined
         }
       }
@@ -315,7 +315,7 @@ async function executeArtifact(
     let finalError = error
     if (activeTransaction) {
       try {
-        await at(options, "rollback-transaction", () => session.rollbackTransaction())
+        await settle(options, "rollback-transaction", () => session.rollbackTransaction())
         activeTransaction = false
         rolledBack = true
       } catch (rollbackError) {
@@ -334,7 +334,7 @@ async function executeArtifact(
         ? "recovery_required"
         : "rolled_back"
     try {
-      await at(options, "transition-attempt", () =>
+      await settle(options, "transition-attempt", () =>
         session.journal.transitionAttempt(attemptId, state, safeFailure(finalError, context)),
       )
     } catch {
@@ -565,6 +565,20 @@ async function at<T>(
   action: () => Promise<T>,
 ): Promise<T> {
   await boundary(options, name)
+  return action()
+}
+
+/**
+ * Runs a cleanup boundary without consulting the abort signal: cancellation
+ * stops new work, but rollbacks, lock releases, and session teardown must
+ * still run after an abort.
+ */
+async function settle<T>(
+  options: MigrationExecutionOptions,
+  name: MigrationAwaitBoundary,
+  action: () => Promise<T>,
+): Promise<T> {
+  await options.onBoundary?.(name)
   return action()
 }
 async function boundary(
