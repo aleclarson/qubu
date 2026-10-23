@@ -2347,7 +2347,7 @@ function renderCreateCollation(
       throw new TypeError("PostgreSQL collation is missing its locale")
     }
 
-    return `CREATE COLLATION ${qualifiedName(operation, name, dialect)} (LOCALE = ${schemaLiteral(dialect, locale)}${provider === undefined ? "" : `, PROVIDER = ${schemaLiteral(dialect, provider)}`})`
+    return `CREATE COLLATION ${qualifiedName(operation, name, dialect)} (LOCALE = ${schemaLiteral(dialect, locale)}${provider === undefined ? "" : `, PROVIDER = ${schemaLiteral(dialect, provider)}`}${typeof value.deterministic === "boolean" ? `, DETERMINISTIC = ${value.deterministic}` : ""})`
   }
 
   if (locale === undefined) {
