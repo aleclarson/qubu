@@ -1060,7 +1060,7 @@ function column(
   const extra = text(row.extra) ?? ""
   const generationExpression = text(row.generation_expression)
   const generated =
-    generationExpression !== undefined && (/GENERATED/i.test(extra) || generationExpression !== "")
+    generationExpression !== undefined && generationExpression !== ""
       ? {
           kind: "generated" as const,
           mode: /VIRTUAL/i.test(extra)
