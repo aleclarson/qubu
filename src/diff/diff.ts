@@ -1002,7 +1002,11 @@ function operationForMatch(
   const before = match.before.object
   const after = match.after.object
   // Physical column order is creation-time policy, never an existing-table change.
-  const changedProperties = propertyChangesBetween(before.value, after.value).filter(
+  const changedProperties = propertyChangesBetween(
+    before.value,
+    after.value,
+    containmentKeys(before.kind),
+  ).filter(
     (change) =>
       !(
         before.kind === "column" &&
@@ -1297,13 +1301,33 @@ function stripIdentity(value: SnapshotJsonValue, root = true): SnapshotJsonValue
   return result
 }
 
+const tableContainmentKeys: ReadonlySet<string> = new Set(["columns", "constraints", "indexes"])
+const viewContainmentKeys: ReadonlySet<string> = new Set(["columns"])
+const domainContainmentKeys: ReadonlySet<string> = new Set(["constraints"])
+const noContainmentKeys: ReadonlySet<string> = new Set()
+
+function containmentKeys(kind: SnapshotDiffObjectKind): ReadonlySet<string> {
+  switch (kind) {
+    case "table":
+      return tableContainmentKeys
+    case "view":
+    case "materialized-view":
+      return viewContainmentKeys
+    case "domain":
+      return domainContainmentKeys
+    default:
+      return noContainmentKeys
+  }
+}
+
 function propertyChangesBetween(
   before: Readonly<Record<string, SnapshotJsonValue>>,
   after: Readonly<Record<string, SnapshotJsonValue>>,
+  containment: ReadonlySet<string>,
 ): readonly SnapshotDiffPropertyChange[] {
   const changes: SnapshotDiffPropertyChange[] = []
 
-  compareValues(before, after, [], changes)
+  compareValues(before, after, [], changes, containment)
   return freeze(changes)
 }
 
@@ -1312,6 +1336,7 @@ function compareValues(
   after: SnapshotJsonValue | undefined,
   path: SnapshotDiffPath,
   changes: SnapshotDiffPropertyChange[],
+  containment: ReadonlySet<string>,
 ): void {
   const key = path[path.length - 1]
 
@@ -1319,7 +1344,7 @@ function compareValues(
     return
   }
 
-  if (path.length === 1 && (key === "columns" || key === "constraints" || key === "indexes")) {
+  if (path.length === 1 && containment.has(String(key))) {
     return
   }
 
@@ -1336,6 +1361,7 @@ function compareValues(
         after[childKey] as SnapshotJsonValue | undefined,
         [...path, childKey],
         changes,
+        containment,
       )
     }
 
@@ -1346,7 +1372,7 @@ function compareValues(
     const length = Math.max(before.length, after.length)
 
     for (let index = 0; index < length; index += 1) {
-      compareValues(before[index], after[index], [...path, index], changes)
+      compareValues(before[index], after[index], [...path, index], changes, containment)
     }
 
     return
