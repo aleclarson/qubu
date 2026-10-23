@@ -1815,6 +1815,15 @@ function renderAddConstraint(
     }
 
     body = `FOREIGN KEY (${terms}) REFERENCES ${qualifiedName(operation, targetName, dialect)} (${targetColumns.map((id) => dialect.quoteIdentifier(targetColumnNames.size === 0 ? id : requireColumnName(targetColumnNames, id))).join(", ")})`
+    const match = stringValue(value.match)
+
+    if (match !== undefined && match !== "simple") {
+      if (features.dialect !== "postgresql") {
+        throw new TypeError("Foreign-key match semantics require PostgreSQL")
+      }
+
+      body += ` MATCH ${match.toUpperCase()}`
+    }
     const onDelete = stringValue(value.onDelete)
     const onUpdate = stringValue(value.onUpdate)
 
