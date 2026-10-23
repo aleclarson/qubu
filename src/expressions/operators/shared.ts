@@ -13,10 +13,20 @@ import type {
   SqlTypeSatisfies,
 } from "../../core/sql-types.ts"
 import type { QueryTypeValidation } from "../../query/errors.ts"
-import type { AnyExpression, ExpressionWithOutput } from "../types.ts"
+import type {
+  AnyExpression,
+  ExpressionOutput,
+  ExpressionWithOutput,
+} from "../types.ts"
 import { asValue, isValueExpression, type ValueExpression } from "../value.ts"
 
 export type Operand<T> = T | ExpressionWithOutput<T>
+
+/** The application output of an operand: an expression's result or a raw literal's own type. */
+export type OperandOutput<T> = T extends AnyExpression ? ExpressionOutput<T> : T
+
+/** An unresolvable output domain keeps the operand open instead of collapsing to never. */
+export type OperandDomain<T> = [T] extends [never] ? unknown : T
 
 /** Plain values are contextually typed by the expression beside them. */
 export type OperandSqlType<T, TContext extends AnySqlType> =

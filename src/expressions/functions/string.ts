@@ -1,12 +1,12 @@
 import type { SqlText, SqlTextLike } from "../../core/sql-types.ts"
 import { attachResultValue, resultValue, resultValueOf } from "../../result.ts"
-import type { Operand } from "../operators/shared.ts"
+import type { Operand, OperandDomain, OperandOutput } from "../operators/shared.ts"
 import type {
   OperandSqlType,
   SqlCapabilityValidation,
   SqlEqualityValidation,
 } from "../operators/shared.ts"
-import type { ExpressionWithOutput } from "../types.ts"
+import type { AnyExpression, ExpressionOutput } from "../types.ts"
 import type { ExpressionSqlType } from "../types.ts"
 import { schemaCall } from "./call.ts"
 
@@ -65,16 +65,20 @@ export function upper<const TInput extends Operand<string>>(
 }
 
 export function coalesce<
-  T,
-  TFirst extends ExpressionWithOutput<T>,
-  const TRest extends readonly Operand<NoInfer<T>>[],
->(first: TFirst, ...rest: TRest & CoalesceValidation<TFirst, TRest>) {
+  TFirst extends AnyExpression,
+  const TRest extends readonly Operand<NoInfer<OperandDomain<ExpressionOutput<TFirst>>>>[],
+>(
+  first: TFirst,
+  ...rest: TRest & CoalesceValidation<TFirst, TRest>
+) {
   return attachResultValue(
-    schemaCall<T, "COALESCE", [TFirst, ...TRest], never, ExpressionSqlType<TFirst>>(
+    schemaCall<
+      Exclude<ExpressionOutput<TFirst>, null> | OperandOutput<TRest[number]>,
       "COALESCE",
-      first,
-      ...(rest as unknown as TRest),
-    ),
+      [TFirst, ...TRest],
+      never,
+      ExpressionSqlType<TFirst>
+    >("COALESCE", first, ...(rest as unknown as TRest)),
     resultValueOf(first),
   )
 }
