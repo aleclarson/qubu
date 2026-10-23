@@ -86,8 +86,11 @@ export async function readMigrationStatus(input: {
       diagnostics: journalDiagnostics,
     })
   } finally {
-    if (leased) await session.releaseLease()
-    await session.close()
+    try {
+      if (leased) await session.releaseLease()
+    } finally {
+      await session.close()
+    }
   }
 }
 
