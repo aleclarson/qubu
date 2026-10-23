@@ -34,7 +34,11 @@ export function caseWhen<
   const thenExpression = asValue(thenValue)
   const elseExpression = asValue(elseValue)
 
-  const domain = resultValueOf(thenExpression)?.sqlType ?? resultValueOf(elseExpression)?.sqlType
+  const thenMeta = resultValueOf(thenExpression)
+  const elseMeta = resultValueOf(elseExpression)
+  const domain = thenMeta?.sqlType ?? elseMeta?.sqlType
+  const type = thenMeta?.type ?? elseMeta?.type
+  const decoder = thenMeta?.decoder ?? elseMeta?.decoder
 
   return makeSchemaExpression(
     "operator",
@@ -47,7 +51,11 @@ export function caseWhen<
       context.render(elseExpression)
       context.append(" END")
     },
-    resultValue(undefined, undefined, domain === "integer" ? "decimal" : domain),
+    resultValue(
+      domain === "integer" ? "decimal" : type,
+      decoder,
+      domain === "integer" ? "decimal" : domain,
+    ),
   ) as ResultExpression<{
     readonly output: T
     readonly children: TCondition | TThen | TElse
