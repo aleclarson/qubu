@@ -170,6 +170,8 @@ async function executeArtifact(
   let mayHaveEffect = false
   let activeTransaction = false
   let rolledBack = false
+  let transactions = 0
+  let untransacted = 0
   let activeLock: Exclude<MigrationProgramPhase["lock"], "none"> | undefined
   let context = { artifactId: artifact.id, artifactDigest: artifact.artifactDigest, attemptId }
   try {
@@ -209,6 +211,8 @@ async function executeArtifact(
       if (useTransaction) {
         await at(options, "begin-transaction", () => session.beginTransaction())
         activeTransaction = true
+      } else {
+        untransacted++
       }
       try {
         for (const condition of phase.preconditions)
@@ -272,6 +276,7 @@ async function executeArtifact(
           try {
             await at(options, "commit-transaction", () => session.commitTransaction())
             activeTransaction = false
+            transactions++
           } catch (error) {
             if (session.classifyFailure(error, "commit-transaction") === "uncertain") {
               activeTransaction = false
@@ -302,7 +307,7 @@ async function executeArtifact(
       artifactId: artifact.id,
       artifactDigest: artifact.artifactDigest,
       attemptId,
-      atomicity: atomicity(artifact),
+      atomicity: executionAtomicity(transactions, untransacted),
     })
   } catch (error) {
     let finalError = error
@@ -541,10 +546,12 @@ function classifyExecutionFailure(
   )
 }
 
-function atomicity(artifact: ExecutableMigrationArtifact): "atomic" | "checkpointed" | "mixed" {
-  const requirements = new Set(artifact.program.phases.map((phase) => phase.transaction))
-  if (requirements.size > 1) return "mixed"
-  return requirements.has("required") ? "atomic" : "checkpointed"
+function executionAtomicity(
+  transactions: number,
+  untransacted: number,
+): "atomic" | "checkpointed" | "mixed" {
+  if (untransacted === 0) return transactions === 1 ? "atomic" : "checkpointed"
+  return transactions === 0 ? "checkpointed" : "mixed"
 }
 
 async function at<T>(
