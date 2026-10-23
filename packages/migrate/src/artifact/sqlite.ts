@@ -7,7 +7,7 @@ import {
 } from "qubu/snapshot"
 import { sqliteSchemaDialect } from "qubu/snapshot/sqlite"
 
-import { createMigrationPlan, type MigrationPlan } from "../plan/index.ts"
+import { createMigrationPlan, type MigrationPlan, type MigrationOperation } from "../plan/index.ts"
 import {
   compileMigrationProgram as compileGenericMigrationProgram,
   type CompileMigrationProgramOptions,
@@ -56,7 +56,11 @@ function prepareRebuilds(
           !added.has(parent.id) &&
           !removed.has(parent.id) &&
           ["column", "constraint"].includes(operation.kind) &&
-          !(operation.type === "add" && operation.kind === "column")
+          !(
+            operation.type === "add" &&
+            operation.kind === "column" &&
+            !columnAddNeedsRebuild(operation)
+          )
           ? [parent.id]
           : []
       }),
@@ -181,6 +185,30 @@ function prepareRebuilds(
     })
   }
   return { ok: true, groups }
+}
+
+/**
+ * SQLite rejects ADD COLUMN for stored generated columns and expression
+ * defaults on populated tables, so those additions must rebuild.
+ */
+function columnAddNeedsRebuild(operation: MigrationOperation): boolean {
+  const value = operation.origin?.after?.value
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false
+  const generated = value.generatedColumn
+  if (
+    generated !== null &&
+    typeof generated === "object" &&
+    !Array.isArray(generated) &&
+    generated.mode === "stored"
+  )
+    return true
+  const fallback = value.default
+  return (
+    fallback !== null &&
+    typeof fallback === "object" &&
+    !Array.isArray(fallback) &&
+    fallback.kind === "expression"
+  )
 }
 
 function createStatements(
