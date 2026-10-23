@@ -1001,15 +1001,21 @@ function buildDependencies(
       }
     }
 
-    if (operation.type !== "remove" && object !== undefined) {
+    if (object !== undefined) {
       for (const reference of referencedObjects(object.value)) {
         const referenceContext = byObject.get(targetKeyFromReference(reference, object.namespace))
 
         if (referenceContext !== undefined) {
-          addEdge(referenceContext.operation, operation, "reference-before-dependent")
+          if (operation.type === "remove") {
+            addEdge(operation, referenceContext.operation, "child-before-parent")
+          } else {
+            addEdge(referenceContext.operation, operation, "reference-before-dependent")
+          }
         }
       }
+    }
 
+    if (operation.type !== "remove" && object !== undefined) {
       const referencedKey = referencedKeyConstraint(object.value)
       if (referencedKey !== undefined) {
         for (const candidate of contexts) {
