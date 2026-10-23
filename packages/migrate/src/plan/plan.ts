@@ -1010,6 +1010,27 @@ function buildDependencies(
         }
       }
 
+      const referencedKey = referencedKeyConstraint(object.value)
+      if (referencedKey !== undefined) {
+        for (const candidate of contexts) {
+          if (candidate === context) continue
+          const candidateValue = candidate.operation.origin?.after?.value
+          if (candidateValue === undefined) continue
+          const parent = candidate.operation.origin?.after?.parent
+          if (
+            parent?.kind === "table" &&
+            parent.id === referencedKey.tableId &&
+            candidate.operation.status !== "skipped" &&
+            isKeyConstraintKind(candidateValue.kind) &&
+            referencedKey.columns.every((column) =>
+              constraintColumns(candidateValue).includes(column),
+            )
+          ) {
+            addEdge(candidate.operation, operation, "reference-before-dependent")
+          }
+        }
+      }
+
       if (operation.dialect.name === "postgresql") {
         for (const nativeType of postgresNativeTypes(object.value)) {
           const referenceContext = contexts.find((candidate) => {
@@ -1230,6 +1251,31 @@ function referencedObjects(value: Readonly<Record<string, SnapshotJsonValue>>): 
 
   visit(value, undefined)
   return result
+}
+
+function referencedKeyConstraint(
+  value: Readonly<Record<string, SnapshotJsonValue>>,
+): { readonly tableId: string; readonly columns: readonly string[] } | undefined {
+  if (value.kind !== "foreign-key") return undefined
+  const target = isJsonRecord(value.target) ? value.target : undefined
+  const table = target !== undefined && isJsonRecord(target.table) ? target.table : undefined
+  const columns =
+    target !== undefined && Array.isArray(target.columns)
+      ? target.columns.filter((column): column is string => typeof column === "string")
+      : []
+
+  return typeof table?.id === "string" && columns.length > 0
+    ? { tableId: table.id, columns }
+    : undefined
+}
+
+function isKeyConstraintKind(kind: unknown): boolean {
+  return kind === "primary-key" || kind === "unique" || kind === "unique-constraint"
+}
+
+function constraintColumns(value: SnapshotJsonValue): readonly string[] {
+  if (!isJsonRecord(value) || !Array.isArray(value.columns)) return []
+  return value.columns.filter((column): column is string => typeof column === "string")
 }
 
 function sourcePath(source: SnapshotDiffOperation): SnapshotDiffPath {
