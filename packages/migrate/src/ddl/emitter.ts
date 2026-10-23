@@ -2158,6 +2158,7 @@ function renderCreateView(
   value: JsonRecord,
   dialect: SchemaDialect,
   features: DdlFeatures,
+  orReplace = false,
 ): string | undefined {
   const name = requiredName(operation, value)
   const definition = expressionValue(value.definition)
@@ -2166,15 +2167,41 @@ function renderCreateView(
     throw new TypeError("View is missing its definition")
   }
 
-  if (operation.kind === "materialized-view" && features.dialect !== "postgresql") {
+  const materialized = operation.kind === "materialized-view"
+
+  if (materialized && features.dialect !== "postgresql") {
     throw new TypeError(`${features.dialect} does not support materialized views`)
   }
 
-  let sql = `CREATE ${operation.kind === "materialized-view" ? "MATERIALIZED " : ""}VIEW ${qualifiedName(operation, name, dialect)}`
+  if (orReplace && (materialized || features.dialect === "sqlite")) {
+    throw new TypeError(`${features.dialect} cannot replace a ${operation.kind} in place`)
+  }
+
+  let sql = `CREATE ${orReplace ? "OR REPLACE " : ""}${
+    features.dialect === "mysql" && value.securityInvoker === true
+      ? "SQL SECURITY INVOKER "
+      : ""
+  }${materialized ? "MATERIALIZED " : ""}VIEW ${qualifiedName(operation, name, dialect)}`
   const columns = arrayOfRecords(value.columns)
 
   if (columns.length > 0) {
     sql += ` (${columns.map((column) => dialect.quoteIdentifier(requiredValueName(column))).join(", ")})`
+  }
+
+  if (features.dialect === "postgresql" && !materialized) {
+    const options: string[] = []
+
+    if (value.securityBarrier === true) {
+      options.push("security_barrier = true")
+    }
+
+    if (value.securityInvoker === true) {
+      options.push("security_invoker = true")
+    }
+
+    if (options.length > 0) {
+      sql += ` WITH (${options.join(", ")})`
+    }
   }
 
   sql += ` AS ${definition.sql}`
@@ -2210,11 +2237,7 @@ function renderReplaceView(
     return `DROP MATERIALIZED VIEW ${qualifiedName(operation, name, dialect)};\n${renderCreateView(operation, value, dialect, features)}`
   }
 
-  if (features.dialect === "postgresql" || features.dialect === "mysql") {
-    return `CREATE OR REPLACE VIEW ${qualifiedName(operation, name, dialect)} AS ${definition.sql}`
-  }
-
-  throw new TypeError("SQLite cannot alter a view definition without an explicit rebuild")
+  return renderCreateView(operation, value, dialect, features, true)
 }
 
 function renderCreateSequence(
