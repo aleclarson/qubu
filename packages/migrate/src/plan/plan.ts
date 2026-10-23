@@ -785,7 +785,7 @@ function addCustomSql(
       dialect: normalized.dialect,
       safety: normalized.safety,
       lock: normalized.safety === "safe" ? "shared" : "exclusive",
-      transaction: "optional",
+      transaction: normalized.safety === "destructive" ? "required" : "optional",
       reversible: customSql.reversible,
       reversibility: customSql.reversible ? "reversible" : "irreversible",
       ...(customSql.reversible
