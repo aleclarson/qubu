@@ -1044,7 +1044,8 @@ function buildDependencies(
 
             return (
               candidate.operation.type === "add" &&
-              candidate.operation.kind === "enum" &&
+              (candidate.operation.kind === "enum" ||
+                candidate.operation.kind === "domain") &&
               reference !== undefined &&
               postgresTypeMatches(nativeType, reference.physicalName, reference.namespace)
             )
