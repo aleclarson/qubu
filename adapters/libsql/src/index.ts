@@ -78,6 +78,7 @@ export function libsqlAdapter(client: Client, options: LibsqlAdapterOptions = {}
       throwIfAborted(transactionOptions.signal)
       const transaction = await client.transaction(transactionMode)
       const adapter = transactionAdapter(transaction, encoder)
+      let closed = false
 
       try {
         throwIfAborted(transactionOptions.signal)
@@ -87,13 +88,35 @@ export function libsqlAdapter(client: Client, options: LibsqlAdapterOptions = {}
         await transaction.commit()
         return result
       } catch (error) {
-        if (!transaction.closed) {
-          await transaction.rollback()
+        const failures = [error]
+
+        try {
+          if (!transaction.closed) {
+            await transaction.rollback()
+          }
+        } catch (cleanup) {
+          failures.push(cleanup)
         }
 
-        throw error
+        try {
+          transaction.close()
+        } catch (cleanup) {
+          failures.push(cleanup)
+        } finally {
+          closed = true
+        }
+
+        if (failures.length === 1) {
+          throw error
+        }
+
+        throw Object.assign(new AggregateError(failures, "Transaction cleanup failed"), {
+          cause: error,
+        })
       } finally {
-        transaction.close()
+        if (!closed) {
+          transaction.close()
+        }
       }
     },
   }
