@@ -879,7 +879,10 @@ function findDecision(
   )?.code
 
   if (relevantCode !== undefined) {
-    return decisions.find((decision) => decision.code === mapDiffCode(relevantCode))
+    return decisions.find(
+      (decision) =>
+        decision.operationId === undefined && decision.code === mapDiffCode(relevantCode),
+    )
   }
 
   if (optionAllows(context.operation.safety, options)) {
