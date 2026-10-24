@@ -1,6 +1,9 @@
 import type { Mysql2Connection } from "./index.ts"
 
-export type MigrationConnection = Pick<Mysql2Connection, "execute">
+export type MigrationConnection = Pick<Mysql2Connection, "execute"> & {
+  /** Text-protocol statements; routines cannot run through the prepared protocol. */
+  query: Mysql2Connection["execute"]
+}
 
 export async function initializeHistory(connection: MigrationConnection): Promise<void> {
   await connection.execute({

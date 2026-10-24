@@ -88,7 +88,7 @@ function fixture() {
 
     return [rows[sql] ?? [], []]
   })
-  const connection = { execute }
+  const connection = { execute, query: execute }
 
   async function scope(): Promise<SchemaSnapshot> {
     const { snapshot } = await readMigrationSnapshot(connection)

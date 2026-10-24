@@ -26,7 +26,7 @@ function fixture() {
   })
 
   return {
-    connection: { execute },
+    connection: { execute, query: execute },
     history,
     statements,
     failAt: (sql: string) => {
@@ -177,7 +177,7 @@ test("rejects malformed history instead of treating migrations as pending", asyn
     .mockResolvedValueOnce([[{ id: 1 }], []])
 
   await expect(
-    migrate({ execute }, [
+    migrate({ execute, query: execute }, [
       {
         id: "first",
         sql: ["SELECT 1"],

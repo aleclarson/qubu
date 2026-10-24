@@ -1,7 +1,11 @@
 import type { UnavailableMigrationAdapterProfile } from "@qubu/migrate/executor"
 
-import type { Mysql2Connection } from "./index.ts"
-import { initializeHistory, readCompletedIds, validateMigrationId } from "./migration-history.ts"
+import {
+  initializeHistory,
+  readCompletedIds,
+  validateMigrationId,
+  type MigrationConnection,
+} from "./migration-history.ts"
 
 export { readMigrationSnapshot } from "./migration-snapshot.ts"
 export { baselineAdapter } from "./migration-baseline.ts"
@@ -30,7 +34,7 @@ export interface Mysql2MigrationResult {
  * recovery.
  */
 export async function migrate(
-  connection: Pick<Mysql2Connection, "execute">,
+  connection: MigrationConnection,
   migrations: readonly Mysql2Migration[],
 ): Promise<Mysql2MigrationResult> {
   const ids = new Set<string>()
@@ -68,7 +72,9 @@ export async function migrate(
     ).join("")
 
     for (const sql of migration.sql) {
-      await connection.execute({
+      // Migration statements run through the text protocol: routines and other
+      // server-side DDL are not supported by the prepared-statement protocol.
+      await connection.query({
         sql,
         values: [],
         rowsAsArray: false,
