@@ -337,11 +337,30 @@ export function insertInto<
       const columns = [...explicitColumns, ...runtimeDefaultColumns]
 
       if (columns.length === 0) {
-        context.append(
-          context.dialect.name === "mysql"
-            ? ` () VALUES ${rows.map(() => "()").join(", ")}`
-            : " DEFAULT VALUES",
-        )
+        if (context.dialect.name === "mysql") {
+          context.append(` () VALUES ${rows.map(() => "()").join(", ")}`)
+        } else if (context.dialect.name === "sqlite" && rows.length > 1) {
+          // SQLite only accepts DEFAULT VALUES as a whole single-row statement.
+          rows.forEach((_, rowIndex) => {
+            if (rowIndex > 0) {
+              context.append("; INSERT INTO ")
+              context.render(table.reference)
+            }
+
+            context.append(" DEFAULT VALUES")
+          })
+        } else if (rows.length > 1) {
+          const anchor = Object.keys(table.definitions)[0]
+
+          if (anchor === undefined) {
+            context.append(" DEFAULT VALUES")
+          } else {
+            renderTargetColumns(context, table, [anchor])
+            context.append(` VALUES ${rows.map(() => "(DEFAULT)").join(", ")}`)
+          }
+        } else {
+          context.append(" DEFAULT VALUES")
+        }
       } else {
         renderTargetColumns(context, table, columns)
         context.append(" VALUES ")
