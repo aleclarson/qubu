@@ -128,7 +128,7 @@ const postgresAdapter: DialectAdapter = {
     const start = indexDefinition.unique
       ? uniqueIndex(indexDefinition.physicalName)
       : index(indexDefinition.physicalName)
-    const method = stringExtension(data, "method")
+    const method = indexDefinition.method ?? stringExtension(data, "method")
     let builder = (method
       ? start.using(method, ...(terms as [drizzle.SQL, ...drizzle.SQL[]]))
       : start.on(...(terms as [drizzle.SQL, ...drizzle.SQL[]]))) as unknown as IndexBuilder
