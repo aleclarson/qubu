@@ -16,7 +16,8 @@ function appendPath(
   path: readonly (string | number)[],
   requiredType?: JsonScalarKind,
 ) {
-  const rendered = jsonPath(path)
+  const rendered =
+    context.dialect.name === "postgresql" ? `strict ${jsonPath(path)}` : jsonPath(path)
   context.append("'")
   // MySQL consumes SQL-string backslashes before interpreting the JSON path, so
   // JSON escapes must survive an extra escaping layer.
@@ -73,7 +74,7 @@ function renderPostgresTarget(
   context.render(document)
   context.append(" AS JSONB), ")
   appendPath(context, path)
-  context.append(")")
+  context.append(", '{}'::JSONB, TRUE)")
 }
 
 function postgresType(kind: JsonScalarKind) {

@@ -60,10 +60,10 @@ test("renders PostgreSQL JSON paths with type guards", () => {
   const rendered = render(query, postgresDialect())
 
   expect(rendered.text).toContain(
-    `jsonb_typeof(jsonb_path_query_first(CAST("events"."payload" AS JSONB), '$."user"."name"')) WHEN 'string'`,
+    `jsonb_typeof(jsonb_path_query_first(CAST("events"."payload" AS JSONB), 'strict $."user"."name"', '{}'::JSONB, TRUE)) WHEN 'string'`,
   )
   expect(rendered.text).toContain(
-    `jsonb_path_exists(CAST("events"."payload" AS JSONB), '$."user"."email"', '{}'::JSONB, TRUE)`,
+    `jsonb_path_exists(CAST("events"."payload" AS JSONB), 'strict $."user"."email"', '{}'::JSONB, TRUE)`,
   )
   expect(rendered.parameters).toEqual([])
 })
