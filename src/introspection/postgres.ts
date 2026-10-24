@@ -629,17 +629,17 @@ export const postgresIndexesQuery = `
          c.relname AS physical_name, i.indisunique, i.indnkeyatts::int,
          i.indnatts::int, am.amname AS method,
          pg_get_expr(i.indpred, i.indrelid, true) AS predicate,
-         s.position::int,
+         s.position::int + 1 AS position,
          (i.indkey[s.position])::int AS attnum,
          (i.indoption[s.position])::int AS indoption,
          opc.opcname AS operator_class,
-         pg_get_indexdef(i.indexrelid, s.position, true) AS term_definition
+         pg_get_indexdef(i.indexrelid, s.position::int + 1, true) AS term_definition
   FROM pg_index i
   JOIN pg_class c ON c.oid = i.indexrelid
   JOIN pg_class t ON t.oid = i.indrelid
   JOIN pg_namespace n ON n.oid = t.relnamespace
   JOIN pg_am am ON am.oid = c.relam
-  CROSS JOIN LATERAL generate_series(1, i.indnatts) AS s(position)
+  CROSS JOIN LATERAL generate_series(0, i.indnatts - 1) AS s(position)
   LEFT JOIN pg_opclass opc ON opc.oid = i.indclass[s.position]
   WHERE n.nspname = $1
   ORDER BY i.indrelid, i.indexrelid, s.position
