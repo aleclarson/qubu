@@ -382,11 +382,17 @@ function createIndex(
 
 function createIndexTerm(term: snapshot.SnapshotIndexTerm, columns: ColumnRecord): IndexTerm {
   const expression = createIndexTermExpression(term, columns)
+  const prefixLength = term.kind === "column" ? term.prefixLength : undefined
+  const prefixed =
+    prefixLength === undefined
+      ? expression
+      : drizzle.sql`${expression}(${drizzle.sql.raw(String(valueFactNumber(prefixLength)))})`
+
   const suffix = [term.direction, term.nulls && `NULLS ${term.nulls}`]
     .filter((value): value is string => value !== undefined)
     .join(" ")
 
-  return suffix.length === 0 ? expression : drizzle.sql`${expression} ${drizzle.sql.raw(suffix)}`
+  return suffix.length === 0 ? prefixed : drizzle.sql`${prefixed} ${drizzle.sql.raw(suffix)}`
 }
 
 function createIndexTermExpression(
@@ -458,6 +464,17 @@ function assertRepresentableMetadata(
           throw unsupportedMetadata(
             `Drizzle ${dialect} indexes cannot represent NULLS ${term.nulls}`,
             [...path, "terms", termIndex, "nulls"],
+          )
+        }
+
+        if (
+          term.kind === "column" &&
+          term.prefixLength !== undefined &&
+          dialect !== "mysql"
+        ) {
+          throw unsupportedMetadata(
+            `Drizzle ${dialect} indexes cannot represent column prefix lengths`,
+            [...path, "terms", termIndex, "prefixLength"],
           )
         }
       }
