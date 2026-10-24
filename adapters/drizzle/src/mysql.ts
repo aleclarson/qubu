@@ -229,7 +229,7 @@ function createStorageBuilder(
       }
 
       case "binary": {
-        return customType({ dataType: () => declaration })(name)
+        return customType({ dataType: () => "VARBINARY" })(name)
       }
 
       default: {
