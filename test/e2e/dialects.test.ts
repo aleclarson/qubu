@@ -254,6 +254,16 @@ async function createDriver(dialect: LiveDialect): Promise<E2eDriver> {
     async execute(request: ExecutionRequest) {
       request.signal?.throwIfAborted()
       const statement = database.prepare(request.statement.text)
+
+      if (statement.sourceSQL.length < request.statement.text.trimEnd().length) {
+        database.exec(request.statement.text)
+
+        return {
+          rows: [],
+          affectedRows: 0,
+        }
+      }
+
       const bindParameters = request.statement.parameters as unknown as Array<
         string | number | bigint | Uint8Array | null
       >

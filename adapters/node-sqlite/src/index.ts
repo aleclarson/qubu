@@ -126,6 +126,27 @@ function executionAdapter(
     async execute<TRow extends object>(request: ExecutionRequest) {
       throwIfAborted(request.signal)
       const statement = database.prepare(request.statement.text)
+
+      if (
+        typeof statement.sourceSQL === "string" &&
+        statement.sourceSQL.length < request.statement.text.trimEnd().length &&
+        request.statement.parameters.length === 0
+      ) {
+        // node:sqlite prepares only the first statement; run the batch as a script.
+        const changesBefore = Number(
+          database.prepare("SELECT total_changes() AS changes").get()?.changes ?? 0,
+        )
+        database.exec(request.statement.text)
+        const changesAfter = Number(
+          database.prepare("SELECT total_changes() AS changes").get()?.changes ?? 0,
+        )
+
+        return {
+          rows: [],
+          affectedRows: changesAfter - changesBefore,
+        } satisfies ExecutionResult<TRow>
+      }
+
       statement.setReturnArrays(false)
       const parameters = encodeParameters(request, encoder)
       const bigintFields = new Set(
