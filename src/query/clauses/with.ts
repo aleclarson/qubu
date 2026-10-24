@@ -14,7 +14,9 @@ import {
   type SourceColumns,
 } from "../../schema/source.ts"
 import type { QueryTypeValidation } from "../errors.ts"
+import { select } from "../select.ts"
 import type { SelectQuery } from "../select/types.ts"
+import type { Selection } from "../selection.ts"
 import type { SetSqlValidation } from "../set.ts"
 import {
   createQuery,
@@ -209,6 +211,20 @@ export function recursiveCte<
   exposeColumns(source, columns)
 
   const memberQuery = member(source as RecursiveCteSelf<TName, TAnchor>)
+  const orderedMember = select(
+    Object.fromEntries(
+      [
+        ...Object.keys(anchor.row).filter(
+          (fieldName) => fieldName in memberQuery.selection,
+        ),
+        ...Object.keys(memberQuery.selection).filter(
+          (fieldName) => !(fieldName in anchor.row),
+        ),
+      ].map((fieldName) => [fieldName, memberQuery.selection[fieldName]]),
+    ) as Selection,
+    // Reordering is validated by RecursiveMemberValidation; bypass SelectPart generics.
+    ...(memberQuery.clauses as any),
+  )
   const query = Object.freeze({
     ...createQuery<TRow, "many", TMetadata, TSqlTypes>(
       "set",
@@ -217,7 +233,7 @@ export function recursiveCte<
       (context) => {
         context.render(anchor)
         context.append(" UNION ALL ")
-        context.render(memberQuery)
+        context.render(orderedMember)
       },
     ),
     recursive: true as const,

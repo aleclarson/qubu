@@ -188,6 +188,7 @@ export function select<
   return Object.freeze({
     ...query,
     clauses: Object.freeze(orderedClauses),
+    selection,
     cardinality: normalizedClauses.some(
       (clause) => clause.clauseKind === "fetch" && (clause as AnyPaginationClause).rows <= 1,
     )

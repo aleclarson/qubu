@@ -31,13 +31,15 @@ import type { AnySelectClause } from "../clauses/types.ts"
 import type { WithClause } from "../clauses/with.ts"
 import type { QueryTypeValidation } from "../errors.ts"
 import type { Omit, SelectPart } from "../omit.ts"
-import type { SelectionItems, SelectionRequires } from "../selection.ts"
+import type { Selection, SelectionItems, SelectionRequires } from "../selection.ts"
 import type { Query, QueryConfig } from "../types.ts"
 
 export interface SelectQuery<TConfig extends QueryConfig = {}> extends Query<TConfig> {
   readonly queryKind: "select"
   /** @internal Runtime clause list retained for mutation-source inspection. */
   readonly clauses: readonly AnySelectClause[]
+  /** @internal Runtime projection retained for reorder-sensitive consumers. */
+  readonly selection: Selection
 }
 
 type ExactlyOneSafeClause = DistinctClause | OrderByClause<any> | RowLockClause | WithClause
