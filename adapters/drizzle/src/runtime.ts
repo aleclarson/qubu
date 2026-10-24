@@ -16,8 +16,8 @@ export type ColumnBuilder = {
   onUpdateNow?(config?: { readonly fsp?: number }): ColumnBuilder
   primaryKey?(config?: { readonly autoIncrement?: boolean }): ColumnBuilder
   autoincrement?(): ColumnBuilder
-  generatedAlwaysAsIdentity?(): ColumnBuilder
-  generatedByDefaultAsIdentity?(): ColumnBuilder
+  generatedAlwaysAsIdentity?(options?: Record<string, unknown>): ColumnBuilder
+  generatedByDefaultAsIdentity?(options?: Record<string, unknown>): ColumnBuilder
 }
 
 export type ColumnRecord = Record<string, drizzle.Column>
@@ -245,6 +245,34 @@ function decodeSnapshotLiteral(value: snapshot.SnapshotLiteral): unknown {
       return BigInt(value.value)
     }
   }
+}
+
+export function valueFactNumber(
+  fact: snapshot.CompleteSnapshotValueFact,
+): number {
+  if (fact.kind !== "literal" || fact.value.kind !== "number") {
+    throw new DrizzleSchemaConversionError(
+      "unsupported-metadata",
+      "Drizzle cannot represent a non-literal numeric index or sequence option",
+      [],
+    )
+  }
+
+  return Number(fact.value.value)
+}
+
+export function valueFactBoolean(
+  fact: snapshot.CompleteSnapshotValueFact,
+): boolean {
+  if (fact.kind !== "literal" || fact.value.kind !== "boolean") {
+    throw new DrizzleSchemaConversionError(
+      "unsupported-metadata",
+      "Drizzle cannot represent a non-literal boolean sequence option",
+      [],
+    )
+  }
+
+  return fact.value.value === true
 }
 
 function createExtraConfig(

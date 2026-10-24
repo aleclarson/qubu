@@ -30,6 +30,8 @@ import {
   recordExtension,
   stringExtension,
   unsupportedMetadata,
+  valueFactBoolean,
+  valueFactNumber,
   type ColumnBuilder,
   type ColumnDefinition,
   type DialectAdapter,
@@ -86,7 +88,21 @@ const postgresAdapter: DialectAdapter = {
       )
     }
 
-    return method.call(builder)
+    const sequenceOptions: Record<string, unknown> = {}
+    for (const [key, fact] of Object.entries(column.identity?.options ?? {})) {
+      const name = sequenceOptionName(key)
+      if (name === undefined) {
+        continue
+      }
+
+      sequenceOptions[name] =
+        name === "cycle" ? valueFactBoolean(fact) : valueFactNumber(fact)
+    }
+
+    return method.call(
+      builder,
+      Object.keys(sequenceOptions).length === 0 ? undefined : sequenceOptions,
+    )
   },
   createPrimaryKey(name, columns) {
     return (primaryKey as (config: object) => unknown)({
@@ -215,4 +231,36 @@ function createStorageBuilder(
   })()
 
   return builder as unknown as ColumnBuilder
+}
+
+function sequenceOptionName(key: string): string | undefined {
+  switch (key) {
+    case "start": {
+      return "startWith"
+    }
+
+    case "increment": {
+      return "increment"
+    }
+
+    case "minimum": {
+      return "minValue"
+    }
+
+    case "maximum": {
+      return "maxValue"
+    }
+
+    case "cache": {
+      return "cache"
+    }
+
+    case "cycle": {
+      return "cycle"
+    }
+
+    default: {
+      return undefined
+    }
+  }
 }
