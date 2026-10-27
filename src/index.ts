@@ -109,6 +109,7 @@ export type {
   SqlTypeOf,
   SubqueryMeta,
   VisibleDependenciesOf,
+  WindowAggregateArgumentsOf,
   WindowMeta,
 } from "./core/fragment.ts"
 export type {

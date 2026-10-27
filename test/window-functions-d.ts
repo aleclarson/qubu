@@ -80,6 +80,6 @@ export type NullableWindowInheritedMetadata = Assert<
 export type UnconfiguredRankMetadata = Assert<
   Equal<
     MetadataOf<typeof unconfiguredRank>,
-    ResultMeta<number, never, SqlInteger> | ExpressionMeta<never> | WindowMeta
+    ResultMeta<number, never, SqlInteger> | ExpressionMeta<never> | WindowMeta<never>
   >
 >

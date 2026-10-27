@@ -1,4 +1,5 @@
 import {
+  type AggregateDependenciesOf,
   type DependenciesOf,
   type EmptyAggregateInput,
   type ExpressionMeta,
@@ -47,7 +48,9 @@ export type WindowedExpression<
     >
   | ExpressionMeta<DependenciesOf<TExpression | WindowSpecParts<TWindow>>>
   | InheritedMetadata<TExpression | WindowSpecParts<TWindow>>
-  | WindowMeta,
+  // Aggregates in PARTITION BY or ORDER BY are consumed by the enclosing
+  // grouped query; only the windowed call's own arguments evaluate per row.
+  | WindowMeta<AggregateDependenciesOf<TExpression>>,
   "function"
 >
 

@@ -60,7 +60,11 @@ export type AggregateMeta<TDependencies = unknown> = {
 }
 
 /** Marks an expression that contains a window function. */
-export type WindowMeta = { readonly kind: "window" }
+export type WindowMeta<TAggregateArguments = unknown> = {
+  readonly kind: "window"
+  /** Columns consumed by the windowed call's own aggregate arguments. */
+  readonly aggregateArguments: TAggregateArguments
+}
 
 /** Marks an expression that contains a scalar or predicate subquery. */
 export type SubqueryMeta = { readonly kind: "subquery" }
@@ -205,6 +209,13 @@ type AggregateDependencies<TMetadata> = TMetadata extends {
   ? TDependencies
   : never
 
+type WindowAggregateArguments<TMetadata> = TMetadata extends {
+  readonly kind: "window"
+  readonly aggregateArguments: infer TDependencies
+}
+  ? TDependencies
+  : never
+
 type GroupingKeys<TMetadata> = TMetadata extends {
   readonly kind: "grouping"
   readonly keys: infer TKeys
@@ -260,6 +271,8 @@ export type NullableSourcesOf<T> = NullableSource<MetadataOf<T>>
 export type DependenciesOf<T> = ExpressionDependencies<MetadataOf<T>>
 
 export type AggregateDependenciesOf<T> = AggregateDependencies<MetadataOf<T>>
+
+export type WindowAggregateArgumentsOf<T> = WindowAggregateArguments<MetadataOf<T>>
 
 /** Dependencies still visible after aggregate arguments have been consumed. */
 export type VisibleDependenciesOf<T> = Exclude<DependenciesOf<T>, AggregateDependenciesOf<T>>

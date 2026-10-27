@@ -1,5 +1,4 @@
 import type {
-  AggregateDependenciesOf,
   EmptyAggregateInput,
   Fragment,
   GroupingDependenciesOf,
@@ -10,6 +9,7 @@ import type {
   ProvidesOuterOf,
   RequiresOuterOf,
   RequiresOf,
+  WindowAggregateArgumentsOf,
 } from "../../core/fragment.ts"
 import type { VisibleDependenciesOf } from "../../core/fragment.ts"
 import type { ColumnDependency } from "../../expressions/column.ts"
@@ -366,13 +366,13 @@ type WindowGroupingFailures<TSelection, TClauses extends readonly AnySelectClaus
         ? never
         : [
               Exclude<
-                AggregateDependenciesOf<TExpression>,
+                WindowAggregateArgumentsOf<TExpression>,
                 | GroupingDependenciesOf<TClauses[number]>
                 | FunctionallyDeterminedDependencies<TClauses>
               >,
             ] extends [never]
           ? never
-          : AggregateDependenciesOf<TExpression>
+          : WindowAggregateArgumentsOf<TExpression>
       : never
     : never
 
