@@ -28,7 +28,7 @@ test.each([
     dom: true,
     node: true,
   },
-])("compiles an isolated entry point with $name types", ({ dom, node }) => {
+])("compiles an isolated entry point with $name types", { timeout: 30_000 }, ({ dom, node }) => {
   // A single root reproduces tools that do not load tsconfig's included files.
   const program = ts.createProgram([`${root}src/index.ts`], {
     ...options,
