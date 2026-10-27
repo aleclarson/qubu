@@ -140,7 +140,7 @@ function buildAdapter(
       select(
         projection as any,
         from(target),
-        filters?.length ? where(whereExpression(target, filters)) : omit,
+        filters?.length ? where(whereExpression(target, filters, dialect)) : omit,
         sortBy
           ? orderBy(
               sortBy.direction === "asc"
@@ -240,7 +240,7 @@ function buildAdapter(
         select(
           { count: count() },
           from(target),
-          filters?.length ? where(whereExpression(target, filters)) : omit,
+          filters?.length ? where(whereExpression(target, filters, dialect)) : omit,
         ) as any,
       )
 
@@ -267,7 +267,7 @@ function buildAdapter(
         (update as any)(
           target,
           mapAssignments(target, assignments),
-          filters.length ? where(whereExpression(target, filters)) : allowAll(),
+          filters.length ? where(whereExpression(target, filters, dialect)) : allowAll(),
         ) as any,
       )
 
@@ -292,7 +292,7 @@ function buildAdapter(
       const result = await client.execute(
         (deleteFrom as any)(
           target,
-          filters.length ? where(whereExpression(target, filters)) : allowAll(),
+          filters.length ? where(whereExpression(target, filters, dialect)) : allowAll(),
         ) as any,
       )
 
@@ -361,14 +361,14 @@ async function singleMutation(
     const candidate = select(
       { id },
       from(target),
-      where(whereExpression(target, filters)),
+      where(whereExpression(target, filters, dialect)),
       fetchFirst(1),
     )
     const rows = await client.rows(
       update(
         target,
         mapAssignments(target, assignments),
-        (where as any)(and(whereExpression(target, filters), inQuery(id, candidate))),
+        (where as any)(and(whereExpression(target, filters, dialect), inQuery(id, candidate))),
         returning(selection(authSchema, target)),
       ) as any,
     )
@@ -377,7 +377,7 @@ async function singleMutation(
   }
 
   const mutate = async (scoped: QubuClient) => {
-    const row = await lockedRow(scoped, authSchema, target, filters)
+    const row = await lockedRow(scoped, authSchema, target, filters, dialect)
 
     if (!row) {
       return null
@@ -418,7 +418,7 @@ async function consume(
     const candidate = select(
       { id },
       from(target),
-      where(whereExpression(target, filters)),
+      where(whereExpression(target, filters, dialect)),
       fetchFirst(1),
     )
     const rows = await client.rows(
@@ -433,7 +433,7 @@ async function consume(
   }
 
   const remove = async (scoped: QubuClient) => {
-    const row = await lockedRow(scoped, authSchema, target, filters)
+    const row = await lockedRow(scoped, authSchema, target, filters, dialect)
 
     if (!row) {
       return null
@@ -451,12 +451,13 @@ async function lockedRow(
   authSchema: BetterAuthQubuSchema,
   target: AnyTable,
   filters: CleanedWhere[],
+  dialect: BetterAuthDialect,
 ) {
   const rows = await client.rows(
     select(
       selection(authSchema, target),
       from(target),
-      where(whereExpression(target, filters)),
+      where(whereExpression(target, filters, dialect)),
       fetchFirst(1),
       rowLock(),
     ) as any,
@@ -534,18 +535,64 @@ function escapeLikePattern(value: string) {
   return value.replaceAll("!", "!!").replaceAll("%", "!%").replaceAll("_", "!_")
 }
 
+function escapeGlobPattern(value: string) {
+  return value.replaceAll("[", "[[]").replaceAll("*", "[*]").replaceAll("?", "[?]")
+}
+
 function escapedLike(left: any, pattern: string) {
   return sql`${left} LIKE ${pattern} ESCAPE '!'`.$type<boolean, SqlBoolean>()
 }
 
-function whereExpression(target: AnyTable, filters: CleanedWhere[]): any {
+function patternComparison(
+  left: any,
+  operator: "contains" | "starts_with" | "ends_with",
+  needle: string,
+  insensitive: boolean,
+  dialect: BetterAuthDialect,
+) {
+  // SQLite's LIKE is case-insensitive for ASCII; GLOB is always case-sensitive.
+  if (!insensitive && dialect === "sqlite") {
+    const escaped = escapeGlobPattern(needle)
+    const pattern =
+      operator === "starts_with"
+        ? `${escaped}*`
+        : operator === "ends_with"
+          ? `*${escaped}`
+          : `*${escaped}*`
+
+    return sql`${left} GLOB ${pattern}`.$type<boolean, SqlBoolean>()
+  }
+
+  const escaped = escapeLikePattern(needle)
+  const pattern =
+    operator === "starts_with"
+      ? `${escaped}%`
+      : operator === "ends_with"
+        ? `%${escaped}`
+        : `%${escaped}%`
+
+  return escapedLike(left, pattern)
+}
+
+function whereExpression(
+  target: AnyTable,
+  filters: CleanedWhere[],
+  dialect: BetterAuthDialect,
+): any {
   let expression: any
 
   for (const filter of filters) {
     const field = column(target, filter.field)
     const insensitive = filter.mode === "insensitive"
-    const left = insensitive ? lower(field) : field
     const raw = filter.value
+    // MySQL compares under the column's (usually case-insensitive) collation; a
+    // BINARY cast makes sensitive string comparisons byte-exact.
+    const binary =
+      !insensitive &&
+      dialect === "mysql" &&
+      (typeof raw === "string" ||
+        (Array.isArray(raw) && raw.every((item) => typeof item === "string")))
+    const left = insensitive ? lower(field) : binary ? sql`BINARY ${field}` : field
     const value = insensitive
       ? typeof raw === "string"
         ? raw.toLowerCase()
@@ -587,16 +634,10 @@ function whereExpression(target: AnyTable, filters: CleanedWhere[]): any {
           return notIn(left, value as any[])
         }
 
-        case "contains": {
-          return escapedLike(left, `%${escapeLikePattern(String(value))}%`)
-        }
-
-        case "starts_with": {
-          return escapedLike(left, `${escapeLikePattern(String(value))}%`)
-        }
-
+        case "contains":
+        case "starts_with":
         case "ends_with": {
-          return escapedLike(left, `%${escapeLikePattern(String(value))}`)
+          return patternComparison(left, filter.operator, String(value), insensitive, dialect)
         }
       }
     })()

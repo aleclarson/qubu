@@ -35,12 +35,6 @@ import { defineSchemaExpression, generatedSchemaObjectName } from "qubu/schema"
 const postgresUuidDefault = defineSchemaExpression("function", (context) => {
   context.append("pg_catalog.gen_random_uuid()")
 })
-const currentTimestampDefault = defineSchemaExpression("function", (context) => {
-  context.append("CURRENT_TIMESTAMP")
-})
-const mysqlCurrentTimestampDefault = defineSchemaExpression("function", (context) => {
-  context.append("CURRENT_TIMESTAMP(3)")
-})
 
 /*
  * Qubu emits full-column indexes and foreign keys, so MySQL TEXT is not viable
@@ -612,15 +606,13 @@ function fieldDefinition(
       ? {}
       : {
           default:
-            typeof defaultValue === "function"
-              ? attribute.type === "date" && dialect !== "sqlite"
-                ? dialect === "mysql"
-                  ? mysqlCurrentTimestampDefault
-                  : currentTimestampDefault
-                : externalDefault()
-              : defaultValue instanceof Date || typeof defaultValue === "object"
-                ? externalDefault()
-                : defaultValue,
+            // Application callbacks and non-literal defaults cannot be evaluated or
+            // replaced with the database clock; Better Auth owns executing them.
+            typeof defaultValue === "function" ||
+            defaultValue instanceof Date ||
+            typeof defaultValue === "object"
+              ? externalDefault()
+              : defaultValue,
         }),
   }
 
